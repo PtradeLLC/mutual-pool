@@ -1,0 +1,22 @@
+{
+  "short_name": "GigPool",
+  "name": "Gig Worker Mutual Pool & Perks PWA",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=192&auto=format&fit=crop&q=80",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=512&auto=format&fit=crop&q=80",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "display": "standalone",
+  "orientation": "portrait",
+  "description": "Pod-based mutual savings pools (ROSCA / susu / tanda) with Stripe Treasury & Connect integration, fixed rotation payouts, and gig worker perks marketplace."
+}

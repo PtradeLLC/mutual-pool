@@ -1,0 +1,6 @@
+{
+  "name": "Gig Mutual Pool & Perks PWA",
+  "description": "Pod-based mutual savings pools (ROSCA / susu / tanda) with Stripe Treasury & Connect integration, fixed rotation payouts, PWA offline readiness, and gig worker perks marketplace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
