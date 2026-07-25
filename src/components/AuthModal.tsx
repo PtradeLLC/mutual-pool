@@ -400,7 +400,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <span>Signing In...</span>
               ) : (
                 <>
-                  <span>Sign In to Driver Dashboard</span>
+                  <span>Sign In to Dashboard</span>
                   <LogIn className="w-4 h-4" />
                 </>
               )}

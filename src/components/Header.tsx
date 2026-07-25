@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
+import logo from '../assets/images/logo.png';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home
@@ -39,9 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#005FB8] flex items-center justify-center text-white font-bold text-base shadow-xs shrink-0">
-              P
-            </div>
+            <img src={logo} alt="GigPool Logo" className="w-9 h-9 rounded-lg shadow-xs shrink-0" />
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-bold tracking-tight text-[#111827]">

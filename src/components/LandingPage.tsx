@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pod, User } from '../types';
 import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
+import logo from '../assets/images/logo.png';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
@@ -32,21 +33,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#005FB8] flex items-center justify-center text-white font-bold text-lg shadow-xs shrink-0">
-              P
-            </div>
+            
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-bold tracking-tight text-[#111827]">
-                  GigPool <span className="text-[#005FB8] font-normal">| Rider Mutual v2</span>
+                  <img src={logo} alt="GigPool Logo" className="w-20 h-20 rounded-xl shadow-xs shrink-0" />
                 </span>
-                <span className="hidden sm:inline-block text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
+                {/* <span className="hidden sm:inline-block text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
                   Stripe Treasury
-                </span>
+                </span> */}
               </div>
-              <p className="text-xs text-[#6B7280]">
+              {/* <p className="text-xs text-[#6B7280]">
                 Mutual ROSCA Savings & Perks for Gig Fleet Drivers
-              </p>
+              </p> */}
             </div>
           </div>
 
@@ -123,15 +122,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-semibold">
                 <Sparkles className="w-4 h-4 text-[#005FB8]" />
-                <span>Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers</span>
+                <span>Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers & more</span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-extrabold text-[#111827] tracking-tight leading-tight">
-                The Mutual Savings & Emergency Safety Net for Gig Workers
+                Money pools, Perks & Benefits built for gig workers
               </h1>
 
               <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
-                Pool small weekly deposits with verified delivery drivers in interest-free savings circles. Lock in guaranteed lump-sum payouts for vehicle maintenance, taxes, or gear, while unlocking exclusive fleet discounts.
+                Pool weekly deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.
               </p>
 
               {/* Hero CTAs */}
@@ -140,7 +139,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => onOpenAuth('REGISTER')}
                   className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-xs flex items-center gap-2"
                 >
-                  <span>Join a Savings Pod Free</span>
+                  <span>Create or Join Pod Free</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
@@ -170,13 +169,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Gift className="w-4 h-4 text-[#005FB8]" />
                   <span className="text-xs font-bold text-[#111827] block">Fleet Discounts</span>
-                  <span className="text-[10px] text-[#6B7280]">15-20% off gas & repairs</span>
+                  <span className="text-[10px] text-[#6B7280]">15-20% off products & services</span>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Zap className="w-4 h-4 text-amber-600" />
                   <span className="text-xs font-bold text-[#111827] block">Emergency Swap</span>
-                  <span className="text-[10px] text-[#6B7280]">Driver community voting</span>
+                  <span className="text-[10px] text-[#6B7280]">Worker community voting</span>
                 </div>
               </div>
 
@@ -196,7 +195,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Calculate Your Mutual Pool Payout
             </h2>
             <p className="text-xs sm:text-sm text-[#6B7280] mt-1">
-              See how a small weekly commitment turns into predictable, lump-sum funding for your vehicle repairs or tax reserves.
+              See how a small weekly commitment turns into lump-sum emergency fund for impromptu financial hardships.
             </p>
           </div>
 
@@ -208,7 +207,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Member Tier Selector */}
               <div>
                 <div className="flex justify-between text-xs font-bold text-[#111827] mb-2">
-                  <span>Pod Capacity (Fleet Drivers):</span>
+                  <span>Pod Capacity (Gig Workers):</span>
                   <span className="text-[#005FB8] font-mono">{calcMembers} Drivers</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
@@ -254,7 +253,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <p className="text-[11px] text-[#6B7280]">
-                * ROSCA savings circles operate at 0% interest and 0% administrative fees. You contribute ${calcDeposit}/wk for {calcMembers} weeks (${(calcMembers * calcDeposit).toLocaleString()}) and receive 1 full pool payout of ${(calcMembers * calcDeposit).toLocaleString()}.
+                * ROSCA savings circles operate at 0% interest. You contribute ${calcDeposit}/wk for {calcMembers} weeks (${(calcMembers * calcDeposit).toLocaleString()}) and receive 1 full pool payout of ${(calcMembers * calcDeposit).toLocaleString()}.
               </p>
             </div>
 
