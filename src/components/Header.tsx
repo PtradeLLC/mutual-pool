@@ -36,28 +36,42 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
           
           {/* Brand Logo & Name */}
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="GigPool Logo" className="w-9 h-9 rounded-lg shadow-xs shrink-0" />
+          <div className="flex items-center gap-3 shrink-0">
+           
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold tracking-tight text-[#111827]">
+                 <img src={logo} alt="GigPool Logo" className="w-20 h-20 rounded-lg shadow-xs shrink-0" />
+                {/* <h1 className="text-base font-bold tracking-tight text-[#111827]">
                   Pod & Perks <span className="text-[#6B7280] font-normal">| Rider Mutual v2</span>
                 </h1>
                 <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
                   Stripe Treasury
-                </span>
+                </span> */}
               </div>
-              <p className="text-xs text-[#6B7280] hidden sm:block">
+              {/* <p className="text-xs text-[#6B7280] hidden sm:block">
                 Mutual ROSCA Savings & Perks for Delivery & Driver Fleets
-              </p>
+              </p> */}
             </div>
           </div>
 
+          {/* Header Links */}
+          <div className="hidden md:flex items-center gap-8 flex-1 justify-center">
+            <a href="#rules" className="text-xs font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
+              Rules
+            </a>
+            <a href="#perks-benefits" className="text-xs font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
+              Perks & Benefits
+            </a>
+            <a href="#contact" className="text-xs font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
+              Contact Us
+            </a>
+          </div>
+
           {/* User Status Bar & Switcher */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
 
             {/* PWA Install Button */}
             {canInstallPWA && onInstallPWA && (

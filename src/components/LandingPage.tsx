@@ -5,7 +5,7 @@ import logo from '../assets/images/logo.png';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
-  AlertCircle, DollarSign, Clock, RefreshCw, Zap
+  AlertCircle, DollarSign, Clock, RefreshCw, Zap, Menu, X
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -21,6 +21,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   // Simulator state
   const [calcMembers, setCalcMembers] = useState<number>(20);
   const [calcDeposit, setCalcDeposit] = useState<number>(20);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const totalPoolPayout = calcMembers * calcDeposit;
 
@@ -33,27 +34,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           
           {/* Logo */}
           <div className="flex items-center gap-3">
-            
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-bold tracking-tight text-[#111827]">
                   <img src={logo} alt="GigPool Logo" className="w-20 h-20 rounded-xl shadow-xs shrink-0" />
                 </span>
-                {/* <span className="hidden sm:inline-block text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
-                  Stripe Treasury
-                </span> */}
               </div>
-              {/* <p className="text-xs text-[#6B7280]">
-                Mutual ROSCA Savings & Perks for Gig Fleet Drivers
-              </p> */}
             </div>
+          </div>
+
+          {/* Navigation Links - Desktop */}
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#rules" className="text-sm font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
+              Rules
+            </a>
+            <a href="#perks-benefits" className="text-sm font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
+              Perks & Benefits
+            </a>
+            <a href="#contact" className="text-sm font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
+              Contact Us
+            </a>
           </div>
 
           {/* Quick Nav Links & Auth CTAs */}
           <div className="flex items-center gap-3">
+            {/* Hamburger Menu - Mobile */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-5 h-5 text-[#111827]" />
+              ) : (
+                <Menu className="w-5 h-5 text-[#111827]" />
+              )}
+            </button>
+
             <button
               onClick={() => onOpenAuth('LOGIN')}
-              className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs"
+              className="hidden md:block px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs"
             >
               Sign In
             </button>
@@ -67,6 +86,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-[#DDE1E6] px-4 py-4 bg-white">
+            <div className="flex flex-col gap-4">
+              <a 
+                href="#rules" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-sm font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors"
+              >
+                Rules
+              </a>
+              <a 
+                href="#perks-benefits"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-sm font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors"
+              >
+                Perks & Benefits
+              </a>
+              <a 
+                href="#contact"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-sm font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors"
+              >
+                Contact Us
+              </a>
+              <button
+                onClick={() => {
+                  onOpenAuth('LOGIN');
+                  setMobileMenuOpen(false);
+                }}
+                className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs w-full"
+              >
+                Sign In
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* 2. HERO SECTION */}
@@ -253,7 +310,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <p className="text-[11px] text-[#6B7280]">
-                * ROSCA savings circles operate at 0% interest. You contribute ${calcDeposit}/wk for {calcMembers} weeks (${(calcMembers * calcDeposit).toLocaleString()}) and receive 1 full pool payout of ${(calcMembers * calcDeposit).toLocaleString()}.
+                * ROSCA savings circles operate at 0% interest. You contribute ${calcDeposit}/wk for {calcMembers} weeks (${(calcMembers * calcDeposit).toLocaleString()}) and receive 1 full pool payout of ${(calcMembers * calcDeposit).toLocaleString()} at time you need it the most.
               </p>
             </div>
 
@@ -307,10 +364,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
           <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider">Transparent Architecture</span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111827]">
-            How Rider Mutual Pods Work
+            How MutualPool Pods Work
           </h2>
           <p className="text-xs sm:text-sm text-[#6B7280]">
-            Digital Rotating Savings and Credit Associations (ROSCAs) engineered specifically for delivery driver fleets.
+            Digital Rotating Savings and Credit Associations (ROSCAs) engineered specifically for gig workers and delivery driver fleets.
           </p>
         </div>
 
@@ -322,7 +379,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h3 className="font-bold text-base text-[#111827]">Forming Circle</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              Drivers join an open pod in their region or fleet category (DoorDash, Uber Eats, Instacart) matching their weekly deposit budget.
+              Create or Join an open pod in your region or fleet category (DoorDash, Uber Eats, Instacart).
             </p>
           </div>
 
@@ -332,7 +389,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h3 className="font-bold text-base text-[#111827]">Rotation Locking</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              When capacity is reached, a cryptographically random shuffle permanently locks rotation indices 0 through N-1.
+              When capacity is reached, a cryptographically random shuffle permanently locks rotation indices.
             </p>
           </div>
 
@@ -342,7 +399,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h3 className="font-bold text-base text-[#111827]">Stripe Treasury Payout</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              Weekly deposit cutoffs collect contributions into Stripe Treasury holding accounts and transfer the full lump-sum to the scheduled driver.
+              Each week everyone deposits what they can afford. The collected pool then goes into Stripe Treasury holding accounts and transfer the full lump-sum to whoever's next in the rotation.
             </p>
           </div>
 
@@ -424,7 +481,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section className="bg-white border-t border-[#DDE1E6] py-12 px-4 sm:px-6 mt-12 text-center">
         <div className="max-w-3xl mx-auto space-y-4">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111827]">
-            Ready to Build Your Driver Emergency Reserve?
+            Ready to Build Your Gig Emergency Reserve?
           </h2>
           <p className="text-xs sm:text-sm text-[#6B7280]">
             Join thousands of gig workers saving together with Stripe Treasury security and pass-through FDIC insurance.
@@ -441,7 +498,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onClick={() => onOpenAuth('DEMO')}
               className="px-6 py-3 rounded-lg bg-[#F8FAFC] hover:bg-gray-100 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs"
             >
-              Log In as Demo Driver
+              Log In as Gig Worker
             </button>
           </div>
         </div>
@@ -450,8 +507,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* FOOTER */}
       <footer className="bg-[#F8FAFC] border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280]">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>Gig Pool & Perks PWA v2 • Built on Stripe Treasury & Custom Connect Rails</span>
-          <span>Pass-Through FDIC Insured up to $250,000 per user</span>
+          <span>MutualPool Copyright © {new Date().getFullYear()}. Chris Bitoye Ventures. All rights reserved.</span>
+          <span>Pass-Through FDIC Insured up to $250,000 per pod</span>
         </div>
       </footer>
 

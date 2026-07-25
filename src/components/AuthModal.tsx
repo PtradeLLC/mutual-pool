@@ -124,8 +124,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             P
           </div>
           <div>
-            <h3 className="text-xl font-bold text-[#111827]">Rider Mutual Portal Sign In</h3>
-            <p className="text-xs text-[#6B7280]">Access your Stripe Treasury savings pods & fleet perks</p>
+            <h3 className="text-xl font-bold text-[#111827]">MutualPool Portal Sign In</h3>
+            <p className="text-xs text-[#6B7280]">Access your Stripe Treasury savings pods & perks</p>
           </div>
         </div>
 
@@ -140,7 +140,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
-            <span>Select Persona</span>
+            <span>Select Demo Persona</span>
           </button>
 
           <button
@@ -152,7 +152,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>New Driver</span>
+            <span>New Gig Worker</span>
           </button>
 
           <button
@@ -174,7 +174,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-[#005FB8] flex items-start gap-2">
               <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
-                <strong>Reviewer Quick Access:</strong> Choose any pre-configured test driver persona below to jump straight into active savings circles, rotation voting, and payout tracking.
+                <strong>Reviewer Quick Access:</strong> Choose any pre-configured test gig worker persona below to jump straight into demo.
               </span>
             </div>
 
