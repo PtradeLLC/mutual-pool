@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
+import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, 
-  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight
+  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -25,21 +26,73 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   onOpenAgreementModal,
   onOpenKYCGate,
 }) => {
-  const [activeTab, setActiveTab] = useState<'rotation' | 'deposits' | 'reprioritize' | 'audit'>('rotation');
+  const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit'>('rotation');
   const [depositing, setDepositing] = useState(false);
   const [processingPayout, setProcessingPayout] = useState(false);
   const [reasonInput, setReasonInput] = useState('');
   const [submittingReason, setSubmittingReason] = useState(false);
   const [swapTargetUserId, setSwapTargetUserId] = useState('');
   const [swapping, setSwapping] = useState(false);
+  const [convertingOpen, setConvertingOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const userMembership = pod.members.find(m => m.userId === currentUser.id);
   const isMember = !!userMembership;
+  const isCreator = pod.createdBy === currentUser.id;
   const isFull = pod.members.length >= pod.sizeTier;
   const currentRecipientIndex = pod.currentCycleWeek - 1;
   const currentRecipientMember = pod.members.find(m => m.rotationIndex === currentRecipientIndex);
+
+  // Handle adding contacts to Trusted Circle
+  const handleAddContacts = async (newContacts: { name: string; emailOrPhone: string }[]) => {
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/contacts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ contacts: newContacts }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to add contacts');
+
+      setActionSuccess(`Successfully invited ${data.addedContacts.length} contacts to your Trusted Circle!`);
+      onRefreshPod();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Adding contacts failed');
+    }
+  };
+
+  // Convert Trusted Circle to Open Pod
+  const handleConvertOpen = async () => {
+    setConvertingOpen(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/convert-open`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to convert pod');
+
+      setActionSuccess('Pod converted to Open Pod! Remaining spots are now open to all verified members.');
+      onRefreshPod();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Conversion failed');
+    } finally {
+      setConvertingOpen(false);
+    }
+  };
 
   // Lock Pod Action (if all agreements signed and pod is full or ready)
   const handleLockPod = async () => {
@@ -227,9 +280,21 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         <div className="mb-4 shrink-0">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
             <div>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#005FB8] block mb-0.5">
-                {pod.category} • Treasury Account {pod.holdingFinAccountId}
-              </span>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#005FB8] block">
+                  {pod.category} • Treasury Account {pod.holdingFinAccountId}
+                </span>
+
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                  pod.podType === 'TRUSTED_CIRCLE' 
+                    ? 'bg-blue-50 text-[#005FB8] border-blue-200' 
+                    : 'bg-gray-100 text-gray-700 border-gray-200'
+                }`}>
+                  {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
+                  <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
+                </span>
+              </div>
+
               <h2 className="text-xl sm:text-2xl font-bold text-[#111827]">
                 {pod.name}
               </h2>
@@ -256,9 +321,37 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             </div>
           </div>
 
-          <p className="text-xs text-[#6B7280] leading-relaxed max-w-3xl">
+          <p className="text-xs text-[#6B7280] leading-relaxed max-w-3xl mb-2">
             {pod.description}
           </p>
+
+          {/* Trusted Circle Creator Banner & Conversion Controls */}
+          {pod.podType === 'TRUSTED_CIRCLE' && (
+            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-[#005FB8] shrink-0" />
+                <div>
+                  <span className="font-bold block text-[#111827]">
+                    Trusted Circle Pod • Private Invite Code: <code className="font-mono text-[#005FB8] bg-white px-1.5 py-0.5 rounded border border-blue-300">{pod.inviteCode || 'BAY2026'}</code>
+                  </span>
+                  <span className="text-[11px] text-[#4B5563]">
+                    Invite Window: {pod.inviteWindowDays || 7} Days • {pod.invitedContacts?.length || 0} Contacts Invited • {pod.autoOpenOnExpire ? 'Auto-opens to Open Pod members after window expires' : 'Stays invite-only'}
+                  </span>
+                </div>
+              </div>
+
+              {isCreator && (
+                <button
+                  onClick={handleConvertOpen}
+                  disabled={convertingOpen}
+                  className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-blue-300 font-bold text-[11px] shrink-0 transition-colors shadow-2xs flex items-center gap-1"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>{convertingOpen ? 'Converting...' : 'Open Remaining Spots to Public'}</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* FDIC Disclosure Banner */}
@@ -312,7 +405,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         )}
 
         {/* Sub-Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-[#DDE1E6] pb-2 mb-4 shrink-0">
+        <div className="flex items-center gap-2 border-b border-[#DDE1E6] pb-2 mb-4 shrink-0 flex-wrap">
           <button
             onClick={() => setActiveTab('rotation')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
@@ -322,8 +415,22 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Fixed Rotation List ({pod.members.length})</span>
+            <span>Fixed Rotation ({pod.members.length}/{pod.sizeTier})</span>
           </button>
+
+          {pod.podType === 'TRUSTED_CIRCLE' && (
+            <button
+              onClick={() => setActiveTab('circle')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
+                activeTab === 'circle'
+                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-100'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Trusted Circle Invites ({pod.invitedContacts?.length || 0})</span>
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab('deposits')}
@@ -445,7 +552,18 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           </div>
         )}
 
-        {/* TAB 2: DEPOSIT & PAYOUT LEDGER */}
+        {/* TAB 1b: TRUSTED CIRCLE MANAGEMENT */}
+        {activeTab === 'circle' && (
+          <div className="overflow-y-auto space-y-4 flex-1 pr-1">
+            <TrustedCircleInviter
+              invitedContacts={pod.invitedContacts || []}
+              inviteCode={pod.inviteCode || 'BAY2026'}
+              podName={pod.name}
+              onAddContacts={handleAddContacts}
+              currentUser={currentUser}
+            />
+          </div>
+        )}
         {activeTab === 'deposits' && (
           <div className="overflow-y-auto space-y-4 flex-1 pr-1 text-xs">
             <div className="bg-[#F8FAFC] p-4 rounded-lg border border-[#E2E8F0] space-y-3">

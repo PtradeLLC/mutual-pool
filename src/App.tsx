@@ -14,6 +14,15 @@ import { PerksMarketplace } from './components/PerksMarketplace';
 import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { AboutUsModal, HowItWorksModal, ContactUsModal } from './components/InfoModals';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './lib/firebase';
+import { 
+  seedInitialFirestoreData, 
+  subscribeToPods, 
+  getUserFromFirestore, 
+  saveUserToFirestore 
+} from './lib/firestoreService';
 
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
@@ -29,7 +38,10 @@ export default function App() {
 
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'DEMO'>('DEMO');
+  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE'>('DEMO');
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
   const [showKYCGateModal, setShowKYCGateModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
@@ -72,10 +84,70 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Initial fetch from backend API
     fetchAppData();
+
+    // 1. Seed initial Firestore collections if empty
+    seedInitialFirestoreData();
+
+    // 2. Subscribe to real-time Pods in Firestore
+    const unsubscribePods = subscribeToPods((firestorePods) => {
+      if (firestorePods && firestorePods.length > 0) {
+        setAllPods(firestorePods);
+      }
+    });
+
+    // 3. Firebase Auth state listener
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        const dbUser = await getUserFromFirestore(fbUser.uid);
+        if (dbUser) {
+          setCurrentUser(dbUser);
+          setViewMode('DASHBOARD');
+        } else {
+          const newUser: User = {
+            id: fbUser.uid,
+            email: fbUser.email || `${fbUser.uid.substring(0, 8)}@mutualpool.org`,
+            displayName: fbUser.displayName || fbUser.phoneNumber || 'MutualPool Member',
+            avatarUrl: fbUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+            platform: 'DoorDash',
+            role: 'RIDER',
+            accountAgeDays: 30,
+            kycStatus: 'VERIFIED',
+            kycVerifiedAt: new Date().toISOString(),
+            treasury: {
+              stripeAccountId: `acct_fb_${fbUser.uid.substring(0, 10)}`,
+              stripeFinAccountId: `fa_fb_${fbUser.uid.substring(0, 10)}`,
+              balanceUsd: 100.00,
+              pendingInboundUsd: 0.00,
+              totalPayoutsReceivedUsd: 0.00,
+              fdicPassThroughEligible: true,
+              status: 'ACTIVE',
+            },
+            externalBank: {
+              bankName: 'Linked Bank Account',
+              last4: '8812',
+              routingNumber: '121000358',
+              accountType: 'CHECKING',
+              status: 'LINKED',
+              linkedAt: new Date().toISOString(),
+            },
+            completedPodsCount: 0,
+          };
+          await saveUserToFirestore(newUser);
+          setCurrentUser(newUser);
+          setViewMode('DASHBOARD');
+        }
+      }
+    });
+
+    return () => {
+      unsubscribePods();
+      unsubscribeAuth();
+    };
   }, []);
 
-  const handleOpenAuth = (mode: 'LOGIN' | 'REGISTER' | 'DEMO' = 'DEMO') => {
+  const handleOpenAuth = (mode: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE' = 'DEMO') => {
     setAuthInitialMode(mode);
     setShowAuthModal(true);
   };
@@ -91,7 +163,11 @@ export default function App() {
     setViewMode('DASHBOARD');
   };
 
-  const handleJoinPod = async (pod: Pod) => {
+  const [inviteCodeTargetPod, setInviteCodeTargetPod] = useState<Pod | null>(null);
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
+  const [inviteCodeError, setInviteCodeError] = useState<string | null>(null);
+
+  const handleJoinPod = async (pod: Pod, inviteCode?: string) => {
     if (!currentUser) {
       handleOpenAuth('LOGIN');
       return;
@@ -101,6 +177,19 @@ export default function App() {
       return;
     }
 
+    // Check if Trusted Circle and user is not already invited
+    if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== currentUser.id && !inviteCode) {
+      const isInvited = pod.invitedContacts?.some(
+        ic => ic.emailOrPhone.toLowerCase() === currentUser.email.toLowerCase() || ic.memberUserId === currentUser.id
+      );
+      if (!isInvited) {
+        setInviteCodeTargetPod(pod);
+        setInviteCodeInput('');
+        setInviteCodeError(null);
+        return;
+      }
+    }
+
     try {
       const res = await fetch(`/api/pods/${pod.id}/join`, {
         method: 'POST',
@@ -108,11 +197,22 @@ export default function App() {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
+        body: JSON.stringify({ inviteCode }),
       });
 
-      if (res.ok) {
-        fetchAppData();
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === 'INVITE_REQUIRED') {
+          setInviteCodeTargetPod(pod);
+          setInviteCodeError(data.message || 'Invite code required for this Trusted Circle pod.');
+          return;
+        }
+        alert(data.message || data.error || 'Failed to join pod');
+        return;
       }
+
+      setInviteCodeTargetPod(null);
+      fetchAppData();
     } catch (err) {
       console.error('Failed to join pod:', err);
     }
@@ -126,6 +226,9 @@ export default function App() {
           allPods={allPods}
           onOpenAuth={handleOpenAuth}
           onSelectUser={handleAuthSuccess}
+          onOpenAbout={() => setShowAboutModal(true)}
+          onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+          onOpenContact={() => setShowContactModal(true)}
         />
 
         <AuthModal
@@ -135,6 +238,21 @@ export default function App() {
           onSelectUser={handleAuthSuccess}
           onRegistered={handleAuthSuccess}
           initialMode={authInitialMode}
+        />
+
+        <AboutUsModal
+          isOpen={showAboutModal}
+          onClose={() => setShowAboutModal(false)}
+        />
+
+        <HowItWorksModal
+          isOpen={showHowItWorksModal}
+          onClose={() => setShowHowItWorksModal(false)}
+        />
+
+        <ContactUsModal
+          isOpen={showContactModal}
+          onClose={() => setShowContactModal(false)}
         />
       </>
     );
@@ -168,6 +286,9 @@ export default function App() {
         onOpenKYCGate={() => setShowKYCGateModal(true)}
         onOpenBankModal={() => setShowBankModal(true)}
         onExitToLanding={() => setViewMode('LANDING')}
+        onOpenAbout={() => setShowAboutModal(true)}
+        onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+        onOpenContact={() => setShowContactModal(true)}
       />
 
       {/* Main Content Area */}
@@ -373,8 +494,8 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280] mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <span>MutualPool Copyright © {new Date().getFullYear()}. Chris Bitoye Ventures. All rights reserved.</span>
-          <span>Pass-Through FDIC Insured up to $250,000 per pod</span>
+          <span>Gig Worker Mutual Savings Pool & Perks PWA v2 • Built on Stripe Treasury & Connect Custom Rails</span>
+          <span>Pass-Through FDIC Insured up to $250,000 per user</span>
         </div>
       </footer>
 
@@ -446,6 +567,86 @@ export default function App() {
             fetchAppData();
           }}
         />
+      )}
+
+      <AboutUsModal
+        isOpen={showAboutModal}
+        onClose={() => setShowAboutModal(false)}
+      />
+
+      <HowItWorksModal
+        isOpen={showHowItWorksModal}
+        onClose={() => setShowHowItWorksModal(false)}
+      />
+
+      <ContactUsModal
+        isOpen={showContactModal}
+        onClose={() => setShowContactModal(false)}
+      />
+
+      {inviteCodeTargetPod && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-md w-full p-6 shadow-2xl relative space-y-4 text-[#111827]">
+            <button
+              onClick={() => setInviteCodeTargetPod(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-2.5 text-[#005FB8]">
+              <Lock className="w-5 h-5" />
+              <h3 className="font-bold text-base">Private Trusted Circle Pod</h3>
+            </div>
+
+            <p className="text-xs text-[#6B7280]">
+              <strong>"{inviteCodeTargetPod.name}"</strong> is a restricted Trusted Circle pod. Enter the 6-character private invite code provided by the pod creator ({inviteCodeTargetPod.creatorName}) to join:
+            </p>
+
+            {inviteCodeError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{inviteCodeError}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (inviteCodeInput.trim()) {
+                  handleJoinPod(inviteCodeTargetPod, inviteCodeInput.trim().toUpperCase());
+                }
+              }}
+              className="space-y-3"
+            >
+              <input
+                type="text"
+                required
+                maxLength={8}
+                placeholder="Enter Invite Code (e.g. BAY2026)"
+                value={inviteCodeInput}
+                onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
+                className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-center font-mono font-bold text-base tracking-widest text-[#005FB8] uppercase focus:outline-none focus:border-[#005FB8]"
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setInviteCodeTargetPod(null)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
+                >
+                  Verify Code & Join Pod
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* PWA Floating Install Banner */}

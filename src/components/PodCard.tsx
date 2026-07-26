@@ -35,12 +35,23 @@ export const PodCard: React.FC<PodCardProps> = ({
         
         {/* Header Badges */}
         <div className="flex items-center justify-between gap-2 mb-3">
-          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusColors[pod.status]}`}>
-            {pod.status === 'FORMING' && 'Filling Pod Members'}
-            {pod.status === 'LOCKED' && 'Rotation Order Locked'}
-            {pod.status === 'ACTIVE' && `Cycle Week ${pod.currentCycleWeek}/${pod.totalCycles}`}
-            {pod.status === 'COMPLETED' && 'All Cycles Completed'}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusColors[pod.status]}`}>
+              {pod.status === 'FORMING' && 'Filling Pod Members'}
+              {pod.status === 'LOCKED' && 'Rotation Order Locked'}
+              {pod.status === 'ACTIVE' && `Cycle Week ${pod.currentCycleWeek}/${pod.totalCycles}`}
+              {pod.status === 'COMPLETED' && 'All Cycles Completed'}
+            </span>
+
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+              pod.podType === 'TRUSTED_CIRCLE' 
+                ? 'bg-blue-50 text-[#005FB8] border-blue-200' 
+                : 'bg-gray-100 text-gray-700 border-gray-200'
+            }`}>
+              {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
+              <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
+            </span>
+          </div>
 
           <div className="flex items-center gap-1.5">
             <span className="px-2 py-0.5 rounded bg-gray-100 text-[#4B5563] text-[10px] font-mono border border-gray-200">

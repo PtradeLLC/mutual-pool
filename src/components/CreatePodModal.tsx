@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User, PodSizeTier, DepositTier } from '../types';
-import { PlusCircle, Lock, ShieldCheck, AlertCircle, Sparkles, X, CheckCircle2 } from 'lucide-react';
+import { User, PodSizeTier, DepositTier, PodType, InvitedContact } from '../types';
+import { TrustedCircleInviter } from './TrustedCircleInviter';
+import { PlusCircle, Lock, ShieldCheck, AlertCircle, Sparkles, X, CheckCircle2, Users, Clock } from 'lucide-react';
 
 interface CreatePodModalProps {
   user: User;
@@ -12,18 +13,44 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Food Delivery & Rideshare');
+  const [podType, setPodType] = useState<PodType>('TRUSTED_CIRCLE');
+  const [inviteWindowDays, setInviteWindowDays] = useState<number>(7);
+  const [autoOpenOnExpire, setAutoOpenOnExpire] = useState<boolean>(true);
+  const [invitedContacts, setInvitedContacts] = useState<InvitedContact[]>([]);
   const [sizeTier, setSizeTier] = useState<PodSizeTier>(20);
   const [depositTier, setDepositTier] = useState<DepositTier>(20);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Default invite code generator preview
+  const [generatedInviteCode] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
+
   const isSeasoned = user.accountAgeDays >= 90 || user.completedPodsCount >= 1;
+  const canCreateOpenPod = user.completedPodsCount >= 1 || isSeasoned;
+
+  const handleAddContacts = (newItems: { name: string; emailOrPhone: string }[]) => {
+    const freshInvites: InvitedContact[] = newItems.map(item => ({
+      id: `ic_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      name: item.name || item.emailOrPhone,
+      emailOrPhone: item.emailOrPhone,
+      isExistingMember: item.emailOrPhone.includes('gigmutual.app'),
+      status: item.emailOrPhone.includes('gigmutual.app') ? 'PENDING_INVITE' : 'INVITED',
+      invitedAt: new Date().toISOString(),
+    }));
+
+    setInvitedContacts(prev => [...prev, ...freshInvites]);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (user.kycStatus !== 'VERIFIED') {
       setError('You must complete Stripe Identity KYC verification before creating a mutual savings pod.');
+      return;
+    }
+
+    if (podType === 'OPEN_POD' && !canCreateOpenPod) {
+      setError('Creating an Open Pod requires having completed at least 1 full Trusted Circle pod cycle with no missed payments.');
       return;
     }
 
@@ -41,6 +68,10 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           name,
           description,
           category,
+          podType,
+          inviteWindowDays,
+          autoOpenOnExpire,
+          invitedContacts,
           sizeTier,
           depositTier,
         }),
@@ -61,7 +92,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-xl w-full p-6 shadow-2xl relative my-8 text-[#111827]">
+      <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-2xl w-full p-6 shadow-2xl relative my-8 text-[#111827] max-h-[85vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
@@ -109,42 +140,163 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           </div>
         )}
 
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={handleCreate} className="space-y-5">
+          
+          {/* SECTION 1: POD TYPE SELECTION */}
           <div>
-            <label className="block text-xs font-semibold text-[#111827] mb-1">Pod Name</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
-              placeholder="e.g. SF East Bay DoorDash Drivers Circle"
-            />
+            <label className="block text-xs font-bold text-[#111827] mb-2">
+              Select Pod Type & Access Rules
+            </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              
+              {/* TRUSTED CIRCLE CARD */}
+              <div
+                onClick={() => setPodType('TRUSTED_CIRCLE')}
+                className={`p-4 rounded-xl border cursor-pointer transition-all space-y-2 relative ${
+                  podType === 'TRUSTED_CIRCLE'
+                    ? 'bg-blue-50/70 border-[#005FB8] ring-2 ring-blue-500/20'
+                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#005FB8] text-sm flex items-center gap-1.5">
+                    <Lock className="w-4 h-4" />
+                    <span>🔒 Trusted Circle</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#005FB8]">Default</span>
+                </div>
+                <p className="text-[#374151] text-[11px] leading-relaxed">
+                  Built from people you already know — contacts from your phone, email, or social invites. Only people you invite can join.
+                </p>
+                <div className="text-[10px] text-[#005FB8] font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Includes Contact Picker & Private Code</span>
+                </div>
+              </div>
+
+              {/* OPEN POD CARD */}
+              <div
+                onClick={() => canCreateOpenPod && setPodType('OPEN_POD')}
+                className={`p-4 rounded-xl border transition-all space-y-2 relative ${
+                  !canCreateOpenPod
+                    ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-75'
+                    : podType === 'OPEN_POD'
+                    ? 'bg-blue-50/70 border-[#005FB8] ring-2 ring-blue-500/20'
+                    : 'bg-white border-gray-200 hover:bg-gray-50 cursor-pointer'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#111827] text-sm flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-[#005FB8]" />
+                    <span>🌐 Open Pod</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-[#374151]">Auto-Match</span>
+                </div>
+                <p className="text-[#374151] text-[11px] leading-relaxed">
+                  Open to any verified member on the platform. Pod fills automatically based on availability.
+                </p>
+                {!canCreateOpenPod && (
+                  <span className="text-[10px] text-amber-700 font-medium block">
+                    ⚠️ Requires 1 completed Trusted Circle cycle first.
+                  </span>
+                )}
+              </div>
+
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[#111827] mb-1">Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
-            >
-              <option value="Food Delivery & Rideshare">Food Delivery & Rideshare</option>
-              <option value="Grocery & Cargo">Grocery & Cargo</option>
-              <option value="General Gig Workers">General Gig Workers</option>
-              <option value="High-Yield Reserve">High-Yield Reserve (Advanced)</option>
-            </select>
-          </div>
+          {/* SECTION 2: TRUSTED CIRCLE INVITE WINDOW & ACCESS CONFIG (IF TRUSTED_CIRCLE) */}
+          {podType === 'TRUSTED_CIRCLE' && (
+            <div className="p-4 bg-white border border-[#DDE1E6] rounded-xl space-y-3.5 text-xs">
+              <div className="flex items-center gap-2 text-sm font-bold text-[#111827]">
+                <Clock className="w-4 h-4 text-[#005FB8]" />
+                <span>Trusted Circle Invite Window & Expiration Action</span>
+              </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[#111827] mb-1">Description & Purpose</label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
-              placeholder="Describe purpose (e.g., tax reserves, vehicle maintenance, emergency gear)..."
-            />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#111827] mb-1">
+                    Set Invite Window Duration
+                  </label>
+                  <select
+                    value={inviteWindowDays}
+                    onChange={(e) => setInviteWindowDays(Number(e.target.value))}
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  >
+                    <option value={3}>3 Days Invite Window</option>
+                    <option value={7}>7 Days Invite Window (Default)</option>
+                    <option value={14}>14 Days Invite Window</option>
+                    <option value={30}>30 Days Invite Window</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#111827] mb-1">
+                    If Pod Isn't Full After Window Expires
+                  </label>
+                  <select
+                    value={autoOpenOnExpire ? 'AUTO_OPEN' : 'KEEP_WAITING'}
+                    onChange={(e) => setAutoOpenOnExpire(e.target.value === 'AUTO_OPEN')}
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  >
+                    <option value="AUTO_OPEN">Automatically open remaining spots to verified Open Pod members</option>
+                    <option value="KEEP_WAITING">Keep waiting for private circle invites only</option>
+                  </select>
+                </div>
+
+              </div>
+
+              {/* EMBEDDED TRUSTED CIRCLE INVITER TOOL */}
+              <TrustedCircleInviter
+                invitedContacts={invitedContacts}
+                inviteCode={generatedInviteCode}
+                podName={name || 'My Trusted Circle Pod'}
+                onAddContacts={handleAddContacts}
+                currentUser={user}
+              />
+            </div>
+          )}
+
+          {/* SECTION 3: POD NAME & DETAILS */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-[#111827] mb-1">Pod Name</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                placeholder="e.g. SF East Bay DoorDash Drivers Circle"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#111827] mb-1">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
+              >
+                <option value="Food Delivery & Rideshare">Food Delivery & Rideshare</option>
+                <option value="Grocery & Cargo">Grocery & Cargo</option>
+                <option value="General Gig Workers">General Gig Workers</option>
+                <option value="High-Yield Reserve">High-Yield Reserve (Advanced)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#111827] mb-1">Description & Purpose</label>
+              <textarea
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                placeholder="Describe purpose (e.g., tax reserves, vehicle maintenance, emergency gear)..."
+              />
+            </div>
           </div>
 
           {/* Member Size Tier Selection */}
@@ -221,7 +373,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end gap-3">
+          <div className="pt-2 flex justify-end gap-3 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}
@@ -239,7 +391,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Create Pod & Provision Treasury</span>
+                  <span>Create {podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open'} Pod</span>
                 </>
               )}
             </button>

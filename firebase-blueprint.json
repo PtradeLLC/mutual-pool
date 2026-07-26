@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profiles",
+      "description": "Registered driver and rider profiles with KYC and Treasury status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "platform": { "type": "string" },
+        "role": { "type": "string" },
+        "accountAgeDays": { "type": "number" },
+        "kycStatus": { "type": "string" },
+        "kycVerifiedAt": { "type": "string" },
+        "completedPodsCount": { "type": "number" },
+        "treasury": { "type": "object" },
+        "externalBank": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "phoneNumber": { "type": "string" }
+      },
+      "required": ["id", "email", "displayName"]
+    },
+    "pods": {
+      "title": "Mutual Savings Pods",
+      "description": "Mutual ROSCA savings pools with member listings and rotation order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "sizeTier": { "type": "number" },
+        "depositTier": { "type": "number" },
+        "status": { "type": "string" },
+        "cycleStartDate": { "type": "string" },
+        "currentCycleWeek": { "type": "number" },
+        "totalCycles": { "type": "number" },
+        "agreementVersion": { "type": "string" },
+        "holdingFinAccountId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "members": { "type": "array" },
+        "weeklyPoolTarget": { "type": "number" },
+        "currentWeeklyCollected": { "type": "number" }
+      },
+      "required": ["id", "name", "sizeTier", "depositTier", "status"]
+    },
+    "perks": {
+      "title": "Perks & Benefits",
+      "description": "Marketplace benefits, discounts, and healthcare options for members",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "provider": { "type": "string" },
+        "description": { "type": "string" },
+        "valueBadge": { "type": "string" },
+        "redemptionType": { "type": "string" },
+        "redemptionData": { "type": "string" },
+        "eligibility": { "type": "string" },
+        "submittedBy": { "type": "string" },
+        "status": { "type": "string" },
+        "iconName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "redeemedCount": { "type": "number" }
+      },
+      "required": ["id", "title", "category", "provider"]
+    },
+    "auditLogs": {
+      "title": "Audit Logs",
+      "description": "Audit trails for pod creations, deposits, rotation locks, and payouts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "podId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "detail": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "actorId", "action", "detail", "createdAt"]
+    },
+    "redemptions": {
+      "title": "Perk Redemptions",
+      "description": "User redemption claims for marketplace perks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "perkId": { "type": "string" },
+        "perkTitle": { "type": "string" },
+        "redeemedAt": { "type": "string" },
+        "codeOrLink": { "type": "string" }
+      },
+      "required": ["id", "userId", "perkId", "redeemedAt"]
+    }
+  }
+}

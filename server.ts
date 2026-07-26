@@ -3,7 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { 
   User, Pod, PodMembership, Perk, AuditLogEntry, 
-  ReprioritizationRequest, Deposit, WeeklyCycle, Redemption 
+  ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact 
 } from './src/types';
 import { 
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
@@ -311,7 +311,17 @@ async function startServer() {
   // 5. Create Pod (Enforces Tenure & Deposit Tier Guardrails)
   app.post('/api/pods', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
-    const { name, description, category, sizeTier, depositTier } = req.body;
+    const { 
+      name, 
+      description, 
+      category, 
+      sizeTier, 
+      depositTier, 
+      podType, 
+      inviteWindowDays, 
+      autoOpenOnExpire, 
+      invitedContacts 
+    } = req.body;
 
     // Hard Gate: KYC Must be Verified
     if (user.kycStatus !== 'VERIFIED') {
@@ -322,7 +332,6 @@ async function startServer() {
     }
 
     // Tenure Rule Enforcement:
-    // New accounts (<90 days and completedPodsCount < 1) can ONLY create pods at 20 or 50 member tier, starting at $5/$10/$20.
     const isSeasoned = user.accountAgeDays >= 90 || user.completedPodsCount >= 1;
     if (!isSeasoned) {
       if (sizeTier > 50) {
@@ -339,11 +348,28 @@ async function startServer() {
       }
     }
 
+    // Open Pod Rule: Requires at least 1 completed cycle or seasoned status
+    const requestedPodType = podType === 'OPEN_POD' ? 'OPEN_POD' : 'TRUSTED_CIRCLE';
+    if (requestedPodType === 'OPEN_POD' && user.completedPodsCount < 1 && user.accountAgeDays < 90) {
+      return res.status(400).json({
+        error: 'OPEN_POD_RESTRICTION',
+        message: 'Creating an Open Pod requires having completed at least 1 full Trusted Circle pod cycle with no missed payments.'
+      });
+    }
+
+    const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const podId = `pod_${Date.now()}`;
+
     const newPod: Pod = {
-      id: `pod_${Date.now()}`,
+      id: podId,
       name,
       description: description || 'Community gig worker mutual savings pool',
       category: category || 'General Gig Workers',
+      podType: requestedPodType,
+      inviteWindowDays: Number(inviteWindowDays) || 7,
+      autoOpenOnExpire: autoOpenOnExpire !== false,
+      inviteCode: randomCode,
+      invitedContacts: Array.isArray(invitedContacts) ? invitedContacts : [],
       sizeTier: Number(sizeTier) as Pod['sizeTier'],
       depositTier: Number(depositTier) as Pod['depositTier'],
       status: 'FORMING',
@@ -359,7 +385,7 @@ async function startServer() {
       members: [
         {
           id: `pm_${Date.now()}_1`,
-          podId: `pod_${Date.now()}`,
+          podId: podId,
           userId: user.id,
           displayName: user.displayName,
           avatarUrl: user.avatarUrl,
@@ -379,15 +405,103 @@ async function startServer() {
       user.id,
       user.displayName,
       'POD_CREATED',
-      `Created new pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Stripe Treasury Holding Account ${newPod.holdingFinAccountId} provisioned.`
+      `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} provisioned.`
     );
 
     res.json(newPod);
   });
 
+  // 5b. Add / Invite Contacts to Pod's Trusted Circle
+  app.post('/api/pods/:id/contacts', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const pod = pods.find(p => p.id === req.params.id);
+
+    if (!pod) {
+      return res.status(404).json({ error: 'Pod not found' });
+    }
+
+    const { contacts } = req.body; // array of { name, emailOrPhone }
+    if (!Array.isArray(contacts)) {
+      return res.status(400).json({ error: 'Contacts list must be an array' });
+    }
+
+    if (!pod.invitedContacts) pod.invitedContacts = [];
+
+    const addedContacts: InvitedContact[] = [];
+
+    contacts.forEach((c: { name: string; emailOrPhone: string }) => {
+      if (!c.emailOrPhone) return;
+      const cleanContact = c.emailOrPhone.trim().toLowerCase();
+      
+      // Check if existing
+      const existsInPod = pod.invitedContacts.some(ic => ic.emailOrPhone.toLowerCase() === cleanContact);
+      if (existsInPod) return;
+
+      // Cross reference with registered users
+      const registeredUser = users.find(u => 
+        u.email.toLowerCase() === cleanContact || 
+        (u.displayName && u.displayName.toLowerCase() === c.name.toLowerCase())
+      );
+
+      const newInvitedContact: InvitedContact = {
+        id: `ic_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        name: c.name || c.emailOrPhone,
+        emailOrPhone: c.emailOrPhone,
+        isExistingMember: !!registeredUser,
+        memberUserId: registeredUser?.id,
+        status: registeredUser ? 'PENDING_INVITE' : 'INVITED',
+        invitedAt: new Date().toISOString(),
+      };
+
+      pod.invitedContacts.push(newInvitedContact);
+      addedContacts.push(newInvitedContact);
+    });
+
+    addAuditLog(
+      pod.id,
+      user.id,
+      user.displayName,
+      'POD_CREATED',
+      `Invited ${addedContacts.length} contacts to Trusted Circle for pod "${pod.name}".`
+    );
+
+    res.json({
+      success: true,
+      pod,
+      addedContacts,
+    });
+  });
+
+  // 5c. Convert Trusted Circle Pod to Open Pod
+  app.post('/api/pods/:id/convert-open', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const pod = pods.find(p => p.id === req.params.id);
+
+    if (!pod) {
+      return res.status(404).json({ error: 'Pod not found' });
+    }
+
+    if (pod.createdBy !== user.id) {
+      return res.status(403).json({ error: 'Only the pod creator can convert this pod to an Open Pod.' });
+    }
+
+    pod.podType = 'OPEN_POD';
+
+    addAuditLog(
+      pod.id,
+      user.id,
+      user.displayName,
+      'POD_CREATED',
+      `Converted pod "${pod.name}" from Trusted Circle to Open Pod. Remaining spots are now open to all verified members.`
+    );
+
+    res.json({ success: true, pod });
+  });
+
   // 6. Join Pod
   app.post('/api/pods/:id/join', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    const { inviteCode } = req.body || {};
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
@@ -414,6 +528,21 @@ async function startServer() {
       return res.status(400).json({ error: 'You are already a member of this pod.' });
     }
 
+    // Check Trusted Circle restrictions if pod is TRUSTED_CIRCLE and user is not creator
+    if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== user.id) {
+      const isInvitedByEmail = pod.invitedContacts?.some(
+        ic => ic.emailOrPhone.toLowerCase() === user.email.toLowerCase() || ic.memberUserId === user.id
+      );
+      const isCodeValid = inviteCode && inviteCode.trim().toUpperCase() === pod.inviteCode?.toUpperCase();
+
+      if (!isInvitedByEmail && !isCodeValid) {
+        return res.status(403).json({
+          error: 'INVITE_REQUIRED',
+          message: 'This is a private Trusted Circle pod. Enter the valid 6-character invite code or request an invite from the pod creator.'
+        });
+      }
+    }
+
     const newMember: PodMembership = {
       id: `pm_${Date.now()}_${pod.members.length + 1}`,
       podId: pod.id,
@@ -428,6 +557,16 @@ async function startServer() {
     };
 
     pod.members.push(newMember);
+
+    // Update invited contact status if matched
+    if (pod.invitedContacts) {
+      const contactMatch = pod.invitedContacts.find(
+        ic => ic.emailOrPhone.toLowerCase() === user.email.toLowerCase() || ic.memberUserId === user.id
+      );
+      if (contactMatch) {
+        contactMatch.status = 'JOINED';
+      }
+    }
 
     addAuditLog(
       pod.id,

@@ -42,6 +42,17 @@ export type PodSizeTier = 20 | 50 | 100 | 500 | 1000 | 5000 | 10000;
 export type DepositTier = 5 | 10 | 20 | 50 | 100;
 export type PodStatus = 'FORMING' | 'LOCKED' | 'ACTIVE' | 'COMPLETED';
 export type DelinquencyStatus = 'CLEAN' | 'GRACE_PERIOD' | 'DELINQUENT';
+export type PodType = 'TRUSTED_CIRCLE' | 'OPEN_POD';
+
+export interface InvitedContact {
+  id: string;
+  name: string;
+  emailOrPhone: string;
+  isExistingMember: boolean;
+  memberUserId?: string;
+  status: 'PENDING_INVITE' | 'INVITED' | 'JOINED';
+  invitedAt: string;
+}
 
 export interface PodMembership {
   id: string; // e.g. "pm_101"
@@ -64,6 +75,11 @@ export interface Pod {
   name: string;
   description: string;
   category: string;
+  podType: PodType;
+  inviteWindowDays: number;
+  autoOpenOnExpire: boolean;
+  inviteCode: string;
+  invitedContacts: InvitedContact[];
   sizeTier: PodSizeTier;
   depositTier: DepositTier;
   status: PodStatus;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import logo from '../assets/images/logo.png';
+import { Logo } from './Logo';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home
@@ -17,6 +17,9 @@ interface HeaderProps {
   onInstallPWA?: () => void;
   canInstallPWA?: boolean;
   onExitToLanding?: () => void;
+  onOpenAbout?: () => void;
+  onOpenHowItWorks?: () => void;
+  onOpenContact?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,48 +33,33 @@ export const Header: React.FC<HeaderProps> = ({
   onInstallPWA,
   canInstallPWA,
   onExitToLanding,
+  onOpenAbout,
+  onOpenHowItWorks,
+  onOpenContact,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   return (
     <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-4">
           
           {/* Brand Logo & Name */}
-          <div className="flex items-center gap-3 shrink-0">
-           
-            <div>
-              <div className="flex items-center gap-2">
-                 <img src={logo} alt="GigPool Logo" className="w-20 h-20 rounded-lg shadow-xs shrink-0" />
-                {/* <h1 className="text-base font-bold tracking-tight text-[#111827]">
-                  Pod & Perks <span className="text-[#6B7280] font-normal">| Rider Mutual v2</span>
-                </h1>
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
-                  Stripe Treasury
-                </span> */}
-              </div>
-              {/* <p className="text-xs text-[#6B7280] hidden sm:block">
-                Mutual ROSCA Savings & Perks for Delivery & Driver Fleets
-              </p> */}
+          <div 
+            onClick={onExitToLanding}
+            className="flex items-center gap-3 cursor-pointer group"
+            title="Return to Landing Page"
+          >
+            <Logo size="md" />
+            <div className="hidden sm:block">
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
+                Stripe Treasury
+              </span>
             </div>
           </div>
 
-          {/* Header Links */}
-          <div className="hidden md:flex items-center gap-8 flex-1 justify-center">
-            <a href="#rules" className="text-xs font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
-              Rules
-            </a>
-            <a href="#perks-benefits" className="text-xs font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
-              Perks & Benefits
-            </a>
-            <a href="#contact" className="text-xs font-medium text-[#6B7280] hover:text-[#005FB8] transition-colors">
-              Contact Us
-            </a>
-          </div>
-
           {/* User Status Bar & Switcher */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
 
             {/* PWA Install Button */}
             {canInstallPWA && onInstallPWA && (
@@ -196,66 +184,92 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Navigation Tabs Bar */}
-        <nav className="flex items-center gap-1 sm:gap-2 mt-3 pt-2 border-t border-[#DDE1E6] overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setActiveTab('my-pods')}
-            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'my-pods'
-                ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>My Mutual Pods</span>
-          </button>
+        <nav className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2 border-t border-[#DDE1E6]">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar shrink-0">
+            <button
+              onClick={() => setActiveTab('my-pods')}
+              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'my-pods'
+                  ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-100'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>My Mutual Pods</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('explore-pods')}
-            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'explore-pods'
-                ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Explore Pods</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('explore-pods')}
+              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'explore-pods'
+                  ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-100'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Explore Pods</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('perks')}
-            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'perks'
-                ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <Gift className="w-3.5 h-3.5" />
-            <span>Benefits Marketplace</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('perks')}
+              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'perks'
+                  ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-100'
+              }`}
+            >
+              <Gift className="w-3.5 h-3.5" />
+              <span>Benefits Marketplace</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('audit-log')}
-            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'audit-log'
-                ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Audit Ledger</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('audit-log')}
+              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'audit-log'
+                  ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-100'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Audit Ledger</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('admin-ops')}
-            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'admin-ops'
-                ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Operations & Webhooks</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('admin-ops')}
+              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'admin-ops'
+                  ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-100'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Operations & Webhooks</span>
+            </button>
+          </div>
+
+          {/* Quick Info Modal Links */}
+          <div className="flex items-center gap-2 sm:gap-3 text-xs text-[#4B5563] shrink-0 font-medium">
+            <button
+              onClick={onOpenAbout}
+              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
+            >
+              About Us
+            </button>
+            <span className="text-gray-300">•</span>
+            <button
+              onClick={onOpenHowItWorks}
+              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
+            >
+              How It Works & Rules
+            </button>
+            <span className="text-gray-300">•</span>
+            <button
+              onClick={onOpenContact}
+              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
+            >
+              Contact Us
+            </button>
+          </div>
         </nav>
       </div>
     </header>
