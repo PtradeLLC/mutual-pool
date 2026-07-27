@@ -14,6 +14,7 @@ import { PerksMarketplace } from './components/PerksMarketplace';
 import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { EditProfileModal } from './components/EditProfileModal';
 import { AboutUsModal, HowItWorksModal, ContactUsModal } from './components/InfoModals';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
@@ -21,12 +22,13 @@ import {
   seedInitialFirestoreData, 
   subscribeToPods, 
   getUserFromFirestore, 
-  saveUserToFirestore 
+  saveUserToFirestore,
+  subscribeToUser
 } from './lib/firestoreService';
 
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
-  Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock 
+  Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil 
 } from 'lucide-react';
 
 export default function App() {
@@ -45,18 +47,51 @@ export default function App() {
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
   const [showKYCGateModal, setShowKYCGateModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [selectedPodDetail, setSelectedPodDetail] = useState<Pod | null>(null);
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
 
+  const syncUserWithBackend = async (user: User) => {
+    try {
+      await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user),
+      });
+      const allUsersRes = await fetch('/api/users');
+      if (allUsersRes.ok) {
+        const allUData = await allUsersRes.json();
+        setAllUsers(allUData);
+      }
+    } catch (err) {
+      console.error('Error syncing user to backend:', err);
+    }
+  };
+
   const fetchAppData = async (userIdOverride?: string) => {
     try {
-      const uId = userIdOverride || (currentUser ? currentUser.id : 'usr_marcus');
+      const uId = userIdOverride || (currentUser ? currentUser.id : undefined);
 
-      // Fetch current user
-      const userRes = await fetch(`/api/users/current?userId=${uId}`);
-      if (userRes.ok) {
-        const uData = await userRes.json();
-        setCurrentUser(uData);
+      if (uId) {
+        // Try getting fresh user document from Firestore
+        const firestoreUser = await getUserFromFirestore(uId);
+        if (firestoreUser) {
+          setCurrentUser(firestoreUser);
+          await syncUserWithBackend(firestoreUser);
+        } else {
+          // Fetch current user from backend
+          const userRes = await fetch(`/api/users/current?userId=${uId}`);
+          if (userRes.ok) {
+            const uData = await userRes.json();
+            setCurrentUser(uData);
+          }
+        }
+      } else {
+        const userRes = await fetch('/api/users/current');
+        if (userRes.ok) {
+          const uData = await userRes.json();
+          setCurrentUser(uData);
+        }
       }
 
       // Fetch all users for switcher and landing demo
@@ -100,43 +135,85 @@ export default function App() {
     // 3. Firebase Auth state listener
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        const dbUser = await getUserFromFirestore(fbUser.uid);
+        let dbUser = await getUserFromFirestore(fbUser.uid);
         if (dbUser) {
+          let modified = false;
+          // Clean legacy $100 placeholder or fake bank placeholders for new user profiles with 0 completed pods
+          if (dbUser.treasury && (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_') || (dbUser.completedPodsCount === 0 && dbUser.treasury.balanceUsd === 100))) {
+            dbUser.treasury.balanceUsd = 0.00;
+            if (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_')) {
+              dbUser.treasury.stripeAccountId = '';
+              dbUser.treasury.stripeFinAccountId = '';
+              dbUser.treasury.status = 'UNINITIALIZED';
+              dbUser.treasury.fdicPassThroughEligible = false;
+            }
+            modified = true;
+          }
+          if (dbUser.externalBank && dbUser.externalBank.bankName === 'Linked Bank Account') {
+            dbUser.externalBank = {
+              bankName: '',
+              last4: '',
+              routingNumber: '',
+              accountType: 'CHECKING',
+              status: 'NOT_LINKED',
+            };
+            modified = true;
+          }
+
+          // Ensure unverified users correctly reflect PENDING KYC status unless verified
+          if (dbUser.kycStatus === 'VERIFIED' && !dbUser.kycVerifiedAt && !dbUser.treasury.stripeAccountId) {
+            dbUser.kycStatus = 'PENDING';
+            modified = true;
+          }
+
+          // Sync real avatar photoURL from Firebase Auth or generate dynamic avatar from display name
+          if (fbUser.photoURL && dbUser.avatarUrl !== fbUser.photoURL) {
+            dbUser.avatarUrl = fbUser.photoURL;
+            modified = true;
+          } else if (!dbUser.avatarUrl || dbUser.avatarUrl.includes('unsplash.com/photo-1534528741775-53994a69daeb')) {
+            dbUser.avatarUrl = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(dbUser.displayName || fbUser.displayName || 'Member')}&background=005FB8&color=fff&size=200`;
+            modified = true;
+          }
+
+          if (modified) {
+            await saveUserToFirestore(dbUser);
+          }
           setCurrentUser(dbUser);
           setViewMode('DASHBOARD');
+          await syncUserWithBackend(dbUser);
         } else {
+          const resolvedName = fbUser.displayName || fbUser.phoneNumber || 'MutualPool Member';
           const newUser: User = {
             id: fbUser.uid,
             email: fbUser.email || `${fbUser.uid.substring(0, 8)}@mutualpool.org`,
-            displayName: fbUser.displayName || fbUser.phoneNumber || 'MutualPool Member',
-            avatarUrl: fbUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+            displayName: resolvedName,
+            avatarUrl: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`,
             platform: 'DoorDash',
             role: 'RIDER',
-            accountAgeDays: 30,
-            kycStatus: 'VERIFIED',
-            kycVerifiedAt: new Date().toISOString(),
+            accountAgeDays: 1,
+            kycStatus: 'PENDING',
             treasury: {
-              stripeAccountId: `acct_fb_${fbUser.uid.substring(0, 10)}`,
-              stripeFinAccountId: `fa_fb_${fbUser.uid.substring(0, 10)}`,
-              balanceUsd: 100.00,
+              stripeAccountId: '',
+              stripeFinAccountId: '',
+              balanceUsd: 0.00,
               pendingInboundUsd: 0.00,
               totalPayoutsReceivedUsd: 0.00,
-              fdicPassThroughEligible: true,
-              status: 'ACTIVE',
+              fdicPassThroughEligible: false,
+              status: 'UNINITIALIZED',
             },
             externalBank: {
-              bankName: 'Linked Bank Account',
-              last4: '8812',
-              routingNumber: '121000358',
+              bankName: '',
+              last4: '',
+              routingNumber: '',
               accountType: 'CHECKING',
-              status: 'LINKED',
-              linkedAt: new Date().toISOString(),
+              status: 'NOT_LINKED',
             },
             completedPodsCount: 0,
           };
           await saveUserToFirestore(newUser);
           setCurrentUser(newUser);
           setViewMode('DASHBOARD');
+          await syncUserWithBackend(newUser);
         }
       }
     });
@@ -147,14 +224,29 @@ export default function App() {
     };
   }, []);
 
+  // Real-time Firestore listener for active user profile
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const unsubscribeUser = subscribeToUser(currentUser.id, (freshUser) => {
+      if (freshUser) {
+        setCurrentUser(freshUser);
+      }
+    });
+    return () => {
+      unsubscribeUser();
+    };
+  }, [currentUser?.id]);
+
   const handleOpenAuth = (mode: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE' = 'DEMO') => {
     setAuthInitialMode(mode);
     setShowAuthModal(true);
   };
 
-  const handleAuthSuccess = (user: User) => {
+  const handleAuthSuccess = async (user: User) => {
     setCurrentUser(user);
     setViewMode('DASHBOARD');
+    await saveUserToFirestore(user);
+    await syncUserWithBackend(user);
     fetchAppData(user.id);
   };
 
@@ -271,7 +363,16 @@ export default function App() {
 
   // Filter Pods
   const myPods = allPods.filter(p => p.members.some(m => m.userId === currentUser.id));
-  const explorePods = allPods.filter(p => p.status === 'FORMING' && !p.members.some(m => m.userId === currentUser.id));
+
+  // User-created forming pods (excluding initial demo seed pods)
+  const userCreatedFormingPods = allPods.filter(
+    p => p.status === 'FORMING' && p.id !== 'pod_starter_50_5usd' && p.id !== 'pod_metro_riders_20'
+  );
+
+  // If actual user-created forming pods exist, replace the demo seed pod with actual user-created pods
+  const explorePods = userCreatedFormingPods.length > 0
+    ? userCreatedFormingPods
+    : allPods.filter(p => p.status === 'FORMING' && !p.members.some(m => m.userId === currentUser.id));
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
@@ -285,6 +386,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         onOpenKYCGate={() => setShowKYCGateModal(true)}
         onOpenBankModal={() => setShowBankModal(true)}
+        onOpenEditProfile={() => setShowEditProfileModal(true)}
         onExitToLanding={() => setViewMode('LANDING')}
         onOpenAbout={() => setShowAboutModal(true)}
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
@@ -301,9 +403,14 @@ export default function App() {
             {/* User Greeting & Badges */}
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-mono font-bold text-[#005FB8] bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-                  {currentUser.platform} Fleet Member
-                </span>
+                <button
+                  onClick={() => setShowEditProfileModal(true)}
+                  title="Click to change your primary gig platform or role"
+                  className="text-xs font-mono font-bold text-[#005FB8] bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <span>{currentUser.platform} Fleet Member</span>
+                  <Pencil className="w-3 h-3 text-[#005FB8]" />
+                </button>
                 <span className="text-xs font-mono text-[#6B7280]">
                   {currentUser.accountAgeDays} days account tenure
                 </span>
@@ -512,9 +619,11 @@ export default function App() {
         <KYCGateModal
           user={currentUser}
           onClose={() => setShowKYCGateModal(false)}
-          onVerified={(updatedUser) => {
+          onVerified={async (updatedUser) => {
             setCurrentUser(updatedUser);
             setShowKYCGateModal(false);
+            await saveUserToFirestore(updatedUser);
+            await syncUserWithBackend(updatedUser);
             fetchAppData();
           }}
         />
@@ -583,6 +692,18 @@ export default function App() {
         isOpen={showContactModal}
         onClose={() => setShowContactModal(false)}
       />
+
+      {currentUser && (
+        <EditProfileModal
+          isOpen={showEditProfileModal}
+          onClose={() => setShowEditProfileModal(false)}
+          currentUser={currentUser}
+          onUpdateUser={async (updatedUser) => {
+            setCurrentUser(updatedUser);
+            await syncUserWithBackend(updatedUser);
+          }}
+        />
+      )}
 
       {inviteCodeTargetPod && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">

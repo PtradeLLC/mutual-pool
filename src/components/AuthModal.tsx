@@ -61,6 +61,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [phoneError, setPhoneError] = useState('');
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
+  // Shared Auth Platform State
+  const [authPlatform, setAuthPlatform] = useState<GigPlatform>('DoorDash');
+
   // Google Loading State
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState('');
@@ -87,39 +90,58 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     email: string | null, 
     displayName: string | null, 
     platform: GigPlatform = 'DoorDash',
-    phoneNumber?: string
+    phoneNumber?: string,
+    photoURL?: string | null
   ): Promise<User> => {
-    const existing = await getUserFromFirestore(uid);
+    let existing = await getUserFromFirestore(uid);
+    const resolvedName = displayName || (phoneNumber ? `Member ${phoneNumber.slice(-4)}` : 'MutualPool Member');
+    const defaultAvatar = photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`;
+
     if (existing) {
+      let modified = false;
+      if (photoURL && existing.avatarUrl !== photoURL) {
+        existing = { ...existing, avatarUrl: photoURL };
+        modified = true;
+      } else if (!existing.avatarUrl || existing.avatarUrl.includes('unsplash.com/photo-1534528741775-53994a69daeb')) {
+        existing = { ...existing, avatarUrl: defaultAvatar };
+        modified = true;
+      }
+
+      if (existing.kycStatus === 'VERIFIED' && !existing.kycVerifiedAt && !existing.treasury?.stripeAccountId) {
+        existing = { ...existing, kycStatus: 'PENDING' };
+        modified = true;
+      }
+
+      if (modified) {
+        await saveUserToFirestore(existing);
+      }
       return existing;
     }
 
     const newUser: User = {
       id: uid,
       email: email || `${uid.substring(0, 8)}@mutualpool.org`,
-      displayName: displayName || (phoneNumber ? `Member ${phoneNumber.slice(-4)}` : 'MutualPool Member'),
-      avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200`,
+      displayName: resolvedName,
+      avatarUrl: defaultAvatar,
       platform: platform,
       role: 'RIDER',
-      accountAgeDays: 30,
-      kycStatus: 'VERIFIED',
-      kycVerifiedAt: new Date().toISOString(),
+      accountAgeDays: 1,
+      kycStatus: 'PENDING',
       treasury: {
-        stripeAccountId: `acct_fb_${uid.substring(0, 10)}`,
-        stripeFinAccountId: `fa_fb_${uid.substring(0, 10)}`,
-        balanceUsd: 100.00,
+        stripeAccountId: '',
+        stripeFinAccountId: '',
+        balanceUsd: 0.00,
         pendingInboundUsd: 0.00,
         totalPayoutsReceivedUsd: 0.00,
-        fdicPassThroughEligible: true,
-        status: 'ACTIVE',
+        fdicPassThroughEligible: false,
+        status: 'UNINITIALIZED',
       },
       externalBank: {
-        bankName: 'Linked Bank Account',
-        last4: '8812',
-        routingNumber: '121000358',
+        bankName: '',
+        last4: '',
+        routingNumber: '',
         accountType: 'CHECKING',
-        status: 'LINKED',
-        linkedAt: new Date().toISOString(),
+        status: 'NOT_LINKED',
       },
       completedPodsCount: 0,
     };
@@ -146,7 +168,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           userCredential.user.uid,
           regEmail,
           regName,
-          regPlatform
+          regPlatform,
+          undefined,
+          userCredential.user.photoURL
         );
         onRegistered(appUser);
         onClose();
@@ -175,7 +199,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const appUser = await ensureUserInFirestore(
           userCredential.user.uid,
           userCredential.user.email,
-          userCredential.user.displayName
+          userCredential.user.displayName,
+          'DoorDash',
+          undefined,
+          userCredential.user.photoURL
         );
         onSelectUser(appUser);
         onClose();
@@ -203,7 +230,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const appUser = await ensureUserInFirestore(
           result.user.uid,
           result.user.email,
-          result.user.displayName
+          result.user.displayName,
+          authPlatform,
+          undefined,
+          result.user.photoURL
         );
         onSelectUser(appUser);
         onClose();
@@ -273,7 +303,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           userCredential.user.uid,
           null,
           `Driver ${phoneNumber.slice(-4)}`,
-          'DoorDash',
+          authPlatform,
           phoneNumber
         );
         onSelectUser(appUser);
@@ -313,6 +343,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <h3 className="text-xl font-bold text-[#111827]">MutualPool Firebase Portal</h3>
             <p className="text-xs text-[#6B7280]">Email, Google, or Phone Authentication</p>
           </div>
+        </div>
+
+        {/* Gig Platform Selector for Social / Phone Login */}
+        <div className="mb-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl p-3">
+          <label className="block text-[11px] font-bold text-[#005FB8] mb-1">
+            Select Your Primary Gig Fleet Platform
+          </label>
+          <select
+            value={authPlatform}
+            onChange={(e) => {
+              const selected = e.target.value as GigPlatform;
+              setAuthPlatform(selected);
+              setRegPlatform(selected);
+            }}
+            className="w-full px-3 py-1.5 text-xs font-semibold border border-blue-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#005FB8] bg-white text-[#111827]"
+          >
+            <option value="DoorDash">DoorDash Fleet</option>
+            <option value="Uber Eats">Uber Eats Fleet</option>
+            <option value="Instacart">Instacart Shoppers</option>
+            <option value="Lyft">Lyft Drivers</option>
+            <option value="Grubhub">Grubhub Delivery</option>
+            <option value="Spark">Spark (Walmart)</option>
+            <option value="Amazon Flex">Amazon Flex Drivers</option>
+          </select>
         </div>
 
         {/* Global Google OAuth Button */}

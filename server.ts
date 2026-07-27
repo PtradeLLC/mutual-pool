@@ -99,10 +99,13 @@ function addAuditLog(
 }
 
 // Helper: Get Current User from Request Header/Query or default
-function getCurrentUser(req: Request): User {
-  const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string) || 'usr_marcus';
-  const found = users.find(u => u.id === userId);
-  return found || users[0];
+function getCurrentUser(req: Request): User | null {
+  const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
+  if (userId) {
+    const found = users.find(u => u.id === userId);
+    return found || null;
+  }
+  return users[0] || null;
 }
 
 async function startServer() {
@@ -111,10 +114,27 @@ async function startServer() {
 
   // --- API ROUTES ---
 
-  // 1. Current User Profile, Login, Registration & User Switcher
+  // 1. Current User Profile, Sync, Login, Registration & User Switcher
   app.get('/api/users/current', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     res.json(user);
+  });
+
+  app.post('/api/users/sync', (req: Request, res: Response) => {
+    const syncUser = req.body as User;
+    if (!syncUser || !syncUser.id) {
+      return res.status(400).json({ error: 'Invalid user payload' });
+    }
+    const index = users.findIndex(u => u.id === syncUser.id);
+    if (index >= 0) {
+      users[index] = { ...users[index], ...syncUser };
+    } else {
+      users.push(syncUser);
+    }
+    res.json({ success: true, user: syncUser });
   });
 
   app.get('/api/users', (req: Request, res: Response) => {
@@ -168,7 +188,7 @@ async function startServer() {
       treasury: {
         stripeAccountId: autoVerifyKyc ? `acct_1xCustom_${Date.now()}` : '',
         stripeFinAccountId: autoVerifyKyc ? `fa_1xTreasury_${Date.now()}` : '',
-        balanceUsd: initialDeposit ? parseFloat(initialDeposit) : 100,
+        balanceUsd: initialDeposit ? parseFloat(initialDeposit) : 0,
         pendingInboundUsd: 0,
         totalPayoutsReceivedUsd: 0,
         status: autoVerifyKyc ? 'ACTIVE' : 'PENDING_REQUIREMENTS',

@@ -20,7 +20,7 @@ export interface StripeTreasuryAccount {
   pendingInboundUsd: number;
   totalPayoutsReceivedUsd: number;
   fdicPassThroughEligible: boolean;
-  status: 'ACTIVE' | 'RESTRICTED' | 'PENDING_REQUIREMENTS';
+  status: 'ACTIVE' | 'RESTRICTED' | 'PENDING_REQUIREMENTS' | 'UNINITIALIZED';
 }
 
 export interface User {

@@ -14,6 +14,7 @@ interface HeaderProps {
   setActiveTab: (tab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops') => void;
   onOpenKYCGate: () => void;
   onOpenBankModal: () => void;
+  onOpenEditProfile?: () => void;
   onInstallPWA?: () => void;
   canInstallPWA?: boolean;
   onExitToLanding?: () => void;
@@ -30,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   onOpenKYCGate,
   onOpenBankModal,
+  onOpenEditProfile,
   onInstallPWA,
   canInstallPWA,
   onExitToLanding,
@@ -86,11 +88,12 @@ export const Header: React.FC<HeaderProps> = ({
             {/* KYC Status Badge */}
             <button
               onClick={onOpenKYCGate}
-              className={`px-3 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+              className={`px-3 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
                 currentUser.kycStatus === 'VERIFIED'
                   ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                   : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
               }`}
+              title={currentUser.kycStatus === 'VERIFIED' ? 'Identity Verified via Stripe' : 'Click to complete identity verification'}
             >
               {currentUser.kycStatus === 'VERIFIED' ? (
                 <>
@@ -99,8 +102,8 @@ export const Header: React.FC<HeaderProps> = ({
                 </>
               ) : (
                 <>
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span className="font-bold text-[11px] uppercase tracking-wide">Verify KYC</span>
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">KYC PENDING</span>
                 </>
               )}
             </button>
@@ -125,7 +128,29 @@ export const Header: React.FC<HeaderProps> = ({
 
               {showUserDropdown && (
                 <div className="absolute right-0 mt-2 w-72 bg-white border border-[#DDE1E6] rounded-xl shadow-xl p-2 z-50">
-                  <div className="px-3 py-2 border-b border-[#DDE1E6] mb-1">
+                  {onOpenEditProfile && (
+                    <div className="pb-2 mb-2 border-b border-[#DDE1E6]">
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenEditProfile();
+                        }}
+                        className="w-full text-left p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] font-bold text-xs flex items-center justify-between transition-colors border border-blue-200"
+                      >
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
+                            alt={currentUser.displayName}
+                            className="w-5 h-5 rounded-full object-cover"
+                          />
+                          <span>Edit Profile, Fleet & Role</span>
+                        </div>
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="px-3 py-1.5 border-b border-[#DDE1E6] mb-1">
                     <p className="text-xs font-bold text-[#111827]">Switch Test Member Persona</p>
                     <p className="text-[11px] text-[#6B7280]">Test rotation, voting, & KYC gates as different users</p>
                   </div>
