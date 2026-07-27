@@ -210,7 +210,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
     } catch (err: unknown) {
       console.error('Google Sign-In Error:', err);
-      if (err instanceof Error) {
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'auth/unauthorized-domain') {
+        const hostname = window.location.hostname;
+        setGoogleError(`Domain Unauthorized: ${hostname} is not in your Firebase Authorized Domains list. Add "${hostname}" in Firebase Console > Authentication > Settings > Authorized domains, or use Email / Phone / Persona Login below.`);
+      } else if (err instanceof Error) {
         setGoogleError(err.message.replace('Firebase: ', ''));
       } else {
         setGoogleError('Failed to sign in with Google.');
@@ -329,7 +332,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <span>{googleLoading ? 'Signing in with Google...' : 'Continue with Google Account'}</span>
           </button>
           {googleError && (
-            <p className="text-[11px] text-rose-600 mt-1 font-semibold">{googleError}</p>
+            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-[11px] space-y-1.5 leading-relaxed">
+              <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Google Auth Domain Setup Needed</span>
+              </div>
+              <p>{googleError}</p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('LOGIN')}
+                  className="px-2.5 py-1 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[10px]"
+                >
+                  Use Email Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('DEMO')}
+                  className="px-2.5 py-1 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[10px]"
+                >
+                  Use Demo Persona
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

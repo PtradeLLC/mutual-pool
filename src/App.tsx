@@ -26,7 +26,7 @@ import {
 
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
-  Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles 
+  Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock 
 } from 'lucide-react';
 
 export default function App() {
