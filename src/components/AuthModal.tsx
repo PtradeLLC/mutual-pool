@@ -30,13 +30,13 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
-  allUsers,
+  allUsers: _allUsers,
   onSelectUser,
   onRegistered,
-  initialMode = 'DEMO',
+  initialMode = 'LOGIN',
 }) => {
-  const [activeTab, setActiveTab] = useState<'DEMO' | 'LOGIN' | 'REGISTER' | 'PHONE'>(
-    initialMode === 'PHONE' ? 'PHONE' : (initialMode === 'LOGIN' ? 'LOGIN' : (initialMode === 'REGISTER' ? 'REGISTER' : 'DEMO'))
+  const [activeTab, setActiveTab] = useState<'LOGIN' | 'REGISTER' | 'PHONE'>(
+    initialMode === 'REGISTER' ? 'REGISTER' : (initialMode === 'PHONE' ? 'PHONE' : 'LOGIN')
   );
 
   // Email Register Form State
@@ -402,10 +402,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('DEMO')}
+                  onClick={() => setActiveTab('PHONE')}
                   className="px-2.5 py-1 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[10px]"
                 >
-                  Use Demo Persona
+                  Use Phone Sign In
                 </button>
               </div>
             </div>
@@ -419,19 +419,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Tab Switcher */}
-        <div className="grid grid-cols-4 gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-[#E2E8F0] mb-5 text-[11px] font-semibold">
-          <button
-            onClick={() => setActiveTab('DEMO')}
-            className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
-              activeTab === 'DEMO'
-                ? 'bg-white text-[#005FB8] shadow-2xs font-bold border border-[#DDE1E6]'
-                : 'text-[#6B7280] hover:text-[#111827]'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>Persona</span>
-          </button>
-
+        <div className="grid grid-cols-3 gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-[#E2E8F0] mb-5 text-[11px] font-semibold">
           <button
             onClick={() => setActiveTab('LOGIN')}
             className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
@@ -468,61 +456,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <span>Sign Up</span>
           </button>
         </div>
-
-        {/* TAB 1: DEMO PERSONA SELECTOR */}
-        {activeTab === 'DEMO' && (
-          <div className="space-y-3">
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-[#005FB8] flex items-start gap-2">
-              <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                <strong>Quick Reviewer Access:</strong> Select any pre-configured driver persona to test rotation lock, payout tracking, and perks without signing up.
-              </span>
-            </div>
-
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {allUsers.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => {
-                    onSelectUser(u);
-                    onClose();
-                  }}
-                  className="w-full text-left p-3 rounded-xl border border-[#DDE1E6] hover:border-[#005FB8] hover:bg-blue-50/50 transition-all flex items-center justify-between gap-3 group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
-                      alt={u.displayName}
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-200 group-hover:ring-[#005FB8]"
-                    />
-                    <div className="truncate">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-sm text-[#111827] group-hover:text-[#005FB8] truncate">
-                          {u.displayName}
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-gray-100 text-[#4B5563]">
-                          {u.platform}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#6B7280] truncate mt-0.5">
-                        {u.role} • Treasury: <span className="font-mono font-semibold text-emerald-700">${u.treasury.balanceUsd}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                      u.kycStatus === 'VERIFIED' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {u.kycStatus}
-                    </span>
-                    <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#005FB8] group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* TAB 2: EMAIL SIGN IN */}
         {activeTab === 'LOGIN' && (

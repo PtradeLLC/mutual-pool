@@ -40,7 +40,7 @@ export default function App() {
 
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE'>('DEMO');
+  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE'>('LOGIN');
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);

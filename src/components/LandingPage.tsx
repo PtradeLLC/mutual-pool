@@ -462,10 +462,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
-              onClick={() => onOpenAuth('DEMO')}
+              onClick={() => onOpenAuth('LOGIN')}
               className="px-6 py-3 rounded-lg bg-[#F8FAFC] hover:bg-gray-100 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs"
             >
-              Log In to Demo account
+              Sign In to Your Account
             </button>
           </div>
         </div>
