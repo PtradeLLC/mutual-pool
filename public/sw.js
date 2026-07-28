@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gig-mutual-pwa-v3';
+const CACHE_NAME = 'gig-mutual-pwa-v4';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -30,74 +30,71 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only cache standard GET requests
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  const url = event.request.url;
+  const reqUrl = event.request.url;
 
-  // Ignore non-http(s) schemes like chrome-extension://, file://, data:
-  if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+  // STRICT CHECK: Ignore all unsupported schemes (chrome-extension://, moz-extension://, data:, blob:, etc.)
+  if (!reqUrl.startsWith('http://') && !reqUrl.startsWith('https://')) {
+    return;
+  }
 
-  // Skip backend API network calls and web sockets
-  if (url.includes('/api/')) return;
+  // Skip backend API calls, webhooks, and websockets
+  if (reqUrl.includes('/api/')) return;
 
-  // Navigation / HTML requests: Network first, fallback to cached index.html
-  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+  // Safe helper to cache a response without throwing unhandled promise rejections
+  const safeCachePut = (request, response) => {
+    // Never attempt to cache non-http(s) or opaque chrome-extension requests
+    if (!request.url.startsWith('http://') && !request.url.startsWith('https://')) return;
+    if (!response || response.status !== 200) return;
+
+    caches.open(CACHE_NAME).then((cache) => {
+      cache.put(request, response).catch(() => {
+        // Silently ignore cache storage errors (e.g. quota, unsupported scheme)
+      });
+    }).catch(() => {});
+  };
+
+  // Navigation / HTML page requests: Network first with cache fallback
+  if (event.request.mode === 'navigate' || (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const resClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+            safeCachePut(event.request, networkResponse.clone());
           }
           return networkResponse;
         })
         .catch(() => {
-          return caches.match('/index.html') || caches.match('/');
+          return caches.match('/index.html').then((match) => match || caches.match('/'));
         })
     );
     return;
   }
 
-  // Static assets: Cache first with network fallback & safe cache update
+  // Static assets: Cache first with network fallback & background update
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch background update for static assets
+        // Background cache revalidation
         fetch(event.request).then((fetchRes) => {
-          if (fetchRes && fetchRes.status === 200 && fetchRes.type === 'basic') {
-            caches.open(CACHE_NAME).then((cache) => {
-              try {
-                cache.put(event.request, fetchRes.clone());
-              } catch (e) {
-                // Ignore caching errors for uncacheable requests
-              }
-            });
+          if (fetchRes && fetchRes.status === 200) {
+            safeCachePut(event.request, fetchRes.clone());
           }
-        }).catch(() => {/* Offline */});
+        }).catch(() => {/* Ignore offline background fetch failure */});
+
         return cachedResponse;
       }
 
       return fetch(event.request).then((fetchRes) => {
-        if (!fetchRes || fetchRes.status !== 200 || fetchRes.type !== 'basic') {
-          return fetchRes;
+        if (fetchRes && fetchRes.status === 200) {
+          safeCachePut(event.request, fetchRes.clone());
         }
-
-        const resClone = fetchRes.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          try {
-            cache.put(event.request, resClone);
-          } catch (e) {
-            // Ignore caching errors for uncacheable requests
-          }
-        });
-
         return fetchRes;
       }).catch(() => {
-        // If asset fetch fails (e.g. offline), return offline fallback if needed
         return new Response('Network error', { status: 408, headers: { 'Content-Type': 'text/plain' } });
       });
     })
   );
 });
-
