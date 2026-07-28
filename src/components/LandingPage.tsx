@@ -190,7 +190,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="pt-2 flex flex-wrap items-center gap-2.5">
                 <span className="text-[11px] font-semibold text-[#6B7280] flex items-center gap-1">
                   <Smartphone className="w-3.5 h-3.5 text-[#005FB8]" />
-                  PWA Mobile App:
+                  Download Mobile App:
                 </span>
 
                 {/* Apple App Store Button */}
@@ -525,7 +525,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* App Store CTA Badges Block */}
           <div className="pt-4 border-t border-[#E2E8F0] max-w-md mx-auto">
-            <p className="text-xs font-bold text-[#111827] mb-3">Install MutualPool PWA Mobile App:</p>
+            <p className="text-xs font-bold text-[#111827] mb-3">Install MutualPool Mobile App:</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               {/* Apple App Store Button */}
               <button
