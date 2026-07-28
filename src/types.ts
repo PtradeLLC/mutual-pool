@@ -169,7 +169,11 @@ export interface AuditLogEntry {
     | 'USER_REGISTERED'
     | 'WEBHOOK_EVENT'
     | 'DELINQUENCY_HANDLED'
-    | 'TREASURY_WITHDRAWAL';
+    | 'TREASURY_WITHDRAWAL'
+    | 'PERK_CREATED'
+    | 'PERK_UPDATED'
+    | 'PERK_STATUS_CHANGED'
+    | 'PERK_DELETED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
@@ -213,6 +217,8 @@ export interface Perk {
   iconName: string;
   imageUrl?: string;
   redeemedCount: number;
+  partnerEmail?: string;
+  partnerNotes?: string;
 }
 
 export interface Redemption {

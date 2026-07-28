@@ -108,6 +108,13 @@ function getCurrentUser(req: Request): User | null {
   return users[0] || null;
 }
 
+// Helper: Check if Request Sender Has Admin Role
+function checkIsAdmin(req: Request): boolean {
+  const user = getCurrentUser(req);
+  if (!user) return false;
+  return user.role === 'SUPER_ADMIN' || user.role === 'POD_ADMIN' || user.role?.includes('ADMIN');
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json());
@@ -1061,7 +1068,13 @@ async function startServer() {
   });
 
   app.post('/api/perks/submit', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Only administrators can add or manage perks and benefits.' });
+    }
+
     const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'User context required.' });
+
     const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility } = req.body;
 
     const newPerk: Perk = {
@@ -1075,26 +1088,178 @@ async function startServer() {
       redemptionData,
       eligibility: eligibility || 'All verified members',
       submittedBy: user.displayName,
-      status: 'PENDING',
+      status: 'APPROVED',
       iconName: 'Gift',
       redeemedCount: 0,
     };
 
     perks.unshift(newPerk);
 
-    res.json({ success: true, perk: newPerk, message: 'Partner perk submitted for admin CMS review.' });
+    res.json({ success: true, perk: newPerk, message: 'Partner perk added successfully by Admin.' });
   });
 
   app.get('/api/admin/perks/pending', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
     res.json(perks.filter(p => p.status === 'PENDING'));
   });
 
+  app.get('/api/admin/perks/all', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+    res.json(perks);
+  });
+
+  app.post('/api/admin/perks', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'User context required.' });
+
+    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, status, partnerEmail, partnerNotes } = req.body;
+
+    if (!title || !category || !provider) {
+      return res.status(400).json({ error: 'Title, category, and provider are required.' });
+    }
+
+    const newPerk: Perk = {
+      id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      title,
+      category,
+      provider,
+      description: description || '',
+      valueBadge: valueBadge || 'Verified Partner Offer',
+      redemptionType: redemptionType || 'CODE',
+      redemptionData: redemptionData || 'PARTNER-PERK-VIP',
+      eligibility: eligibility || 'All verified members',
+      submittedBy: user.displayName || 'Site Admin',
+      status: status || 'APPROVED',
+      iconName: 'Sparkles',
+      redeemedCount: 0,
+      partnerEmail,
+      partnerNotes,
+    };
+
+    perks.unshift(newPerk);
+
+    addAuditLog(
+      undefined,
+      user.id,
+      user.displayName,
+      'PERK_CREATED' as any,
+      `Admin added new verified partner perk: "${title}" (${provider})`,
+      { perkId: newPerk.id, title, provider }
+    );
+
+    res.status(201).json({ success: true, perk: newPerk });
+  });
+
+  app.put('/api/admin/perks/:id', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'User context required.' });
+
+    const perk = perks.find(p => p.id === req.params.id);
+    if (!perk) return res.status(404).json({ error: 'Perk not found' });
+
+    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, status, partnerEmail, partnerNotes } = req.body;
+
+    if (title !== undefined) perk.title = title;
+    if (category !== undefined) perk.category = category;
+    if (provider !== undefined) perk.provider = provider;
+    if (description !== undefined) perk.description = description;
+    if (valueBadge !== undefined) perk.valueBadge = valueBadge;
+    if (redemptionType !== undefined) perk.redemptionType = redemptionType;
+    if (redemptionData !== undefined) perk.redemptionData = redemptionData;
+    if (eligibility !== undefined) perk.eligibility = eligibility;
+    if (status !== undefined) perk.status = status;
+    if (partnerEmail !== undefined) perk.partnerEmail = partnerEmail;
+    if (partnerNotes !== undefined) perk.partnerNotes = partnerNotes;
+
+    addAuditLog(
+      undefined,
+      user.id,
+      user.displayName,
+      'PERK_UPDATED' as any,
+      `Admin updated partner perk details for "${perk.title}" (${perk.provider})`,
+      { perkId: perk.id, title: perk.title, status: perk.status }
+    );
+
+    res.json({ success: true, perk });
+  });
+
+  app.post('/api/admin/perks/:id/status', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'User context required.' });
+
+    const perk = perks.find(p => p.id === req.params.id);
+    if (!perk) return res.status(404).json({ error: 'Perk not found' });
+
+    const { status } = req.body; // 'APPROVED' | 'PENDING' | 'REJECTED'
+    if (!['APPROVED', 'PENDING', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    perk.status = status;
+
+    addAuditLog(
+      undefined,
+      user.id,
+      user.displayName,
+      'PERK_STATUS_CHANGED' as any,
+      `Admin changed perk status for "${perk.title}" to ${status}`,
+      { perkId: perk.id, status }
+    );
+
+    res.json({ success: true, perk });
+  });
+
   app.post('/api/admin/perks/:id/approve', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+
     const perk = perks.find(p => p.id === req.params.id);
     if (!perk) return res.status(404).json({ error: 'Perk not found' });
 
     perk.status = 'APPROVED';
     res.json({ success: true, perk });
+  });
+
+  app.delete('/api/admin/perks/:id', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'User context required.' });
+
+    const idx = perks.findIndex(p => p.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Perk not found' });
+
+    const removed = perks.splice(idx, 1)[0];
+
+    addAuditLog(
+      undefined,
+      user.id,
+      user.displayName,
+      'PERK_DELETED' as any,
+      `Admin deleted partner perk "${removed.title}" (${removed.provider}) from marketplace`,
+      { perkId: removed.id, title: removed.title }
+    );
+
+    res.json({ success: true, removedPerkId: req.params.id });
   });
 
   // 14. Immutable Audit Logs
