@@ -1,8 +1,9 @@
-const CACHE_NAME = 'gig-mutual-pwa-v4';
+const CACHE_NAME = 'gig-mutual-pwa-v5';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/favicon.png'
 ];
 
 self.addEventListener('install', (event) => {
