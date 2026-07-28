@@ -360,17 +360,34 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           </div>
 
           {/* Calculated Weekly Payout Preview */}
-          <div className="bg-[#F8FAFC] p-4 rounded-lg border border-[#E2E8F0] flex items-center justify-between">
-            <div>
-              <span className="text-[#6B7280] text-xs block font-medium">Full Weekly Pool Payout</span>
-              <span className="text-xs text-gray-500">{sizeTier} members × ${depositTier}/wk</span>
+          <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[#111827] font-bold block">Starting Active Pool (1 Member)</span>
+                <span className="text-[11px] text-gray-500">Your initial deposit when pod is formed</span>
+              </div>
+              <div className="text-right">
+                <span className="text-sm font-bold text-[#005FB8] font-mono">
+                  ${depositTier}.00 / wk
+                </span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-xl font-bold text-emerald-600 font-mono">
-                ${(sizeTier * depositTier).toLocaleString()}
-              </span>
-              <span className="text-[10px] text-[#6B7280] block">Payout to 1 member/week</span>
+
+            <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
+              <div>
+                <span className="text-[#111827] font-bold block">Full Capacity Payout Target</span>
+                <span className="text-[11px] text-gray-500">{sizeTier} members × ${depositTier}/wk</span>
+              </div>
+              <div className="text-right">
+                <span className="text-lg font-extrabold text-emerald-600 font-mono">
+                  ${(sizeTier * depositTier).toLocaleString()}.00 / wk
+                </span>
+              </div>
             </div>
+
+            <p className="text-[10.5px] text-[#6B7280] pt-1">
+              💡 <strong>Dynamic Payout Scaling:</strong> Weekly payouts scale automatically as members join. For example, when 5 members join, weekly payout becomes ${5 * depositTier}/wk; when all {sizeTier} members join, payout reaches ${(sizeTier * depositTier).toLocaleString()}/wk.
+            </p>
           </div>
 
           <div className="pt-2 flex justify-end gap-3 border-t border-gray-200">

@@ -29,6 +29,9 @@ export const PodCard: React.FC<PodCardProps> = ({
     COMPLETED: 'bg-blue-50 text-[#005FB8] border-blue-200',
   };
 
+  const currentActivePool = pod.members.length * pod.depositTier;
+  const fullCapacityTarget = pod.sizeTier * pod.depositTier;
+
   return (
     <div className="bg-white border border-[#DDE1E6] rounded-xl p-4 hover:border-[#005FB8] transition-all flex flex-col justify-between shadow-xs relative group">
       <div>
@@ -74,15 +77,21 @@ export const PodCard: React.FC<PodCardProps> = ({
         {/* Financial Overview Metrics */}
         <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] mb-3 grid grid-cols-2 gap-3 text-xs">
           <div>
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Weekly Pool Payout</span>
+            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Active Weekly Pool</span>
             <span className="font-mono font-bold text-[#005FB8] text-sm">
-              ${pod.weeklyPoolTarget.toLocaleString()}
+              ${currentActivePool.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-[#6B7280] block font-mono">
+              {pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk
             </span>
           </div>
           <div>
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Treasury Account</span>
-            <span className="font-mono text-[#111827] text-[11px] truncate block">
-              {pod.holdingFinAccountId}
+            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Full Target Payout</span>
+            <span className="font-mono font-bold text-slate-700 text-sm">
+              ${fullCapacityTarget.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-[#6B7280] block font-mono">
+              At {pod.sizeTier} max capacity
             </span>
           </div>
         </div>
@@ -100,6 +109,13 @@ export const PodCard: React.FC<PodCardProps> = ({
             />
           </div>
         </div>
+
+        {/* Dynamic Capacity Scaling Notice */}
+        {pod.status === 'FORMING' && (
+          <div className="mb-3 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-[10.5px] text-amber-900 leading-tight">
+            💡 <strong>Dynamic Payout Scaling:</strong> Weekly payout is currently <strong>${currentActivePool.toLocaleString()}</strong> ({pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk). Scales up to <strong>${fullCapacityTarget.toLocaleString()}</strong> as remaining spots fill.
+          </div>
+        )}
 
         {/* User Membership Banner if in Pod */}
         {isMember && userMembership && (

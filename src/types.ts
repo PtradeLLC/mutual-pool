@@ -54,6 +54,8 @@ export interface InvitedContact {
   invitedAt: string;
 }
 
+export type PayoutClaimStatus = 'AUTOMATED_TREASURY_TRANSFER' | 'DISBURSED_TO_BANK' | 'EARMARKED_IN_TREASURY';
+
 export interface PodMembership {
   id: string; // e.g. "pm_101"
   podId: string;
@@ -64,6 +66,9 @@ export interface PodMembership {
   rotationIndex: number; // 0..N-1
   hasReceivedPayout: boolean;
   payoutCycleWeek?: number;
+  payoutClaimStatus?: PayoutClaimStatus;
+  payoutStripeTransferId?: string;
+  payoutProcessedAt?: string;
   agreementSignedAt?: string;
   agreementSignatureName?: string;
   delinquencyStatus: DelinquencyStatus;
@@ -107,6 +112,7 @@ export interface WeeklyCycle {
   totalPoolAmount: number;
   stripeTransferId?: string;
   status: CycleStatus;
+  payoutClaimStatus?: PayoutClaimStatus;
   dueDate: string;
   processedAt?: string;
 }
@@ -162,7 +168,8 @@ export interface AuditLogEntry {
     | 'BANK_LINKED'
     | 'USER_REGISTERED'
     | 'WEBHOOK_EVENT'
-    | 'DELINQUENCY_HANDLED';
+    | 'DELINQUENCY_HANDLED'
+    | 'TREASURY_WITHDRAWAL';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

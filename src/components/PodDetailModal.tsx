@@ -34,6 +34,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [swapTargetUserId, setSwapTargetUserId] = useState('');
   const [swapping, setSwapping] = useState(false);
   const [convertingOpen, setConvertingOpen] = useState(false);
+  const [withdrawingPayout, setWithdrawingPayout] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -43,6 +44,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const isFull = pod.members.length >= pod.sizeTier;
   const currentRecipientIndex = pod.currentCycleWeek - 1;
   const currentRecipientMember = pod.members.find(m => m.rotationIndex === currentRecipientIndex);
+
+  const currentActivePool = pod.members.length * pod.depositTier;
+  const fullCapacityTarget = pod.sizeTier * pod.depositTier;
 
   // Handle adding contacts to Trusted Circle
   const handleAddContacts = async (newContacts: { name: string; emailOrPhone: string }[]) => {
@@ -173,6 +177,34 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       setActionError(err instanceof Error ? err.message : 'Payout execution failed');
     } finally {
       setProcessingPayout(false);
+    }
+  };
+
+  // Option A Earmarked Payout Withdrawal Action
+  const handleWithdrawPayout = async () => {
+    setWithdrawingPayout(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const res = await fetch('/api/treasury/payouts/withdraw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ podId: pod.id, amount: currentUser.treasury.balanceUsd }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Withdrawal failed');
+
+      setActionSuccess(`Initiated $${data.amountWithdrawn.toFixed(2)} OutboundTransfer (${data.withdrawTransferId}) from Stripe Treasury to your linked bank account!`);
+      onRefreshPod();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Payout withdrawal failed');
+    } finally {
+      setWithdrawingPayout(false);
     }
   };
 
@@ -360,18 +392,34 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         </div>
 
         {/* Key Metrics Dashboard Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 shrink-0">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 shrink-0">
           <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Weekly Pool Payout</span>
+            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Active Weekly Pool</span>
             <span className="font-mono font-bold text-[#005FB8] text-base">
-              ${pod.weeklyPoolTarget.toLocaleString()}
+              ${currentActivePool.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-[#6B7280] block font-mono">
+              {pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk
+            </span>
+          </div>
+
+          <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
+            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Full Capacity Target</span>
+            <span className="font-mono font-bold text-slate-700 text-base">
+              ${fullCapacityTarget.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-[#6B7280] block font-mono">
+              At {pod.sizeTier} max capacity
             </span>
           </div>
 
           <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
             <span className="text-[#6B7280] text-[10px] uppercase font-bold block">This Week Collected</span>
             <span className="font-mono font-bold text-emerald-600 text-base">
-              ${pod.currentWeeklyCollected} / ${pod.weeklyPoolTarget}
+              ${pod.currentWeeklyCollected} / ${currentActivePool}
+            </span>
+            <span className="text-[10px] text-[#6B7280] block">
+              {Math.min(100, Math.round((pod.currentWeeklyCollected / (currentActivePool || 1)) * 100))}% deposited
             </span>
           </div>
 
@@ -380,14 +428,21 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             <span className="font-semibold text-[#111827] text-xs truncate block">
               {currentRecipientMember ? currentRecipientMember.displayName : 'Awaiting Lock'}
             </span>
-          </div>
-
-          <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Cycle Status</span>
-            <span className="font-bold text-amber-700 text-xs uppercase font-mono">
-              {pod.status}
+            <span className="text-[10px] font-bold text-amber-700 uppercase font-mono block">
+              Status: {pod.status}
             </span>
           </div>
+        </div>
+
+        {/* Capacity & Dynamic Payout Explanation Banner */}
+        <div className="mb-4 p-3 bg-blue-50/80 border border-blue-200/90 rounded-lg text-xs text-blue-950 shrink-0 space-y-1">
+          <div className="flex items-center gap-1.5 font-bold text-[#005FB8]">
+            <Users className="w-4 h-4 text-[#005FB8]" />
+            <span>How Member Capacity & Dynamic Weekly Payouts Work</span>
+          </div>
+          <p className="text-[11.5px] leading-relaxed text-[#374151]">
+            Weekly payouts in Mutual Savings Pods are directly funded by active participating members. Currently, <strong>{pod.members.length} participating member{pod.members.length === 1 ? '' : 's'}</strong> contribute <strong>${pod.depositTier}/wk</strong> each, making the active weekly payout pool <strong>${currentActivePool.toLocaleString()}</strong> per rotation turn. As new members join, weekly payouts automatically scale up to the maximum capacity target of <strong>${fullCapacityTarget.toLocaleString()}</strong> ({pod.sizeTier} members).
+          </p>
         </div>
 
         {/* Feedback Message Banners */}
@@ -566,51 +621,117 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         )}
         {activeTab === 'deposits' && (
           <div className="overflow-y-auto space-y-4 flex-1 pr-1 text-xs">
-            <div className="bg-[#F8FAFC] p-4 rounded-lg border border-[#E2E8F0] space-y-3">
-              <div className="flex items-center justify-between">
+            {/* Option A Rule Explanation Banner */}
+            <div className="p-3 bg-slate-900 text-white rounded-xl space-y-1.5 shadow-sm">
+              <div className="flex items-center gap-2 font-bold text-amber-400 text-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Automated Weekly Rotation Settlement Protocol (Option A)</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-300">
+                At the end of each weekly cycle, collected pool funds are automatically transferred directly into the rotation recipient's <strong>Stripe Treasury Account</strong>. Funds remain safely earmarked in Treasury until claimed. Members can withdraw funds to their linked bank account immediately or leave them earning yield. <strong>Subsequent rotation cycles never wait, pause, or block for delayed withdrawals.</strong>
+              </p>
+            </div>
+
+            {/* Payout Earmarked Balance & Bank Withdrawal Control for Current Member */}
+            {isMember && (
+              <div className="bg-emerald-50/80 p-4 rounded-xl border border-emerald-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
+                      Your Stripe Treasury Account Balance
+                    </span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black font-mono text-emerald-900">
+                        ${currentUser.treasury.balanceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      {userMembership?.hasReceivedPayout && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold text-[10px]">
+                          Payout Earmarked
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-emerald-700 block">
+                      Linked External Bank: {currentUser.externalBank?.bankName || 'Chase Checking'} (***{currentUser.externalBank?.last4 || '4821'})
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={handleWithdrawPayout}
+                    disabled={withdrawingPayout || currentUser.treasury.balanceUsd <= 0}
+                    className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0"
+                  >
+                    {withdrawingPayout ? (
+                      <span>Executing Bank Transfer...</span>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>Withdraw ${currentUser.treasury.balanceUsd.toFixed(2)} to Linked Bank</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {userMembership?.payoutStripeTransferId && (
+                  <div className="pt-2 border-t border-emerald-200/80 text-[11px] text-emerald-800 flex items-center justify-between font-mono">
+                    <span>Stripe Treasury Transfer Ref:</span>
+                    <span className="font-bold">{userMembership.payoutStripeTransferId}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Weekly Cycle Processor Box */}
+            <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h4 className="font-bold text-[#111827] text-sm">Week {pod.currentCycleWeek} Cycle Payout Processor</h4>
-                  <p className="text-[#6B7280] text-xs">Stripe Treasury OutboundTransfer to current recipient</p>
+                  <h4 className="font-bold text-[#111827] text-sm">Week {pod.currentCycleWeek} Automated Cycle Settlement</h4>
+                  <p className="text-[#6B7280] text-xs">Transfers current collected pool to rotation recipient's Stripe Treasury account</p>
                 </div>
 
                 <button
                   onClick={handleProcessPayout}
                   disabled={processingPayout || pod.status !== 'ACTIVE'}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
+                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0"
                 >
                   {processingPayout ? (
-                    <span>Executing Treasury Transfer...</span>
+                    <span>Processing Treasury OutboundTransfer...</span>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      <span>Execute Week {pod.currentCycleWeek} Payout (${pod.weeklyPoolTarget})</span>
+                      <span>Execute Week {pod.currentCycleWeek} Payout (${currentActivePool})</span>
                     </>
                   )}
                 </button>
               </div>
 
-              <div className="pt-2 border-t border-gray-200 text-[#6B7280]">
-                <span>Target Recipient: </span>
-                <strong className="text-[#005FB8]">
-                  {currentRecipientMember ? currentRecipientMember.displayName : 'N/A'}
-                </strong>
-                <span> (Rotation #{currentRecipientIndex})</span>
+              <div className="pt-2 border-t border-gray-200 text-[#6B7280] flex items-center justify-between text-[11.5px]">
+                <div>
+                  <span>Current Recipient: </span>
+                  <strong className="text-[#005FB8]">
+                    {currentRecipientMember ? currentRecipientMember.displayName : 'N/A'}
+                  </strong>
+                  <span> (Rotation #{currentRecipientIndex})</span>
+                </div>
+                <span className="font-mono text-emerald-600 font-bold">
+                  Collected: ${pod.currentWeeklyCollected} / ${currentActivePool}
+                </span>
               </div>
             </div>
 
-            <div className="bg-[#F8FAFC] p-4 rounded-lg border border-[#E2E8F0]">
-              <h4 className="font-bold text-[#111827] text-xs mb-3">Treasury Deposit Instructions</h4>
-              <p className="text-[#6B7280] text-xs mb-3">
-                Deposits move funds directly from your linked external bank account into this pod's Treasury Holding Account <code className="text-[#005FB8] font-mono bg-blue-50 px-1 py-0.5 rounded">{pod.holdingFinAccountId}</code>.
+            {/* Weekly Deposit Instructions Card */}
+            <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
+              <h4 className="font-bold text-[#111827] text-xs">Submit Weekly Contribution</h4>
+              <p className="text-[#6B7280] text-xs">
+                Contributions transfer directly from your linked external bank into this pod's Treasury Holding Account <code className="text-[#005FB8] font-mono bg-blue-50 px-1 py-0.5 rounded">{pod.holdingFinAccountId}</code>.
               </p>
               {isMember && (
                 <button
                   onClick={handleDeposit}
                   disabled={depositing}
-                  className="px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
+                  className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
                 >
                   <DollarSign className="w-4 h-4" />
-                  <span>Submit ${pod.depositTier}.00 Deposit</span>
+                  <span>Submit ${pod.depositTier}.00 Weekly Contribution</span>
                 </button>
               )}
             </div>

@@ -661,6 +661,8 @@ async function startServer() {
     pod.members = shuffledMembers;
     pod.status = 'ACTIVE';
     pod.cycleStartDate = new Date().toISOString();
+    pod.totalCycles = pod.members.length;
+    pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
 
     addAuditLog(
       pod.id,
@@ -729,7 +731,7 @@ async function startServer() {
     });
   });
 
-  // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer
+  // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
   app.post('/api/pods/:id/cycle/process', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     const pod = pods.find(p => p.id === req.params.id);
@@ -754,7 +756,7 @@ async function startServer() {
     const payoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
     const stripeTransferId = `tr_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 
-    // Update recipient Treasury balance
+    // Update recipient Treasury balance immediately (Option A: Auto-Earmarked Balance)
     if (recipientUser) {
       recipientUser.treasury.balanceUsd += payoutAmount;
       recipientUser.treasury.totalPayoutsReceivedUsd += payoutAmount;
@@ -762,21 +764,30 @@ async function startServer() {
 
     recipientMember.hasReceivedPayout = true;
     recipientMember.payoutCycleWeek = pod.currentCycleWeek;
+    recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
+    recipientMember.payoutStripeTransferId = stripeTransferId;
+    recipientMember.payoutProcessedAt = new Date().toISOString();
 
     // Reset weekly collected for next cycle
     pod.currentWeeklyCollected = 0;
     
-    // Log audit entry
+    // Log audit entry with Option A details
     addAuditLog(
       pod.id,
       user.id,
       user.displayName,
       'PAYOUT_EXECUTED',
-      `Week ${pod.currentCycleWeek} Payout of $${payoutAmount}.00 executed via Stripe Treasury OutboundTransfer (${stripeTransferId}) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}).`,
-      { stripeTransferId, recipientId: recipientMember.userId, amount: payoutAmount, weekNumber: pod.currentCycleWeek }
+      `Week ${pod.currentCycleWeek} payout of $${payoutAmount}.00 automatically processed via Stripe Treasury OutboundTransfer (${stripeTransferId}) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Funds earmarked in member's Stripe Treasury Financial Account. Rotation schedule unblocked for next week.`,
+      { 
+        stripeTransferId, 
+        recipientId: recipientMember.userId, 
+        amount: payoutAmount, 
+        weekNumber: pod.currentCycleWeek,
+        payoutClaimStatus: 'EARMARKED_IN_TREASURY'
+      }
     );
 
-    // Advance cycle week
+    // Advance cycle week automatically - Option A ensures no rotation pauses
     if (pod.currentCycleWeek >= pod.totalCycles) {
       pod.status = 'COMPLETED';
       // Grant completed pod credit to members
@@ -793,8 +804,70 @@ async function startServer() {
       stripeTransferId,
       payoutAmount,
       recipientName: recipientMember.displayName,
+      payoutClaimStatus: 'EARMARKED_IN_TREASURY',
       nextCycleWeek: pod.currentCycleWeek,
       podStatus: pod.status,
+    });
+  });
+
+  // 10b. Withdraw / Claim Earmarked Treasury Payout to External Bank Account
+  app.post('/api/treasury/payouts/withdraw', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const { amount, podId } = req.body;
+
+    const targetUser = users.find(u => u.id === user.id);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const withdrawAmount = Number(amount) || targetUser.treasury.balanceUsd;
+    if (withdrawAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid withdrawal amount.' });
+    }
+
+    if (targetUser.treasury.balanceUsd < withdrawAmount) {
+      return res.status(400).json({ error: 'Insufficient Treasury balance.' });
+    }
+
+    // Process OutboundTransfer to linked external bank
+    const withdrawTransferId = `tr_payout_withdraw_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    targetUser.treasury.balanceUsd -= withdrawAmount;
+
+    // Update pod membership payoutClaimStatus if podId provided
+    if (podId) {
+      const pod = pods.find(p => p.id === podId);
+      if (pod) {
+        const member = pod.members.find(m => m.userId === user.id);
+        if (member) {
+          member.payoutClaimStatus = 'DISBURSED_TO_BANK';
+        }
+      }
+    } else {
+      // Update any membership for this user that was EARMARKED_IN_TREASURY
+      pods.forEach(p => {
+        p.members.forEach(m => {
+          if (m.userId === user.id && m.payoutClaimStatus === 'EARMARKED_IN_TREASURY') {
+            m.payoutClaimStatus = 'DISBURSED_TO_BANK';
+          }
+        });
+      });
+    }
+
+    addAuditLog(
+      podId,
+      targetUser.id,
+      targetUser.displayName,
+      'TREASURY_WITHDRAWAL',
+      `Initiated $${withdrawAmount.toFixed(2)} payout withdrawal from Stripe Treasury Financial Account ${targetUser.treasury.stripeFinAccountId} to linked bank (${targetUser.externalBank?.bankName || 'Chase Checking'} ***${targetUser.externalBank?.last4 || '4821'}). Stripe OutboundTransfer ID: ${withdrawTransferId}.`,
+      { withdrawTransferId, amount: withdrawAmount, remainingBalance: targetUser.treasury.balanceUsd }
+    );
+
+    res.json({
+      success: true,
+      withdrawTransferId,
+      amountWithdrawn: withdrawAmount,
+      remainingBalance: targetUser.treasury.balanceUsd,
+      user: targetUser,
     });
   });
 
