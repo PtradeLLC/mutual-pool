@@ -340,7 +340,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="flex items-center gap-3 mb-5">
           <Logo size="md" />
           <div>
-            <h3 className="text-xl font-bold text-[#111827]">MutualPool Firebase Portal</h3>
+            <h3 className="text-xl font-bold text-[#111827]">MutualPool Portal</h3>
             <p className="text-xs text-[#6B7280]">Email, Google, or Phone Authentication</p>
           </div>
         </div>
