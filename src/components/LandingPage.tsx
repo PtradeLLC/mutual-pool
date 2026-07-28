@@ -144,11 +144,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-extrabold text-[#111827] tracking-tight leading-tight">
-                The Mutual Savings & Emergency Safety Net for Gig Workers
+                Money pools, Perks & Benefits built for gig workers
               </h1>
 
               <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
-                Pool small weekly deposits with verified delivery drivers in interest-free savings circles. Lock in guaranteed lump-sum payouts for vehicle maintenance, taxes, or gear, while unlocking exclusive fleet discounts.
+                Pool weekly deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.
               </p>
 
               {/* Hero CTAs */}
