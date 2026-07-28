@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Pod, User } from '../types';
 import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
 import { Logo } from './Logo';
+import { WatchVideoModal } from './WatchVideoModal';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
-  AlertCircle, DollarSign, Clock, RefreshCw, Zap
+  AlertCircle, DollarSign, Clock, RefreshCw, Zap, Play
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -27,6 +28,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   // Simulator state
   const [calcMembers, setCalcMembers] = useState<number>(20);
   const [calcDeposit, setCalcDeposit] = useState<number>(20);
+
+  // Video Walkthrough Modal State
+  const [showWatchVideoModal, setShowWatchVideoModal] = useState(false);
 
   const totalPoolPayout = calcMembers * calcDeposit;
 
@@ -140,7 +144,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-semibold">
                 <Sparkles className="w-4 h-4 text-[#005FB8]" />
-                <span>Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers</span>
+                <span>Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers and more</span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-extrabold text-[#111827] tracking-tight leading-tight">
@@ -157,16 +161,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => onOpenAuth('REGISTER')}
                   className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-xs flex items-center gap-2"
                 >
-                  <span>Join a Savings Pod Free</span>
+                  <span>Join a Pod Free</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
                 <button
-                  onClick={() => onOpenAuth('DEMO')}
-                  className="px-6 py-3.5 rounded-xl bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-sm transition-all shadow-xs flex items-center gap-2"
+                  onClick={() => setShowWatchVideoModal(true)}
+                  className="px-6 py-3.5 rounded-xl bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-sm transition-all shadow-xs flex items-center gap-2 group"
                 >
-                  <Users className="w-4 h-4 text-[#005FB8]" />
-                  <span>Explore Demo Persona</span>
+                  <div className="w-6 h-6 rounded-full bg-blue-50 text-[#005FB8] flex items-center justify-center group-hover:bg-[#005FB8] group-hover:text-white transition-colors">
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                  </div>
+                  <span>Watch Video</span>
                 </button>
               </div>
 
@@ -174,26 +180,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span className="text-xs font-bold text-[#111827] block">Pass-Through FDIC</span>
-                  <span className="text-[10px] text-[#6B7280]">Insured up to $250k via Stripe</span>
+                  <span className="text-xs font-bold text-[#111827] block">Create pod & Invite</span>
+                  <span className="text-[10px] text-[#6B7280]">Create pods for free and invite friends to participate</span>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Lock className="w-4 h-4 text-[#005FB8]" />
-                  <span className="text-xs font-bold text-[#111827] block">Fixed Rotation</span>
-                  <span className="text-[10px] text-[#6B7280]">Locked order • 0% fee</span>
+                  <span className="text-xs font-bold text-[#111827] block">All deposits are safe</span>
+                  <span className="text-[10px] text-[#6B7280]">Every Pod is Safe, Secure & Insured up to $250k via Stripe</span>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Gift className="w-4 h-4 text-[#005FB8]" />
-                  <span className="text-xs font-bold text-[#111827] block">Fleet Discounts</span>
-                  <span className="text-[10px] text-[#6B7280]">15-20% off gas & repairs</span>
+                  <span className="text-xs font-bold text-[#111827] block">Perks and Benefits</span>
+                  <span className="text-[10px] text-[#6B7280]">Get 15-20% off products & services</span>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Zap className="w-4 h-4 text-amber-600" />
                   <span className="text-xs font-bold text-[#111827] block">Emergency Swap</span>
-                  <span className="text-[10px] text-[#6B7280]">Driver community voting</span>
+                  <span className="text-[10px] text-[#6B7280]">Swap payout with other members in community voting</span>
                 </div>
               </div>
 
@@ -213,7 +219,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Calculate Your Mutual Pool Payout
             </h2>
             <p className="text-xs sm:text-sm text-[#6B7280] mt-1">
-              See how a small weekly commitment turns into predictable, lump-sum funding for your vehicle repairs or tax reserves.
+              See how a small weekly commitment turns into lump-sum emergency fund for impromptu financial hardships.
             </p>
           </div>
 
@@ -325,10 +331,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
           <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider">Transparent Architecture</span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111827]">
-            How Rider Mutual Pods Work
+            How MutualPool Pods Work
           </h2>
           <p className="text-xs sm:text-sm text-[#6B7280]">
-            Digital Rotating Savings and Credit Associations (ROSCAs) engineered specifically for delivery driver fleets.
+            Digital Rotating Savings and Credit Associations (ROSCAs) engineered specifically for gig workers and delivery driver fleets.
           </p>
         </div>
 
@@ -340,7 +346,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h3 className="font-bold text-base text-[#111827]">Forming Circle</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              Drivers join an open pod in their region or fleet category (DoorDash, Uber Eats, Instacart) matching their weekly deposit budget.
+              Create or Join an open pod in your region or fleet category (DoorDash, Uber Eats, Instacart).
             </p>
           </div>
 
@@ -350,7 +356,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h3 className="font-bold text-base text-[#111827]">Rotation Locking</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              When capacity is reached, a cryptographically random shuffle permanently locks rotation indices 0 through N-1.
+              When capacity is reached, a cryptographically random shuffle permanently locks rotation indices.
             </p>
           </div>
 
@@ -360,7 +366,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <h3 className="font-bold text-base text-[#111827]">Stripe Treasury Payout</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              Weekly deposit cutoffs collect contributions into Stripe Treasury holding accounts and transfer the full lump-sum to the scheduled driver.
+              Each week everyone deposits what they can afford. The collected pool then goes into Stripe Treasury holding accounts and transfer the full lump-sum to whoever's next in the rotation.
             </p>
           </div>
 
@@ -442,7 +448,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section className="bg-white border-t border-[#DDE1E6] py-12 px-4 sm:px-6 mt-12 text-center">
         <div className="max-w-3xl mx-auto space-y-4">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111827]">
-            Ready to Build Your Driver Emergency Reserve?
+            Ready to Build Your Emergency Reserve?
           </h2>
           <p className="text-xs sm:text-sm text-[#6B7280]">
             Join thousands of gig workers saving together with Stripe Treasury security and pass-through FDIC insurance.
@@ -459,7 +465,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onClick={() => onOpenAuth('DEMO')}
               className="px-6 py-3 rounded-lg bg-[#F8FAFC] hover:bg-gray-100 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs"
             >
-              Log In as Demo Driver
+              Log In to Demo account
             </button>
           </div>
         </div>
@@ -467,11 +473,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* FOOTER */}
       <footer className="bg-[#F8FAFC] border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280]">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>Gig Pool & Perks PWA v2 • Built on Stripe Treasury & Custom Connect Rails</span>
-          <span>Pass-Through FDIC Insured up to $250,000 per user</span>
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">         
+          <span>© {new Date().getFullYear()} Chris Bitoye Ventures. All rights reserved.</span>
         </div>
       </footer>
+
+      {/* WATCH VIDEO WALKTHROUGH MODAL */}
+      <WatchVideoModal
+        isOpen={showWatchVideoModal}
+        onClose={() => setShowWatchVideoModal(false)}
+        onOpenRegister={() => onOpenAuth('REGISTER')}
+        onOpenHowItWorks={onOpenHowItWorks}
+      />
 
     </div>
   );
