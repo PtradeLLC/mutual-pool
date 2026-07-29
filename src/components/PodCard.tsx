@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pod, User } from '../types';
-import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock } from 'lucide-react';
+import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap } from 'lucide-react';
 
 interface PodCardProps {
   pod: Pod;
@@ -53,6 +53,24 @@ export const PodCard: React.FC<PodCardProps> = ({
             }`}>
               {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
               <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
+            </span>
+
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+              pod.activationPolicy === 'FLEXIBLE_EARLY'
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            }`}>
+              {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
+                <>
+                  <Zap className="w-3 h-3 text-amber-600" />
+                  <span>Early Start Allowed</span>
+                </>
+              ) : (
+                <>
+                  <Users className="w-3 h-3 text-emerald-600" />
+                  <span>Full Capacity Required</span>
+                </>
+              )}
             </span>
           </div>
 
@@ -112,8 +130,21 @@ export const PodCard: React.FC<PodCardProps> = ({
 
         {/* Dynamic Capacity Scaling Notice */}
         {pod.status === 'FORMING' && (
-          <div className="mb-3 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-[10.5px] text-amber-900 leading-tight">
-            💡 <strong>Dynamic Payout Scaling:</strong> Weekly payout is currently <strong>${currentActivePool.toLocaleString()}</strong> ({pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk). Scales up to <strong>${fullCapacityTarget.toLocaleString()}</strong> as remaining spots fill.
+          <div className="mb-3 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-[10.5px] text-amber-900 leading-tight space-y-1">
+            <div>
+              💡 <strong>Dynamic Payout Scaling:</strong> Weekly payout is currently <strong>${currentActivePool.toLocaleString()}</strong> ({pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk).
+            </div>
+            {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
+              <div className="text-[10px] text-amber-800 font-medium flex items-center gap-1 pt-0.5">
+                <Zap className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>Creator choice: Pod can be activated early before reaching all {pod.sizeTier} member spots.</span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-emerald-800 font-medium flex items-center gap-1 pt-0.5">
+                <Users className="w-3 h-3 text-emerald-600 shrink-0" />
+                <span>Creator choice: Pod activates when all {pod.sizeTier} member spots fill for max target payout (${fullCapacityTarget.toLocaleString()}/wk).</span>
+              </div>
+            )}
           </div>
         )}
 

@@ -62,6 +62,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
   inviteCode,
   podName = 'My Trusted Savings Circle',
   onAddContacts,
+  currentUser,
 }) => {
   const [customName, setCustomName] = useState('');
   const [customContact, setCustomContact] = useState('');
@@ -77,7 +78,8 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
 
   const isNativeContactsSupported = typeof window !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window;
 
-  const inviteLink = `https://mutualpool.org/join?code=${inviteCode}`;
+  const refParam = currentUser ? `&ref=${currentUser.id}` : '';
+  const inviteLink = `https://mutualpool.org/join?code=${inviteCode}${refParam}`;
 
   const handleCopy = () => {
     const text = `Hey! Join my private Trusted Circle savings pod "${podName}" on MutualPool. Use my invite code: ${inviteCode} or tap: ${inviteLink}`;
@@ -529,6 +531,18 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
         </div>
       )}
 
+      {/* Friends of Friends Network Info Banner */}
+      <div className="p-3 bg-[#F0F7FF] border border-[#BBE0FF] rounded-lg flex items-start gap-2 text-xs text-[#003A70]">
+        <Users className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
+        <div>
+          <span className="font-bold block text-[#003A70]">Friends of Friends Network Growth</span>
+          <p className="text-[11px] text-[#003A70]/90 leading-relaxed mt-0.5">
+            Every invited member who joins this Pod can also invite their own trusted friends.
+            This allows your savings pool to grow safely across trusted networks.
+          </p>
+        </div>
+      </div>
+
       {/* Invited Contacts Ledger List */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -573,6 +587,11 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                   <div>
                     <span className="font-bold block text-xs text-[#111827]">{contact.name}</span>
                     <span className="text-[10px] text-[#6B7280] font-mono">{contact.emailOrPhone}</span>
+                    {contact.invitedByName && (
+                      <span className="block text-[10px] text-[#005FB8] font-medium mt-0.5">
+                        Invited by {contact.invitedByName}
+                      </span>
+                    )}
                   </div>
                 </div>
 

@@ -52,6 +52,8 @@ export interface InvitedContact {
   memberUserId?: string;
   status: 'PENDING_INVITE' | 'INVITED' | 'JOINED';
   invitedAt: string;
+  invitedByUserId?: string;
+  invitedByName?: string;
 }
 
 export type PayoutClaimStatus = 'AUTOMATED_TREASURY_TRANSFER' | 'DISBURSED_TO_BANK' | 'EARMARKED_IN_TREASURY';
@@ -73,7 +75,11 @@ export interface PodMembership {
   agreementSignatureName?: string;
   delinquencyStatus: DelinquencyStatus;
   joinedAt: string;
+  invitedByUserId?: string;
+  invitedByName?: string;
 }
+
+export type ActivationPolicy = 'WHEN_FULL' | 'FLEXIBLE_EARLY';
 
 export interface Pod {
   id: string;
@@ -81,6 +87,7 @@ export interface Pod {
   description: string;
   category: string;
   podType: PodType;
+  activationPolicy?: ActivationPolicy;
   inviteWindowDays: number;
   autoOpenOnExpire: boolean;
   inviteCode: string;

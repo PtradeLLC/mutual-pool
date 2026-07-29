@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User, PodSizeTier, DepositTier, PodType, InvitedContact } from '../types';
+import { User, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy } from '../types';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
-import { PlusCircle, Lock, ShieldCheck, AlertCircle, Sparkles, X, CheckCircle2, Users, Clock } from 'lucide-react';
+import { PlusCircle, Lock, ShieldCheck, AlertCircle, Sparkles, X, CheckCircle2, Users, Clock, Zap } from 'lucide-react';
 
 interface CreatePodModalProps {
   user: User;
@@ -14,6 +14,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Food Delivery & Rideshare');
   const [podType, setPodType] = useState<PodType>('TRUSTED_CIRCLE');
+  const [activationPolicy, setActivationPolicy] = useState<ActivationPolicy>('WHEN_FULL');
   const [inviteWindowDays, setInviteWindowDays] = useState<number>(7);
   const [autoOpenOnExpire, setAutoOpenOnExpire] = useState<boolean>(true);
   const [invitedContacts, setInvitedContacts] = useState<InvitedContact[]>([]);
@@ -69,6 +70,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           description,
           category,
           podType,
+          activationPolicy,
           inviteWindowDays,
           autoOpenOnExpire,
           invitedContacts,
@@ -201,6 +203,84 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                     ⚠️ Requires 1 completed Trusted Circle cycle first.
                   </span>
                 )}
+              </div>
+
+            </div>
+          </div>
+
+          {/* SECTION: POD ACTIVATION POLICY SELECTION */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-[#111827]">
+                Choose Pod Activation & Lock Timing Policy
+              </label>
+              <span className="text-[10px] text-[#005FB8] font-bold uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                Pod Creator Setting
+              </span>
+            </div>
+
+            <p className="text-[11px] text-[#6B7280] mb-2.5 leading-relaxed">
+              Select when this Pod should lock its rotation order and begin active weekly savings cycles. Full capacity guarantees maximum lump-sum payouts, but flexible activation lets you start earlier.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              
+              {/* OPTION A: ACTIVATE ONLY WHEN FULL */}
+              <div
+                onClick={() => setActivationPolicy('WHEN_FULL')}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-2 relative ${
+                  activationPolicy === 'WHEN_FULL'
+                    ? 'bg-blue-50/70 border-[#005FB8] ring-2 ring-blue-500/20'
+                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#111827] text-xs flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-[#005FB8]" />
+                    <span>Activate Only When 100% Full</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Max Payout
+                  </span>
+                </div>
+
+                <p className="text-[#374151] text-[11px] leading-relaxed">
+                  Wait until all <strong>{sizeTier} member spots</strong> are filled before locking rotation. Guarantees maximum lump-sum payout target for every member.
+                </p>
+
+                <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-600 flex items-center justify-between font-mono">
+                  <span>Target Payout Pool:</span>
+                  <strong className="text-emerald-700 font-bold">${(sizeTier * depositTier).toLocaleString()}/wk</strong>
+                </div>
+              </div>
+
+              {/* OPTION B: FLEXIBLE EARLY ACTIVATION */}
+              <div
+                onClick={() => setActivationPolicy('FLEXIBLE_EARLY')}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-2 relative ${
+                  activationPolicy === 'FLEXIBLE_EARLY'
+                    ? 'bg-blue-50/70 border-[#005FB8] ring-2 ring-blue-500/20'
+                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#111827] text-xs flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-amber-600" />
+                    <span>Flexible Early Activation</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    Start Before Max
+                  </span>
+                </div>
+
+                <p className="text-[#374151] text-[11px] leading-relaxed">
+                  Allows you (Pod Creator) to lock rotation and activate weekly cycles early as soon as <strong>2+ members</strong> join, without waiting for max capacity.
+                </p>
+
+                <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-600 flex items-center justify-between font-mono">
+                  <span>Minimum Threshold:</span>
+                  <strong className="text-amber-800 font-bold">2 Signed Members</strong>
+                </div>
               </div>
 
             </div>

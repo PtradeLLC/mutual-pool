@@ -152,6 +152,7 @@ export const INITIAL_PODS: Pod[] = [
     description: 'Weekly $20 mutual savings pool for SF Bay Area food delivery riders & drivers. Locked fixed rotation order.',
     category: 'Food Delivery & Rideshare',
     podType: 'TRUSTED_CIRCLE',
+    activationPolicy: 'WHEN_FULL',
     inviteWindowDays: 7,
     autoOpenOnExpire: true,
     inviteCode: 'BAY2026',
@@ -203,6 +204,8 @@ export const INITIAL_PODS: Pod[] = [
         agreementSignatureName: 'Elena Rostova',
         delinquencyStatus: 'CLEAN',
         joinedAt: '2026-06-16T09:00:00Z',
+        invitedByUserId: 'usr_marcus',
+        invitedByName: 'Marcus Vance',
       },
       {
         id: 'pm_3',
@@ -217,6 +220,8 @@ export const INITIAL_PODS: Pod[] = [
         agreementSignatureName: 'Devon Miller',
         delinquencyStatus: 'CLEAN',
         joinedAt: '2026-06-18T16:00:00Z',
+        invitedByUserId: 'usr_elena',
+        invitedByName: 'Elena Rostova',
       },
       ...Array.from({ length: 17 }).map((_, idx) => ({
         id: `pm_${idx + 4}`,
@@ -235,6 +240,8 @@ export const INITIAL_PODS: Pod[] = [
         agreementSignatureName: 'Member Signature',
         delinquencyStatus: idx === 5 ? 'GRACE_PERIOD' as const : 'CLEAN' as const,
         joinedAt: '2026-06-20T10:00:00Z',
+        invitedByUserId: idx % 2 === 0 ? 'usr_elena' : (idx % 3 === 0 ? 'usr_devon' : 'usr_marcus'),
+        invitedByName: idx % 2 === 0 ? 'Elena Rostova' : (idx % 3 === 0 ? 'Devon Miller' : 'Marcus Vance'),
       }))
     ],
   },
@@ -244,6 +251,7 @@ export const INITIAL_PODS: Pod[] = [
     description: 'Accessible $5 weekly deposit pool for new drivers building savings habit. 50 members = $250 weekly payout.',
     category: 'General Gig Workers',
     podType: 'TRUSTED_CIRCLE',
+    activationPolicy: 'FLEXIBLE_EARLY',
     inviteWindowDays: 14,
     autoOpenOnExpire: true,
     inviteCode: 'START50',

@@ -4,7 +4,7 @@ import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, 
-  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock
+  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -99,7 +99,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   };
 
   // Lock Pod Action (if all agreements signed and pod is full or ready)
-  const handleLockPod = async () => {
+  const handleLockPod = async (forceEarly = false) => {
     setActionError(null);
     setActionSuccess(null);
     try {
@@ -109,10 +109,19 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
+        body: JSON.stringify({ forceEarly }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to lock rotation order');
+      if (!res.ok) {
+        if (data.requiresConfirmation) {
+          if (window.confirm(`${data.message}\n\nDo you want to lock rotation order and activate early with ${pod.members.length} members now?`)) {
+            handleLockPod(true);
+            return;
+          }
+        }
+        throw new Error(data.message || 'Failed to lock rotation order');
+      }
 
       setActionSuccess('Pod successfully locked! Fixed rotation order generated via crypto-secure shuffle.');
       onRefreshPod();
@@ -325,6 +334,24 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
                   <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
                 </span>
+
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                  pod.activationPolicy === 'FLEXIBLE_EARLY'
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                }`}>
+                  {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
+                    <>
+                      <Zap className="w-3 h-3 text-amber-600" />
+                      <span>Early Start Allowed</span>
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-3 h-3 text-emerald-600" />
+                      <span>Full Capacity Required</span>
+                    </>
+                  )}
+                </span>
               </div>
 
               <h2 className="text-xl sm:text-2xl font-bold text-[#111827]">
@@ -380,6 +407,47 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 >
                   <Users className="w-3.5 h-3.5" />
                   <span>{convertingOpen ? 'Converting...' : 'Open Remaining Spots to Public'}</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Pod Activation Policy Information Banner */}
+          {pod.status === 'FORMING' && (
+            <div className={`mt-2 p-3 rounded-lg border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+              pod.activationPolicy === 'FLEXIBLE_EARLY'
+                ? 'bg-amber-50/80 border-amber-200 text-amber-950'
+                : 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+            }`}>
+              <div className="flex items-center gap-2">
+                {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
+                  <Zap className="w-4 h-4 text-amber-600 shrink-0" />
+                ) : (
+                  <Users className="w-4 h-4 text-emerald-600 shrink-0" />
+                )}
+                <div>
+                  <span className="font-bold block text-[#111827]">
+                    Activation Policy: {pod.activationPolicy === 'FLEXIBLE_EARLY' ? '⚡ Flexible Early Activation Allowed' : '🎯 Activate Only When 100% Full'}
+                  </span>
+                  <span className="text-[11px] text-gray-700">
+                    {pod.activationPolicy === 'FLEXIBLE_EARLY'
+                      ? `Pod creator (${pod.creatorName}) can lock rotation and start weekly cycles as soon as 2+ members join (${pod.members.length}/${pod.sizeTier} members current).`
+                      : `Configured to auto-lock when all ${pod.sizeTier} member spots fill (${pod.members.length}/${pod.sizeTier} joined). Creator can also manually lock early if needed.`}
+                  </span>
+                </div>
+              </div>
+
+              {isCreator && pod.members.length >= 2 && (
+                <button
+                  onClick={() => handleLockPod(pod.activationPolicy === 'WHEN_FULL')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 transition-colors shadow-xs flex items-center gap-1.5 ${
+                    pod.activationPolicy === 'FLEXIBLE_EARLY'
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  }`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>{pod.activationPolicy === 'FLEXIBLE_EARLY' ? 'Lock & Start Early Now' : 'Lock & Activate Early'}</span>
                 </button>
               )}
             </div>
@@ -515,10 +583,18 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         {/* TAB 1: FIXED ROTATION LIST */}
         {activeTab === 'rotation' && (
           <div className="overflow-y-auto space-y-2 flex-1 pr-1">
-            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-[#4B5563] flex items-center justify-between mb-2">
-              <span className="text-[#111827]">
-                <strong>Permanent Fixed Order:</strong> Set once at pod lock via cryptographic shuffle. Re-randomization is strictly forbidden.
-              </span>
+            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-[#4B5563] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+              <div>
+                <span className="text-[#111827]">
+                  <strong>Permanent Fixed Order:</strong> Set once at pod lock via cryptographic shuffle. Re-randomization is strictly forbidden.
+                </span>
+                <div className="text-[10px] text-[#005FB8] font-medium mt-1 flex items-center gap-1.5">
+                  <Users className="w-3 h-3 text-[#005FB8]" />
+                  <span>
+                    Network Lineage: Pod Creator ({pod.creatorName}) • {pod.members.filter(m => m.invitedByUserId && m.invitedByUserId !== pod.createdBy).length} Friends of Friends referrals joined
+                  </span>
+                </div>
+              </div>
               {pod.status === 'ACTIVE' && isMember && (
                 <button
                   onClick={handleDeposit}
@@ -534,6 +610,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             {pod.members.map((member) => {
               const isCurrentTurn = pod.status === 'ACTIVE' && member.rotationIndex === currentRecipientIndex;
               const isCurrentUserMember = member.userId === currentUser.id;
+              const isPodCreator = member.userId === pod.createdBy;
 
               return (
                 <div
@@ -560,8 +637,13 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     />
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-[#111827] text-sm">{member.displayName}</span>
+                        {isPodCreator && (
+                          <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200">
+                            POD CREATOR
+                          </span>
+                        )}
                         {isCurrentUserMember && (
                           <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#005FB8] text-[10px] font-semibold">
                             YOU
@@ -573,9 +655,14 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-[#6B7280]">
-                        {member.platform} • Joined {new Date(member.joinedAt).toLocaleDateString()}
-                      </span>
+                      <div className="flex items-center gap-2 text-[11px] text-[#6B7280]">
+                        <span>{member.platform} • Joined {new Date(member.joinedAt).toLocaleDateString()}</span>
+                        {member.invitedByName && !isPodCreator && (
+                          <span className="text-[10px] text-[#005FB8] font-medium bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                            Invited by {member.invitedByName} {member.invitedByUserId === pod.createdBy ? '(1st Degree)' : '(Friend of Friend)'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

@@ -345,10 +345,13 @@ async function startServer() {
       sizeTier, 
       depositTier, 
       podType, 
+      activationPolicy,
       inviteWindowDays, 
       autoOpenOnExpire, 
       invitedContacts 
     } = req.body;
+
+    const requestedActivationPolicy = activationPolicy === 'FLEXIBLE_EARLY' ? 'FLEXIBLE_EARLY' : 'WHEN_FULL';
 
     // Hard Gate: KYC Must be Verified
     if (user.kycStatus !== 'VERIFIED') {
@@ -393,6 +396,7 @@ async function startServer() {
       description: description || 'Community gig worker mutual savings pool',
       category: category || 'General Gig Workers',
       podType: requestedPodType,
+      activationPolicy: requestedActivationPolicy,
       inviteWindowDays: Number(inviteWindowDays) || 7,
       autoOpenOnExpire: autoOpenOnExpire !== false,
       inviteCode: randomCode,
@@ -427,24 +431,34 @@ async function startServer() {
 
     pods.unshift(newPod);
 
+    const policyLabel = requestedActivationPolicy === 'WHEN_FULL' 
+      ? 'Wait Until 100% Full Capacity' 
+      : 'Flexible Early Activation Allowed';
+
     addAuditLog(
       newPod.id,
       user.id,
       user.displayName,
       'POD_CREATED',
-      `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} provisioned.`
+      `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} provisioned.`
     );
 
     res.json(newPod);
   });
 
-  // 5b. Add / Invite Contacts to Pod's Trusted Circle
+  // 5b. Add / Invite Contacts to Pod's Trusted Circle (Friends of Friends Enabled)
   app.post('/api/pods/:id/contacts', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
+    }
+
+    // Verify user is a member or creator of the pod
+    const isMemberOrCreator = pod.createdBy === user.id || pod.members.some(m => m.userId === user.id);
+    if (!isMemberOrCreator) {
+      return res.status(403).json({ error: 'Only active members or the pod creator can invite contacts to this pod.' });
     }
 
     const { contacts } = req.body; // array of { name, emailOrPhone }
@@ -478,18 +492,25 @@ async function startServer() {
         memberUserId: registeredUser?.id,
         status: registeredUser ? 'PENDING_INVITE' : 'INVITED',
         invitedAt: new Date().toISOString(),
+        invitedByUserId: user.id,
+        invitedByName: user.displayName,
       };
 
       pod.invitedContacts.push(newInvitedContact);
       addedContacts.push(newInvitedContact);
     });
 
+    const isCreator = user.id === pod.createdBy;
+    const auditMsg = isCreator
+      ? `Creator ${user.displayName} invited ${addedContacts.length} contacts to Trusted Circle for pod "${pod.name}".`
+      : `Member ${user.displayName} invited ${addedContacts.length} contacts to Trusted Circle for pod "${pod.name}" (Friends of Friends network expansion).`;
+
     addAuditLog(
       pod.id,
       user.id,
       user.displayName,
       'POD_CREATED',
-      `Invited ${addedContacts.length} contacts to Trusted Circle for pod "${pod.name}".`
+      auditMsg
     );
 
     res.json({
@@ -525,10 +546,10 @@ async function startServer() {
     res.json({ success: true, pod });
   });
 
-  // 6. Join Pod
+  // 6. Join Pod (Supports Friends of Friends Referral Attribution)
   app.post('/api/pods/:id/join', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
-    const { inviteCode } = req.body || {};
+    const { inviteCode, refUserId, refName } = req.body || {};
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
@@ -555,19 +576,44 @@ async function startServer() {
       return res.status(400).json({ error: 'You are already a member of this pod.' });
     }
 
+    // Check matching contact in invitedContacts
+    const contactMatch = pod.invitedContacts?.find(
+      ic => ic.emailOrPhone.toLowerCase() === user.email.toLowerCase() || ic.memberUserId === user.id
+    );
+
     // Check Trusted Circle restrictions if pod is TRUSTED_CIRCLE and user is not creator
     if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== user.id) {
-      const isInvitedByEmail = pod.invitedContacts?.some(
-        ic => ic.emailOrPhone.toLowerCase() === user.email.toLowerCase() || ic.memberUserId === user.id
-      );
+      const isInvited = !!contactMatch;
       const isCodeValid = inviteCode && inviteCode.trim().toUpperCase() === pod.inviteCode?.toUpperCase();
 
-      if (!isInvitedByEmail && !isCodeValid) {
+      if (!isInvited && !isCodeValid) {
         return res.status(403).json({
           error: 'INVITE_REQUIRED',
-          message: 'This is a private Trusted Circle pod. Enter the valid 6-character invite code or request an invite from the pod creator.'
+          message: 'This is a private Trusted Circle pod. Enter a valid invite code or request an invite from a pod member.'
         });
       }
+    }
+
+    // Determine inviter attribution
+    let inviterId = contactMatch?.invitedByUserId;
+    let inviterDisplayName = contactMatch?.invitedByName;
+
+    if (!inviterId && refUserId) {
+      const refMember = pod.members.find(m => m.userId === refUserId);
+      if (refMember) {
+        inviterId = refMember.userId;
+        inviterDisplayName = refMember.displayName;
+      }
+    }
+
+    if (!inviterId && refName) {
+      inviterDisplayName = refName;
+    }
+
+    if (!inviterId && !inviterDisplayName) {
+      // Default to pod creator
+      inviterId = pod.createdBy;
+      inviterDisplayName = pod.creatorName;
     }
 
     const newMember: PodMembership = {
@@ -581,26 +627,23 @@ async function startServer() {
       hasReceivedPayout: false,
       delinquencyStatus: 'CLEAN',
       joinedAt: new Date().toISOString(),
+      invitedByUserId: inviterId,
+      invitedByName: inviterDisplayName,
     };
 
     pod.members.push(newMember);
 
     // Update invited contact status if matched
-    if (pod.invitedContacts) {
-      const contactMatch = pod.invitedContacts.find(
-        ic => ic.emailOrPhone.toLowerCase() === user.email.toLowerCase() || ic.memberUserId === user.id
-      );
-      if (contactMatch) {
-        contactMatch.status = 'JOINED';
-      }
+    if (contactMatch) {
+      contactMatch.status = 'JOINED';
     }
 
     addAuditLog(
       pod.id,
       user.id,
       user.displayName,
-      'POD_CREATED', // Or joined
-      `Joined pod "${pod.name}". Position in queue pending final rotation lock when full.`
+      'POD_CREATED',
+      `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''}. Position in queue pending final rotation lock when full.`
     );
 
     res.json(pod);
@@ -644,6 +687,31 @@ async function startServer() {
       return res.status(404).json({ error: 'Pod not found' });
     }
 
+    const { forceEarly } = req.body || {};
+
+    // Check if creator or admin
+    const isCreatorOrAdmin = pod.createdBy === user.id || user.role === 'POD_ADMIN' || pod.members.some(m => m.userId === user.id);
+    if (!isCreatorOrAdmin) {
+      return res.status(403).json({ error: 'Only members or creator can request rotation locking.' });
+    }
+
+    if (pod.members.length < 2) {
+      return res.status(400).json({
+        error: 'MINIMUM_MEMBERS_REQUIRED',
+        message: 'A mutual savings pod requires at least 2 signed members to lock rotation and activate.'
+      });
+    }
+
+    // Check activation policy vs capacity
+    const isFull = pod.members.length >= pod.sizeTier;
+    if (pod.activationPolicy === 'WHEN_FULL' && !isFull && !forceEarly) {
+      return res.status(400).json({
+        error: 'ACTIVATION_POLICY_WHEN_FULL',
+        message: `This Pod is set to "Activate Only When 100% Full" (${pod.members.length}/${pod.sizeTier} members). To activate early before filling all spots, confirm early activation.`,
+        requiresConfirmation: true
+      });
+    }
+
     // Check if all members signed
     const unsigned = pod.members.filter(m => !m.agreementSignedAt);
     if (unsigned.length > 0) {
@@ -671,13 +739,17 @@ async function startServer() {
     pod.totalCycles = pod.members.length;
     pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
 
+    const auditDetail = isFull
+      ? `Pod reached full capacity (${pod.sizeTier}/${pod.sizeTier}) and locked rotation order.`
+      : `Pod locked and activated early under ${pod.activationPolicy === 'FLEXIBLE_EARLY' ? 'Flexible Early Activation policy' : 'Creator Early Lock override'} with ${pod.members.length}/${pod.sizeTier} members.`;
+
     addAuditLog(
       pod.id,
       user.id,
       user.displayName,
       'ROTATION_LOCKED',
-      `Pod locked and activated. 1-time cryptographically secure random shuffle permanently set rotation indices 0 to ${pod.members.length - 1}. Rotation order is now fixed and immutable.`,
-      { totalMembers: pod.members.length, agreementVersion: pod.agreementVersion }
+      `${auditDetail} 1-time cryptographically secure random shuffle set rotation order 0 to ${pod.members.length - 1}.`,
+      { totalMembers: pod.members.length, agreementVersion: pod.agreementVersion, activationPolicy: pod.activationPolicy }
     );
 
     res.json(pod);

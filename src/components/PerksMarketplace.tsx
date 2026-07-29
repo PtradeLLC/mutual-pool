@@ -106,6 +106,19 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     }
   }, [showAdminTab, currentUser.role, isAdmin]);
 
+  const approvedCount = allAdminPerks.filter(p => p.status === 'APPROVED').length;
+  const pendingCount = allAdminPerks.filter(p => p.status === 'PENDING').length;
+  const rejectedCount = allAdminPerks.filter(p => p.status === 'REJECTED').length;
+
+  const filteredAdminPerks = allAdminPerks.filter(p => {
+    if (adminStatusFilter !== 'ALL' && p.status !== adminStatusFilter) return false;
+    if (adminSearch) {
+      const q = adminSearch.toLowerCase();
+      return p.title.toLowerCase().includes(q) || p.provider.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
   const handleRedeem = async (perk: Perk) => {
     if (currentUser.kycStatus !== 'VERIFIED') {
       onOpenKYCGate();
