@@ -242,7 +242,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       console.error('Google Sign-In Error:', err);
       if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'auth/unauthorized-domain') {
         const hostname = window.location.hostname;
-        setGoogleError(`Domain Unauthorized: ${hostname} is not in your Firebase Authorized Domains list. Add "${hostname}" in Firebase Console > Authentication > Settings > Authorized domains, or use Email / Phone / Persona Login below.`);
+        const activeProjectId = auth.app.options.projectId || 'unknown';
+        setGoogleError(`Domain Unauthorized: "${hostname}" is not authorized for Firebase Project "${activeProjectId}". Please check that "${hostname}" is added to Authorized Domains for Firebase Project "${activeProjectId}" in Firebase Console > Authentication > Settings > Authorized domains.`);
       } else if (err instanceof Error) {
         setGoogleError(err.message.replace('Firebase: ', ''));
       } else {
