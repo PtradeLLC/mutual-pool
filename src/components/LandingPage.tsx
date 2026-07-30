@@ -7,13 +7,16 @@ import { AppStoreModal } from './AppStoreModal';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
-  AlertCircle, DollarSign, Clock, RefreshCw, Zap, Play, Smartphone
+  AlertCircle, DollarSign, Clock, RefreshCw, Zap, Play, Smartphone, LogOut, LayoutDashboard
 } from 'lucide-react';
 
 interface LandingPageProps {
   allPods: Pod[];
+  currentUser?: User | null;
   onOpenAuth: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO') => void;
   onSelectUser: (user: User) => void;
+  onGoToDashboard?: () => void;
+  onLogout?: () => void;
   onOpenAbout?: () => void;
   onOpenHowItWorks?: () => void;
   onOpenContact?: () => void;
@@ -21,7 +24,10 @@ interface LandingPageProps {
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   allPods,
+  currentUser,
   onOpenAuth,
+  onGoToDashboard,
+  onLogout,
   onOpenAbout,
   onOpenHowItWorks,
   onOpenContact,
@@ -52,51 +58,101 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
           
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div 
+            onClick={() => {
+              if (currentUser && onGoToDashboard) {
+                onGoToDashboard();
+              } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+            className="flex items-center gap-3 cursor-pointer group"
+            title={currentUser ? "Click logo to return to Dashboard" : "MutualPool Home"}
+          >
             <Logo size="md" />
-            <span className="hidden sm:inline-block text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
-              Stripe Treasury
-            </span>
+            <div className="hidden sm:block">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
+                  Stripe Treasury
+                </span>
+                {currentUser && (
+                  <span className="text-[10px] font-semibold text-[#005FB8] bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors">
+                    <LayoutDashboard className="w-3 h-3 text-[#005FB8]" />
+                    <span>Go to Dashboard</span>
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Quick Nav Links */}
           <div className="hidden md:flex items-center gap-6 text-xs text-[#4B5563] font-semibold">
             <button
               onClick={onOpenAbout}
-              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50"
+              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50 cursor-pointer"
             >
               About Us
             </button>
             <button
               onClick={onOpenHowItWorks}
-              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50"
+              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50 cursor-pointer"
             >
               How It Works & Rules
             </button>
             <button
               onClick={onOpenContact}
-              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50"
+              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50 cursor-pointer"
             >
               Contact Us
             </button>
           </div>
 
           {/* Quick Nav Links & Auth CTAs */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => onOpenAuth('LOGIN')}
-              className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs"
-            >
-              Sign In
-            </button>
+          <div className="flex items-center gap-2.5">
+            {currentUser ? (
+              <>
+                <button
+                  onClick={onGoToDashboard}
+                  className="px-3.5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <img
+                    src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
+                    alt={currentUser.displayName}
+                    className="w-5 h-5 rounded-full object-cover ring-1 ring-white"
+                  />
+                  <span>Go to Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
 
-            <button
-              onClick={() => onOpenAuth('REGISTER')}
-              className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5"
-            >
-              <span>Get Started</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    title="Log Out"
+                    className="px-3 py-2 rounded-lg bg-white hover:bg-red-50 text-gray-700 hover:text-red-700 border border-[#DDE1E6] hover:border-red-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-red-600" />
+                    <span className="hidden sm:inline">Log Out</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => onOpenAuth('LOGIN')}
+                  className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs cursor-pointer"
+                >
+                  Sign In
+                </button>
+
+                <button
+                  onClick={() => onOpenAuth('REGISTER')}
+                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Get Started</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>

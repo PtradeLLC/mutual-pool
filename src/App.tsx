@@ -255,6 +255,16 @@ export default function App() {
     setViewMode('DASHBOARD');
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('Error signing out from Firebase:', err);
+    }
+    setCurrentUser(null);
+    setViewMode('LANDING');
+  };
+
   const [inviteCodeTargetPod, setInviteCodeTargetPod] = useState<Pod | null>(null);
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [inviteCodeError, setInviteCodeError] = useState<string | null>(null);
@@ -316,8 +326,11 @@ export default function App() {
       <>
         <LandingPage
           allPods={allPods}
+          currentUser={currentUser}
           onOpenAuth={handleOpenAuth}
           onSelectUser={handleAuthSuccess}
+          onGoToDashboard={() => setViewMode('DASHBOARD')}
+          onLogout={handleLogout}
           onOpenAbout={() => setShowAboutModal(true)}
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           onOpenContact={() => setShowContactModal(true)}
@@ -384,6 +397,11 @@ export default function App() {
         onSwitchUser={handleSwitchUser}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onLogoClick={() => {
+          setViewMode('DASHBOARD');
+          setActiveTab('my-pods');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         onOpenKYCGate={() => setShowKYCGateModal(true)}
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
@@ -391,6 +409,7 @@ export default function App() {
         onOpenAbout={() => setShowAboutModal(true)}
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
         onOpenContact={() => setShowContactModal(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}

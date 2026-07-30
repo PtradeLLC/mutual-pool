@@ -12,6 +12,7 @@ interface HeaderProps {
   onSwitchUser: (userId: string) => void;
   activeTab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops';
   setActiveTab: (tab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops') => void;
+  onLogoClick?: () => void;
   onOpenKYCGate: () => void;
   onOpenBankModal: () => void;
   onOpenEditProfile?: () => void;
@@ -21,6 +22,7 @@ interface HeaderProps {
   onOpenAbout?: () => void;
   onOpenHowItWorks?: () => void;
   onOpenContact?: () => void;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSwitchUser,
   activeTab,
   setActiveTab,
+  onLogoClick,
   onOpenKYCGate,
   onOpenBankModal,
   onOpenEditProfile,
@@ -38,6 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAbout,
   onOpenHowItWorks,
   onOpenContact,
+  onLogout,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
@@ -48,9 +52,16 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Brand Logo & Name */}
           <div 
-            onClick={onExitToLanding}
+            onClick={() => {
+              if (onLogoClick) {
+                onLogoClick();
+              } else {
+                setActiveTab('my-pods');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
             className="flex items-center gap-3 cursor-pointer group"
-            title="Return to Landing Page"
+            title="MutualPool Dashboard"
           >
             <Logo size="md" />
             <div className="hidden sm:block">
@@ -127,15 +138,21 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
 
               {showUserDropdown && (
-                <div className="absolute right-0 mt-2 w-72 bg-white border border-[#DDE1E6] rounded-xl shadow-xl p-2 z-50">
-                  {onOpenEditProfile && (
-                    <div className="pb-2 mb-2 border-b border-[#DDE1E6]">
+                <div className="absolute right-0 mt-2 w-64 bg-white border border-[#DDE1E6] rounded-xl shadow-xl p-2 z-50 divide-y divide-[#DDE1E6]">
+                  {/* Account / Profile Quick Action */}
+                  <div className="pb-2">
+                    <div className="px-2 py-1.5 mb-1 bg-gray-50 rounded-lg border border-gray-100">
+                      <p className="text-xs font-bold text-[#111827] truncate">{currentUser.displayName}</p>
+                      <p className="text-[10px] text-[#6B7280] truncate">{currentUser.email || `${currentUser.platform} Member`}</p>
+                    </div>
+
+                    {onOpenEditProfile && (
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
                           onOpenEditProfile();
                         }}
-                        className="w-full text-left p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] font-bold text-xs flex items-center justify-between transition-colors border border-blue-200"
+                        className="w-full text-left p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] font-bold text-xs flex items-center justify-between transition-colors border border-blue-200 cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           <img
@@ -147,59 +164,40 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                         <Sparkles className="w-3.5 h-3.5" />
                       </button>
-                    </div>
-                  )}
-
-                  <div className="px-3 py-1.5 border-b border-[#DDE1E6] mb-1">
-                    <p className="text-xs font-bold text-[#111827]">Switch Test Member Persona</p>
-                    <p className="text-[11px] text-[#6B7280]">Test rotation, voting, & KYC gates as different users</p>
-                  </div>
-                  <div className="space-y-1">
-                    {allUsers.map((u) => (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                          onSwitchUser(u.id);
-                          setShowUserDropdown(false);
-                        }}
-                        className={`w-full text-left p-2 rounded-lg flex items-center justify-between text-xs transition-colors ${
-                          u.id === currentUser.id ? 'bg-blue-50 text-[#005FB8] border border-blue-200 font-semibold' : 'hover:bg-gray-50 text-[#111827]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <img
-                            src={u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
-                            alt={u.displayName}
-                            className="w-6 h-6 rounded-md object-cover"
-                          />
-                          <div className="truncate">
-                            <span className="font-semibold block truncate">{u.displayName}</span>
-                            <span className="text-[10px] text-[#6B7280]">{u.platform} • {u.accountAgeDays}d tenure</span>
-                          </div>
-                        </div>
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                          u.kycStatus === 'VERIFIED' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {u.kycStatus}
-                        </span>
-                      </button>
-                    ))}
+                    )}
                   </div>
 
-                  {onExitToLanding && (
-                    <div className="pt-2 mt-2 border-t border-[#DDE1E6]">
+                  {/* Navigation & Logout Section */}
+                  <div className="pt-2 space-y-1">
+                    {onExitToLanding && (
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
                           onExitToLanding();
                         }}
-                        className="w-full text-left p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-[#111827] font-semibold text-xs flex items-center gap-2 transition-colors border border-gray-200"
+                        className="w-full text-left p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-[#111827] font-semibold text-xs flex items-center gap-2 transition-colors border border-gray-200 cursor-pointer"
                       >
                         <Home className="w-4 h-4 text-[#005FB8]" />
                         <span>Return to Landing Page</span>
                       </button>
-                    </div>
-                  )}
+                    )}
+
+                    {onLogout && (
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onLogout();
+                        }}
+                        className="w-full text-left p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-between transition-colors border border-red-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <LogOut className="w-4 h-4 text-red-600" />
+                          <span>Log Out</span>
+                        </div>
+                        <span className="text-[10px] text-red-500 font-normal">End Session</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
