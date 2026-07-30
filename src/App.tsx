@@ -620,7 +620,7 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280] mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>Gig Worker Mutual Savings Pool & Perks PWA v2 • Built on Stripe Treasury & Connect Custom Rails</span>
+          <span>2026 Chris Bitoye Ventures. All rights reserved.</span>
           <span>Pass-Through FDIC Insured up to $250,000 per user</span>
         </div>
       </footer>
