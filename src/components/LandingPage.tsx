@@ -7,7 +7,8 @@ import { AppStoreModal } from './AppStoreModal';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
-  AlertCircle, DollarSign, Clock, RefreshCw, Zap, Play, Smartphone, LogOut, LayoutDashboard
+  AlertCircle, DollarSign, Clock, RefreshCw, Zap, Play, Smartphone, LogOut, LayoutDashboard,
+  PlusCircle, X
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -20,6 +21,7 @@ interface LandingPageProps {
   onOpenAbout?: () => void;
   onOpenHowItWorks?: () => void;
   onOpenContact?: () => void;
+  onOpenSubmitPerk?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
@@ -31,6 +33,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenAbout,
   onOpenHowItWorks,
   onOpenContact,
+  onOpenSubmitPerk,
 }) => {
   // Simulator state
   const [calcMembers, setCalcMembers] = useState<number>(20);
@@ -42,6 +45,68 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   // App Store Modal State
   const [showAppStoreModal, setShowAppStoreModal] = useState(false);
   const [appStorePlatform, setAppStorePlatform] = useState<'ios' | 'android'>('ios');
+
+  // Public Partner Perk Submission Modal State
+  const [showSubmitPerkModal, setShowSubmitPerkModal] = useState(false);
+  const [submitTitle, setSubmitTitle] = useState('');
+  const [submitProvider, setSubmitProvider] = useState('');
+  const [submitPartnerEmail, setSubmitPartnerEmail] = useState('');
+  const [submitCategory, setSubmitCategory] = useState('Vehicle Maintenance');
+  const [submitBadge, setSubmitBadge] = useState('');
+  const [submitDesc, setSubmitDesc] = useState('');
+  const [submitRedeemType, setSubmitRedeemType] = useState('CODE');
+  const [submitRedeemData, setSubmitRedeemData] = useState('');
+  const [submitPartnerNotes, setSubmitPartnerNotes] = useState('');
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitSuccessMsg, setSubmitSuccessMsg] = useState<string | null>(null);
+
+  const resetSubmitForm = () => {
+    setSubmitTitle('');
+    setSubmitProvider('');
+    setSubmitPartnerEmail('');
+    setSubmitCategory('Vehicle Maintenance');
+    setSubmitBadge('');
+    setSubmitDesc('');
+    setSubmitRedeemType('CODE');
+    setSubmitRedeemData('');
+    setSubmitPartnerNotes('');
+    setSubmitSuccessMsg(null);
+  };
+
+  const handleSubmitPerkOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitLoading(true);
+    try {
+      const res = await fetch('/api/perks/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: submitTitle,
+          category: submitCategory,
+          provider: submitProvider,
+          partnerEmail: submitPartnerEmail,
+          valueBadge: submitBadge || 'Special Member Offer',
+          description: submitDesc,
+          redemptionType: submitRedeemType,
+          redemptionData: submitRedeemData,
+          partnerNotes: submitPartnerNotes,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSubmitSuccessMsg(data.message || 'Benefit offer submitted successfully for Admin review!');
+        setTimeout(() => {
+          setShowSubmitPerkModal(false);
+          resetSubmitForm();
+        }, 2200);
+      }
+    } catch (err) {
+      console.error('Submit perk offer error:', err);
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
 
   const openAppStore = (platform: 'ios' | 'android') => {
     setAppStorePlatform(platform);
@@ -86,24 +151,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Quick Nav Links */}
-          <div className="hidden md:flex items-center gap-6 text-xs text-[#4B5563] font-semibold">
+          <div className="hidden md:flex items-center gap-4 lg:gap-6 text-xs text-[#4B5563] font-semibold">
             <button
               onClick={onOpenAbout}
-              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50 cursor-pointer"
+              className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
             >
               About Us
             </button>
             <button
               onClick={onOpenHowItWorks}
-              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50 cursor-pointer"
+              className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
             >
               How It Works & Rules
             </button>
             <button
               onClick={onOpenContact}
-              className="hover:text-[#005FB8] transition-colors py-1 px-2 rounded hover:bg-gray-50 cursor-pointer"
+              className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
             >
               Contact Us
+            </button>
+            <button
+              onClick={() => {
+                resetSubmitForm();
+                setShowSubmitPerkModal(true);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+              title="Submit a partner or community benefit offer for admin review"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Submit Benefits & Perks</span>
             </button>
           </div>
 
@@ -647,6 +723,173 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         defaultPlatform={appStorePlatform}
         onOpenRegister={() => onOpenAuth('REGISTER')}
       />
+
+      {/* PUBLIC PARTNER SUBMIT BENEFIT OFFER MODAL */}
+      {showSubmitPerkModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-lg w-full p-6 shadow-2xl relative text-[#111827] max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowSubmitPerkModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-bold text-[#111827] mb-1 flex items-center gap-2">
+              <Gift className="w-5 h-5 text-emerald-600" />
+              <span>Submit Benefits & Perks Offer</span>
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Partners and public businesses can submit exclusive discount offers for gig workers. Admin will review and approve submissions before publication.
+            </p>
+
+            {submitSuccessMsg && (
+              <div className="p-3 bg-green-50 border border-green-200 text-green-900 rounded-lg text-xs mb-4 font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                <span>{submitSuccessMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitPerkOffer} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[#111827] font-semibold mb-1">Perk Offer Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={submitTitle}
+                  onChange={(e) => setSubmitTitle(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  placeholder="e.g. Free Oil Change & 20% Off Brake Services"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Company / Partner Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={submitProvider}
+                    onChange={(e) => setSubmitProvider(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                    placeholder="e.g. Meineke Car Care"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Contact Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={submitPartnerEmail}
+                    onChange={(e) => setSubmitPartnerEmail(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                    placeholder="partner@business.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Category *</label>
+                  <select
+                    value={submitCategory}
+                    onChange={(e) => setSubmitCategory(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  >
+                    <option value="Vehicle Maintenance">Vehicle Maintenance</option>
+                    <option value="Gas & Fuel Discounts">Gas & Fuel Discounts</option>
+                    <option value="Health & Wellness">Health & Wellness</option>
+                    <option value="Tax & Financial Services">Tax & Financial Services</option>
+                    <option value="Phone & Tech Deals">Phone & Tech Deals</option>
+                    <option value="Insurance & Roadside">Insurance & Roadside</option>
+                    <option value="Family Benefits">Family Benefits</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Discount / Value Badge *</label>
+                  <input
+                    type="text"
+                    required
+                    value={submitBadge}
+                    onChange={(e) => setSubmitBadge(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                    placeholder="e.g. 20% OFF or $0 DEDUCTIBLE"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#111827] font-semibold mb-1">Offer Description & Value for Members *</label>
+                <textarea
+                  rows={2}
+                  required
+                  value={submitDesc}
+                  onChange={(e) => setSubmitDesc(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  placeholder="Describe the benefit details, discount terms, and how it helps delivery riders / drivers."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Redemption Type</label>
+                  <select
+                    value={submitRedeemType}
+                    onChange={(e) => setSubmitRedeemType(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  >
+                    <option value="CODE">Promo Code</option>
+                    <option value="LINK">Partner Website Link</option>
+                    <option value="VOUCHER">Voucher Barcode</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Code or Website Link *</label>
+                  <input
+                    type="text"
+                    required
+                    value={submitRedeemData}
+                    onChange={(e) => setSubmitRedeemData(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                    placeholder="e.g. MEINEKE20 or https://partner.com/deal"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#111827] font-semibold mb-1">Partner Notes for Admin (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={submitPartnerNotes}
+                  onChange={(e) => setSubmitPartnerNotes(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  placeholder="Special instructions, contact details, or notes for the GigMutual admin review team."
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowSubmitPerkModal(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitLoading}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
+                >
+                  {submitLoading ? 'Submitting...' : 'Submit Benefit Offer for Review'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

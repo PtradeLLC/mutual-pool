@@ -394,6 +394,11 @@ export default function App() {
           onOpenAbout={() => setShowAboutModal(true)}
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           onOpenContact={() => setShowContactModal(true)}
+          onOpenSubmitPerk={() => {
+            setViewMode('DASHBOARD');
+            setActiveTab('perks');
+            setOpenSubmitPerkDirectly(true);
+          }}
         />
 
         <AuthModal
