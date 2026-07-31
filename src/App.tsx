@@ -51,6 +51,44 @@ export default function App() {
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [selectedPodDetail, setSelectedPodDetail] = useState<Pod | null>(null);
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
+  const [repayingHardship, setRepayingHardship] = useState(false);
+
+  const handleRepayHardship = async () => {
+    if (!currentUser) return;
+    setRepayingHardship(true);
+    try {
+      const reqsRes = await fetch('/api/hardship/requests', {
+        headers: { 'x-user-id': currentUser.id },
+      });
+      if (!reqsRes.ok) throw new Error('Could not fetch hardship requests');
+      const reqs = await reqsRes.json();
+      const activeReq = reqs.find((r: any) => r.userId === currentUser.id && r.status === 'APPROVED');
+      
+      if (!activeReq) {
+        alert('No active approved hardship request found.');
+        return;
+      }
+
+      const res = await fetch('/api/hardship/repay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ requestId: activeReq.id }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Repayment failed');
+
+      alert(`Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`);
+      fetchAppData(currentUser.id);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Repayment failed');
+    } finally {
+      setRepayingHardship(false);
+    }
+  };
 
   const syncUserWithBackend = async (user: User) => {
     try {
@@ -382,45 +420,6 @@ export default function App() {
       </div>
     );
   }
-
-  const [repayingHardship, setRepayingHardship] = useState(false);
-
-  const handleRepayHardship = async () => {
-    if (!currentUser) return;
-    setRepayingHardship(true);
-    try {
-      const reqsRes = await fetch('/api/hardship/requests', {
-        headers: { 'x-user-id': currentUser.id },
-      });
-      if (!reqsRes.ok) throw new Error('Could not fetch hardship requests');
-      const reqs = await reqsRes.json();
-      const activeReq = reqs.find((r: any) => r.userId === currentUser.id && r.status === 'APPROVED');
-      
-      if (!activeReq) {
-        alert('No active approved hardship request found.');
-        return;
-      }
-
-      const res = await fetch('/api/hardship/repay', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-        },
-        body: JSON.stringify({ requestId: activeReq.id }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Repayment failed');
-
-      alert(`Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`);
-      fetchAppData(currentUser.id);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Repayment failed');
-    } finally {
-      setRepayingHardship(false);
-    }
-  };
 
   // Filter Pods
   const myPods = allPods.filter(p => p.members.some(m => m.userId === currentUser.id));
