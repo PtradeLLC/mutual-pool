@@ -9,6 +9,7 @@ import {
 interface PerksMarketplaceProps {
   currentUser: User;
   onOpenKYCGate: () => void;
+  initialOpenSubmitModal?: boolean;
 }
 
 const CATEGORIES: (PerkCategory | 'All')[] = [
@@ -32,13 +33,17 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
   'Family Benefits'
 ];
 
-export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, onOpenKYCGate }) => {
+export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, onOpenKYCGate, initialOpenSubmitModal }) => {
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerkForRedeem, setSelectedPerkForRedeem] = useState<Perk | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  // Partner Submitted Offers Dashboard State
+  const [mySubmittedOffers, setMySubmittedOffers] = useState<Perk[]>([]);
+  const [showPartnerDashboard, setShowPartnerDashboard] = useState(false);
 
   // Admin CMS State
   const [showAdminTab, setShowAdminTab] = useState(false);
@@ -96,9 +101,33 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     }
   };
 
+  const fetchMyOffers = async () => {
+    try {
+      const res = await fetch('/api/perks/my-offers', {
+        headers: {
+          'x-user-id': currentUser.id,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMySubmittedOffers(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch my submitted offers:', err);
+    }
+  };
+
   useEffect(() => {
     fetchPerks();
-  }, [selectedCategory, searchQuery]);
+    fetchMyOffers();
+  }, [selectedCategory, searchQuery, currentUser.id]);
+
+  useEffect(() => {
+    if (initialOpenSubmitModal) {
+      resetForm();
+      setShowSubmitModal(true);
+    }
+  }, [initialOpenSubmitModal]);
 
   useEffect(() => {
     if (isAdmin && (showAdminTab || currentUser.role === 'SUPER_ADMIN')) {
@@ -142,7 +171,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     }
   };
 
-  // User Perk Submission
+  // User / Partner Perk Submission
   const handleSubmitPerk = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -163,17 +192,22 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           redemptionType: submitRedeemType,
           redemptionData: submitRedeemData,
           eligibility: submitEligibility,
+          partnerEmail: submitPartnerEmail,
+          partnerNotes: submitPartnerNotes,
         }),
       });
 
       if (res.ok) {
-        setActionSuccessMsg('Partner perk submitted for admin CMS review!');
+        const data = await res.json();
+        setActionSuccessMsg(data.message || 'Partner benefit offer submitted for Admin review!');
+        fetchMyOffers();
+        fetchPerks();
+        if (isAdmin) fetchAdminPerks();
         setTimeout(() => {
           setShowSubmitModal(false);
           setActionSuccessMsg(null);
           resetForm();
-        }, 1500);
-        fetchAdminPerks();
+        }, 1800);
       }
     } catch (err) {
       console.error('Submit perk error:', err);
@@ -364,36 +398,147 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             </p>
           </div>
 
-          <div>
-            {isAdmin ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowAdminTab(!showAdminTab)}
-                  className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs ${
-                    showAdminTab ? 'bg-[#005FB8] text-white' : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
-                  }`}
-                >
-                  <Building2 className="w-4 h-4 text-amber-600" />
-                  <span>Manage Partner Benefits {pendingCount > 0 && `(${pendingCount} Pending)`}</span>
-                </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => { resetForm(); setShowSubmitModal(true); }}
+              className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Submit Benefits & Perks</span>
+            </button>
 
-                <button
-                  onClick={() => { resetForm(); setShowAddPartnerModal(true); }}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Add Partner Perk</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 border border-blue-200 text-[#005FB8] rounded-lg text-xs font-semibold">
-                <ShieldCheck className="w-4 h-4 text-[#005FB8]" />
-                <span>Admin-Verified Member Deals</span>
-              </div>
+            <button
+              onClick={() => setShowPartnerDashboard(!showPartnerDashboard)}
+              className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 border shadow-xs cursor-pointer ${
+                showPartnerDashboard 
+                  ? 'bg-[#005FB8] text-white border-[#005FB8]' 
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-emerald-600" />
+              <span>Partner Offers Portal {mySubmittedOffers.length > 0 && `(${mySubmittedOffers.length})`}</span>
+            </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => setShowAdminTab(!showAdminTab)}
+                className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                  showAdminTab ? 'bg-[#005FB8] text-white' : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>Admin Benefits CMS {pendingCount > 0 && `(${pendingCount} Pending)`}</span>
+              </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Partner Offers Portal & Performance Dashboard */}
+      {showPartnerDashboard && (
+        <div className="bg-white border-2 border-emerald-300/80 rounded-xl p-5 space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                <span>Partner Portal & Benefit Offers Performance Dashboard</span>
+              </h3>
+              <p className="text-[11px] text-[#6B7280]">
+                Track approval status, active views, and total member redemptions for your submitted perk offers.
+              </p>
+            </div>
+
+            <button
+              onClick={() => { resetForm(); setShowSubmitModal(true); }}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Submit New Benefit Offer</span>
+            </button>
+          </div>
+
+          {/* Metrics summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <span className="text-[10px] uppercase font-bold text-blue-800 block">Total Submitted</span>
+              <span className="text-lg font-bold text-[#005FB8] font-mono">{mySubmittedOffers.length} Offers</span>
+            </div>
+            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+              <span className="text-[10px] uppercase font-bold text-amber-800 block">Pending Admin Approval</span>
+              <span className="text-lg font-bold text-amber-900 font-mono">
+                {mySubmittedOffers.filter(p => p.status === 'PENDING').length} Pending
+              </span>
+            </div>
+            <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+              <span className="text-[10px] uppercase font-bold text-emerald-800 block">Active Live Offers</span>
+              <span className="text-lg font-bold text-emerald-900 font-mono">
+                {mySubmittedOffers.filter(p => p.status === 'APPROVED').length} Active
+              </span>
+            </div>
+            <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+              <span className="text-[10px] uppercase font-bold text-purple-800 block">Member Claims / Redemptions</span>
+              <span className="text-lg font-bold text-purple-900 font-mono">
+                {mySubmittedOffers.reduce((acc, p) => acc + (p.redeemedCount || 0), 0)} Claims
+              </span>
+            </div>
+          </div>
+
+          {/* Table of submitted offers */}
+          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+            <table className="w-full text-left text-xs text-[#111827]">
+              <thead className="bg-gray-100 text-[#4B5563] text-[10.5px] uppercase font-bold border-b border-gray-200">
+                <tr>
+                  <th className="p-3">Offer Title & Partner</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3">Discount Badge</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Redeemed Claims</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {mySubmittedOffers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-4 text-center text-gray-500 text-xs">
+                      No perk offers submitted yet. Click "Submit Benefits & Perks" to submit your first offer to GigMutual members!
+                    </td>
+                  </tr>
+                ) : (
+                  mySubmittedOffers.map((p) => (
+                    <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="p-3">
+                        <div className="font-bold text-[#111827]">{p.title}</div>
+                        <div className="text-[11px] text-gray-500 font-medium">
+                          {p.provider} {p.partnerEmail && `(${p.partnerEmail})`}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-[#005FB8] text-[10px] font-bold border border-blue-200">
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono font-bold text-green-700">
+                        {p.valueBadge}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                          p.status === 'APPROVED' ? 'bg-green-100 text-green-800 border border-green-300' :
+                          p.status === 'PENDING' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                          'bg-rose-100 text-rose-800 border border-rose-300'
+                        }`}>
+                          {p.status === 'APPROVED' ? 'APPROVED & LIVE' : p.status === 'PENDING' ? 'PENDING REVIEW' : 'REJECTED'}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono font-bold text-gray-700">
+                        {p.redeemedCount || 0} claims
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Admin CMS Partner Management Panel */}
       {isAdmin && showAdminTab && (
@@ -720,41 +865,73 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       )}
 
       {/* Partner Perk Submission Modal */}
-      {isAdmin && showSubmitModal && (
+      {showSubmitModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-lg w-full p-6 shadow-2xl relative text-[#111827]">
+          <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-lg w-full p-6 shadow-2xl relative text-[#111827] max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowSubmitModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-lg font-bold text-[#111827] mb-1">Suggest or Submit a Partner Deal</h3>
-            <p className="text-xs text-gray-500 mb-4">Community submissions are reviewed by site admin before appearing in the marketplace.</p>
+            <h3 className="text-lg font-bold text-[#111827] mb-1 flex items-center gap-2">
+              <Gift className="w-5 h-5 text-emerald-600" />
+              <span>Submit Benefits & Perks Offer</span>
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Partners and public businesses can submit exclusive discount offers for gig workers. Admin will review and approve submissions before publication.
+            </p>
 
             {actionSuccessMsg && (
-              <div className="p-3 bg-green-50 border border-green-200 text-green-900 rounded-lg text-xs mb-4 font-medium">
-                {actionSuccessMsg}
+              <div className="p-3 bg-green-50 border border-green-200 text-green-900 rounded-lg text-xs mb-4 font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                <span>{actionSuccessMsg}</span>
               </div>
             )}
 
             <form onSubmit={handleSubmitPerk} className="space-y-3 text-xs">
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Perk Offer Title</label>
+                <label className="block text-[#111827] font-semibold mb-1">Perk Offer Title *</label>
                 <input
                   type="text"
                   required
                   value={submitTitle}
                   onChange={(e) => setSubmitTitle(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="e.g. 20% Off Brake Services"
+                  placeholder="e.g. Free Oil Change & 20% Off Brake Services"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Category</label>
+                  <label className="block text-[#111827] font-semibold mb-1">Company / Partner Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={submitProvider}
+                    onChange={(e) => setSubmitProvider(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                    placeholder="e.g. Meineke Car Care"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Contact Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={submitPartnerEmail}
+                    onChange={(e) => setSubmitPartnerEmail(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                    placeholder="partner@business.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Category *</label>
                   <select
                     value={submitCategory}
                     onChange={(e) => setSubmitCategory(e.target.value as PerkCategory)}
@@ -767,38 +944,65 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Provider Name</label>
+                  <label className="block text-[#111827] font-semibold mb-1">Discount / Value Badge *</label>
                   <input
                     type="text"
                     required
-                    value={submitProvider}
-                    onChange={(e) => setSubmitProvider(e.target.value)}
+                    value={submitBadge}
+                    onChange={(e) => setSubmitBadge(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. Meineke Car Care"
+                    placeholder="e.g. 20% OFF or $0 DEDUCTIBLE"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Description</label>
+                <label className="block text-[#111827] font-semibold mb-1">Offer Description & Value for Members *</label>
                 <textarea
                   rows={2}
                   required
                   value={submitDesc}
                   onChange={(e) => setSubmitDesc(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  placeholder="Describe the benefit details, discount terms, and how it helps delivery riders / drivers."
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Redemption Type</label>
+                  <select
+                    value={submitRedeemType}
+                    onChange={(e) => setSubmitRedeemType(e.target.value as PerkRedemptionType)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                  >
+                    <option value="CODE">Promo Code</option>
+                    <option value="LINK">Partner Website Link</option>
+                    <option value="VOUCHER">Voucher Barcode</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#111827] font-semibold mb-1">Code or Website Link *</label>
+                  <input
+                    type="text"
+                    required
+                    value={submitRedeemData}
+                    onChange={(e) => setSubmitRedeemData(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
+                    placeholder="e.g. MEINEKE20 or https://partner.com/deal"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Redemption Code or Web Link</label>
-                <input
-                  type="text"
-                  required
-                  value={submitRedeemData}
-                  onChange={(e) => setSubmitRedeemData(e.target.value)}
+                <label className="block text-[#111827] font-semibold mb-1">Partner Notes for Admin (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={submitPartnerNotes}
+                  onChange={(e) => setSubmitPartnerNotes(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="e.g. MEINEKE20 or https://..."
+                  placeholder="Special instructions, contact details, or notes for the GigMutual admin review team."
                 />
               </div>
 
@@ -806,16 +1010,16 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 <button
                   type="button"
                   onClick={() => setShowSubmitModal(false)}
-                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300"
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitLoading}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] text-white font-bold hover:bg-[#004C93] transition-colors shadow-xs"
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
                 >
-                  Submit for Admin Review
+                  {submitLoading ? 'Submitting...' : 'Submit Benefit Offer for Review'}
                 </button>
               </div>
             </form>

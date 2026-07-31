@@ -3,7 +3,7 @@ import { User } from '../types';
 import { Logo } from './Logo';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
-  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home
+  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -16,6 +16,7 @@ interface HeaderProps {
   onOpenKYCGate: () => void;
   onOpenBankModal: () => void;
   onOpenEditProfile?: () => void;
+  onOpenSubmitPerk?: () => void;
   onInstallPWA?: () => void;
   canInstallPWA?: boolean;
   onExitToLanding?: () => void;
@@ -35,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenKYCGate,
   onOpenBankModal,
   onOpenEditProfile,
+  onOpenSubmitPerk,
   onInstallPWA,
   canInstallPWA,
   onExitToLanding,
@@ -244,6 +246,15 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Gift className="w-3.5 h-3.5" />
               <span>Benefits Marketplace</span>
+            </button>
+
+            <button
+              onClick={onOpenSubmitPerk || (() => setActiveTab('perks'))}
+              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+              title="Submit a partner or community perk offer for admin review"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Submit Benefits & Perks</span>
             </button>
 
             <button

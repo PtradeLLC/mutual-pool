@@ -54,6 +54,7 @@ export default function App() {
   const [selectedPodDetail, setSelectedPodDetail] = useState<Pod | null>(null);
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
   const [repayingHardship, setRepayingHardship] = useState(false);
+  const [openSubmitPerkDirectly, setOpenSubmitPerkDirectly] = useState(false);
 
   const handleRepayHardship = async () => {
     if (!currentUser) return;
@@ -464,6 +465,11 @@ export default function App() {
         onOpenKYCGate={() => setShowKYCGateModal(true)}
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
+        onOpenSubmitPerk={() => {
+          setActiveTab('perks');
+          setOpenSubmitPerkDirectly(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         onExitToLanding={() => setViewMode('LANDING')}
         onOpenAbout={() => setShowAboutModal(true)}
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
@@ -702,6 +708,7 @@ export default function App() {
           <PerksMarketplace
             currentUser={currentUser}
             onOpenKYCGate={() => setShowKYCGateModal(true)}
+            initialOpenSubmitModal={openSubmitPerkDirectly}
           />
         )}
 

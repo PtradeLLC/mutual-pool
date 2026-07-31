@@ -251,6 +251,7 @@ export interface Perk {
   redemptionData: string;
   eligibility?: string;
   submittedBy?: string;
+  submittedByUserId?: string;
   status: PerkStatus;
   iconName: string;
   imageUrl?: string;

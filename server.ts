@@ -1471,34 +1471,67 @@ async function startServer() {
   });
 
   app.post('/api/perks/submit', (req: Request, res: Response) => {
-    if (!checkIsAdmin(req)) {
-      return res.status(403).json({ error: 'Access denied. Only administrators can add or manage perks and benefits.' });
+    const user = getCurrentUser(req);
+    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes } = req.body;
+
+    if (!title || !category || !provider) {
+      return res.status(400).json({ error: 'Title, category, and provider are required.' });
     }
 
-    const user = getCurrentUser(req);
-    if (!user) return res.status(401).json({ error: 'User context required.' });
-
-    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility } = req.body;
+    const isAdmin = checkIsAdmin(req);
+    const perkStatus: PerkStatus = isAdmin ? (req.body.status || 'APPROVED') : 'PENDING';
 
     const newPerk: Perk = {
-      id: `perk_${Date.now()}`,
+      id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       title,
       category,
-      provider: provider || user.displayName,
-      description,
-      valueBadge: valueBadge || 'Special Discount',
+      provider: provider || (user ? user.displayName : 'Community Partner'),
+      description: description || '',
+      valueBadge: valueBadge || 'Special Member Discount',
       redemptionType: redemptionType || 'CODE',
-      redemptionData,
+      redemptionData: redemptionData || 'PENDING_APPROVAL',
       eligibility: eligibility || 'All verified members',
-      submittedBy: user.displayName,
-      status: 'APPROVED',
+      submittedBy: user ? user.displayName : (provider || 'Partner Submitter'),
+      submittedByUserId: user ? user.id : undefined,
+      partnerEmail: partnerEmail || (user ? user.email : undefined),
+      partnerNotes,
+      status: perkStatus,
       iconName: 'Gift',
       redeemedCount: 0,
     };
 
     perks.unshift(newPerk);
 
-    res.json({ success: true, perk: newPerk, message: 'Partner perk added successfully by Admin.' });
+    if (user) {
+      addAuditLog(
+        undefined,
+        user.id,
+        user.displayName,
+        'PERK_CREATED' as any,
+        `Partner/User submitted perk offer: "${title}" (${provider}) - Status: ${perkStatus}`,
+        { perkId: newPerk.id, title, provider, status: perkStatus }
+      );
+    }
+
+    res.json({
+      success: true,
+      perk: newPerk,
+      message: perkStatus === 'APPROVED' 
+        ? 'Partner perk published directly to Marketplace.' 
+        : 'Partner benefit offer submitted successfully! An Admin will review and approve it shortly.'
+    });
+  });
+
+  app.get('/api/perks/my-offers', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.json([]);
+
+    const userOffers = perks.filter(p => 
+      p.submittedByUserId === user.id || 
+      (user.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) ||
+      (p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase())
+    );
+    res.json(userOffers);
   });
 
   app.get('/api/admin/perks/pending', (req: Request, res: Response) => {
