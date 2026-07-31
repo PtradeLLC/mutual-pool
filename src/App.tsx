@@ -28,7 +28,8 @@ import {
 
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
-  Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil 
+  Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil,
+  HeartHandshake, DollarSign, AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
@@ -374,6 +375,45 @@ export default function App() {
     );
   }
 
+  const [repayingHardship, setRepayingHardship] = useState(false);
+
+  const handleRepayHardship = async () => {
+    if (!currentUser) return;
+    setRepayingHardship(true);
+    try {
+      const reqsRes = await fetch('/api/hardship/requests', {
+        headers: { 'x-user-id': currentUser.id },
+      });
+      if (!reqsRes.ok) throw new Error('Could not fetch hardship requests');
+      const reqs = await reqsRes.json();
+      const activeReq = reqs.find((r: any) => r.userId === currentUser.id && r.status === 'APPROVED');
+      
+      if (!activeReq) {
+        alert('No active approved hardship request found.');
+        return;
+      }
+
+      const res = await fetch('/api/hardship/repay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ requestId: activeReq.id }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Repayment failed');
+
+      alert(`Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`);
+      fetchAppData(currentUser.id);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Repayment failed');
+    } finally {
+      setRepayingHardship(false);
+    }
+  };
+
   // Filter Pods
   const myPods = allPods.filter(p => p.members.some(m => m.userId === currentUser.id));
 
@@ -414,6 +454,42 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* Financial Hardship Hold & Repayment Alert Banner */}
+        {currentUser.isHardshipInactive && (
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-amber-100 rounded-lg text-amber-800 shrink-0 mt-0.5">
+                <HeartHandshake className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-amber-950 text-sm">
+                    Account Inactive / On Hold — Financial Hardship Fund Active
+                  </span>
+                  <span className="px-2.5 py-0.5 bg-amber-200 text-amber-900 font-bold text-[10px] rounded-full uppercase font-mono border border-amber-300">
+                    On Hold
+                  </span>
+                </div>
+                <p className="text-amber-800 mt-1 max-w-3xl leading-relaxed">
+                  A Financial Hardship Fund deposit was disbursed on your behalf. While on hold, you cannot participate in weekly pool deposits or join new pods until repaid.
+                </p>
+                <div className="mt-2 flex items-center gap-3 font-mono text-xs text-amber-950 font-bold">
+                  <span>Owed Balance: ${(currentUser.hardshipOwedUsd || 0).toFixed(2)} (Deposit + 7% service fee)</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleRepayHardship}
+              disabled={repayingHardship}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>{repayingHardship ? 'Processing...' : `Pay $${(currentUser.hardshipOwedUsd || 0).toFixed(2)} & Reactivate`}</span>
+            </button>
+          </div>
+        )}
 
         {/* Top Personal Dashboard Banner */}
         <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 shadow-xs relative overflow-hidden">

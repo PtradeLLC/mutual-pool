@@ -3,7 +3,8 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { 
   User, Pod, PodMembership, Perk, AuditLogEntry, 
-  ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact 
+  ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
+  HardshipFundRequest 
 } from './src/types';
 import { 
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
@@ -16,6 +17,7 @@ let users: User[] = [...INITIAL_USERS];
 let pods: Pod[] = [...INITIAL_PODS];
 let perks: Perk[] = [...INITIAL_PERKS];
 let auditLogs: AuditLogEntry[] = [...INITIAL_AUDIT_LOGS];
+let hardshipRequests: HardshipFundRequest[] = [];
 let reprioritizationRequests: ReprioritizationRequest[] = [
   {
     id: 'req_1',
@@ -390,6 +392,32 @@ async function startServer() {
     const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const podId = `pod_${Date.now()}`;
 
+    const baseDepositAmount = Number(depositTier);
+    const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+    const totalChargedAmount = baseDepositAmount + platformFee;
+
+    // Deduct initial total deposit payment from creator's treasury balance if available
+    const creatorUser = users.find(u => u.id === user.id);
+    if (creatorUser) {
+      creatorUser.treasury.balanceUsd = Math.max(0, creatorUser.treasury.balanceUsd - totalChargedAmount);
+    }
+
+    // Process initial deposit record for creator (Member #1)
+    const creatorMemberId = `pm_${Date.now()}_1`;
+    const initialDeposit: Deposit = {
+      id: `dep_init_${Date.now()}`,
+      membershipId: creatorMemberId,
+      podId: podId,
+      cycleId: `cyc_w1`,
+      userId: user.id,
+      userName: user.displayName,
+      amount: baseDepositAmount,
+      stripePaymentId: `pi_create_pod_${Date.now()}`,
+      status: 'COMPLETE',
+      createdAt: new Date().toISOString(),
+    };
+    deposits.unshift(initialDeposit);
+
     const newPod: Pod = {
       id: podId,
       name,
@@ -412,10 +440,10 @@ async function startServer() {
       creatorName: user.displayName,
       createdAt: new Date().toISOString(),
       weeklyPoolTarget: Number(sizeTier) * Number(depositTier),
-      currentWeeklyCollected: 0,
+      currentWeeklyCollected: baseDepositAmount,
       members: [
         {
-          id: `pm_${Date.now()}_1`,
+          id: creatorMemberId,
           podId: podId,
           userId: user.id,
           displayName: user.displayName,
@@ -440,7 +468,8 @@ async function startServer() {
       user.id,
       user.displayName,
       'POD_CREATED',
-      `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} provisioned.`
+      `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Initial pool deposit charged: $${baseDepositAmount.toFixed(2)} deposit + $${platformFee.toFixed(2)} (5% platform fee) = $${totalChargedAmount.toFixed(2)} total. Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} initialized.`,
+      { baseDepositAmount, platformFee, totalChargedAmount, sizeTier, depositTier }
     );
 
     res.json(newPod);
@@ -560,6 +589,13 @@ async function startServer() {
       return res.status(403).json({
         error: 'KYC_REQUIRED',
         message: 'You must complete Stripe Identity KYC verification before joining a mutual savings pod.'
+      });
+    }
+
+    if (user.isHardshipInactive) {
+      return res.status(403).json({
+        error: 'HARDSHIP_HOLD',
+        message: `Your account is currently on hold due to a Financial Hardship Fund disbursed on your behalf ($${user.hardshipOwedUsd?.toFixed(2) || '0.00'} owed). Please pay off your hardship balance (deposit + 7% service fee) to reactivate your account and participate in pools.`
       });
     }
 
@@ -773,9 +809,16 @@ async function startServer() {
       return res.status(403).json({ error: 'Not a member of this pod.' });
     }
 
-    // Deduct from external bank / Treasury balance
-    const depositAmount = pod.depositTier;
+    // Deduct from external bank / Treasury balance with 5% platform fee
+    const baseDepositAmount = pod.depositTier;
+    const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+    const totalChargedAmount = baseDepositAmount + platformFee;
     const stripePaymentId = `pi_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+    const targetUser = users.find(u => u.id === user.id);
+    if (targetUser) {
+      targetUser.treasury.balanceUsd = Math.max(0, targetUser.treasury.balanceUsd - totalChargedAmount);
+    }
 
     const newDeposit: Deposit = {
       id: `dep_${Date.now()}`,
@@ -784,22 +827,22 @@ async function startServer() {
       cycleId: `cyc_w${pod.currentCycleWeek}`,
       userId: user.id,
       userName: user.displayName,
-      amount: depositAmount,
+      amount: baseDepositAmount,
       stripePaymentId,
       status: 'COMPLETE',
       createdAt: new Date().toISOString(),
     };
 
     deposits.unshift(newDeposit);
-    pod.currentWeeklyCollected += depositAmount;
+    pod.currentWeeklyCollected += baseDepositAmount;
 
     addAuditLog(
       pod.id,
       user.id,
       user.displayName,
       'DEPOSIT_COMPLETED',
-      `Deposited $${depositAmount}.00 into Treasury holding account ${pod.holdingFinAccountId} for Week ${pod.currentCycleWeek} cycle. Stripe Transfer ID: ${stripePaymentId}.`,
-      { amount: depositAmount, cycleWeek: pod.currentCycleWeek }
+      `Deposited $${baseDepositAmount.toFixed(2)} into Treasury holding account ${pod.holdingFinAccountId} for Week ${pod.currentCycleWeek} cycle ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged). Stripe Transfer ID: ${stripePaymentId}.`,
+      { baseDepositAmount, platformFee, totalChargedAmount, cycleWeek: pod.currentCycleWeek }
     );
 
     res.json({
@@ -832,13 +875,18 @@ async function startServer() {
     }
 
     const recipientUser = users.find(u => u.id === recipientMember.userId);
-    const payoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
+    const grossPayoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
+    
+    // Apply 10% payout fee tag (e.g. $400 pool - 10% ($40) = $360 net paid to user)
+    const payoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
+    const netPayoutAmount = grossPayoutAmount - payoutFee;
+
     const stripeTransferId = `tr_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 
-    // Update recipient Treasury balance immediately (Option A: Auto-Earmarked Balance)
+    // Update recipient Treasury balance immediately with net payout
     if (recipientUser) {
-      recipientUser.treasury.balanceUsd += payoutAmount;
-      recipientUser.treasury.totalPayoutsReceivedUsd += payoutAmount;
+      recipientUser.treasury.balanceUsd += netPayoutAmount;
+      recipientUser.treasury.totalPayoutsReceivedUsd += netPayoutAmount;
     }
 
     recipientMember.hasReceivedPayout = true;
@@ -850,17 +898,19 @@ async function startServer() {
     // Reset weekly collected for next cycle
     pod.currentWeeklyCollected = 0;
     
-    // Log audit entry with Option A details
+    // Log audit entry with Option A details & 10% fee breakdown
     addAuditLog(
       pod.id,
       user.id,
       user.displayName,
       'PAYOUT_EXECUTED',
-      `Week ${pod.currentCycleWeek} payout of $${payoutAmount}.00 automatically processed via Stripe Treasury OutboundTransfer (${stripeTransferId}) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Funds earmarked in member's Stripe Treasury Financial Account. Rotation schedule unblocked for next week.`,
+      `Week ${pod.currentCycleWeek} payout processed via Stripe Treasury (${stripeTransferId}) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${payoutFee.toFixed(2)}. Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's Stripe Treasury account.`,
       { 
         stripeTransferId, 
         recipientId: recipientMember.userId, 
-        amount: payoutAmount, 
+        grossPayoutAmount,
+        payoutFee,
+        netPayoutAmount, 
         weekNumber: pod.currentCycleWeek,
         payoutClaimStatus: 'EARMARKED_IN_TREASURY'
       }
@@ -881,7 +931,9 @@ async function startServer() {
     res.json({
       success: true,
       stripeTransferId,
-      payoutAmount,
+      grossPayoutAmount,
+      payoutFee,
+      payoutAmount: netPayoutAmount,
       recipientName: recipientMember.displayName,
       payoutClaimStatus: 'EARMARKED_IN_TREASURY',
       nextCycleWeek: pod.currentCycleWeek,
@@ -946,6 +998,259 @@ async function startServer() {
       withdrawTransferId,
       amountWithdrawn: withdrawAmount,
       remainingBalance: targetUser.treasury.balanceUsd,
+      user: targetUser,
+    });
+  });
+
+  // --- FINANCIAL HARDSHIP FUND ENDPOINTS ---
+
+  // 1. Submit Financial Hardship Fund Request
+  app.post('/api/hardship/request', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const { podId, reason } = req.body;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const pod = pods.find(p => p.id === podId);
+    if (!pod) {
+      return res.status(404).json({ error: 'Pod not found' });
+    }
+
+    const member = pod.members.find(m => m.userId === user.id);
+    if (!member) {
+      return res.status(403).json({ error: 'You are not a member of this pod.' });
+    }
+
+    if (user.isHardshipInactive) {
+      return res.status(400).json({ 
+        error: 'ACTIVE_HARDSHIP_HOLD', 
+        message: 'Your account is currently on hold due to an active Financial Hardship Fund. Please pay off your outstanding balance first to reactivate.' 
+      });
+    }
+
+    const existingPending = hardshipRequests.find(r => r.userId === user.id && r.status === 'PENDING');
+    if (existingPending) {
+      return res.status(400).json({ 
+        error: 'PENDING_REQUEST_EXISTS', 
+        message: 'You already have a pending Financial Hardship Fund request awaiting approval by the Pool Creator.' 
+      });
+    }
+
+    // Enforcement: User can request once every 4 months (120 days)
+    if (user.lastHardshipRequestedAt) {
+      const lastDate = new Date(user.lastHardshipRequestedAt).getTime();
+      const now = Date.now();
+      const fourMonthsMs = 120 * 24 * 60 * 60 * 1000;
+      if (now - lastDate < fourMonthsMs) {
+        const daysRemaining = Math.ceil((fourMonthsMs - (now - lastDate)) / (24 * 60 * 60 * 1000));
+        return res.status(400).json({ 
+          error: 'FOUR_MONTH_COOLDOWN', 
+          message: `Financial Hardship Fund can only be requested once every 4 months (120 days). You can submit a new request in ${daysRemaining} days.` 
+        });
+      }
+    }
+
+    const depositAmount = pod.depositTier;
+    const feeAmount = Math.round(depositAmount * 0.07 * 100) / 100;
+    const totalPayoffAmount = Math.round((depositAmount + feeAmount) * 100) / 100;
+
+    const newRequest: HardshipFundRequest = {
+      id: `req_hardship_${Date.now()}`,
+      podId: pod.id,
+      podName: pod.name,
+      userId: user.id,
+      userName: user.displayName,
+      creatorUserId: pod.createdBy,
+      depositAmount,
+      feeAmount,
+      totalPayoffAmount,
+      status: 'PENDING',
+      requestedAt: new Date().toISOString(),
+      reason: reason || 'Financial hardship covering weekly deposit',
+    };
+
+    hardshipRequests.unshift(newRequest);
+    
+    const targetUser = users.find(u => u.id === user.id);
+    if (targetUser) {
+      targetUser.lastHardshipRequestedAt = newRequest.requestedAt;
+    }
+    member.hardshipStatus = 'PENDING_APPROVAL';
+
+    addAuditLog(
+      pod.id,
+      user.id,
+      user.displayName,
+      'HARDSHIP_REQUESTED',
+      `Requested Financial Hardship Fund of $${depositAmount}.00 for pod "${pod.name}". Request forwarded to Pool Creator (${pod.creatorName}) for approval.`,
+      { depositAmount, feeAmount, totalPayoffAmount }
+    );
+
+    res.json(newRequest);
+  });
+
+  // 2. Fetch Hardship Requests for User / Creator / Admin
+  app.get('/api/hardship/requests', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const isAdmin = checkIsAdmin(req);
+    const userRequests = hardshipRequests.filter(r => 
+      isAdmin || r.userId === user.id || r.creatorUserId === user.id
+    );
+
+    res.json(userRequests);
+  });
+
+  // 3. Pool Creator Approves Financial Hardship Fund Request
+  app.post('/api/hardship/approve', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const { requestId } = req.body;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const request = hardshipRequests.find(r => r.id === requestId);
+    if (!request) {
+      return res.status(404).json({ error: 'Hardship request not found' });
+    }
+
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({ error: `Request is already ${request.status.toLowerCase()}.` });
+    }
+
+    const pod = pods.find(p => p.id === request.podId);
+    if (!pod) {
+      return res.status(404).json({ error: 'Pod not found' });
+    }
+
+    const isCreator = pod.createdBy === user.id;
+    const isAdmin = checkIsAdmin(req);
+    if (!isCreator && !isAdmin) {
+      return res.status(403).json({ error: 'Only the Pool Creator can approve this Financial Hardship Fund request.' });
+    }
+
+    // Step A: System disburses deposit amount into the pool on user's behalf
+    pod.currentWeeklyCollected += request.depositAmount;
+
+    const targetMember = pod.members.find(m => m.userId === request.userId);
+    if (targetMember) {
+      const hardshipDeposit: Deposit = {
+        id: `dep_hardship_${Date.now()}`,
+        membershipId: targetMember.id,
+        podId: pod.id,
+        cycleId: `cyc_w${pod.currentCycleWeek}`,
+        userId: request.userId,
+        userName: request.userName,
+        amount: request.depositAmount,
+        stripePaymentId: `pi_hardship_disbursed_${Date.now()}`,
+        status: 'COMPLETE',
+        createdAt: new Date().toISOString(),
+      };
+      deposits.unshift(hardshipDeposit);
+
+      // Step B: User account placed on inactive hold
+      targetMember.isHardshipInactive = true;
+      targetMember.hardshipStatus = 'INACTIVE_HOLD';
+      targetMember.delinquencyStatus = 'DELINQUENT';
+    }
+
+    const targetUser = users.find(u => u.id === request.userId);
+    if (targetUser) {
+      targetUser.isHardshipInactive = true;
+      targetUser.hardshipOwedUsd = request.totalPayoffAmount;
+      targetUser.activeHardshipRequestId = request.id;
+    }
+
+    // Step C: Pool prioritized & made public for replacement prospective member(s) to join
+    pod.podType = 'OPEN_POD';
+    pod.isPrioritizedForReplacement = true;
+    pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+
+    // Step D: Request marked as approved
+    request.status = 'APPROVED';
+    request.approvedAt = new Date().toISOString();
+
+    addAuditLog(
+      pod.id,
+      user.id,
+      user.displayName,
+      'HARDSHIP_APPROVED',
+      `Pool Creator ${user.displayName} APPROVED Financial Hardship Fund for ${request.userName}. System disbursed $${request.depositAmount.toFixed(2)} deposit into pool. User placed on INACTIVE HOLD (Payoff required: $${request.totalPayoffAmount.toFixed(2)} including 7% service fee). Pool prioritized & made public for prospective replacement members.`,
+      { requestId: request.id, totalPayoffAmount: request.totalPayoffAmount, depositAmount: request.depositAmount }
+    );
+
+    res.json({
+      success: true,
+      request,
+      pod,
+    });
+  });
+
+  // 4. Inactive User Repays Hardship Balance + 7% Fee to Reactivate Account
+  app.post('/api/hardship/repay', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const { requestId } = req.body;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const request = hardshipRequests.find(r => r.id === requestId || (r.userId === user.id && r.status === 'APPROVED'));
+    if (!request) {
+      return res.status(404).json({ error: 'Active approved hardship request not found' });
+    }
+
+    if (request.userId !== user.id && !checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Unauthorized to repay this hardship request' });
+    }
+
+    const targetUser = users.find(u => u.id === user.id);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const totalPayoff = request.totalPayoffAmount;
+    if (targetUser.treasury.balanceUsd >= totalPayoff) {
+      targetUser.treasury.balanceUsd -= totalPayoff;
+    }
+
+    request.status = 'PAID_OFF';
+    request.paidOffAt = new Date().toISOString();
+
+    // Reactivate account
+    targetUser.isHardshipInactive = false;
+    targetUser.hardshipOwedUsd = 0;
+    targetUser.activeHardshipRequestId = undefined;
+
+    // Reactivate member status in pods
+    pods.forEach(p => {
+      p.members.forEach(m => {
+        if (m.userId === targetUser.id && m.isHardshipInactive) {
+          m.isHardshipInactive = false;
+          m.hardshipStatus = 'REPAID';
+          m.delinquencyStatus = 'CLEAN';
+        }
+      });
+    });
+
+    addAuditLog(
+      request.podId,
+      targetUser.id,
+      targetUser.displayName,
+      'HARDSHIP_REPAID',
+      `User ${targetUser.displayName} paid off Financial Hardship Fund balance ($${totalPayoff.toFixed(2)} including 7% service fee). Account successfully reactivated for pool participation!`,
+      { requestId: request.id, totalPayoff }
+    );
+
+    res.json({
+      success: true,
+      request,
       user: targetUser,
     });
   });

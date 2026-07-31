@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, 
-  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap
+  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -26,7 +26,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   onOpenAgreementModal,
   onOpenKYCGate,
 }) => {
-  const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit'>('rotation');
+  const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>('rotation');
   const [depositing, setDepositing] = useState(false);
   const [processingPayout, setProcessingPayout] = useState(false);
   const [reasonInput, setReasonInput] = useState('');
@@ -37,6 +37,122 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [withdrawingPayout, setWithdrawingPayout] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  // Financial Hardship Fund States
+  const [hardshipRequests, setHardshipRequests] = useState<HardshipFundRequest[]>([]);
+  const [showHardshipForm, setShowHardshipForm] = useState(false);
+  const [hardshipReason, setHardshipReason] = useState('');
+  const [submittingHardship, setSubmittingHardship] = useState(false);
+  const [approvingHardship, setApprovingHardship] = useState(false);
+  const [repayingHardship, setRepayingHardship] = useState(false);
+
+  const fetchHardshipRequests = async () => {
+    try {
+      const res = await fetch('/api/hardship/requests', {
+        headers: { 'x-user-id': currentUser.id },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHardshipRequests(data);
+      }
+    } catch (err) {
+      console.error('Error fetching hardship requests:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchHardshipRequests();
+  }, [pod.id, currentUser.id]);
+
+  const handleRequestHardship = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingHardship(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const res = await fetch('/api/hardship/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          podId: pod.id,
+          reason: hardshipReason,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Request failed');
+
+      setActionSuccess(`Financial Hardship Fund requested ($${data.depositAmount}.00). Sent to Pool Creator (${pod.creatorName}) for approval.`);
+      setShowHardshipForm(false);
+      setHardshipReason('');
+      fetchHardshipRequests();
+      onRefreshPod();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Hardship request failed');
+    } finally {
+      setSubmittingHardship(false);
+    }
+  };
+
+  const handleApproveHardship = async (requestId: string) => {
+    setApprovingHardship(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const res = await fetch('/api/hardship/approve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ requestId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Approval failed');
+
+      setActionSuccess(`Financial Hardship Fund APPROVED! System disbursed $${data.request.depositAmount}.00 deposit into pool. User account placed on hold, and pool converted to OPEN to recruit replacement.`);
+      fetchHardshipRequests();
+      onRefreshPod();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Approval failed');
+    } finally {
+      setApprovingHardship(false);
+    }
+  };
+
+  const handleRepayHardship = async (requestId: string) => {
+    setRepayingHardship(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const res = await fetch('/api/hardship/repay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ requestId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Repayment failed');
+
+      setActionSuccess(`Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`);
+      fetchHardshipRequests();
+      onRefreshPod();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Repayment failed');
+    } finally {
+      setRepayingHardship(false);
+    }
+  };
 
   const userMembership = pod.members.find(m => m.userId === currentUser.id);
   const isMember = !!userMembership;
@@ -180,7 +296,11 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Payout failed');
 
-      setActionSuccess(`Week ${pod.currentCycleWeek} Payout of $${data.payoutAmount}.00 executed via Stripe Treasury transfer (${data.stripeTransferId}) to ${data.recipientName}!`);
+      const gross = data.grossPayoutAmount || currentActivePool;
+      const fee = data.payoutFee || gross * 0.10;
+      const net = data.payoutAmount || (gross - fee);
+
+      setActionSuccess(`Week ${pod.currentCycleWeek} Payout executed via Stripe Treasury transfer (${data.stripeTransferId}) to ${data.recipientName}! Gross Pool: $${gross.toFixed(2)} • 10% Payout Fee (-$${fee.toFixed(2)}) -> Net Paid: $${net.toFixed(2)}.`);
       onRefreshPod();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Payout execution failed');
@@ -578,6 +698,23 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             <Vote className="w-3.5 h-3.5" />
             <span>Emergency Swaps & Votes</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('hardship')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
+              activeTab === 'hardship'
+                ? 'bg-[#005FB8] text-white shadow-xs'
+                : 'text-[#4B5563] hover:bg-gray-100'
+            }`}
+          >
+            <HeartHandshake className="w-3.5 h-3.5" />
+            <span>Financial Hardship Fund</span>
+            {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length > 0 && (
+              <span className="px-1.5 py-0.2 bg-rose-500 text-white text-[10px] font-bold rounded-full">
+                {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* TAB 1: FIXED ROTATION LIST */}
@@ -771,24 +908,45 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h4 className="font-bold text-[#111827] text-sm">Week {pod.currentCycleWeek} Automated Cycle Settlement</h4>
-                  <p className="text-[#6B7280] text-xs">Transfers current collected pool to rotation recipient's Stripe Treasury account</p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h4 className="font-bold text-[#111827] text-sm">Week {pod.currentCycleWeek} Automated Cycle Settlement</h4>
+                    <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+                      10% Payout Fee Tagged
+                    </span>
+                  </div>
+                  <p className="text-[#6B7280] text-xs">Transfers net pool funds to rotation recipient's Stripe Treasury account after 10% platform payout fee.</p>
                 </div>
 
                 <button
                   onClick={handleProcessPayout}
                   disabled={processingPayout || pod.status !== 'ACTIVE'}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0"
+                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0 cursor-pointer"
                 >
                   {processingPayout ? (
                     <span>Processing Treasury OutboundTransfer...</span>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      <span>Execute Week {pod.currentCycleWeek} Payout (${currentActivePool})</span>
+                      <span>Execute Week {pod.currentCycleWeek} Payout (${(currentActivePool * 0.90).toFixed(2)} Net)</span>
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* 10% Payout Fee Calculation Breakdown */}
+              <div className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 font-mono">
+                <div className="flex justify-between text-gray-700">
+                  <span>Collective Pool Amount ({pod.members.length} Members × ${pod.depositTier}):</span>
+                  <span>${currentActivePool}.00</span>
+                </div>
+                <div className="flex justify-between text-rose-600">
+                  <span>10% Platform Payout Service Fee:</span>
+                  <span>-${(currentActivePool * 0.10).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-emerald-700 pt-1 border-t border-gray-100 text-sm">
+                  <span>Net Total Paid to User ({currentRecipientMember?.displayName || 'Recipient'}):</span>
+                  <span>${(currentActivePool * 0.90).toFixed(2)}</span>
+                </div>
               </div>
 
               <div className="pt-2 border-t border-gray-200 text-[#6B7280] flex items-center justify-between text-[11.5px]">
@@ -807,18 +965,39 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
             {/* Weekly Deposit Instructions Card */}
             <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
-              <h4 className="font-bold text-[#111827] text-xs">Submit Weekly Contribution</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-[#111827] text-xs">Submit Weekly Contribution</h4>
+                <span className="text-[10px] font-semibold text-[#005FB8] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                  5% Platform Fee Tagged
+                </span>
+              </div>
               <p className="text-[#6B7280] text-xs">
                 Contributions transfer directly from your linked external bank into this pod's Treasury Holding Account <code className="text-[#005FB8] font-mono bg-blue-50 px-1 py-0.5 rounded">{pod.holdingFinAccountId}</code>.
               </p>
+              
+              <div className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 font-mono">
+                <div className="flex justify-between text-gray-700">
+                  <span>Base Contribution Deposit:</span>
+                  <span>${pod.depositTier}.00</span>
+                </div>
+                <div className="flex justify-between text-[#005FB8]">
+                  <span>5% Platform Service Fee:</span>
+                  <span>+${(pod.depositTier * 0.05).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-[#111827] pt-1 border-t border-gray-100">
+                  <span>Total Total Payment Charged:</span>
+                  <span>${(pod.depositTier * 1.05).toFixed(2)}</span>
+                </div>
+              </div>
+
               {isMember && (
                 <button
                   onClick={handleDeposit}
                   disabled={depositing}
-                  className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
+                  className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <DollarSign className="w-4 h-4" />
-                  <span>Submit ${pod.depositTier}.00 Weekly Contribution</span>
+                  <span>Submit ${(pod.depositTier * 1.05).toFixed(2)} Weekly Contribution</span>
                 </button>
               )}
             </div>
@@ -900,6 +1079,213 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 </form>
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: FINANCIAL HARDSHIP FUND */}
+        {activeTab === 'hardship' && (
+          <div className="overflow-y-auto space-y-5 flex-1 pr-1 text-xs text-[#111827]">
+            {/* Hardship Overview Header */}
+            <div className="bg-gradient-to-r from-blue-900 to-[#005FB8] text-white p-4 sm:p-5 rounded-xl space-y-3 shadow-sm">
+              <div className="flex items-center gap-2">
+                <HeartHandshake className="w-5 h-5 text-blue-200" />
+                <h4 className="font-bold text-sm">Financial Hardship Fund Assistance</h4>
+              </div>
+              <p className="text-blue-100 text-xs leading-relaxed">
+                We understand gig workers can face unexpected vehicle repairs or financial strain. If you struggle to make your weekly deposit, you can request a <strong>Financial Hardship Fund</strong> disbursed on your behalf equal to your deposit tier (<strong>${pod.depositTier}.00</strong>).
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 text-[11px] font-mono border-t border-blue-400/40">
+                <div className="bg-white/10 p-2 rounded border border-white/10">
+                  <span className="text-blue-200 block text-[10px] uppercase">Disbursed Amount</span>
+                  <span className="font-bold text-white">${pod.depositTier}.00 Covered</span>
+                </div>
+                <div className="bg-white/10 p-2 rounded border border-white/10">
+                  <span className="text-blue-200 block text-[10px] uppercase">Service Fee Tagged</span>
+                  <span className="font-bold text-amber-200">+7% (${(pod.depositTier * 0.07).toFixed(2)})</span>
+                </div>
+                <div className="bg-white/10 p-2 rounded border border-white/10">
+                  <span className="text-blue-200 block text-[10px] uppercase">Frequency Limit</span>
+                  <span className="font-bold text-emerald-300">1x Every 4 Months</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 1: For Members - Request Button / Status */}
+            {isMember && (
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-[#111827]">Submit Hardship Request</h5>
+                  <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-mono font-bold">
+                    Pool Creator Approval Required
+                  </span>
+                </div>
+
+                {currentUser.isHardshipInactive ? (
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-amber-900">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <span>Your Account is Currently INACTIVE / ON HOLD</span>
+                    </div>
+                    <p className="text-amber-800 text-[11.5px]">
+                      A Financial Hardship Fund deposit was disbursed on your behalf. Your account is on hold and placed on pause for future pool participation.
+                    </p>
+                    <div className="flex items-center justify-between pt-2 border-t border-amber-200 text-xs font-mono font-bold text-amber-950">
+                      <span>Payoff Required (Deposit + 7% Fee):</span>
+                      <span>${(currentUser.hardshipOwedUsd || (pod.depositTier * 1.07)).toFixed(2)}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const activeReq = hardshipRequests.find(r => r.userId === currentUser.id && r.status === 'APPROVED');
+                        if (activeReq) handleRepayHardship(activeReq.id);
+                      }}
+                      disabled={repayingHardship}
+                      className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      <span>{repayingHardship ? 'Processing Repayment...' : `Pay $${(currentUser.hardshipOwedUsd || (pod.depositTier * 1.07)).toFixed(2)} & Reactivate Account`}</span>
+                    </button>
+                  </div>
+                ) : showHardshipForm ? (
+                  <form onSubmit={handleRequestHardship} className="space-y-3 bg-white p-3 rounded-lg border border-gray-200">
+                    <div>
+                      <label className="block font-bold text-xs text-gray-700 mb-1">
+                        Reason for Financial Hardship Fund Request:
+                      </label>
+                      <textarea
+                        value={hardshipReason}
+                        onChange={(e) => setHardshipReason(e.target.value)}
+                        placeholder="Brief description of unexpected expense or earnings dip (e.g. car repair, medical expense)..."
+                        rows={2}
+                        required
+                        className="w-full p-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:border-[#005FB8]"
+                      />
+                    </div>
+                    <div className="p-2 bg-blue-50 border border-blue-200 rounded text-[11px] text-blue-900 space-y-1 font-mono">
+                      <div>• Deposit Funded: ${pod.depositTier}.00</div>
+                      <div>• 7% Fee Added on Payoff: +${(pod.depositTier * 0.07).toFixed(2)} (${(pod.depositTier * 1.07).toFixed(2)} total)</div>
+                      <div>• Account Status: Set to INACTIVE / HOLD upon Creator approval until paid off</div>
+                      <div>• Replacement: Pool opened to public for new member recruitment</div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowHardshipForm(false)}
+                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-xs"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submittingHardship}
+                        className="px-4 py-1.5 bg-[#005FB8] hover:bg-[#004C93] text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5"
+                      >
+                        <HeartHandshake className="w-4 h-4" />
+                        <span>{submittingHardship ? 'Submitting...' : 'Confirm & Request Hardship Fund'}</span>
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
+                    <div>
+                      <span className="font-bold text-xs text-[#111827] block">
+                        Need Help Covering This Week's ${pod.depositTier}.00 Deposit?
+                      </span>
+                      <span className="text-[11px] text-[#6B7280]">
+                        Request a hardship fund. Creator approval disburses ${pod.depositTier}.00 to the pool. Payoff is ${(pod.depositTier * 1.07).toFixed(2)}.
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowHardshipForm(true)}
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+                    >
+                      <HeartHandshake className="w-4 h-4" />
+                      <span>Request Hardship Fund</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Section 2: Pool Creator Review Section */}
+            {(isCreator || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN') && (
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-[#111827]">
+                    Pending Creator Approval Requests ({hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length})
+                  </h5>
+                  <span className="text-[10px] text-[#005FB8] font-mono font-bold">Pool Creator Dashboard</span>
+                </div>
+
+                {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length === 0 ? (
+                  <div className="p-4 bg-white border border-gray-200 rounded-lg text-center text-xs text-gray-500">
+                    No pending Financial Hardship Fund requests for this pod.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').map((req) => (
+                      <div key={req.id} className="p-3 bg-white border border-rose-200 rounded-lg shadow-2xs space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-bold text-xs text-[#111827] flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-[#005FB8]" />
+                            <span>{req.userName}</span>
+                          </div>
+                          <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded font-mono font-bold">
+                            Requested ${req.depositAmount}.00 Deposit
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded italic">
+                          "{req.reason}"
+                        </p>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-[11px] text-gray-500 font-mono">
+                          <span>Payoff with 7% fee: ${req.totalPayoffAmount.toFixed(2)}</span>
+                          <span>Requested {new Date(req.requestedAt).toLocaleDateString()}</span>
+                        </div>
+
+                        <button
+                          onClick={() => handleApproveHardship(req.id)}
+                          disabled={approvingHardship}
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>{approvingHardship ? 'Approving...' : `Approve & Disburse $${req.depositAmount}.00 Deposit`}</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Section 3: Hardship Request History for Pod */}
+            <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
+              <h5 className="font-bold text-xs text-[#111827]">Hardship Fund Activity Log for Pod</h5>
+              {hardshipRequests.filter(r => r.podId === pod.id).length === 0 ? (
+                <p className="text-xs text-gray-500">No hardship activity recorded for this pod yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {hardshipRequests.filter(r => r.podId === pod.id).map((req) => (
+                    <div key={req.id} className="p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-xs flex items-center justify-between gap-2">
+                      <div>
+                        <span className="font-bold text-[#111827]">{req.userName}</span>
+                        <span className="text-gray-500 text-[11px] ml-1">
+                          — ${req.depositAmount}.00 deposit disbursed ({req.status})
+                        </span>
+                      </div>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded font-mono ${
+                        req.status === 'APPROVED' ? 'bg-amber-100 text-amber-800' :
+                        req.status === 'PAID_OFF' ? 'bg-emerald-100 text-emerald-800' :
+                        req.status === 'PENDING' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {req.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

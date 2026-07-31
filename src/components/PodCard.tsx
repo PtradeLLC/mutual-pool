@@ -72,6 +72,13 @@ export const PodCard: React.FC<PodCardProps> = ({
                 </>
               )}
             </span>
+
+            {pod.isPrioritizedForReplacement && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-800 border-rose-200 flex items-center gap-1 animate-pulse">
+                <Sparkles className="w-3 h-3 text-rose-600" />
+                <span>⚡ Hardship Replacement Spot</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">

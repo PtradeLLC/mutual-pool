@@ -36,6 +36,10 @@ export interface User {
   treasury: StripeTreasuryAccount;
   externalBank: ExternalBankAccount;
   completedPodsCount: number;
+  isHardshipInactive?: boolean;
+  hardshipOwedUsd?: number;
+  lastHardshipRequestedAt?: string;
+  activeHardshipRequestId?: string;
 }
 
 export type PodSizeTier = 20 | 50 | 100 | 500 | 1000 | 5000 | 10000;
@@ -74,6 +78,8 @@ export interface PodMembership {
   agreementSignedAt?: string;
   agreementSignatureName?: string;
   delinquencyStatus: DelinquencyStatus;
+  isHardshipInactive?: boolean;
+  hardshipStatus?: 'NONE' | 'PENDING_APPROVAL' | 'INACTIVE_HOLD' | 'REPAID';
   joinedAt: string;
   invitedByUserId?: string;
   invitedByName?: string;
@@ -106,6 +112,27 @@ export interface Pod {
   members: PodMembership[];
   weeklyPoolTarget: number;
   currentWeeklyCollected: number;
+  isPrioritizedForReplacement?: boolean;
+  replacementVacanciesCount?: number;
+}
+
+export type HardshipRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID_OFF';
+
+export interface HardshipFundRequest {
+  id: string;
+  podId: string;
+  podName: string;
+  userId: string;
+  userName: string;
+  creatorUserId: string;
+  depositAmount: number;
+  feeAmount: number;
+  totalPayoffAmount: number;
+  status: HardshipRequestStatus;
+  requestedAt: string;
+  approvedAt?: string;
+  paidOffAt?: string;
+  reason?: string;
 }
 
 export type CycleStatus = 'COLLECTING' | 'PAID_OUT' | 'DELINQUENT_GAP' | 'FAILED';
@@ -180,7 +207,11 @@ export interface AuditLogEntry {
     | 'PERK_CREATED'
     | 'PERK_UPDATED'
     | 'PERK_STATUS_CHANGED'
-    | 'PERK_DELETED';
+    | 'PERK_DELETED'
+    | 'HARDSHIP_REQUESTED'
+    | 'HARDSHIP_APPROVED'
+    | 'HARDSHIP_REPAID'
+    | 'HARDSHIP_REJECTED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

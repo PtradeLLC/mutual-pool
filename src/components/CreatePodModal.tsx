@@ -439,16 +439,40 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
             </div>
           </div>
 
-          {/* Calculated Weekly Payout Preview */}
-          <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-2">
+          {/* Calculated Weekly Payout & 5% Fee Breakdown Preview */}
+          <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
             <div className="flex items-center justify-between text-xs">
               <div>
-                <span className="text-[#111827] font-bold block">Starting Active Pool (1 Member)</span>
-                <span className="text-[11px] text-gray-500">Your initial deposit when pod is formed</span>
+                <span className="text-[#111827] font-bold block">Initial Pool Deposit ({user.displayName})</span>
+                <span className="text-[11px] text-gray-500">Your base weekly deposit allocated to the pool</span>
+              </div>
+              <div className="text-right">
+                <span className="text-sm font-bold text-[#111827] font-mono">
+                  ${depositTier}.00
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[#005FB8] font-bold block">Platform Service & Treasury Fee (5%)</span>
+                <span className="text-[11px] text-gray-500">Applied to all deposits before creating pool</span>
               </div>
               <div className="text-right">
                 <span className="text-sm font-bold text-[#005FB8] font-mono">
-                  ${depositTier}.00 / wk
+                  +${(depositTier * 0.05).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-gray-200 flex items-center justify-between bg-blue-50/60 p-2.5 rounded-lg border border-blue-100">
+              <div>
+                <span className="text-[#111827] font-bold block text-xs">Total Initial Payment Required to Create Pool</span>
+                <span className="text-[10.5px] text-[#005FB8]">Includes base deposit + 5% fee</span>
+              </div>
+              <div className="text-right">
+                <span className="text-base font-extrabold text-[#005FB8] font-mono">
+                  ${(depositTier * 1.05).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -481,14 +505,14 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
+              className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
             >
               {loading ? (
-                <span>Creating Pod & Treasury Account...</span>
+                <span>Processing ${(depositTier * 1.05).toFixed(2)} Payment & Creating Pod...</span>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Create {podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open'} Pod</span>
+                  <span>Pay ${(depositTier * 1.05).toFixed(2)} & Create {podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open'} Pod</span>
                 </>
               )}
             </button>

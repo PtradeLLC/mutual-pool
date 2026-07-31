@@ -379,7 +379,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <p className="text-[11px] text-[#6B7280]">
-                * ROSCA savings circles operate at 0% interest and 0% administrative fees. You contribute ${calcDeposit}/wk for {calcMembers} weeks (${(calcMembers * calcDeposit).toLocaleString()}) and receive 1 full pool payout of ${(calcMembers * calcDeposit).toLocaleString()}.
+                * You contribute ${calcDeposit}/wk base deposit (+5% fee = ${(calcDeposit * 1.05).toFixed(2)} total) for {calcMembers} weeks. When your rotation turn arrives, you receive a net payout of ${((calcMembers * calcDeposit) * 0.90).toLocaleString()} after 10% platform fee deduction.
               </p>
             </div>
 
@@ -387,28 +387,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="bg-[#005FB8] text-white rounded-xl p-8 space-y-6 shadow-sm relative overflow-hidden">
               <div>
                 <span className="text-xs uppercase font-mono font-bold tracking-wider text-blue-200 block mb-1">
-                  Guaranteed Single Weekly Payout
+                  Net Single Rotation Payout (After 10% Fee)
                 </span>
                 <div className="text-4xl sm:text-5xl font-extrabold font-mono tracking-tight">
-                  ${totalPoolPayout.toLocaleString('en-US', { minimumFractionDigits: 0 })}
-                  <span className="text-base font-normal text-blue-200 ml-2">USD</span>
+                  ${(totalPoolPayout * 0.90).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <span className="text-base font-normal text-blue-200 ml-2">USD Net</span>
                 </div>
               </div>
 
-              <div className="space-y-3 text-xs border-t border-blue-400/40 pt-4">
+              <div className="space-y-3 text-xs border-t border-blue-400/40 pt-4 font-mono">
                 <div className="flex justify-between">
-                  <span className="text-blue-100">Weekly Driver Contribution:</span>
-                  <span className="font-bold font-mono">${calcDeposit}.00 / week</span>
+                  <span className="text-blue-100 font-sans">Base Weekly Contribution:</span>
+                  <span className="font-bold">${calcDeposit}.00 / week</span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span className="text-blue-100">Total Cycle Length:</span>
-                  <span className="font-bold font-mono">{calcMembers} Weeks</span>
+                <div className="flex justify-between text-blue-200">
+                  <span className="font-sans">Initial Deposit Fee (5%):</span>
+                  <span>+${(calcDeposit * 0.05).toFixed(2)}</span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span className="text-blue-100">FDIC Pass-Through Status:</span>
-                  <span className="font-bold text-emerald-300 flex items-center gap-1">
+                <div className="flex justify-between text-blue-100">
+                  <span className="font-sans">Gross Collective Pool ({calcMembers} Members):</span>
+                  <span className="font-bold">${totalPoolPayout}.00</span>
+                </div>
+
+                <div className="flex justify-between text-rose-200">
+                  <span className="font-sans">Payout Service Fee (10%):</span>
+                  <span>-${(totalPoolPayout * 0.10).toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between border-t border-blue-400/40 pt-2">
+                  <span className="text-blue-100 font-sans">FDIC Pass-Through Status:</span>
+                  <span className="font-bold text-emerald-300 font-sans flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     Eligible ($250k Limit)
                   </span>
