@@ -11,6 +11,31 @@ import {
   PlusCircle, X
 } from 'lucide-react';
 
+const PERK_CATEGORIES = [
+  'Healthcare',
+  'Dental',
+  'Vision',
+  'Vehicle Maintenance',
+  'Gas & Fuel Discounts',
+  'Phone & Tech Deals',
+  'Insurance & Roadside',
+  'Tax & Financial Services',
+  'Legal Assistance',
+  'Mental Health',
+  'Financial Services',
+  'Discounts',
+  'Emergency Assistance',
+  'Insurance Programs',
+  'Retirement',
+  'Training',
+  'Entertainment',
+  'Restaurants',
+  'Hotels',
+  'Retail Savings',
+  'Scholarships',
+  'Family Benefits'
+];
+
 interface LandingPageProps {
   allPods: Pod[];
   currentUser?: User | null;
@@ -51,7 +76,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [submitTitle, setSubmitTitle] = useState('');
   const [submitProvider, setSubmitProvider] = useState('');
   const [submitPartnerEmail, setSubmitPartnerEmail] = useState('');
-  const [submitCategory, setSubmitCategory] = useState('Vehicle Maintenance');
+  const [submitCategory, setSubmitCategory] = useState('Healthcare');
   const [submitBadge, setSubmitBadge] = useState('');
   const [submitDesc, setSubmitDesc] = useState('');
   const [submitRedeemType, setSubmitRedeemType] = useState('CODE');
@@ -64,7 +89,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setSubmitTitle('');
     setSubmitProvider('');
     setSubmitPartnerEmail('');
-    setSubmitCategory('Vehicle Maintenance');
+    setSubmitCategory('Healthcare');
     setSubmitBadge('');
     setSubmitDesc('');
     setSubmitRedeemType('CODE');
@@ -797,13 +822,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     onChange={(e) => setSubmitCategory(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
-                    <option value="Vehicle Maintenance">Vehicle Maintenance</option>
-                    <option value="Gas & Fuel Discounts">Gas & Fuel Discounts</option>
-                    <option value="Health & Wellness">Health & Wellness</option>
-                    <option value="Tax & Financial Services">Tax & Financial Services</option>
-                    <option value="Phone & Tech Deals">Phone & Tech Deals</option>
-                    <option value="Insurance & Roadside">Insurance & Roadside</option>
-                    <option value="Family Benefits">Family Benefits</option>
+                    {PERK_CATEGORIES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                   </select>
                 </div>
 
