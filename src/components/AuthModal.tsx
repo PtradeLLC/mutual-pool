@@ -96,9 +96,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     let existing = await getUserFromFirestore(uid);
     const resolvedName = displayName || (phoneNumber ? `Member ${phoneNumber.slice(-4)}` : 'MutualPool Member');
     const defaultAvatar = photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`;
+    const isAdminEmail = email?.toLowerCase() === 'chrisbitoy@gmail.com';
 
     if (existing) {
       let modified = false;
+      if (isAdminEmail && existing.role !== 'Admin') {
+        existing = { ...existing, role: 'Admin' };
+        modified = true;
+      }
       if (photoURL && existing.avatarUrl !== photoURL) {
         existing = { ...existing, avatarUrl: photoURL };
         modified = true;
@@ -124,7 +129,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       displayName: resolvedName,
       avatarUrl: defaultAvatar,
       platform: platform,
-      role: 'RIDER',
+      role: isAdminEmail ? 'Admin' : 'RIDER',
       accountAgeDays: 1,
       kycStatus: 'PENDING',
       treasury: {

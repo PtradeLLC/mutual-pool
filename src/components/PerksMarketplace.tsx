@@ -63,7 +63,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const [submitStatus, setSubmitStatus] = useState<PerkStatus>('APPROVED');
   const [submitLoading, setSubmitLoading] = useState(false);
 
-  const isAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || currentUser.role?.includes('ADMIN');
+  const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com';
 
   const fetchPerks = async () => {
     try {

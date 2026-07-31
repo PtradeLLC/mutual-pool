@@ -44,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com';
 
   return (
     <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs">
@@ -257,17 +258,19 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Audit Ledger</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('admin-ops')}
-              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'admin-ops'
-                  ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                  : 'text-[#4B5563] hover:bg-gray-100'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Operations & Webhooks</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('admin-ops')}
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                  activeTab === 'admin-ops'
+                    ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                    : 'text-[#4B5563] hover:bg-gray-100'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Operations & Webhooks</span>
+              </button>
+            )}
           </div>
 
           {/* Quick Info Modal Links */}

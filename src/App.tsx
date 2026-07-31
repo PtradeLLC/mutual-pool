@@ -117,6 +117,10 @@ export default function App() {
         // Try getting fresh user document from Firestore
         const firestoreUser = await getUserFromFirestore(uId);
         if (firestoreUser) {
+          if (firestoreUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' && firestoreUser.role !== 'Admin') {
+            firestoreUser.role = 'Admin';
+            saveUserToFirestore(firestoreUser).catch(() => {});
+          }
           setCurrentUser(firestoreUser);
           await syncUserWithBackend(firestoreUser);
         } else {
@@ -124,6 +128,9 @@ export default function App() {
           const userRes = await fetch(`/api/users/current?userId=${uId}`);
           if (userRes.ok) {
             const uData = await userRes.json();
+            if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
+              uData.role = 'Admin';
+            }
             setCurrentUser(uData);
           }
         }
@@ -131,6 +138,9 @@ export default function App() {
         const userRes = await fetch('/api/users/current');
         if (userRes.ok) {
           const uData = await userRes.json();
+          if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
+            uData.role = 'Admin';
+          }
           setCurrentUser(uData);
         }
       }
