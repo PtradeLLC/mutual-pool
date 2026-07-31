@@ -163,6 +163,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
       if (userCredential.user) {
+        onClose(); // Close modal immediately
         await updateProfile(userCredential.user, { displayName: regName });
         const appUser = await ensureUserInFirestore(
           userCredential.user.uid,
@@ -173,7 +174,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           userCredential.user.photoURL
         );
         onRegistered(appUser);
-        onClose();
       }
     } catch (err: unknown) {
       console.error('Firebase Register Error:', err);
@@ -196,16 +196,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       if (userCredential.user) {
-        const appUser = await ensureUserInFirestore(
+        onClose(); // Close modal immediately
+        ensureUserInFirestore(
           userCredential.user.uid,
           userCredential.user.email,
           userCredential.user.displayName,
           'DoorDash',
           undefined,
           userCredential.user.photoURL
-        );
-        onSelectUser(appUser);
-        onClose();
+        ).then(appUser => {
+          onSelectUser(appUser);
+        }).catch(console.error);
       }
     } catch (err: unknown) {
       console.error('Firebase Login Error:', err);
@@ -227,16 +228,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const result = await signInWithPopup(auth, googleProvider);
       if (result.user) {
-        const appUser = await ensureUserInFirestore(
+        onClose(); // Close modal immediately
+        ensureUserInFirestore(
           result.user.uid,
           result.user.email,
           result.user.displayName,
           authPlatform,
           undefined,
           result.user.photoURL
-        );
-        onSelectUser(appUser);
-        onClose();
+        ).then(appUser => {
+          onSelectUser(appUser);
+        }).catch(console.error);
       }
     } catch (err: unknown) {
       console.error('Google Sign-In Error:', err);
@@ -300,15 +302,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const userCredential = await confirmationResult.confirm(verificationCode);
       if (userCredential.user) {
-        const appUser = await ensureUserInFirestore(
+        onClose(); // Close modal immediately
+        ensureUserInFirestore(
           userCredential.user.uid,
           null,
           `Driver ${phoneNumber.slice(-4)}`,
           authPlatform,
           phoneNumber
-        );
-        onSelectUser(appUser);
-        onClose();
+        ).then(appUser => {
+          onSelectUser(appUser);
+        }).catch(console.error);
       }
     } catch (err: unknown) {
       console.error('Phone Code Verify Error:', err);

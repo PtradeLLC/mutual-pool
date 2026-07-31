@@ -21,10 +21,10 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-// Use custom database ID if specified in env or config, otherwise default
-const dbId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId;
-export const db = (dbId && dbId !== '(default)') 
-  ? getFirestore(app, dbId) 
+// Use custom database ID if explicitly provided in VITE_FIREBASE_DATABASE_ID, otherwise default
+const customDbId = import.meta.env.VITE_FIREBASE_DATABASE_ID;
+export const db = customDbId && customDbId !== '(default)'
+  ? getFirestore(app, customDbId)
   : getFirestore(app);
 
 export const googleProvider = new GoogleAuthProvider();

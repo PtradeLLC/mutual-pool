@@ -134,88 +134,93 @@ export default function App() {
     });
 
     // 3. Firebase Auth state listener
-    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser) {
-        let dbUser = await getUserFromFirestore(fbUser.uid);
-        if (dbUser) {
-          let modified = false;
-          // Clean legacy $100 placeholder or fake bank placeholders for new user profiles with 0 completed pods
-          if (dbUser.treasury && (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_') || (dbUser.completedPodsCount === 0 && dbUser.treasury.balanceUsd === 100))) {
-            dbUser.treasury.balanceUsd = 0.00;
-            if (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_')) {
-              dbUser.treasury.stripeAccountId = '';
-              dbUser.treasury.stripeFinAccountId = '';
-              dbUser.treasury.status = 'UNINITIALIZED';
-              dbUser.treasury.fdicPassThroughEligible = false;
+        // Immediately show dashboard and close auth modal
+        setShowAuthModal(false);
+        setViewMode('DASHBOARD');
+
+        // Non-blocking async background profile sync
+        (async () => {
+          let dbUser = await getUserFromFirestore(fbUser.uid);
+          if (dbUser) {
+            let modified = false;
+            // Clean legacy $100 placeholder or fake bank placeholders for new user profiles with 0 completed pods
+            if (dbUser.treasury && (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_') || (dbUser.completedPodsCount === 0 && dbUser.treasury.balanceUsd === 100))) {
+              dbUser.treasury.balanceUsd = 0.00;
+              if (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_')) {
+                dbUser.treasury.stripeAccountId = '';
+                dbUser.treasury.stripeFinAccountId = '';
+                dbUser.treasury.status = 'UNINITIALIZED';
+                dbUser.treasury.fdicPassThroughEligible = false;
+              }
+              modified = true;
             }
-            modified = true;
-          }
-          if (dbUser.externalBank && dbUser.externalBank.bankName === 'Linked Bank Account') {
-            dbUser.externalBank = {
-              bankName: '',
-              last4: '',
-              routingNumber: '',
-              accountType: 'CHECKING',
-              status: 'NOT_LINKED',
+            if (dbUser.externalBank && dbUser.externalBank.bankName === 'Linked Bank Account') {
+              dbUser.externalBank = {
+                bankName: '',
+                last4: '',
+                routingNumber: '',
+                accountType: 'CHECKING',
+                status: 'NOT_LINKED',
+              };
+              modified = true;
+            }
+
+            // Ensure unverified users correctly reflect PENDING KYC status unless verified
+            if (dbUser.kycStatus === 'VERIFIED' && !dbUser.kycVerifiedAt && !dbUser.treasury.stripeAccountId) {
+              dbUser.kycStatus = 'PENDING';
+              modified = true;
+            }
+
+            // Sync real avatar photoURL from Firebase Auth or generate dynamic avatar from display name
+            if (fbUser.photoURL && dbUser.avatarUrl !== fbUser.photoURL) {
+              dbUser.avatarUrl = fbUser.photoURL;
+              modified = true;
+            } else if (!dbUser.avatarUrl || dbUser.avatarUrl.includes('unsplash.com/photo-1534528741775-53994a69daeb')) {
+              dbUser.avatarUrl = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(dbUser.displayName || fbUser.displayName || 'Member')}&background=005FB8&color=fff&size=200`;
+              modified = true;
+            }
+
+            if (modified) {
+              saveUserToFirestore(dbUser).catch(console.error);
+            }
+            setCurrentUser(dbUser);
+            syncUserWithBackend(dbUser).catch(console.error);
+          } else {
+            const resolvedName = fbUser.displayName || fbUser.phoneNumber || 'MutualPool Member';
+            const newUser: User = {
+              id: fbUser.uid,
+              email: fbUser.email || `${fbUser.uid.substring(0, 8)}@mutualpool.org`,
+              displayName: resolvedName,
+              avatarUrl: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`,
+              platform: 'DoorDash',
+              role: 'RIDER',
+              accountAgeDays: 1,
+              kycStatus: 'PENDING',
+              treasury: {
+                stripeAccountId: '',
+                stripeFinAccountId: '',
+                balanceUsd: 0.00,
+                pendingInboundUsd: 0.00,
+                totalPayoutsReceivedUsd: 0.00,
+                fdicPassThroughEligible: false,
+                status: 'UNINITIALIZED',
+              },
+              externalBank: {
+                bankName: '',
+                last4: '',
+                routingNumber: '',
+                accountType: 'CHECKING',
+                status: 'NOT_LINKED',
+              },
+              completedPodsCount: 0,
             };
-            modified = true;
+            saveUserToFirestore(newUser).catch(console.error);
+            setCurrentUser(newUser);
+            syncUserWithBackend(newUser).catch(console.error);
           }
-
-          // Ensure unverified users correctly reflect PENDING KYC status unless verified
-          if (dbUser.kycStatus === 'VERIFIED' && !dbUser.kycVerifiedAt && !dbUser.treasury.stripeAccountId) {
-            dbUser.kycStatus = 'PENDING';
-            modified = true;
-          }
-
-          // Sync real avatar photoURL from Firebase Auth or generate dynamic avatar from display name
-          if (fbUser.photoURL && dbUser.avatarUrl !== fbUser.photoURL) {
-            dbUser.avatarUrl = fbUser.photoURL;
-            modified = true;
-          } else if (!dbUser.avatarUrl || dbUser.avatarUrl.includes('unsplash.com/photo-1534528741775-53994a69daeb')) {
-            dbUser.avatarUrl = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(dbUser.displayName || fbUser.displayName || 'Member')}&background=005FB8&color=fff&size=200`;
-            modified = true;
-          }
-
-          if (modified) {
-            await saveUserToFirestore(dbUser);
-          }
-          setCurrentUser(dbUser);
-          setViewMode('DASHBOARD');
-          await syncUserWithBackend(dbUser);
-        } else {
-          const resolvedName = fbUser.displayName || fbUser.phoneNumber || 'MutualPool Member';
-          const newUser: User = {
-            id: fbUser.uid,
-            email: fbUser.email || `${fbUser.uid.substring(0, 8)}@mutualpool.org`,
-            displayName: resolvedName,
-            avatarUrl: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`,
-            platform: 'DoorDash',
-            role: 'RIDER',
-            accountAgeDays: 1,
-            kycStatus: 'PENDING',
-            treasury: {
-              stripeAccountId: '',
-              stripeFinAccountId: '',
-              balanceUsd: 0.00,
-              pendingInboundUsd: 0.00,
-              totalPayoutsReceivedUsd: 0.00,
-              fdicPassThroughEligible: false,
-              status: 'UNINITIALIZED',
-            },
-            externalBank: {
-              bankName: '',
-              last4: '',
-              routingNumber: '',
-              accountType: 'CHECKING',
-              status: 'NOT_LINKED',
-            },
-            completedPodsCount: 0,
-          };
-          await saveUserToFirestore(newUser);
-          setCurrentUser(newUser);
-          setViewMode('DASHBOARD');
-          await syncUserWithBackend(newUser);
-        }
+        })().catch(console.error);
       }
     });
 
@@ -243,11 +248,14 @@ export default function App() {
     setShowAuthModal(true);
   };
 
-  const handleAuthSuccess = async (user: User) => {
+  const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setViewMode('DASHBOARD');
-    await saveUserToFirestore(user);
-    await syncUserWithBackend(user);
+    setShowAuthModal(false);
+
+    // Non-blocking background sync
+    saveUserToFirestore(user).catch(console.error);
+    syncUserWithBackend(user).catch(console.error);
     fetchAppData(user.id);
   };
 
