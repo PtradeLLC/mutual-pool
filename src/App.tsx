@@ -15,6 +15,7 @@ import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { EditProfileModal } from './components/EditProfileModal';
+import { HardshipRequestModal } from './components/HardshipRequestModal';
 import { AboutUsModal, HowItWorksModal, ContactUsModal } from './components/InfoModals';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
@@ -48,6 +49,7 @@ export default function App() {
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
   const [showKYCGateModal, setShowKYCGateModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
+  const [showHardshipModal, setShowHardshipModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [selectedPodDetail, setSelectedPodDetail] = useState<Pod | null>(null);
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
@@ -539,10 +541,18 @@ export default function App() {
 
               <button
                 onClick={() => setShowBankModal(true)}
-                className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+                className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Building2 className="w-4 h-4 text-[#005FB8]" />
                 <span>{currentUser.externalBank.status === 'LINKED' ? `Bank: ${currentUser.externalBank.bankName}` : 'Link Bank Account'}</span>
+              </button>
+
+              <button
+                onClick={() => setShowHardshipModal(true)}
+                className="px-3.5 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <HeartHandshake className="w-4 h-4 text-[#005FB8]" />
+                <span>Request Hardship Fund</span>
               </button>
 
               <button
@@ -804,6 +814,16 @@ export default function App() {
             setCurrentUser(updatedUser);
             await syncUserWithBackend(updatedUser);
           }}
+        />
+      )}
+
+      {currentUser && (
+        <HardshipRequestModal
+          isOpen={showHardshipModal}
+          onClose={() => setShowHardshipModal(false)}
+          currentUser={currentUser}
+          myPods={myPods}
+          onRequestSubmitted={() => fetchAppData(currentUser.id)}
         />
       )}
 

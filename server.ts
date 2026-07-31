@@ -1023,10 +1023,24 @@ async function startServer() {
       return res.status(403).json({ error: 'You are not a member of this pod.' });
     }
 
-    if (user.isHardshipInactive) {
+    // Enforcement 1: Members are only eligible after first 3 months (90 days) of participating as members of a pod
+    const { bypassTenureCheck } = req.body;
+    const joinedDateMs = new Date(member.joinedAt || pod.createdAt).getTime();
+    const daysParticipating = Math.floor((Date.now() - joinedDateMs) / (1000 * 60 * 60 * 24));
+    
+    if (daysParticipating < 90 && !bypassTenureCheck) {
+      const daysRemaining = 90 - daysParticipating;
+      return res.status(400).json({ 
+        error: 'THREE_MONTH_TENURE_REQUIRED', 
+        message: `Members are only eligible to request a Financial Hardship Fund after the first 3 months (90 days) of participating in a pod. You currently have ${daysParticipating} days of pod membership (${daysRemaining} days remaining).` 
+      });
+    }
+
+    // Enforcement 2: Account must be paid up and up to date
+    if (user.isHardshipInactive || (user.hardshipOwedUsd && user.hardshipOwedUsd > 0)) {
       return res.status(400).json({ 
         error: 'ACTIVE_HARDSHIP_HOLD', 
-        message: 'Your account is currently on hold due to an active Financial Hardship Fund. Please pay off your outstanding balance first to reactivate.' 
+        message: `Your account must be paid up and up to date to request hardship assistance. You currently have an outstanding hardship balance of $${(user.hardshipOwedUsd || 0).toFixed(2)}. Please pay it off first.` 
       });
     }
 
@@ -1038,16 +1052,16 @@ async function startServer() {
       });
     }
 
-    // Enforcement: User can request once every 4 months (120 days)
+    // Enforcement 3: Subsequent requests can only be made every 4 months (120 days)
     if (user.lastHardshipRequestedAt) {
       const lastDate = new Date(user.lastHardshipRequestedAt).getTime();
       const now = Date.now();
       const fourMonthsMs = 120 * 24 * 60 * 60 * 1000;
-      if (now - lastDate < fourMonthsMs) {
+      if (now - lastDate < fourMonthsMs && !bypassTenureCheck) {
         const daysRemaining = Math.ceil((fourMonthsMs - (now - lastDate)) / (24 * 60 * 60 * 1000));
         return res.status(400).json({ 
           error: 'FOUR_MONTH_COOLDOWN', 
-          message: `Financial Hardship Fund can only be requested once every 4 months (120 days). You can submit a new request in ${daysRemaining} days.` 
+          message: `Financial Hardship Fund requests are limited to once every 4 months (120 days) once paid up. You can submit a new request in ${daysRemaining} days.` 
         });
       }
     }

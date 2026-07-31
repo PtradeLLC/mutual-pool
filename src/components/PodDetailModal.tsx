@@ -1162,10 +1162,11 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       />
                     </div>
                     <div className="p-2 bg-blue-50 border border-blue-200 rounded text-[11px] text-blue-900 space-y-1 font-mono">
+                      <div>• Policy: Eligible after 3 months (90 days) of pod membership</div>
+                      <div>• Frequency: Subsequent requests allowed every 4 months once account is paid up</div>
                       <div>• Deposit Funded: ${pod.depositTier}.00</div>
                       <div>• 7% Fee Added on Payoff: +${(pod.depositTier * 0.07).toFixed(2)} (${(pod.depositTier * 1.07).toFixed(2)} total)</div>
                       <div>• Account Status: Set to INACTIVE / HOLD upon Creator approval until paid off</div>
-                      <div>• Replacement: Pool opened to public for new member recruitment</div>
                     </div>
                     <div className="flex justify-end gap-2">
                       <button
