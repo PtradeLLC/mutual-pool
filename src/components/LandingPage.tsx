@@ -214,7 +214,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-extrabold text-[#111827] tracking-tight leading-tight">
-                Money pools, Perks & Benefits built for gig workers
+                Money pool, Perks & Benefits built for gig workers
               </h1>
 
               <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
