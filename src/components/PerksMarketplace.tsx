@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Perk, PerkCategory, PerkStatus, PerkRedemptionType } from '../types';
-import { savePerkToFirestore, deletePerkFromFirestore } from '../lib/firestoreService';
+import { savePerkToFirestore, deletePerkFromFirestore, subscribeToPerks } from '../lib/firestoreService';
 import { 
   Gift, Search, Filter, ExternalLink, Copy, Check, PlusCircle, 
   ShieldCheck, HeartPulse, ShieldAlert, Car, Calculator, Smile, Zap, Sparkles, X,
@@ -112,7 +112,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const fetchMyOffers = async (userIdOverride?: string) => {
     const targetUserId = userIdOverride || currentUser.id;
     try {
-      const res = await fetch(`/api/perks/my-offers?userId=${encodeURIComponent(targetUserId)}`, {
+      const emailParam = currentUser.email ? `&email=${encodeURIComponent(currentUser.email)}` : '';
+      const res = await fetch(`/api/perks/my-offers?userId=${encodeURIComponent(targetUserId)}${emailParam}`, {
         headers: {
           'x-user-id': targetUserId,
         },
@@ -144,10 +145,65 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     }
   };
 
+  // Real-time Firestore synchronization for Perks & Submitted Offers
+  useEffect(() => {
+    const unsubscribe = subscribeToPerks((firestorePerks) => {
+      if (firestorePerks && firestorePerks.length > 0) {
+        setAllAdminPerks(firestorePerks);
+
+        const approved = firestorePerks.filter(p => p.status === 'APPROVED');
+        if (approved.length > 0) {
+          setPerks(prev => {
+            const map = new Map<string, Perk>();
+            prev.forEach(p => map.set(p.id, p));
+            approved.forEach(p => map.set(p.id, p));
+            return Array.from(map.values());
+          });
+        }
+
+        let localGuestPerks: Perk[] = [];
+        try {
+          const saved = localStorage.getItem('gig_submitted_perks');
+          if (saved) localGuestPerks = JSON.parse(saved);
+        } catch (e) {}
+
+        const userEmail = currentUser?.email?.toLowerCase();
+        const userName = currentUser?.displayName?.toLowerCase();
+        const userId = currentUser?.id;
+
+        const myOffersFromFirestore = firestorePerks.filter(p => {
+          if (userId && userId !== 'usr_guest' && p.submittedByUserId === userId) return true;
+          if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
+          if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
+          if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
+          if (userId === 'usr_guest' || !userId) {
+            if (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner' || p.submittedBy === 'Community Partner') return true;
+          }
+          if (isAdmin && p.status === 'PENDING') return true;
+          return false;
+        });
+
+        const combined = [...myOffersFromFirestore];
+        for (const lp of localGuestPerks) {
+          if (!combined.some(p => p.id === lp.id)) {
+            combined.unshift(lp);
+          }
+        }
+
+        setMySubmittedOffers(combined);
+        if (combined.length > 0) {
+          setShowPartnerDashboard(true);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.id, currentUser?.email, currentUser?.displayName, isAdmin]);
+
   useEffect(() => {
     fetchPerks();
     fetchMyOffers();
-  }, [selectedCategory, searchQuery, currentUser.id]);
+  }, [selectedCategory, searchQuery, currentUser?.id]);
 
   useEffect(() => {
     if (initialOpenSubmitModal) {

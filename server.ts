@@ -1547,7 +1547,7 @@ app.use((req, res, next) => {
       redemptionData: redemptionData || 'PENDING_APPROVAL',
       eligibility: eligibility || 'All verified members',
       submittedBy: partnerUser ? partnerUser.displayName : (partnerEmail || finalProvider),
-      submittedByUserId: partnerUser ? partnerUser.id : undefined,
+      submittedByUserId: partnerUser ? partnerUser.id : (user ? user.id : ((req.headers['x-user-id'] as string) || 'usr_guest')),
       partnerEmail: partnerEmail || (partnerUser ? partnerUser.email : undefined),
       partnerNotes,
       status: perkStatus,
@@ -1584,19 +1584,21 @@ app.use((req, res, next) => {
   app.get('/api/perks/my-offers', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     const requestedUserId = (req.query.userId as string) || (req.headers['x-user-id'] as string);
-    const targetUserId = requestedUserId || user?.id;
-
-    if (!targetUserId && !user) return res.json([]);
+    const targetUserId = requestedUserId || user?.id || 'usr_guest';
+    const queryEmail = (req.query.email as string)?.toLowerCase();
 
     const isAdmin = checkIsAdmin(req);
-    const userOffers = perks.filter(p => 
-      (p.submittedByUserId && (p.submittedByUserId === targetUserId || (user && p.submittedByUserId === user.id))) || 
-      (user?.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) ||
-      (user?.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) ||
-      (user?.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) ||
-      (isAdmin && p.status === 'PENDING') ||
-      (targetUserId === 'usr_guest' && (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner'))
-    );
+    const userOffers = perks.filter(p => {
+      if (p.submittedByUserId && p.submittedByUserId === targetUserId) return true;
+      if (user && p.submittedByUserId && p.submittedByUserId === user.id) return true;
+      if (queryEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === queryEmail) return true;
+      if (user?.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) return true;
+      if (user?.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) return true;
+      if (user?.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) return true;
+      if (isAdmin && p.status === 'PENDING') return true;
+      if (targetUserId === 'usr_guest' && (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner' || p.submittedBy === 'Community Partner')) return true;
+      return false;
+    });
     res.json(userOffers);
   });
 
