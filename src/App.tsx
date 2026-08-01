@@ -711,9 +711,22 @@ export default function App() {
         {/* 3. PERKS MARKETPLACE TAB */}
         {activeTab === 'perks' && (
           <PerksMarketplace
-            currentUser={currentUser}
+            currentUser={currentUser || {
+              id: 'usr_guest',
+              email: '',
+              displayName: 'Guest Partner',
+              avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+              platform: 'Partner Provider',
+              role: 'RIDER',
+              accountAgeDays: 0,
+              kycStatus: 'UNINITIALIZED',
+              treasury: { balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'UNINITIALIZED' },
+              externalBank: { bankName: '', last4: '', routingNumber: '', accountType: 'CHECKING', status: 'NOT_LINKED' },
+              completedPodsCount: 0,
+            }}
             onOpenKYCGate={() => setShowKYCGateModal(true)}
             initialOpenSubmitModal={openSubmitPerkDirectly}
+            onSelectUser={handleAuthSuccess}
           />
         )}
 

@@ -10,6 +10,7 @@ interface PerksMarketplaceProps {
   currentUser: User;
   onOpenKYCGate: () => void;
   initialOpenSubmitModal?: boolean;
+  onSelectUser?: (user: User) => void;
 }
 
 const CATEGORIES: (PerkCategory | 'All')[] = [
@@ -38,7 +39,7 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
   'Family Benefits'
 ];
 
-export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, onOpenKYCGate, initialOpenSubmitModal }) => {
+export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, onOpenKYCGate, initialOpenSubmitModal, onSelectUser }) => {
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
@@ -70,6 +71,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const [submitEligibility, setSubmitEligibility] = useState('All verified members');
   const [submitPartnerEmail, setSubmitPartnerEmail] = useState('');
   const [submitPartnerNotes, setSubmitPartnerNotes] = useState('');
+  const [createAccount, setCreateAccount] = useState(true);
   const [submitStatus, setSubmitStatus] = useState<PerkStatus>('APPROVED');
   const [submitLoading, setSubmitLoading] = useState(false);
 
@@ -200,6 +202,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     setSubmitLoading(true);
 
     try {
+      const isGuest = !currentUser || currentUser.id === 'usr_guest';
       const res = await fetch('/api/perks/submit', {
         method: 'POST',
         headers: {
@@ -217,6 +220,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           eligibility: submitEligibility,
           partnerEmail: submitPartnerEmail,
           partnerNotes: submitPartnerNotes,
+          createAccount: isGuest ? createAccount : false,
         }),
       });
 
@@ -230,6 +234,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
           } catch (e) {}
         }
+
+        if (data.user && onSelectUser) {
+          onSelectUser(data.user);
+        }
+
         setShowPartnerDashboard(true);
         fetchMyOffers();
         fetchPerks();
@@ -1045,6 +1054,24 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   placeholder="Special instructions, contact details, or notes for the GigMutual admin review team."
                 />
               </div>
+
+              {(!currentUser || currentUser.id === 'usr_guest') && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-950 flex items-start gap-2.5 text-xs">
+                  <input
+                    type="checkbox"
+                    id="marketplaceCreateAccount"
+                    checked={createAccount}
+                    onChange={(e) => setCreateAccount(e.target.checked)}
+                    className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 shrink-0 cursor-pointer"
+                  />
+                  <label htmlFor="marketplaceCreateAccount" className="cursor-pointer">
+                    <strong className="block font-bold text-emerald-900">Establish Partner Account during submission</strong>
+                    <span className="text-emerald-800">
+                      Creates a GigMutual Partner Account with your contact email so you can log in, track real-time approval status, view member redemption stats, and manage submitted offers anytime.
+                    </span>
+                  </label>
+                </div>
+              )}
 
               <div className="pt-2 flex justify-end gap-2">
                 <button

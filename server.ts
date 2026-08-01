@@ -1481,8 +1481,8 @@ app.use((req, res, next) => {
   });
 
   app.post('/api/perks/submit', (req: Request, res: Response) => {
-    const user = getCurrentUser(req);
-    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes } = req.body || {};
+    let user = getCurrentUser(req);
+    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes, createAccount } = req.body || {};
 
     if (!title || !category) {
       return res.status(400).json({ error: 'Title and category are required.' });
@@ -1490,6 +1490,48 @@ app.use((req, res, next) => {
 
     const finalProvider = provider || partnerEmail || (user ? user.displayName : 'Community Partner');
     const perkStatus: PerkStatus = req.body?.status || 'PENDING';
+
+    let partnerUser: User | undefined = user || undefined;
+    let createdAccount = false;
+
+    // If no active session or createAccount requested with email, establish partner account
+    if (partnerEmail && (!partnerUser || createAccount)) {
+      const existing = users.find(u => u.email.toLowerCase() === partnerEmail.toLowerCase());
+      if (existing) {
+        partnerUser = existing;
+      } else {
+        const newUserId = `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        partnerUser = {
+          id: newUserId,
+          email: partnerEmail,
+          displayName: finalProvider,
+          avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(finalProvider)}&background=10B981&color=fff&size=200`,
+          platform: 'Partner Provider',
+          role: 'RIDER',
+          accountAgeDays: 1,
+          kycStatus: 'VERIFIED',
+          treasury: {
+            stripeAccountId: '',
+            stripeFinAccountId: '',
+            balanceUsd: 0.00,
+            pendingInboundUsd: 0.00,
+            totalPayoutsReceivedUsd: 0.00,
+            fdicPassThroughEligible: true,
+            status: 'UNINITIALIZED',
+          },
+          externalBank: {
+            bankName: '',
+            last4: '',
+            routingNumber: '',
+            accountType: 'CHECKING',
+            status: 'NOT_LINKED',
+          },
+          completedPodsCount: 0,
+        };
+        users.push(partnerUser);
+        createdAccount = true;
+      }
+    }
 
     const newPerk: Perk = {
       id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -1501,9 +1543,9 @@ app.use((req, res, next) => {
       redemptionType: redemptionType || 'CODE',
       redemptionData: redemptionData || 'PENDING_APPROVAL',
       eligibility: eligibility || 'All verified members',
-      submittedBy: user ? user.displayName : (partnerEmail || finalProvider),
-      submittedByUserId: user ? user.id : undefined,
-      partnerEmail: partnerEmail || (user ? user.email : undefined),
+      submittedBy: partnerUser ? partnerUser.displayName : (partnerEmail || finalProvider),
+      submittedByUserId: partnerUser ? partnerUser.id : undefined,
+      partnerEmail: partnerEmail || (partnerUser ? partnerUser.email : undefined),
       partnerNotes,
       status: perkStatus,
       iconName: 'Gift',
@@ -1512,11 +1554,11 @@ app.use((req, res, next) => {
 
     perks.unshift(newPerk);
 
-    if (user) {
+    if (partnerUser) {
       addAuditLog(
         undefined,
-        user.id,
-        user.displayName,
+        partnerUser.id,
+        partnerUser.displayName,
         'PERK_CREATED' as any,
         `Partner/User submitted perk offer: "${title}" (${finalProvider}) - Status: ${perkStatus}`,
         { perkId: newPerk.id, title, provider: finalProvider, status: perkStatus }
@@ -1526,9 +1568,13 @@ app.use((req, res, next) => {
     res.json({
       success: true,
       perk: newPerk,
-      message: perkStatus === 'APPROVED' 
-        ? 'Partner perk published directly to Marketplace.' 
-        : 'Partner benefit offer submitted successfully! An Admin will review and approve it shortly.'
+      user: partnerUser,
+      createdAccount,
+      message: createdAccount 
+        ? `Partner account created for ${partnerUser?.email}! Your offer was submitted for Admin review.`
+        : (perkStatus === 'APPROVED' 
+            ? 'Partner perk published directly to Marketplace.' 
+            : 'Partner benefit offer submitted successfully! An Admin will review and approve it shortly.')
     });
   });
 

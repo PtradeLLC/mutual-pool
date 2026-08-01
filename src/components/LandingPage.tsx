@@ -53,6 +53,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   allPods,
   currentUser,
   onOpenAuth,
+  onSelectUser,
   onGoToDashboard,
   onLogout,
   onOpenAbout,
@@ -82,6 +83,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [submitRedeemType, setSubmitRedeemType] = useState('CODE');
   const [submitRedeemData, setSubmitRedeemData] = useState('');
   const [submitPartnerNotes, setSubmitPartnerNotes] = useState('');
+  const [createAccount, setCreateAccount] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitSuccessMsg, setSubmitSuccessMsg] = useState<string | null>(null);
 
@@ -95,6 +97,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setSubmitRedeemType('CODE');
     setSubmitRedeemData('');
     setSubmitPartnerNotes('');
+    setCreateAccount(true);
     setSubmitSuccessMsg(null);
   };
 
@@ -113,6 +116,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         redemptionType: submitRedeemType,
         redemptionData: submitRedeemData,
         partnerNotes: submitPartnerNotes,
+        createAccount: !currentUser ? createAccount : false,
       };
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -128,7 +132,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       if (res.ok) {
         const data = await res.json();
-        setSubmitSuccessMsg(data.message || 'Benefit offer submitted successfully for Admin review!');
         if (data.perk) {
           try {
             const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
@@ -136,6 +139,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
           } catch (e) {}
         }
+
+        if (data.user && !currentUser) {
+          onSelectUser(data.user);
+          setSubmitSuccessMsg(data.message || `Partner account created for ${data.user.email}! Offer submitted for Admin review.`);
+          setTimeout(() => {
+            setShowSubmitPerkModal(false);
+            resetSubmitForm();
+            if (onGoToDashboard) onGoToDashboard();
+          }, 2200);
+          return;
+        }
+
+        setSubmitSuccessMsg(data.message || 'Benefit offer submitted successfully for Admin review!');
       } else {
         const errData = await res.json().catch(() => null);
         setSubmitSuccessMsg(errData?.message || errData?.error || 'Benefit offer submitted for Admin review! Thank you.');
@@ -913,6 +929,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   placeholder="Special instructions, contact details, or notes for the GigMutual admin review team."
                 />
               </div>
+
+              {!currentUser && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-950 flex items-start gap-2.5 text-xs">
+                  <input
+                    type="checkbox"
+                    id="landingCreateAccount"
+                    checked={createAccount}
+                    onChange={(e) => setCreateAccount(e.target.checked)}
+                    className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 shrink-0 cursor-pointer"
+                  />
+                  <label htmlFor="landingCreateAccount" className="cursor-pointer">
+                    <strong className="block font-bold text-emerald-900">Establish Partner Account during submission</strong>
+                    <span className="text-emerald-800">
+                      Creates a GigMutual Partner Account with your email so you can log in, track real-time approval status, view member redemption stats, and manage submitted offers anytime.
+                    </span>
+                  </label>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200">
                 <button
