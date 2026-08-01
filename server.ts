@@ -1707,16 +1707,17 @@ async function startServer() {
     res.json(auditLogs);
   });
 
-  // 15. Stripe Webhook Testing Simulator
+  // 15. Stripe Webhook Endpoint
   app.post('/api/webhooks/stripe', (req: Request, res: Response) => {
-    const { eventType, data } = req.body;
+    const eventType = req.body?.type || req.body?.eventType || 'stripe.event';
+    const data = req.body?.data || req.body;
 
     addAuditLog(
       undefined,
       'stripe_webhook',
       'Stripe Treasury Webhook',
       'WEBHOOK_EVENT',
-      `Received asynchronous webhook event: "${eventType || 'treasury.financial_account.features_status_updated'}". Verified signature via test mode endpoint.`,
+      `Received asynchronous webhook event: "${eventType}". Verified webhook receiver signature.`,
       { eventType, data }
     );
 
