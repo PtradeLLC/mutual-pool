@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Perk, PerkCategory, PerkStatus, PerkRedemptionType } from '../types';
+import { savePerkToFirestore, deletePerkFromFirestore } from '../lib/firestoreService';
 import { 
   Gift, Search, Filter, ExternalLink, Copy, Check, PlusCircle, 
   ShieldCheck, HeartPulse, ShieldAlert, Car, Calculator, Smile, Zap, Sparkles, X,
@@ -108,11 +109,12 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     }
   };
 
-  const fetchMyOffers = async () => {
+  const fetchMyOffers = async (userIdOverride?: string) => {
+    const targetUserId = userIdOverride || currentUser.id;
     try {
-      const res = await fetch('/api/perks/my-offers', {
+      const res = await fetch(`/api/perks/my-offers?userId=${encodeURIComponent(targetUserId)}`, {
         headers: {
-          'x-user-id': currentUser.id,
+          'x-user-id': targetUserId,
         },
       });
       let serverOffers: Perk[] = [];
@@ -220,6 +222,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           eligibility: submitEligibility,
           partnerEmail: submitPartnerEmail,
           partnerNotes: submitPartnerNotes,
+          status: isAdmin ? (submitStatus || 'APPROVED') : 'PENDING',
           createAccount: isGuest ? createAccount : false,
         }),
       });
@@ -233,14 +236,17 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             existing.unshift(data.perk);
             localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
           } catch (e) {}
+
+          savePerkToFirestore(data.perk);
         }
 
         if (data.user && onSelectUser) {
           onSelectUser(data.user);
         }
 
+        const activeUserId = data.user?.id || currentUser.id;
         setShowPartnerDashboard(true);
-        fetchMyOffers();
+        fetchMyOffers(activeUserId);
         fetchPerks();
         if (isAdmin) fetchAdminPerks();
       } else {
@@ -293,9 +299,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.perk) {
+          savePerkToFirestore(data.perk);
+        }
         setActionSuccessMsg('Official partner perk created and published successfully!');
         fetchAdminPerks();
         fetchPerks();
+        fetchMyOffers();
         setTimeout(() => {
           setShowAddPartnerModal(false);
           setActionSuccessMsg(null);
@@ -338,9 +349,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.perk) {
+          savePerkToFirestore(data.perk);
+        }
         setActionSuccessMsg('Partner perk updated successfully!');
         fetchAdminPerks();
         fetchPerks();
+        fetchMyOffers();
         setTimeout(() => {
           setEditingPerk(null);
           setActionSuccessMsg(null);
@@ -366,8 +382,13 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.perk) {
+          savePerkToFirestore(data.perk);
+        }
         fetchAdminPerks();
         fetchPerks();
+        fetchMyOffers();
       }
     } catch (err) {
       console.error('Change status error:', err);
@@ -386,8 +407,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         },
       });
       if (res.ok) {
+        deletePerkFromFirestore(perkId);
         fetchAdminPerks();
         fetchPerks();
+        fetchMyOffers();
       }
     } catch (err) {
       console.error('Delete perk error:', err);

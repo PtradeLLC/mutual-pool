@@ -5,6 +5,7 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
+  deleteDoc,
   onSnapshot, 
   query, 
   orderBy, 
@@ -130,6 +131,14 @@ export async function savePerkToFirestore(perk: Perk): Promise<void> {
     await setDoc(doc(db, 'perks', perk.id), perk, { merge: true });
   } catch (err) {
     console.error('Error saving perk to Firestore:', err);
+  }
+}
+
+export async function deletePerkFromFirestore(perkId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'perks', perkId));
+  } catch (err) {
+    console.error('Error deleting perk from Firestore:', err);
   }
 }
 

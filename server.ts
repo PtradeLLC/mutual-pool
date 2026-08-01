@@ -1,4 +1,7 @@
-import express, { type Request, type Response } from 'express';
+import express from 'express';
+
+type Request = express.Request;
+type Response = express.Response;
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { 
@@ -1580,15 +1583,19 @@ app.use((req, res, next) => {
 
   app.get('/api/perks/my-offers', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
-    if (!user) return res.json([]);
+    const requestedUserId = (req.query.userId as string) || (req.headers['x-user-id'] as string);
+    const targetUserId = requestedUserId || user?.id;
+
+    if (!targetUserId && !user) return res.json([]);
 
     const isAdmin = checkIsAdmin(req);
     const userOffers = perks.filter(p => 
-      (p.submittedByUserId && p.submittedByUserId === user.id) || 
-      (user.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) ||
-      (user.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) ||
-      (user.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) ||
-      (isAdmin && p.status === 'PENDING')
+      (p.submittedByUserId && (p.submittedByUserId === targetUserId || (user && p.submittedByUserId === user.id))) || 
+      (user?.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) ||
+      (user?.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) ||
+      (user?.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) ||
+      (isAdmin && p.status === 'PENDING') ||
+      (targetUserId === 'usr_guest' && (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner'))
     );
     res.json(userOffers);
   });

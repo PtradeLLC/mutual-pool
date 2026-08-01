@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pod, User } from '../types';
+import { savePerkToFirestore } from '../lib/firestoreService';
 import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
 import { Logo } from './Logo';
 import { WatchVideoModal } from './WatchVideoModal';
@@ -138,6 +139,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             existing.unshift(data.perk);
             localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
           } catch (e) {}
+
+          savePerkToFirestore(data.perk);
         }
 
         if (data.user && !currentUser) {
