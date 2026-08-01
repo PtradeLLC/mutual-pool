@@ -541,7 +541,7 @@ export default function App() {
                 </span>
               </div>
               <h2 className="text-2xl font-bold text-[#111827]">
-                Welcome back, {currentUser.displayName}
+                Welcome, {currentUser.displayName}
               </h2>
               <p className="text-xs text-[#6B7280] mt-0.5">
                 FDIC Pass-Through Treasury Balance: <strong className="text-emerald-700 font-mono">${currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
