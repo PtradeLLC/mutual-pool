@@ -1536,10 +1536,13 @@ app.use((req, res, next) => {
     const user = getCurrentUser(req);
     if (!user) return res.json([]);
 
+    const isAdmin = checkIsAdmin(req);
     const userOffers = perks.filter(p => 
-      p.submittedByUserId === user.id || 
+      (p.submittedByUserId && p.submittedByUserId === user.id) || 
       (user.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) ||
-      (p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase())
+      (user.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) ||
+      (user.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) ||
+      (isAdmin && p.status === 'PENDING')
     );
     res.json(userOffers);
   });

@@ -115,15 +115,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         partnerNotes: submitPartnerNotes,
       };
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (currentUser?.id) {
+        headers['x-user-id'] = currentUser.id;
+      }
+
       const res = await fetch('/api/perks/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         const data = await res.json();
         setSubmitSuccessMsg(data.message || 'Benefit offer submitted successfully for Admin review!');
+        if (data.perk) {
+          try {
+            const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
+            existing.unshift(data.perk);
+            localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
+          } catch (e) {}
+        }
       } else {
         const errData = await res.json().catch(() => null);
         setSubmitSuccessMsg(errData?.message || errData?.error || 'Benefit offer submitted for Admin review! Thank you.');

@@ -113,9 +113,27 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           'x-user-id': currentUser.id,
         },
       });
+      let serverOffers: Perk[] = [];
       if (res.ok) {
-        const data = await res.json();
-        setMySubmittedOffers(data);
+        serverOffers = await res.json();
+      }
+
+      let localGuestPerks: Perk[] = [];
+      try {
+        const saved = localStorage.getItem('gig_submitted_perks');
+        if (saved) localGuestPerks = JSON.parse(saved);
+      } catch (e) {}
+
+      const combined = [...serverOffers];
+      for (const lp of localGuestPerks) {
+        if (!combined.some(p => p.id === lp.id)) {
+          combined.unshift(lp);
+        }
+      }
+
+      setMySubmittedOffers(combined);
+      if (combined.length > 0) {
+        setShowPartnerDashboard(true);
       }
     } catch (err) {
       console.error('Failed to fetch my submitted offers:', err);
@@ -205,6 +223,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (res.ok) {
         const data = await res.json();
         setActionSuccessMsg(data.message || 'Partner benefit offer submitted for Admin review!');
+        if (data.perk) {
+          try {
+            const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
+            existing.unshift(data.perk);
+            localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
+          } catch (e) {}
+        }
+        setShowPartnerDashboard(true);
         fetchMyOffers();
         fetchPerks();
         if (isAdmin) fetchAdminPerks();
