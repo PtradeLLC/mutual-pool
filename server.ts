@@ -129,11 +129,21 @@ function checkIsAdmin(req: Request): boolean {
   );
 }
 
-async function startServer() {
-  const app = express();
-  app.use(express.json());
+export const app = express();
+app.use(express.json());
 
-  // --- API ROUTES ---
+// Enable CORS and OPTIONS preflight for all routes
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
+// --- API ROUTES ---
 
   // 1. Current User Profile, Sync, Login, Registration & User Switcher
   app.get('/api/users/current', (req: Request, res: Response) => {
@@ -1472,26 +1482,27 @@ async function startServer() {
 
   app.post('/api/perks/submit', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
-    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes } = req.body;
+    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes } = req.body || {};
 
-    if (!title || !category || !provider) {
-      return res.status(400).json({ error: 'Title, category, and provider are required.' });
+    if (!title || !category) {
+      return res.status(400).json({ error: 'Title and category are required.' });
     }
 
+    const finalProvider = provider || partnerEmail || (user ? user.displayName : 'Community Partner');
     const isAdmin = checkIsAdmin(req);
-    const perkStatus: PerkStatus = isAdmin ? (req.body.status || 'APPROVED') : 'PENDING';
+    const perkStatus: PerkStatus = isAdmin ? (req.body?.status || 'APPROVED') : 'PENDING';
 
     const newPerk: Perk = {
       id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       title,
       category,
-      provider: provider || (user ? user.displayName : 'Community Partner'),
+      provider: finalProvider,
       description: description || '',
       valueBadge: valueBadge || 'Special Member Discount',
       redemptionType: redemptionType || 'CODE',
       redemptionData: redemptionData || 'PENDING_APPROVAL',
       eligibility: eligibility || 'All verified members',
-      submittedBy: user ? user.displayName : (provider || 'Partner Submitter'),
+      submittedBy: user ? user.displayName : (partnerEmail || finalProvider),
       submittedByUserId: user ? user.id : undefined,
       partnerEmail: partnerEmail || (user ? user.email : undefined),
       partnerNotes,
@@ -1508,8 +1519,8 @@ async function startServer() {
         user.id,
         user.displayName,
         'PERK_CREATED' as any,
-        `Partner/User submitted perk offer: "${title}" (${provider}) - Status: ${perkStatus}`,
-        { perkId: newPerk.id, title, provider, status: perkStatus }
+        `Partner/User submitted perk offer: "${title}" (${finalProvider}) - Status: ${perkStatus}`,
+        { perkId: newPerk.id, title, provider: finalProvider, status: perkStatus }
       );
     }
 
@@ -1755,25 +1766,32 @@ async function startServer() {
   });
 
   // --- VITE MIDDLEWARE OR STATIC SERVING ---
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+  async function startServer() {
+    if (process.env.NODE_ENV !== 'production') {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+
+    if (!process.env.VERCEL) {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[Gig Mutual Pool PWA Server] running on http://0.0.0.0:${PORT}`);
+      });
+    }
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Gig Mutual Pool PWA Server] running on http://0.0.0.0:${PORT}`);
+if (!process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-});
+export default app;

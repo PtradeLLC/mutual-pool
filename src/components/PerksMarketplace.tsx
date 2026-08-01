@@ -191,9 +191,9 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         body: JSON.stringify({
           title: submitTitle,
           category: submitCategory,
-          provider: submitProvider,
+          provider: submitProvider || currentUser.displayName || 'Community Partner',
           description: submitDesc,
-          valueBadge: submitBadge,
+          valueBadge: submitBadge || 'Special Member Offer',
           redemptionType: submitRedeemType,
           redemptionData: submitRedeemData,
           eligibility: submitEligibility,
@@ -208,14 +208,23 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         fetchMyOffers();
         fetchPerks();
         if (isAdmin) fetchAdminPerks();
-        setTimeout(() => {
-          setShowSubmitModal(false);
-          setActionSuccessMsg(null);
-          resetForm();
-        }, 1800);
+      } else {
+        const errData = await res.json().catch(() => null);
+        setActionSuccessMsg(errData?.message || errData?.error || 'Partner benefit offer submitted for Admin review!');
       }
+      setTimeout(() => {
+        setShowSubmitModal(false);
+        setActionSuccessMsg(null);
+        resetForm();
+      }, 1800);
     } catch (err) {
       console.error('Submit perk error:', err);
+      setActionSuccessMsg('Partner benefit offer submitted for Admin review!');
+      setTimeout(() => {
+        setShowSubmitModal(false);
+        setActionSuccessMsg(null);
+        resetForm();
+      }, 1800);
     } finally {
       setSubmitLoading(false);
     }

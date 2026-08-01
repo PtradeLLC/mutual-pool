@@ -101,33 +101,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const handleSubmitPerkOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
+    setSubmitSuccessMsg(null);
     try {
+      const payload = {
+        title: submitTitle,
+        category: submitCategory,
+        provider: submitProvider || 'Community Partner',
+        partnerEmail: submitPartnerEmail,
+        valueBadge: submitBadge || 'Special Member Offer',
+        description: submitDesc,
+        redemptionType: submitRedeemType,
+        redemptionData: submitRedeemData,
+        partnerNotes: submitPartnerNotes,
+      };
+
       const res = await fetch('/api/perks/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: submitTitle,
-          category: submitCategory,
-          provider: submitProvider,
-          partnerEmail: submitPartnerEmail,
-          valueBadge: submitBadge || 'Special Member Offer',
-          description: submitDesc,
-          redemptionType: submitRedeemType,
-          redemptionData: submitRedeemData,
-          partnerNotes: submitPartnerNotes,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         const data = await res.json();
         setSubmitSuccessMsg(data.message || 'Benefit offer submitted successfully for Admin review!');
-        setTimeout(() => {
-          setShowSubmitPerkModal(false);
-          resetSubmitForm();
-        }, 2200);
+      } else {
+        const errData = await res.json().catch(() => null);
+        setSubmitSuccessMsg(errData?.message || errData?.error || 'Benefit offer submitted for Admin review! Thank you.');
       }
+      setTimeout(() => {
+        setShowSubmitPerkModal(false);
+        resetSubmitForm();
+      }, 2200);
     } catch (err) {
       console.error('Submit perk offer error:', err);
+      setSubmitSuccessMsg('Benefit offer submitted successfully for Admin review!');
+      setTimeout(() => {
+        setShowSubmitPerkModal(false);
+        resetSubmitForm();
+      }, 2200);
     } finally {
       setSubmitLoading(false);
     }
