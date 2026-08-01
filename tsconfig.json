@@ -21,6 +21,9 @@
       ]
     },
     "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "noEmit": true
-  }
+  },
+  "include": ["src/**/*", "server.ts", "vite.config.ts"]
 }

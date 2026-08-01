@@ -1,8 +1,8 @@
-import express, { Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { 
-  User, Pod, PodMembership, Perk, AuditLogEntry, 
+  User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
   HardshipFundRequest 
 } from './src/types';
