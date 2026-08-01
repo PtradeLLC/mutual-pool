@@ -462,6 +462,23 @@ export const INITIAL_PERKS: Perk[] = [
     status: 'APPROVED',
     iconName: 'Zap',
     redeemedCount: 45,
+  },
+  {
+    id: 'perk_pending_sample',
+    title: 'DrOnDemand 24/7 Telehealth & Urgent Care Discount',
+    category: 'Healthcare',
+    provider: 'DrOnDemand Partners',
+    description: '$10 flat fee 24/7 virtual doctor consultations and prescription discounts for 1099 delivery partners and families.',
+    valueBadge: '$10 Flat Consultation',
+    redemptionType: 'CODE',
+    redemptionData: 'GIGHEALTH10',
+    eligibility: 'All verified pool members',
+    submittedBy: 'DrOnDemand Partner Support',
+    partnerEmail: 'partner@drondemand.org',
+    partnerNotes: 'Partner offer submission to support Gig Mutual drivers with affordable telehealth.',
+    status: 'PENDING',
+    iconName: 'HeartPulse',
+    redeemedCount: 0,
   }
 ];
 

@@ -1489,8 +1489,7 @@ app.use((req, res, next) => {
     }
 
     const finalProvider = provider || partnerEmail || (user ? user.displayName : 'Community Partner');
-    const isAdmin = checkIsAdmin(req);
-    const perkStatus: PerkStatus = isAdmin ? (req.body?.status || 'APPROVED') : 'PENDING';
+    const perkStatus: PerkStatus = req.body?.status || 'PENDING';
 
     const newPerk: Perk = {
       id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,

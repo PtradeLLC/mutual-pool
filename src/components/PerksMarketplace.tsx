@@ -135,10 +135,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   }, [initialOpenSubmitModal]);
 
   useEffect(() => {
-    if (isAdmin && (showAdminTab || currentUser.role === 'SUPER_ADMIN')) {
+    if (isAdmin) {
       fetchAdminPerks();
     }
-  }, [showAdminTab, currentUser.role, isAdmin]);
+  }, [isAdmin, currentUser.id]);
 
   const approvedCount = allAdminPerks.filter(p => p.status === 'APPROVED').length;
   const pendingCount = allAdminPerks.filter(p => p.status === 'PENDING').length;
