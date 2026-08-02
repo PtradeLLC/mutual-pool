@@ -50,8 +50,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const [copiedCode, setCopiedCode] = useState(false);
 
   // Partner Submitted Offers Dashboard State
-  const [mySubmittedOffers, setMySubmittedOffers] = useState<Perk[]>(INITIAL_PERKS);
-  const [showPartnerDashboard, setShowPartnerDashboard] = useState(true);
+  const [mySubmittedOffers, setMySubmittedOffers] = useState<Perk[]>([]);
+  const [showPartnerDashboard, setShowPartnerDashboard] = useState(false);
 
   // Admin CMS State
   const [showAdminTab, setShowAdminTab] = useState(false);
@@ -129,31 +129,37 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (saved) localGuestPerks = JSON.parse(saved);
     } catch (e) {}
 
-    const basePerks = (sourcePerks && sourcePerks.length > 0) ? sourcePerks : INITIAL_PERKS;
-
     const map = new Map<string, Perk>();
-    INITIAL_PERKS.forEach(p => map.set(p.id, p));
-    basePerks.forEach(p => map.set(p.id, p));
-    localGuestPerks.forEach(p => map.set(p.id, p));
+    if (sourcePerks && sourcePerks.length > 0) {
+      sourcePerks.forEach(p => {
+        if (p.submittedByUserId !== 'system_platform') {
+          map.set(p.id, p);
+        }
+      });
+    }
+    localGuestPerks.forEach(p => {
+      if (p.submittedByUserId !== 'system_platform') {
+        map.set(p.id, p);
+      }
+    });
 
     const userEmail = currentUser?.email?.toLowerCase();
     const userName = currentUser?.displayName?.toLowerCase();
     const userId = currentUser?.id;
 
-    let filtered = Array.from(map.values()).filter(p => {
-      if (isAdmin) return true; // Platform Admins oversee all partner offer performances & approvals
+    const filtered = Array.from(map.values()).filter(p => {
+      if (p.submittedByUserId === 'system_platform') return false;
+      if (isAdmin) return true; // Platform Admins oversee all partner submitted offer performances & approvals
       if (userId && p.submittedByUserId && (p.submittedByUserId === userId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
       if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
       if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
       if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
       if (p.status === 'PENDING') return true; // Show pending offers so submitters see their pending approval
-      if (userId === 'usr_guest' || !userId || userId.includes('guest')) return true;
+      if (userId === 'usr_guest' || !userId || userId.includes('guest')) {
+        return p.submittedByUserId === 'usr_guest' || p.status === 'PENDING';
+      }
       return false;
     });
-
-    if (filtered.length === 0 && map.size > 0) {
-      filtered = Array.from(map.values());
-    }
 
     setMySubmittedOffers(filtered);
     if (filtered.length > 0) {
@@ -175,21 +181,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         serverOffers = await res.json();
       }
 
-      // Merge server offers with allAdminPerks & INITIAL_PERKS to avoid losing real-time Firestore or fallback offers
-      const mergedSources = [...allAdminPerks];
-      if (mergedSources.length === 0) {
-        mergedSources.push(...INITIAL_PERKS);
-      }
-      for (const so of serverOffers) {
-        if (!mergedSources.some(p => p.id === so.id)) {
-          mergedSources.push(so);
-        }
-      }
-
-      syncMyOffers(mergedSources);
+      syncMyOffers(serverOffers);
     } catch (err) {
       console.error('Failed to fetch my submitted offers:', err);
-      syncMyOffers(allAdminPerks.length > 0 ? allAdminPerks : INITIAL_PERKS);
+      syncMyOffers([]);
     }
   };
 

@@ -1621,8 +1621,11 @@ app.use((req, res, next) => {
     const queryEmail = (req.query.email as string)?.toLowerCase();
 
     const isAdmin = checkIsAdmin(req);
-    let userOffers = perks.filter(p => {
-      if (isAdmin) return true; // Platform Admins oversee all partner offer performances & approvals
+    const userOffers = perks.filter(p => {
+      // Never include system platform default marketplace perks in partner submitted offers dashboard
+      if (p.submittedByUserId === 'system_platform') return false;
+
+      if (isAdmin) return true; // Platform Admins oversee all partner submitted offer performances & approvals
       if (p.submittedByUserId && (p.submittedByUserId === targetUserId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
       if (user && p.submittedByUserId && p.submittedByUserId === user.id) return true;
       if (queryEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === queryEmail) return true;
@@ -1630,13 +1633,11 @@ app.use((req, res, next) => {
       if (user?.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) return true;
       if (user?.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) return true;
       if (p.status === 'PENDING') return true; // Include pending offers so partner submitters can track pending review
-      if (targetUserId === 'usr_guest' || !targetUserId || targetUserId.includes('guest')) return true;
+      if (targetUserId === 'usr_guest' || !targetUserId || targetUserId.includes('guest')) {
+        return p.submittedByUserId === 'usr_guest' || p.status === 'PENDING';
+      }
       return false;
     });
-
-    if (userOffers.length === 0 && perks.length > 0) {
-      userOffers = perks;
-    }
 
     res.json(userOffers);
   });
