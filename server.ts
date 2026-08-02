@@ -104,40 +104,53 @@ function addAuditLog(
 
 // Helper: Get Current User from Request Header/Query or default
 function getCurrentUser(req: Request): User | null {
-  const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
-  let found: User | undefined;
-  if (userId) {
-    found = users.find(u => u.id === userId);
+  try {
+    const rawUserId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
+    const userId = typeof rawUserId === 'string' ? rawUserId : undefined;
+    let found: User | undefined;
+    if (userId) {
+      found = users.find(u => u && u.id === userId);
+    }
+    if (!found) {
+      found = users.find(u => u && u.email?.toLowerCase() === 'chrisbitoy@gmail.com') || users[0];
+    }
+    if (found && found.email?.toLowerCase() === 'chrisbitoy@gmail.com' && found.role !== 'Admin') {
+      found.role = 'Admin';
+    }
+    return found || null;
+  } catch (err) {
+    console.error('Error in getCurrentUser:', err);
+    return users[0] || null;
   }
-  if (!found) {
-    found = users.find(u => u.email?.toLowerCase() === 'chrisbitoy@gmail.com') || users[0];
-  }
-  if (found && found.email?.toLowerCase() === 'chrisbitoy@gmail.com' && found.role !== 'Admin') {
-    found.role = 'Admin';
-  }
-  return found || null;
 }
 
 // Helper: Check if Request Sender Has Admin Role
 function checkIsAdmin(req: Request): boolean {
-  const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
-  const userEmail = (req.query.email as string)?.toLowerCase();
+  try {
+    const rawUserId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
+    const userId = typeof rawUserId === 'string' ? rawUserId : undefined;
+    const rawEmail = req.query.email;
+    const userEmail = typeof rawEmail === 'string' ? rawEmail.toLowerCase() : undefined;
 
-  if (userEmail === 'chrisbitoy@gmail.com' || userId === 'usr_chris' || userId === 'usr_chris_admin') {
-    return true;
+    if (userEmail === 'chrisbitoy@gmail.com' || userId === 'usr_chris' || userId === 'usr_chris_admin') {
+      return true;
+    }
+
+    const user = getCurrentUser(req);
+    if (!user) return false;
+    return (
+      user.role === 'Admin' ||
+      user.role === 'SUPER_ADMIN' ||
+      user.role === 'POD_ADMIN' ||
+      (typeof user.role === 'string' && user.role.toUpperCase().includes('ADMIN')) ||
+      user.email?.toLowerCase() === 'chrisbitoy@gmail.com' ||
+      user.id === 'usr_chris' ||
+      user.id === 'usr_chris_admin'
+    );
+  } catch (err) {
+    console.error('Error in checkIsAdmin:', err);
+    return false;
   }
-
-  const user = getCurrentUser(req);
-  if (!user) return false;
-  return (
-    user.role === 'Admin' ||
-    user.role === 'SUPER_ADMIN' ||
-    user.role === 'POD_ADMIN' ||
-    (typeof user.role === 'string' && user.role.toUpperCase().includes('ADMIN')) ||
-    user.email?.toLowerCase() === 'chrisbitoy@gmail.com' ||
-    user.id === 'usr_chris' ||
-    user.id === 'usr_chris_admin'
-  );
 }
 
 export const app = express();

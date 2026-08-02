@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Perk, PerkCategory, PerkStatus, PerkRedemptionType } from '../types';
 import { savePerkToFirestore, deletePerkFromFirestore, subscribeToPerks } from '../lib/firestoreService';
+import { INITIAL_PERKS } from '../data/initialData';
 import { 
   Gift, Search, Filter, ExternalLink, Copy, Check, PlusCircle, 
   ShieldCheck, HeartPulse, ShieldAlert, Car, Calculator, Smile, Zap, Sparkles, X,
@@ -41,16 +42,16 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
 ];
 
 export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, onOpenKYCGate, initialOpenSubmitModal, onSelectUser }) => {
-  const [perks, setPerks] = useState<Perk[]>([]);
-  const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
+  const [perks, setPerks] = useState<Perk[]>(INITIAL_PERKS.filter(p => p.status === 'APPROVED'));
+  const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>(INITIAL_PERKS);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerkForRedeem, setSelectedPerkForRedeem] = useState<Perk | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
   // Partner Submitted Offers Dashboard State
-  const [mySubmittedOffers, setMySubmittedOffers] = useState<Perk[]>([]);
-  const [showPartnerDashboard, setShowPartnerDashboard] = useState(false);
+  const [mySubmittedOffers, setMySubmittedOffers] = useState<Perk[]>(INITIAL_PERKS);
+  const [showPartnerDashboard, setShowPartnerDashboard] = useState(true);
 
   // Admin CMS State
   const [showAdminTab, setShowAdminTab] = useState(false);
@@ -91,8 +92,12 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (searchQuery) url.searchParams.append('search', searchQuery);
 
       const res = await fetch(url.toString());
-      const data = await res.json();
-      setPerks(data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setPerks(data);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch perks:', err);
     }
@@ -108,7 +113,9 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       });
       if (res.ok) {
         const data = await res.json();
-        setAllAdminPerks(data);
+        if (data && data.length > 0) {
+          setAllAdminPerks(data);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch all admin perks:', err);
@@ -122,8 +129,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (saved) localGuestPerks = JSON.parse(saved);
     } catch (e) {}
 
+    const basePerks = (sourcePerks && sourcePerks.length > 0) ? sourcePerks : INITIAL_PERKS;
+
     const map = new Map<string, Perk>();
-    sourcePerks.forEach(p => map.set(p.id, p));
+    INITIAL_PERKS.forEach(p => map.set(p.id, p));
+    basePerks.forEach(p => map.set(p.id, p));
     localGuestPerks.forEach(p => map.set(p.id, p));
 
     const userEmail = currentUser?.email?.toLowerCase();
@@ -165,8 +175,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         serverOffers = await res.json();
       }
 
-      // Merge server offers with allAdminPerks to avoid losing real-time Firestore offers
+      // Merge server offers with allAdminPerks & INITIAL_PERKS to avoid losing real-time Firestore or fallback offers
       const mergedSources = [...allAdminPerks];
+      if (mergedSources.length === 0) {
+        mergedSources.push(...INITIAL_PERKS);
+      }
       for (const so of serverOffers) {
         if (!mergedSources.some(p => p.id === so.id)) {
           mergedSources.push(so);
@@ -176,6 +189,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       syncMyOffers(mergedSources);
     } catch (err) {
       console.error('Failed to fetch my submitted offers:', err);
+      syncMyOffers(allAdminPerks.length > 0 ? allAdminPerks : INITIAL_PERKS);
     }
   };
 
@@ -196,11 +210,16 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         }
 
         syncMyOffers(firestorePerks);
+      } else {
+        setAllAdminPerks(INITIAL_PERKS);
+        setPerks(INITIAL_PERKS.filter(p => p.status === 'APPROVED'));
+        syncMyOffers(INITIAL_PERKS);
       }
     });
 
     return () => unsubscribe();
   }, [currentUser?.id, currentUser?.email, currentUser?.displayName, isAdmin]);
+
 
   useEffect(() => {
     fetchPerks();
