@@ -11,8 +11,8 @@ import {
   limit,
   writeBatch,
   serverTimestamp,
-  FirestoreError,
 } from 'firebase/firestore';
+import { FirebaseError } from 'firebase/app';
 import { db } from './firebase';
 import { User, Pod, Perk, AuditLogEntry, Redemption } from '../types';
 import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS } from '../data/initialData';
@@ -34,8 +34,11 @@ function sanitizeForFirestore<T extends Record<string, any>>(data: T): T {
 }
 
 // --- SHARED ERROR HELPER ---
+// Wraps a Firestore error with the operation name so callers know
+// exactly what failed. Using `FirebaseError` from 'firebase/app' ensures
+// `instanceof` works at runtime to extract error codes like 'permission-denied'.
 function wrapError(operation: string, err: unknown): Error {
-  const code = err instanceof FirestoreError ? err.code : 'unknown';
+  const code = err instanceof FirebaseError ? err.code : 'unknown';
   console.error(`[firestoreService] ${operation} failed (${code}):`, err);
   return new Error(`${operation} failed: ${code}`);
 }
@@ -43,16 +46,6 @@ function wrapError(operation: string, err: unknown): Error {
 // --- SEED INITIAL DATA IF EMPTY ---
 export async function seedInitialFirestoreData(): Promise<void> {
   try {
-    // Delete legacy sample perks from Firestore so production starts clean
-    const samplePerkIds = ['perk_1', 'perk_2', 'perk_3', 'perk_4', 'perk_5', 'perk_6', 'perk_pending_sample'];
-    for (const perkId of samplePerkIds) {
-      try {
-        await deleteDoc(doc(db, 'perks', perkId));
-      } catch (e) {
-        // ignore if not found
-      }
-    }
-
     const podsSnap = await getDocs(collection(db, 'pods'));
     if (podsSnap.empty && INITIAL_PODS.length > 0) {
       console.log('Seeding initial pods into Firestore...');
@@ -63,16 +56,14 @@ export async function seedInitialFirestoreData(): Promise<void> {
       await batch.commit();
     }
 
-    if (INITIAL_PERKS.length > 0) {
-      const perksSnap = await getDocs(collection(db, 'perks'));
-      if (perksSnap.empty) {
-        console.log('Seeding initial perks into Firestore...');
-        const batch = writeBatch(db);
-        for (const perk of INITIAL_PERKS) {
-          batch.set(doc(db, 'perks', perk.id), sanitizeForFirestore(perk));
-        }
-        await batch.commit();
+    const perksSnap = await getDocs(collection(db, 'perks'));
+    if (perksSnap.empty && INITIAL_PERKS.length > 0) {
+      console.log('Seeding initial perks into Firestore...');
+      const batch = writeBatch(db);
+      for (const perk of INITIAL_PERKS) {
+        batch.set(doc(db, 'perks', perk.id), sanitizeForFirestore(perk));
       }
+      await batch.commit();
     }
 
     const usersSnap = await getDocs(collection(db, 'users'));
@@ -125,10 +116,7 @@ export function subscribeToUser(
   return onSnapshot(
     doc(db, 'users', userId),
     (docSnap) => callback(docSnap.exists() ? (docSnap.data() as User) : null),
-    (err) => {
-      const error = wrapError(`subscribeToUser(${userId})`, err);
-      if (onError) onError(error);
-    }
+    (err) => onError?.(wrapError(`subscribeToUser(${userId})`, err))
   );
 }
 
@@ -140,10 +128,7 @@ export function subscribeToPods(
   return onSnapshot(
     collection(db, 'pods'),
     (snapshot) => callback(snapshot.docs.map((d) => d.data() as Pod)),
-    (err) => {
-      const error = wrapError('subscribeToPods', err);
-      if (onError) onError(error);
-    }
+    (err) => onError?.(wrapError('subscribeToPods', err))
   );
 }
 
@@ -163,10 +148,7 @@ export function subscribeToPerks(
   return onSnapshot(
     collection(db, 'perks'),
     (snapshot) => callback(snapshot.docs.map((d) => d.data() as Perk)),
-    (err) => {
-      const error = wrapError('subscribeToPerks', err);
-      if (onError) onError(error);
-    }
+    (err) => onError?.(wrapError('subscribeToPerks', err))
   );
 }
 
@@ -174,7 +156,6 @@ export async function savePerkToFirestore(perk: Perk): Promise<void> {
   try {
     const clean = sanitizeForFirestore(perk);
     await setDoc(doc(db, 'perks', clean.id), clean, { merge: true });
-    console.log(`[firestoreService] Perk ${clean.id} saved to Firestore successfully.`);
   } catch (err) {
     throw wrapError(`savePerkToFirestore(${perk.id})`, err);
   }
@@ -183,7 +164,6 @@ export async function savePerkToFirestore(perk: Perk): Promise<void> {
 export async function deletePerkFromFirestore(perkId: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'perks', perkId));
-    console.log(`[firestoreService] Perk ${perkId} deleted from Firestore.`);
   } catch (err) {
     throw wrapError(`deletePerkFromFirestore(${perkId})`, err);
   }
@@ -198,10 +178,7 @@ export function subscribeToAuditLogs(
   return onSnapshot(
     q,
     (snapshot) => callback(snapshot.docs.map((d) => d.data() as AuditLogEntry)),
-    (err) => {
-      const error = wrapError('subscribeToAuditLogs', err);
-      if (onError) onError(error);
-    }
+    (err) => onError?.(wrapError('subscribeToAuditLogs', err))
   );
 }
 
@@ -212,7 +189,7 @@ export async function addAuditLogToFirestore(
     const clean = sanitizeForFirestore(log);
     await setDoc(doc(db, 'auditLogs', clean.id), {
       ...clean,
-      createdAt: clean.createdAt || serverTimestamp(),
+      createdAt: serverTimestamp(),
     });
   } catch (err) {
     throw wrapError(`addAuditLogToFirestore(${log.id})`, err);
