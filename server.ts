@@ -190,31 +190,46 @@ export const app = express();
 // Middleware to safely handle body parsing across local Express and Vercel Serverless Function runtimes
 app.use((req, res, next) => {
   if (res.headersSent) return next();
+
+  // On Vercel, the body stream is already consumed by the serverless runtime.
+  // Calling express.json() stream listeners on Vercel will hang the function and cause FUNCTION_INVOCATION_FAILED.
+  if (process.env.VERCEL) {
+    if (req.body !== undefined && req.body !== null) {
+      if (typeof req.body === 'string' && req.body.trim().length > 0) {
+        try {
+          req.body = JSON.parse(req.body);
+        } catch {
+          // ignore
+        }
+      } else if (Buffer.isBuffer(req.body)) {
+        try {
+          req.body = JSON.parse(req.body.toString('utf-8'));
+        } catch {
+          // ignore
+        }
+      }
+    } else {
+      req.body = {};
+    }
+    return next();
+  }
+
+  // Local / Cloud Run environment
   if (req.body !== undefined && req.body !== null) {
-    if (typeof req.body === 'string') {
+    if (typeof req.body === 'string' && req.body.trim().length > 0) {
       try {
         req.body = JSON.parse(req.body);
       } catch {
-        // ignore parse error
+        // ignore
       }
     }
     return next();
   }
 
-  // If body is not present, only invoke express.json if request stream is readable and unconsumed
-  if (req.readable !== false && !(req as any).complete) {
-    express.json({ limit: '10mb' })(req, res, (err) => {
-      if (err) {
-        req.body = {};
-      }
-      if (!res.headersSent) {
-        next();
-      }
-    });
-  } else {
-    req.body = {};
-    next();
-  }
+  express.json({ limit: '10mb' })(req, res, (err) => {
+    if (err) req.body = {};
+    if (!res.headersSent) next();
+  });
 });
 
 // Enable CORS and OPTIONS preflight for all routes
