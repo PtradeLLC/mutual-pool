@@ -21,7 +21,9 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-export const defaultDb = getFirestore(app);
+const dbId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId;
+
+export const defaultDb = (dbId && dbId !== '(default)') ? getFirestore(app, dbId) : getFirestore(app);
 export const db = defaultDb;
 export const allDbs = [defaultDb];
 
