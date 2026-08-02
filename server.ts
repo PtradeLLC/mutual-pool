@@ -154,7 +154,22 @@ function checkIsAdmin(req: Request): boolean {
 }
 
 export const app = express();
-app.use(express.json());
+
+// Middleware to safely handle body parsing across local Express and Vercel Serverless Function runtimes
+app.use((req, res, next) => {
+  if (req.body !== undefined && typeof req.body === 'object' && req.body !== null) {
+    return next();
+  }
+  if (typeof req.body === 'string') {
+    try {
+      req.body = JSON.parse(req.body);
+      return next();
+    } catch {
+      // pass to express.json if string parsing fails
+    }
+  }
+  express.json()(req, res, next);
+});
 
 // Enable CORS and OPTIONS preflight for all routes
 app.use((req, res, next) => {

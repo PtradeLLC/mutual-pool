@@ -769,8 +769,12 @@ export default function App() {
           onVerified={async (updatedUser) => {
             setCurrentUser(updatedUser);
             setShowKYCGateModal(false);
-            await saveUserToFirestore(updatedUser);
-            await syncUserWithBackend(updatedUser);
+            try {
+              await saveUserToFirestore(updatedUser);
+              await syncUserWithBackend(updatedUser);
+            } catch (err) {
+              console.warn('Post-KYC sync warning:', err);
+            }
             fetchAppData();
           }}
         />
