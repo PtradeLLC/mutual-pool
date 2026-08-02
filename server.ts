@@ -212,7 +212,7 @@ app.use((req, res, next) => {
     const { email, userId } = req.body;
     let found = users.find(u => u.id === userId);
     if (!found && email) {
-      found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      found = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
     }
     if (!found) {
       return res.status(404).json({ error: 'No account found matching those credentials' });
@@ -227,7 +227,7 @@ app.use((req, res, next) => {
       return res.status(400).json({ error: 'Name and email are required for registration' });
     }
 
-    const existing = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const existing = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
     if (existing) {
       return res.status(400).json({ error: 'An account with this email already exists' });
     }
@@ -1517,101 +1517,106 @@ app.use((req, res, next) => {
   });
 
   app.post('/api/perks/submit', (req: Request, res: Response) => {
-    let user = getCurrentUser(req);
-    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes, createAccount } = req.body || {};
+    try {
+      let user = getCurrentUser(req);
+      const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes, createAccount } = req.body || {};
 
-    if (!title || !category) {
-      return res.status(400).json({ error: 'Title and category are required.' });
-    }
-
-    const finalProvider = provider || partnerEmail || (user ? user.displayName : 'Community Partner');
-    const perkStatus: PerkStatus = req.body?.status || 'PENDING';
-
-    let partnerUser: User | undefined = user || undefined;
-    let createdAccount = false;
-
-    // If no active session or createAccount requested with email, establish partner account
-    if (partnerEmail && (!partnerUser || createAccount)) {
-      const existing = users.find(u => u.email.toLowerCase() === partnerEmail.toLowerCase());
-      if (existing) {
-        partnerUser = existing;
-      } else {
-        const newUserId = `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        partnerUser = {
-          id: newUserId,
-          email: partnerEmail,
-          displayName: finalProvider,
-          avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(finalProvider)}&background=10B981&color=fff&size=200`,
-          platform: 'Partner Provider',
-          role: 'RIDER',
-          accountAgeDays: 1,
-          kycStatus: 'VERIFIED',
-          treasury: {
-            stripeAccountId: '',
-            stripeFinAccountId: '',
-            balanceUsd: 0.00,
-            pendingInboundUsd: 0.00,
-            totalPayoutsReceivedUsd: 0.00,
-            fdicPassThroughEligible: true,
-            status: 'UNINITIALIZED',
-          },
-          externalBank: {
-            bankName: '',
-            last4: '',
-            routingNumber: '',
-            accountType: 'CHECKING',
-            status: 'NOT_LINKED',
-          },
-          completedPodsCount: 0,
-        };
-        users.push(partnerUser);
-        createdAccount = true;
+      if (!title || !category) {
+        return res.status(400).json({ error: 'Title and category are required.' });
       }
+
+      const finalProvider = provider || partnerEmail || (user ? user.displayName : 'Community Partner');
+      const perkStatus: PerkStatus = req.body?.status || 'PENDING';
+
+      let partnerUser: User | undefined = user || undefined;
+      let createdAccount = false;
+
+      // If no active session or createAccount requested with email, establish partner account
+      if (partnerEmail && (!partnerUser || createAccount)) {
+        const existing = users.find(u => u.email && u.email.toLowerCase() === partnerEmail.toLowerCase());
+        if (existing) {
+          partnerUser = existing;
+        } else {
+          const newUserId = `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          partnerUser = {
+            id: newUserId,
+            email: partnerEmail,
+            displayName: finalProvider,
+            avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(finalProvider)}&background=10B981&color=fff&size=200`,
+            platform: 'Partner Provider',
+            role: 'RIDER',
+            accountAgeDays: 1,
+            kycStatus: 'VERIFIED',
+            treasury: {
+              stripeAccountId: '',
+              stripeFinAccountId: '',
+              balanceUsd: 0.00,
+              pendingInboundUsd: 0.00,
+              totalPayoutsReceivedUsd: 0.00,
+              fdicPassThroughEligible: true,
+              status: 'UNINITIALIZED',
+            },
+            externalBank: {
+              bankName: '',
+              last4: '',
+              routingNumber: '',
+              accountType: 'CHECKING',
+              status: 'NOT_LINKED',
+            },
+            completedPodsCount: 0,
+          };
+          users.push(partnerUser);
+          createdAccount = true;
+        }
+      }
+
+      const newPerk: Perk = {
+        id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        title,
+        category,
+        provider: finalProvider,
+        description: description || '',
+        valueBadge: valueBadge || 'Special Member Discount',
+        redemptionType: redemptionType || 'CODE',
+        redemptionData: redemptionData || 'PENDING_APPROVAL',
+        eligibility: eligibility || 'All verified members',
+        submittedBy: partnerUser ? partnerUser.displayName : (partnerEmail || finalProvider),
+        submittedByUserId: partnerUser ? partnerUser.id : (user ? user.id : ((req.headers['x-user-id'] as string) || 'usr_guest')),
+        partnerEmail: partnerEmail || (partnerUser ? partnerUser.email : undefined),
+        partnerNotes,
+        status: perkStatus,
+        iconName: 'Gift',
+        redeemedCount: 0,
+      };
+
+      perks.unshift(newPerk);
+
+      if (partnerUser) {
+        addAuditLog(
+          undefined,
+          partnerUser.id,
+          partnerUser.displayName,
+          'PERK_CREATED' as any,
+          `Partner/User submitted perk offer: "${title}" (${finalProvider}) - Status: ${perkStatus}`,
+          { perkId: newPerk.id, title, provider: finalProvider, status: perkStatus }
+        );
+      }
+
+      res.json({
+        success: true,
+        perk: newPerk,
+        user: partnerUser,
+        createdAccount,
+        message: createdAccount 
+          ? `Partner account created for ${partnerUser?.email}! Your offer was submitted for Admin review.`
+          : (perkStatus === 'APPROVED' 
+              ? 'Partner perk published directly to Marketplace.' 
+              : 'Partner benefit offer submitted successfully! An Admin will review and approve it shortly.')
+      });
+    } catch (err) {
+      console.error('[/api/perks/submit] error:', err);
+      res.status(500).json({ error: 'Failed to submit perk offer. Please check your submission and try again.' });
     }
-
-    const newPerk: Perk = {
-      id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      title,
-      category,
-      provider: finalProvider,
-      description: description || '',
-      valueBadge: valueBadge || 'Special Member Discount',
-      redemptionType: redemptionType || 'CODE',
-      redemptionData: redemptionData || 'PENDING_APPROVAL',
-      eligibility: eligibility || 'All verified members',
-      submittedBy: partnerUser ? partnerUser.displayName : (partnerEmail || finalProvider),
-      submittedByUserId: partnerUser ? partnerUser.id : (user ? user.id : ((req.headers['x-user-id'] as string) || 'usr_guest')),
-      partnerEmail: partnerEmail || (partnerUser ? partnerUser.email : undefined),
-      partnerNotes,
-      status: perkStatus,
-      iconName: 'Gift',
-      redeemedCount: 0,
-    };
-
-    perks.unshift(newPerk);
-
-    if (partnerUser) {
-      addAuditLog(
-        undefined,
-        partnerUser.id,
-        partnerUser.displayName,
-        'PERK_CREATED' as any,
-        `Partner/User submitted perk offer: "${title}" (${finalProvider}) - Status: ${perkStatus}`,
-        { perkId: newPerk.id, title, provider: finalProvider, status: perkStatus }
-      );
-    }
-
-    res.json({
-      success: true,
-      perk: newPerk,
-      user: partnerUser,
-      createdAccount,
-      message: createdAccount 
-        ? `Partner account created for ${partnerUser?.email}! Your offer was submitted for Admin review.`
-        : (perkStatus === 'APPROVED' 
-            ? 'Partner perk published directly to Marketplace.' 
-            : 'Partner benefit offer submitted successfully! An Admin will review and approve it shortly.')
-    });
   });
 
   app.get('/api/perks/my-offers', (req: Request, res: Response) => {
