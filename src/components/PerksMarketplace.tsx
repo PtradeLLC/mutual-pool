@@ -208,12 +208,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
 
   useEffect(() => {
-    // Fallback REST fetch only if no perks exist in Firestore snapshot
-    if (allAdminPerks.length === 0) {
-      fetchPerks();
-      fetchMyOffers();
-    }
-  }, [selectedCategory, searchQuery, currentUser?.id]);
+    // Delayed fallback REST fetch only if Firestore snapshot doesn't return data after 2s
+    const timer = setTimeout(() => {
+      if (allAdminPerks.length === 0) {
+        fetchPerks();
+        fetchMyOffers();
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [selectedCategory, searchQuery, currentUser?.id, allAdminPerks.length]);
 
   useEffect(() => {
     if (initialOpenSubmitModal) {
