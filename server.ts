@@ -214,15 +214,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Normalize request URL for serverless environments (e.g., Vercel rewrites stripping /api)
+// Normalize request URL for serverless environments (e.g., Vercel rewrites)
 app.use((req, res, next) => {
-  const rawUrl = req.originalUrl || req.url || '/';
-  const pathPart = rawUrl.split('?')[0];
-  if (pathPart.startsWith('/api')) {
-    req.url = rawUrl;
-  } else if (!req.url.startsWith('/api') && !req.url.startsWith('/health')) {
-    req.url = '/api' + (req.url.startsWith('/') ? '' : '/') + req.url;
+  let url = req.url || '/';
+
+  // If req.url is pointing to index.ts/index.js (Vercel function target), look for real requested URL
+  if (url.includes('index.ts') || url.includes('index.js')) {
+    if (req.originalUrl && !req.originalUrl.includes('index.ts') && !req.originalUrl.includes('index.js')) {
+      url = req.originalUrl;
+    }
   }
+
+  const cleanPath = url.split('?')[0];
+  if (!cleanPath.startsWith('/api') && !cleanPath.startsWith('/health')) {
+    url = '/api' + (url.startsWith('/') ? '' : '/') + url;
+  }
+
+  req.url = url;
   next();
 });
 
@@ -1970,6 +1978,14 @@ app.use((req, res, next) => {
       });
     }
   }
+
+// 404 handler for unmatched API routes
+app.use('/api/*', (req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'API endpoint not found',
+    requestedUrl: req.originalUrl || req.url,
+  });
+});
 
 // Global error handler
 app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
