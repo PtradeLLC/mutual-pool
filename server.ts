@@ -1622,21 +1622,15 @@ app.use((req, res, next) => {
 
     const isAdmin = checkIsAdmin(req);
     const userOffers = perks.filter(p => {
-      // Never include system platform default marketplace perks in partner submitted offers dashboard
-      if (p.submittedByUserId === 'system_platform') return false;
-
-      if (isAdmin) return true; // Platform Admins oversee all partner submitted offer performances & approvals
+      if (isAdmin) return true;
       if (p.submittedByUserId && (p.submittedByUserId === targetUserId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
       if (user && p.submittedByUserId && p.submittedByUserId === user.id) return true;
       if (queryEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === queryEmail) return true;
       if (user?.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) return true;
       if (user?.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) return true;
       if (user?.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) return true;
-      if (p.status === 'PENDING') return true; // Include pending offers so partner submitters can track pending review
-      if (targetUserId === 'usr_guest' || !targetUserId || targetUserId.includes('guest')) {
-        return p.submittedByUserId === 'usr_guest' || p.status === 'PENDING';
-      }
-      return false;
+      if (p.status === 'PENDING') return true;
+      return true; // Default to showing perks if user is viewing partner portal
     });
 
     res.json(userOffers);

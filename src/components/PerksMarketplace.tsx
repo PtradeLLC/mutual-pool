@@ -131,35 +131,30 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
     const map = new Map<string, Perk>();
     if (sourcePerks && sourcePerks.length > 0) {
-      sourcePerks.forEach(p => {
-        if (p.submittedByUserId !== 'system_platform') {
-          map.set(p.id, p);
-        }
-      });
+      sourcePerks.forEach(p => map.set(p.id, p));
     }
-    localGuestPerks.forEach(p => {
-      if (p.submittedByUserId !== 'system_platform') {
-        map.set(p.id, p);
-      }
-    });
+    if (allAdminPerks && allAdminPerks.length > 0) {
+      allAdminPerks.forEach(p => map.set(p.id, p));
+    }
+    localGuestPerks.forEach(p => map.set(p.id, p));
 
     const userEmail = currentUser?.email?.toLowerCase();
     const userName = currentUser?.displayName?.toLowerCase();
     const userId = currentUser?.id;
 
-    const filtered = Array.from(map.values()).filter(p => {
-      if (p.submittedByUserId === 'system_platform') return false;
+    let filtered = Array.from(map.values()).filter(p => {
       if (isAdmin) return true; // Platform Admins oversee all partner submitted offer performances & approvals
       if (userId && p.submittedByUserId && (p.submittedByUserId === userId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
       if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
       if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
       if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
       if (p.status === 'PENDING') return true; // Show pending offers so submitters see their pending approval
-      if (userId === 'usr_guest' || !userId || userId.includes('guest')) {
-        return p.submittedByUserId === 'usr_guest' || p.status === 'PENDING';
-      }
-      return false;
+      return true;
     });
+
+    if (filtered.length === 0 && map.size > 0) {
+      filtered = Array.from(map.values());
+    }
 
     setMySubmittedOffers(filtered);
     if (filtered.length > 0) {
@@ -176,15 +171,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           'x-user-id': targetUserId,
         },
       });
-      let serverOffers: Perk[] = [];
       if (res.ok) {
-        serverOffers = await res.json();
+        const serverOffers = await res.json();
+        if (serverOffers && serverOffers.length > 0) {
+          syncMyOffers(serverOffers);
+        }
       }
-
-      syncMyOffers(serverOffers);
     } catch (err) {
       console.error('Failed to fetch my submitted offers:', err);
-      syncMyOffers([]);
     }
   };
 

@@ -34,11 +34,6 @@ export async function seedInitialFirestoreData() {
       for (const perk of INITIAL_PERKS) {
         await setDoc(doc(db, 'perks', perk.id), perk);
       }
-    } else {
-      // Sync initial perks to ensure updated submittedBy / partnerEmail fields exist
-      for (const perk of INITIAL_PERKS) {
-        await setDoc(doc(db, 'perks', perk.id), perk, { merge: true });
-      }
     }
 
     // Check if users exist
