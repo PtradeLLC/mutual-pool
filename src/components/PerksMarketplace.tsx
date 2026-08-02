@@ -92,15 +92,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (selectedCategory !== 'All') url.searchParams.append('category', selectedCategory);
       if (searchQuery) url.searchParams.append('search', searchQuery);
 
-      const res = await fetch(url.toString());
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0 && allAdminPerks.length === 0) {
+      const res = await fetch(url.toString()).catch(() => null);
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data && Array.isArray(data) && data.length > 0 && allAdminPerks.length === 0) {
           setPerks(data);
         }
       }
     } catch (err) {
-      console.error('Failed to fetch perks:', err);
+      console.warn('REST perks fallback skipped:', err);
     }
   };
 
@@ -111,15 +111,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         headers: {
           'x-user-id': currentUser.id,
         },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0 && allAdminPerks.length === 0) {
+      }).catch(() => null);
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data && Array.isArray(data) && data.length > 0 && allAdminPerks.length === 0) {
           setAllAdminPerks(data);
         }
       }
     } catch (err) {
-      console.error('Failed to fetch all admin perks:', err);
+      console.warn('REST admin perks fallback skipped:', err);
     }
   };
 
@@ -168,15 +168,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         headers: {
           'x-user-id': targetUserId,
         },
-      });
-      if (res.ok) {
-        const serverOffers = await res.json();
-        if (serverOffers && serverOffers.length > 0) {
+      }).catch(() => null);
+      if (res && res.ok) {
+        const serverOffers = await res.json().catch(() => null);
+        if (serverOffers && Array.isArray(serverOffers) && serverOffers.length > 0) {
           syncMyOffers(serverOffers);
         }
       }
     } catch (err) {
-      console.error('Failed to fetch my submitted offers:', err);
+      console.warn('REST my-offers fallback skipped:', err);
     }
   };
 
