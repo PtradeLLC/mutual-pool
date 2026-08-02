@@ -42,8 +42,8 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
 ];
 
 export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, onOpenKYCGate, initialOpenSubmitModal, onSelectUser }) => {
-  const [perks, setPerks] = useState<Perk[]>(INITIAL_PERKS.filter(p => p.status === 'APPROVED'));
-  const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>(INITIAL_PERKS);
+  const [perks, setPerks] = useState<Perk[]>([]);
+  const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPerkForRedeem, setSelectedPerkForRedeem] = useState<Perk | null>(null);
@@ -86,6 +86,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     currentUser.id === 'usr_chris_admin';
 
   const fetchPerks = async () => {
+    if (allAdminPerks.length > 0) return;
     try {
       const url = new URL('/api/perks', window.location.origin);
       if (selectedCategory !== 'All') url.searchParams.append('category', selectedCategory);
@@ -94,7 +95,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       const res = await fetch(url.toString());
       if (res.ok) {
         const data = await res.json();
-        if (data && data.length > 0) {
+        if (data && data.length > 0 && allAdminPerks.length === 0) {
           setPerks(data);
         }
       }
@@ -104,7 +105,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   };
 
   const fetchAdminPerks = async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || allAdminPerks.length > 0) return;
     try {
       const res = await fetch('/api/admin/perks/all', {
         headers: {
@@ -113,7 +114,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       });
       if (res.ok) {
         const data = await res.json();
-        if (data && data.length > 0) {
+        if (data && data.length > 0 && allAdminPerks.length === 0) {
           setAllAdminPerks(data);
         }
       }
@@ -133,28 +134,23 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     if (sourcePerks && sourcePerks.length > 0) {
       sourcePerks.forEach(p => map.set(p.id, p));
     }
-    if (allAdminPerks && allAdminPerks.length > 0) {
-      allAdminPerks.forEach(p => map.set(p.id, p));
-    }
-    localGuestPerks.forEach(p => map.set(p.id, p));
+    localGuestPerks.forEach(p => {
+      if (!map.has(p.id)) map.set(p.id, p);
+    });
 
     const userEmail = currentUser?.email?.toLowerCase();
     const userName = currentUser?.displayName?.toLowerCase();
     const userId = currentUser?.id;
 
-    let filtered = Array.from(map.values()).filter(p => {
+    const filtered = Array.from(map.values()).filter(p => {
       if (isAdmin) return true; // Platform Admins oversee all partner submitted offer performances & approvals
       if (userId && p.submittedByUserId && (p.submittedByUserId === userId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
       if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
       if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
       if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
       if (p.status === 'PENDING') return true; // Show pending offers so submitters see their pending approval
-      return true;
+      return false;
     });
-
-    if (filtered.length === 0 && map.size > 0) {
-      filtered = Array.from(map.values());
-    }
 
     setMySubmittedOffers(filtered);
     if (filtered.length > 0) {
@@ -163,6 +159,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   };
 
   const fetchMyOffers = async (userIdOverride?: string) => {
+    // Only fetch if no Firestore perks are loaded yet
+    if (allAdminPerks.length > 0) return;
     const targetUserId = userIdOverride || currentUser.id;
     try {
       const emailParam = currentUser.email ? `&email=${encodeURIComponent(currentUser.email)}` : '';
@@ -185,34 +183,36 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   // Real-time Firestore synchronization for Perks & Submitted Offers
   useEffect(() => {
     const unsubscribe = subscribeToPerks((firestorePerks) => {
-      if (firestorePerks && firestorePerks.length > 0) {
-        setAllAdminPerks(firestorePerks);
+      const perksData = firestorePerks || [];
+      setAllAdminPerks(perksData);
 
-        const approved = firestorePerks.filter(p => p.status === 'APPROVED');
-        if (approved.length > 0) {
-          setPerks(prev => {
-            const map = new Map<string, Perk>();
-            prev.forEach(p => map.set(p.id, p));
-            approved.forEach(p => map.set(p.id, p));
-            return Array.from(map.values());
-          });
-        }
-
-        syncMyOffers(firestorePerks);
-      } else {
-        setAllAdminPerks(INITIAL_PERKS);
-        setPerks(INITIAL_PERKS.filter(p => p.status === 'APPROVED'));
-        syncMyOffers(INITIAL_PERKS);
+      let approved = perksData.filter(p => p.status === 'APPROVED');
+      if (selectedCategory !== 'All') {
+        approved = approved.filter(p => p.category === selectedCategory);
       }
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        approved = approved.filter(p => 
+          p.title.toLowerCase().includes(q) || 
+          p.provider.toLowerCase().includes(q) || 
+          p.description.toLowerCase().includes(q)
+        );
+      }
+      setPerks(approved);
+
+      syncMyOffers(perksData);
     });
 
     return () => unsubscribe();
-  }, [currentUser?.id, currentUser?.email, currentUser?.displayName, isAdmin]);
+  }, [currentUser?.id, currentUser?.email, currentUser?.displayName, isAdmin, selectedCategory, searchQuery]);
 
 
   useEffect(() => {
-    fetchPerks();
-    fetchMyOffers();
+    // Fallback REST fetch only if no perks exist in Firestore snapshot
+    if (allAdminPerks.length === 0) {
+      fetchPerks();
+      fetchMyOffers();
+    }
   }, [selectedCategory, searchQuery, currentUser?.id]);
 
   useEffect(() => {
