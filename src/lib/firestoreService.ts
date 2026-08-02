@@ -15,24 +15,52 @@ import { db } from './firebase';
 import { User, Pod, Perk, AuditLogEntry, Redemption } from '../types';
 import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS } from '../data/initialData';
 
+// Helper to strip undefined fields so Firestore setDoc never throws on undefined values
+function sanitizeForFirestore<T extends Record<string, any>>(data: T): T {
+  if (!data || typeof data !== 'object') return data;
+  const clean: any = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        clean[key] = sanitizeForFirestore(value);
+      } else {
+        clean[key] = value;
+      }
+    }
+  }
+  return clean as T;
+}
+
 // --- SEED INITIAL DATA IF EMPTY ---
 export async function seedInitialFirestoreData() {
   try {
+    // Delete legacy sample perks from Firestore so production starts clean
+    const samplePerkIds = ['perk_1', 'perk_2', 'perk_3', 'perk_4', 'perk_5', 'perk_6', 'perk_pending_sample'];
+    for (const perkId of samplePerkIds) {
+      try {
+        await deleteDoc(doc(db, 'perks', perkId));
+      } catch (e) {
+        // ignore if not found
+      }
+    }
+
     // Check if pods exist
     const podsSnap = await getDocs(collection(db, 'pods'));
     if (podsSnap.empty) {
       console.log('Seeding initial pods into Firestore...');
       for (const pod of INITIAL_PODS) {
-        await setDoc(doc(db, 'pods', pod.id), pod);
+        await setDoc(doc(db, 'pods', pod.id), sanitizeForFirestore(pod));
       }
     }
 
     // Check if perks exist
-    const perksSnap = await getDocs(collection(db, 'perks'));
-    if (perksSnap.empty) {
-      console.log('Seeding initial perks into Firestore...');
-      for (const perk of INITIAL_PERKS) {
-        await setDoc(doc(db, 'perks', perk.id), perk);
+    if (INITIAL_PERKS.length > 0) {
+      const perksSnap = await getDocs(collection(db, 'perks'));
+      if (perksSnap.empty) {
+        console.log('Seeding initial perks into Firestore...');
+        for (const perk of INITIAL_PERKS) {
+          await setDoc(doc(db, 'perks', perk.id), sanitizeForFirestore(perk));
+        }
       }
     }
 
@@ -41,7 +69,7 @@ export async function seedInitialFirestoreData() {
     if (usersSnap.empty) {
       console.log('Seeding initial users into Firestore...');
       for (const user of INITIAL_USERS) {
-        await setDoc(doc(db, 'users', user.id), user);
+        await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(user));
       }
     }
 
@@ -50,7 +78,7 @@ export async function seedInitialFirestoreData() {
     if (logsSnap.empty) {
       console.log('Seeding initial audit logs into Firestore...');
       for (const log of INITIAL_AUDIT_LOGS) {
-        await setDoc(doc(db, 'auditLogs', log.id), log);
+        await setDoc(doc(db, 'auditLogs', log.id), sanitizeForFirestore(log));
       }
     }
   } catch (error) {
@@ -73,7 +101,7 @@ export async function getUserFromFirestore(userId: string): Promise<User | null>
 
 export async function saveUserToFirestore(user: User): Promise<void> {
   try {
-    await setDoc(doc(db, 'users', user.id), user, { merge: true });
+    await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(user), { merge: true });
   } catch (err) {
     console.error('Error saving user to Firestore:', err);
   }
@@ -104,7 +132,7 @@ export function subscribeToPods(callback: (pods: Pod[]) => void) {
 
 export async function savePodToFirestore(pod: Pod): Promise<void> {
   try {
-    await setDoc(doc(db, 'pods', pod.id), pod, { merge: true });
+    await setDoc(doc(db, 'pods', pod.id), sanitizeForFirestore(pod), { merge: true });
   } catch (err) {
     console.error('Error saving pod to Firestore:', err);
   }
@@ -123,8 +151,9 @@ export function subscribeToPerks(callback: (perks: Perk[]) => void) {
 
 export async function savePerkToFirestore(perk: Perk): Promise<void> {
   try {
-    await setDoc(doc(db, 'perks', perk.id), perk, { merge: true });
-    console.log(`Perk ${perk.id} saved to Firestore successfully.`);
+    const cleanPerk = sanitizeForFirestore(perk);
+    await setDoc(doc(db, 'perks', cleanPerk.id), cleanPerk, { merge: true });
+    console.log(`Perk ${cleanPerk.id} saved to Firestore successfully.`);
   } catch (err) {
     console.error('Error saving perk to Firestore:', err);
   }
@@ -152,7 +181,7 @@ export function subscribeToAuditLogs(callback: (logs: AuditLogEntry[]) => void) 
 
 export async function addAuditLogToFirestore(log: AuditLogEntry): Promise<void> {
   try {
-    await setDoc(doc(db, 'auditLogs', log.id), log);
+    await setDoc(doc(db, 'auditLogs', log.id), sanitizeForFirestore(log));
   } catch (err) {
     console.error('Error adding audit log to Firestore:', err);
   }
@@ -161,7 +190,7 @@ export async function addAuditLogToFirestore(log: AuditLogEntry): Promise<void> 
 // --- REDEMPTIONS ---
 export async function addRedemptionToFirestore(redemption: Redemption): Promise<void> {
   try {
-    await setDoc(doc(db, 'redemptions', redemption.id), redemption);
+    await setDoc(doc(db, 'redemptions', redemption.id), sanitizeForFirestore(redemption));
   } catch (err) {
     console.error('Error adding redemption to Firestore:', err);
   }
