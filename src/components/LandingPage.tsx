@@ -107,16 +107,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setSubmitLoading(true);
     setSubmitSuccessMsg(null);
     try {
-      const payload = {
+      const finalProvider = submitProvider || 'Community Partner';
+      const newPerk: Perk = {
+        id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         title: submitTitle,
         category: submitCategory,
-        provider: submitProvider || 'Community Partner',
-        partnerEmail: submitPartnerEmail,
+        provider: finalProvider,
+        description: submitDesc || '',
         valueBadge: submitBadge || 'Special Member Offer',
-        description: submitDesc,
-        redemptionType: submitRedeemType,
-        redemptionData: submitRedeemData,
+        redemptionType: submitRedeemType || 'CODE',
+        redemptionData: submitRedeemData || 'PENDING_APPROVAL',
+        eligibility: 'All verified members',
+        submittedBy: currentUser?.displayName || finalProvider,
+        submittedByUserId: currentUser?.id || 'usr_guest',
+        partnerEmail: submitPartnerEmail || currentUser?.email,
         partnerNotes: submitPartnerNotes,
+        status: 'PENDING',
+        iconName: 'Gift',
+        redeemedCount: 0,
+      };
+
+      // Always save directly to Firestore first!
+      await savePerkToFirestore(newPerk);
+
+      try {
+        const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
+        existing.unshift(newPerk);
+        localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
+      } catch (e) {}
+
+      // Optional REST call for backend user creation
+      const payload = {
+        ...newPerk,
         createAccount: !currentUser ? createAccount : false,
       };
 
@@ -129,21 +151,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
-      });
+      }).catch(() => null);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.perk) {
-          try {
-            const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
-            existing.unshift(data.perk);
-            localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
-          } catch (e) {}
-
-          savePerkToFirestore(data.perk);
-        }
-
-        if (data.user && !currentUser) {
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.user && !currentUser) {
           onSelectUser(data.user);
           setSubmitSuccessMsg(data.message || `Partner account created for ${data.user.email}! Offer submitted for Admin review.`);
           setTimeout(() => {
@@ -153,12 +165,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           }, 2200);
           return;
         }
-
-        setSubmitSuccessMsg(data.message || 'Benefit offer submitted successfully for Admin review!');
-      } else {
-        const errData = await res.json().catch(() => null);
-        setSubmitSuccessMsg(errData?.message || errData?.error || 'Benefit offer submitted for Admin review! Thank you.');
       }
+
+      setSubmitSuccessMsg('Benefit offer submitted successfully for Admin review!');
       setTimeout(() => {
         setShowSubmitPerkModal(false);
         resetSubmitForm();

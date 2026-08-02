@@ -208,17 +208,6 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
 
   useEffect(() => {
-    // Delayed fallback REST fetch only if Firestore snapshot doesn't return data after 2s
-    const timer = setTimeout(() => {
-      if (allAdminPerks.length === 0) {
-        fetchPerks();
-        fetchMyOffers();
-      }
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, searchQuery, currentUser?.id, allAdminPerks.length]);
-
-  useEffect(() => {
     if (initialOpenSubmitModal) {
       resetForm();
       setShowSubmitModal(true);
@@ -258,70 +247,80 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           'x-user-id': currentUser.id,
         },
         body: JSON.stringify({ perkId: perk.id }),
-      });
+      }).catch(() => null);
 
-      const data = await res.json();
-      setSelectedPerkForRedeem(data.perk);
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.perk) setSelectedPerkForRedeem(data.perk);
+      } else {
+        setSelectedPerkForRedeem(perk);
+      }
     } catch (err) {
-      console.error('Redemption failed:', err);
+      console.error('Redemption error:', err);
+      setSelectedPerkForRedeem(perk);
     }
   };
 
-  // User / Partner Perk Submission
+  // User / Partner Perk Submission - Direct to Firestore First
   const handleSubmitPerk = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
 
     try {
+      const finalProvider = submitProvider || currentUser.displayName || 'Community Partner';
+      const perkStatus: PerkStatus = isAdmin ? (submitStatus || 'APPROVED') : 'PENDING';
       const isGuest = !currentUser || currentUser.id === 'usr_guest';
-      const res = await fetch('/api/perks/submit', {
+
+      const newPerk: Perk = {
+        id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        title: submitTitle,
+        category: submitCategory,
+        provider: finalProvider,
+        description: submitDesc || '',
+        valueBadge: submitBadge || 'Special Member Offer',
+        redemptionType: submitRedeemType || 'CODE',
+        redemptionData: submitRedeemData || 'PENDING_APPROVAL',
+        eligibility: submitEligibility || 'All verified members',
+        submittedBy: currentUser.displayName || finalProvider,
+        submittedByUserId: currentUser.id || 'usr_guest',
+        partnerEmail: submitPartnerEmail || currentUser.email,
+        partnerNotes: submitPartnerNotes,
+        status: perkStatus,
+        iconName: 'Gift',
+        redeemedCount: 0,
+      };
+
+      // Always save directly to Firestore live database
+      await savePerkToFirestore(newPerk);
+
+      try {
+        const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
+        existing.unshift(newPerk);
+        localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
+      } catch (e) {}
+
+      // Optional REST call for server-side user/account creation if server is present
+      fetch('/api/perks/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
         body: JSON.stringify({
-          title: submitTitle,
-          category: submitCategory,
-          provider: submitProvider || currentUser.displayName || 'Community Partner',
-          description: submitDesc,
-          valueBadge: submitBadge || 'Special Member Offer',
-          redemptionType: submitRedeemType,
-          redemptionData: submitRedeemData,
-          eligibility: submitEligibility,
-          partnerEmail: submitPartnerEmail,
-          partnerNotes: submitPartnerNotes,
-          status: isAdmin ? (submitStatus || 'APPROVED') : 'PENDING',
+          ...newPerk,
           createAccount: isGuest ? createAccount : false,
         }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setActionSuccessMsg(data.message || 'Partner benefit offer submitted for Admin review!');
-        if (data.perk) {
-          try {
-            const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
-            existing.unshift(data.perk);
-            localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
-          } catch (e) {}
-
-          savePerkToFirestore(data.perk);
+      }).then(async res => {
+        if (res && res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.user && onSelectUser) {
+            onSelectUser(data.user);
+          }
         }
+      }).catch(() => null);
 
-        if (data.user && onSelectUser) {
-          onSelectUser(data.user);
-        }
-
-        const activeUserId = data.user?.id || currentUser.id;
-        setShowPartnerDashboard(true);
-        fetchMyOffers(activeUserId);
-        fetchPerks();
-        if (isAdmin) fetchAdminPerks();
-      } else {
-        const errData = await res.json().catch(() => null);
-        setActionSuccessMsg(errData?.message || errData?.error || 'Partner benefit offer submitted for Admin review!');
-      }
+      setActionSuccessMsg(perkStatus === 'APPROVED' ? 'Partner perk published directly to Marketplace!' : 'Partner benefit offer submitted for Admin review!');
+      setShowPartnerDashboard(true);
       setTimeout(() => {
         setShowSubmitModal(false);
         setActionSuccessMsg(null);
@@ -346,42 +345,42 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     setSubmitLoading(true);
 
     try {
-      const res = await fetch('/api/admin/perks', {
+      const newPerk: Perk = {
+        id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        title: submitTitle,
+        category: submitCategory,
+        provider: submitProvider,
+        description: submitDesc || '',
+        valueBadge: submitBadge || 'Official Partner Offer',
+        redemptionType: submitRedeemType || 'CODE',
+        redemptionData: submitRedeemData || 'PARTNER2026',
+        eligibility: submitEligibility || 'All verified members',
+        submittedBy: currentUser.displayName || submitProvider,
+        submittedByUserId: currentUser.id,
+        partnerEmail: submitPartnerEmail,
+        partnerNotes: submitPartnerNotes,
+        status: submitStatus || 'APPROVED',
+        iconName: 'ShieldAlert',
+        redeemedCount: 0,
+      };
+
+      await savePerkToFirestore(newPerk);
+
+      fetch('/api/admin/perks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
-        body: JSON.stringify({
-          title: submitTitle,
-          category: submitCategory,
-          provider: submitProvider,
-          description: submitDesc,
-          valueBadge: submitBadge,
-          redemptionType: submitRedeemType,
-          redemptionData: submitRedeemData,
-          eligibility: submitEligibility,
-          status: submitStatus,
-          partnerEmail: submitPartnerEmail,
-          partnerNotes: submitPartnerNotes,
-        }),
-      });
+        body: JSON.stringify(newPerk),
+      }).catch(() => null);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.perk) {
-          savePerkToFirestore(data.perk);
-        }
-        setActionSuccessMsg('Official partner perk created and published successfully!');
-        fetchAdminPerks();
-        fetchPerks();
-        fetchMyOffers();
-        setTimeout(() => {
-          setShowAddPartnerModal(false);
-          setActionSuccessMsg(null);
-          resetForm();
-        }, 1200);
-      }
+      setActionSuccessMsg('Official partner perk created and published successfully!');
+      setTimeout(() => {
+        setShowAddPartnerModal(false);
+        setActionSuccessMsg(null);
+        resetForm();
+      }, 1200);
     } catch (err) {
       console.error('Add partner error:', err);
     } finally {
@@ -396,42 +395,38 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     setSubmitLoading(true);
 
     try {
-      const res = await fetch(`/api/admin/perks/${editingPerk.id}`, {
+      const updatedPerk: Perk = {
+        ...editingPerk,
+        title: submitTitle,
+        category: submitCategory,
+        provider: submitProvider,
+        description: submitDesc || '',
+        valueBadge: submitBadge || editingPerk.valueBadge,
+        redemptionType: submitRedeemType || editingPerk.redemptionType,
+        redemptionData: submitRedeemData || editingPerk.redemptionData,
+        eligibility: submitEligibility || editingPerk.eligibility,
+        status: submitStatus || editingPerk.status,
+        partnerEmail: submitPartnerEmail,
+        partnerNotes: submitPartnerNotes,
+      };
+
+      await savePerkToFirestore(updatedPerk);
+
+      fetch(`/api/admin/perks/${editingPerk.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
-        body: JSON.stringify({
-          title: submitTitle,
-          category: submitCategory,
-          provider: submitProvider,
-          description: submitDesc,
-          valueBadge: submitBadge,
-          redemptionType: submitRedeemType,
-          redemptionData: submitRedeemData,
-          eligibility: submitEligibility,
-          status: submitStatus,
-          partnerEmail: submitPartnerEmail,
-          partnerNotes: submitPartnerNotes,
-        }),
-      });
+        body: JSON.stringify(updatedPerk),
+      }).catch(() => null);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.perk) {
-          savePerkToFirestore(data.perk);
-        }
-        setActionSuccessMsg('Partner perk updated successfully!');
-        fetchAdminPerks();
-        fetchPerks();
-        fetchMyOffers();
-        setTimeout(() => {
-          setEditingPerk(null);
-          setActionSuccessMsg(null);
-          resetForm();
-        }, 1200);
-      }
+      setActionSuccessMsg('Partner perk updated successfully!');
+      setTimeout(() => {
+        setEditingPerk(null);
+        setActionSuccessMsg(null);
+        resetForm();
+      }, 1200);
     } catch (err) {
       console.error('Save edit perk error:', err);
     } finally {
@@ -442,23 +437,20 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   // Quick Change Perk Status
   const handleQuickStatusChange = async (perkId: string, status: PerkStatus) => {
     try {
-      const res = await fetch(`/api/admin/perks/${perkId}/status`, {
+      const targetPerk = allAdminPerks.find(p => p.id === perkId) || perks.find(p => p.id === perkId);
+      if (targetPerk) {
+        const updatedPerk: Perk = { ...targetPerk, status };
+        await savePerkToFirestore(updatedPerk);
+      }
+
+      fetch(`/api/admin/perks/${perkId}/status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
         body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.perk) {
-          savePerkToFirestore(data.perk);
-        }
-        fetchAdminPerks();
-        fetchPerks();
-        fetchMyOffers();
-      }
+      }).catch(() => null);
     } catch (err) {
       console.error('Change status error:', err);
     }
@@ -469,18 +461,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     if (!window.confirm(`Are you sure you want to remove "${title}" from the Benefits Marketplace?`)) return;
 
     try {
-      const res = await fetch(`/api/admin/perks/${perkId}`, {
+      await deletePerkFromFirestore(perkId);
+
+      fetch(`/api/admin/perks/${perkId}`, {
         method: 'DELETE',
         headers: {
           'x-user-id': currentUser.id,
         },
-      });
-      if (res.ok) {
-        deletePerkFromFirestore(perkId);
-        fetchAdminPerks();
-        fetchPerks();
-        fetchMyOffers();
-      }
+      }).catch(() => null);
     } catch (err) {
       console.error('Delete perk error:', err);
     }
