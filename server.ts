@@ -3,7 +3,6 @@ import express from 'express';
 type Request = express.Request;
 type Response = express.Response;
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { 
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
@@ -1825,6 +1824,7 @@ app.use((req, res, next) => {
   // --- VITE MIDDLEWARE OR STATIC SERVING ---
   async function startServer() {
     if (process.env.NODE_ENV !== 'production') {
+      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',
