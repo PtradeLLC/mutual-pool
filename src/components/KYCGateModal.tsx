@@ -34,9 +34,17 @@ export const KYCGateModal: React.FC<KYCGateModalProps> = ({ user, onClose, onVer
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type');
+      let data: any = {};
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || `Server responded with status ${res.status}`);
+      }
+
       if (!res.ok) {
-        throw new Error(data.message || 'Verification failed');
+        throw new Error(data.message || data.error || 'Verification failed');
       }
 
       onVerified(data.user);

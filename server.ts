@@ -299,76 +299,110 @@ app.use((req, res, next) => {
 
   // 2. Stripe Identity KYC Verification Simulation
   app.post('/api/users/kyc/verify', (req: Request, res: Response) => {
-    const user = getCurrentUser(req);
-    const { idType, documentNumber, fullName, ssnLast4 } = req.body;
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'User session or x-user-id header required for KYC verification.' });
+      }
 
-    const targetUser = users.find(u => u.id === user.id);
-    if (!targetUser) {
-      return res.status(404).json({ error: 'User not found' });
+      const body = req.body || {};
+      const { idType, documentNumber, fullName, ssnLast4 } = body;
+
+      let targetUser = users.find(u => u && u.id === user.id);
+      if (!targetUser) {
+        targetUser = user;
+        users.push(targetUser);
+      }
+
+      targetUser.kycStatus = 'VERIFIED';
+      targetUser.kycVerifiedAt = new Date().toISOString();
+      
+      if (!targetUser.treasury) {
+        targetUser.treasury = {
+          stripeAccountId: '',
+          stripeFinAccountId: '',
+          balanceUsd: 0,
+          pendingInboundUsd: 0,
+          totalPayoutsReceivedUsd: 0,
+          status: 'UNINITIALIZED',
+          fdicPassThroughEligible: false,
+        };
+      }
+
+      // Provision Stripe Custom Account & Treasury Financial Account if missing
+      if (!targetUser.treasury.stripeAccountId) {
+        targetUser.treasury.stripeAccountId = `acct_1xCustom_${Date.now()}`;
+      }
+      if (!targetUser.treasury.stripeFinAccountId) {
+        targetUser.treasury.stripeFinAccountId = `fa_1xTreasury_${Date.now()}`;
+      }
+      targetUser.treasury.status = 'ACTIVE';
+      targetUser.treasury.fdicPassThroughEligible = true;
+
+      addAuditLog(
+        undefined,
+        targetUser.id,
+        targetUser.displayName || 'User',
+        'KYC_VERIFIED' as any,
+        `Completed Stripe Identity verification (${idType || 'Driver License'}, SSN: ***-**-${ssnLast4 || '4321'}). Stripe Custom Account ${targetUser.treasury.stripeAccountId} and Treasury Financial Account ${targetUser.treasury.stripeFinAccountId} activated with FDIC pass-through coverage.`,
+        { idType, fullName }
+      );
+
+      res.json({
+        success: true,
+        user: targetUser,
+        message: 'Stripe Identity KYC Verification Successful. Treasury Account Activated.',
+      });
+    } catch (err) {
+      console.error('[/api/users/kyc/verify] error:', err);
+      res.status(500).json({ error: 'KYC verification failed on server.', message: err instanceof Error ? err.message : String(err) });
     }
-
-    targetUser.kycStatus = 'VERIFIED';
-    targetUser.kycVerifiedAt = new Date().toISOString();
-    
-    // Provision Stripe Custom Account & Treasury Financial Account if missing
-    if (!targetUser.treasury.stripeAccountId) {
-      targetUser.treasury.stripeAccountId = `acct_1xCustom_${Date.now()}`;
-    }
-    if (!targetUser.treasury.stripeFinAccountId) {
-      targetUser.treasury.stripeFinAccountId = `fa_1xTreasury_${Date.now()}`;
-    }
-    targetUser.treasury.status = 'ACTIVE';
-    targetUser.treasury.fdicPassThroughEligible = true;
-
-    addAuditLog(
-      undefined,
-      targetUser.id,
-      targetUser.displayName,
-      'KYC_VERIFIED',
-      `Completed Stripe Identity verification (${idType || 'Driver License'}, SSN: ***-**-${ssnLast4 || '4321'}). Stripe Custom Account ${targetUser.treasury.stripeAccountId} and Treasury Financial Account ${targetUser.treasury.stripeFinAccountId} activated with FDIC pass-through coverage.`,
-      { idType, fullName }
-    );
-
-    res.json({
-      success: true,
-      user: targetUser,
-      message: 'Stripe Identity KYC Verification Successful. Treasury Account Activated.',
-    });
   });
 
   // 3. Bank Account Linking (Stripe Financial Connections)
   app.post('/api/users/bank/link', (req: Request, res: Response) => {
-    const user = getCurrentUser(req);
-    const { bankName, accountNumber, routingNumber, accountType } = req.body;
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'User session or x-user-id header required.' });
+      }
 
-    const targetUser = users.find(u => u.id === user.id);
-    if (!targetUser) {
-      return res.status(404).json({ error: 'User not found' });
+      const body = req.body || {};
+      const { bankName, accountNumber, routingNumber, accountType } = body;
+
+      let targetUser = users.find(u => u && u.id === user.id);
+      if (!targetUser) {
+        targetUser = user;
+        users.push(targetUser);
+      }
+
+      const last4 = String(accountNumber || '4821').slice(-4);
+      targetUser.externalBank = {
+        bankName: bankName || 'Chase Bank',
+        last4,
+        routingNumber: routingNumber || '021000021',
+        accountType: accountType || 'CHECKING',
+        status: 'LINKED',
+        linkedAt: new Date().toISOString(),
+      };
+
+      addAuditLog(
+        undefined,
+        targetUser.id,
+        targetUser.displayName || 'User',
+        'BANK_LINKED' as any,
+        `Linked external bank account (${targetUser.externalBank.bankName} ending in ${last4}) via Stripe Financial Connections for Treasury transfers.`,
+        { bankName, last4 }
+      );
+
+      res.json({
+        success: true,
+        user: targetUser,
+      });
+    } catch (err) {
+      console.error('[/api/users/bank/link] error:', err);
+      res.status(500).json({ error: 'Failed to link bank account.', message: err instanceof Error ? err.message : String(err) });
     }
-
-    const last4 = (accountNumber || '4821').slice(-4);
-    targetUser.externalBank = {
-      bankName: bankName || 'Chase Bank',
-      last4,
-      routingNumber: routingNumber || '021000021',
-      accountType: accountType || 'CHECKING',
-      status: 'LINKED',
-      linkedAt: new Date().toISOString(),
-    };
-
-    addAuditLog(
-      undefined,
-      targetUser.id,
-      targetUser.displayName,
-      'BANK_LINKED',
-      `Linked external bank account (${targetUser.externalBank.bankName} ending in ${last4}) via Stripe Financial Connections for Treasury transfers.`,
-      { bankName, last4 }
-    );
-
-    res.json({
-      success: true,
-      user: targetUser,
-    });
   });
 
   // 4. Pods List & Details
