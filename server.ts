@@ -189,25 +189,40 @@ export const app = express();
 
 // Middleware to safely handle body parsing across local Express and Vercel Serverless Function runtimes
 app.use((req, res, next) => {
-  if (req.body !== undefined && typeof req.body === 'object' && req.body !== null) {
+  if (res.headersSent) return next();
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === 'string') {
+      try {
+        req.body = JSON.parse(req.body);
+      } catch {
+        // ignore parse error
+      }
+    }
     return next();
   }
-  if (typeof req.body === 'string') {
-    try {
-      req.body = JSON.parse(req.body);
-      return next();
-    } catch {
-      // pass to express.json if string parsing fails
-    }
+
+  // If body is not present, only invoke express.json if request stream is readable and unconsumed
+  if (req.readable !== false && !(req as any).complete) {
+    express.json({ limit: '10mb' })(req, res, (err) => {
+      if (err) {
+        req.body = {};
+      }
+      if (!res.headersSent) {
+        next();
+      }
+    });
+  } else {
+    req.body = {};
+    next();
   }
-  express.json()(req, res, next);
 });
 
 // Enable CORS and OPTIONS preflight for all routes
 app.use((req, res, next) => {
+  if (res.headersSent) return next();
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-user-name, x-user-email');
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -216,21 +231,28 @@ app.use((req, res, next) => {
 
 // Normalize request URL for serverless environments (e.g., Vercel rewrites)
 app.use((req, res, next) => {
-  let url = req.url || '/';
+  if (res.headersSent) return next();
 
-  // If req.url is pointing to index.ts/index.js (Vercel function target), look for real requested URL
-  if (url.includes('index.ts') || url.includes('index.js')) {
-    if (req.originalUrl && !req.originalUrl.includes('index.ts') && !req.originalUrl.includes('index.js')) {
-      url = req.originalUrl;
+  let path = req.originalUrl || req.url || '/';
+  let cleanPath = path.split('?')[0];
+
+  // If path is pointing to Vercel index function target
+  if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js') || cleanPath === '/api' || cleanPath === '/api/') {
+    const forwardedUri = (req.headers['x-forwarded-uri'] as string) || (req.headers['x-invoke-path'] as string);
+    if (forwardedUri && !forwardedUri.includes('index.ts') && !forwardedUri.includes('index.js')) {
+      path = forwardedUri;
+      cleanPath = path.split('?')[0];
+    } else if (req.url && !req.url.includes('index.ts') && !req.url.includes('index.js')) {
+      path = req.url;
+      cleanPath = path.split('?')[0];
     }
   }
 
-  const cleanPath = url.split('?')[0];
   if (!cleanPath.startsWith('/api') && !cleanPath.startsWith('/health')) {
-    url = '/api' + (url.startsWith('/') ? '' : '/') + url;
+    path = '/api' + (path.startsWith('/') ? '' : '/') + path;
   }
 
-  req.url = url;
+  req.url = path;
   next();
 });
 
@@ -353,8 +375,10 @@ app.use((req, res, next) => {
   });
 
   // 2. Stripe Identity KYC Verification Simulation
-  app.post('/api/users/kyc/verify', (req: Request, res: Response) => {
+  app.post(['/api/users/kyc/verify', '/users/kyc/verify'], (req: Request, res: Response) => {
     try {
+      if (res.headersSent) return;
+
       const user = getCurrentUser(req);
       if (!user) {
         return res.status(401).json({ error: 'User session or x-user-id header required for KYC verification.' });
@@ -403,14 +427,16 @@ app.use((req, res, next) => {
         { idType, fullName }
       );
 
-      res.json({
+      return res.json({
         success: true,
         user: targetUser,
         message: 'Stripe Identity KYC Verification Successful. Treasury Account Activated.',
       });
     } catch (err) {
       console.error('[/api/users/kyc/verify] error:', err);
-      res.status(500).json({ error: 'KYC verification failed on server.', message: err instanceof Error ? err.message : String(err) });
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'KYC verification failed on server.', message: err instanceof Error ? err.message : String(err) });
+      }
     }
   });
 
@@ -1980,7 +2006,8 @@ app.use((req, res, next) => {
   }
 
 // 404 handler for unmatched API routes
-app.use('/api/*', (req: Request, res: Response) => {
+app.use('/api/*', (req: Request, res: Response, next: express.NextFunction) => {
+  if (res.headersSent) return next();
   res.status(404).json({
     error: 'API endpoint not found',
     requestedUrl: req.originalUrl || req.url,
@@ -1990,7 +2017,13 @@ app.use('/api/*', (req: Request, res: Response) => {
 // Global error handler
 app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
   console.error('[Server Error]', err);
-  res.status(500).json({ error: err?.message || 'Internal Server Error' });
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err?.message || String(err),
+  });
 });
 
 if (!process.env.VERCEL) {
