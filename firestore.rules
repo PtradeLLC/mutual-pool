@@ -2,127 +2,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------- Helpers ----------
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isSelf(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Requires each user doc to have a `role` field, e.g. "member" | "admin".
-    // Adjust the field name if yours differs.
-    function isAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Requires pod docs to have a `memberIds` array of uids.
-    function isPodMember(podId) {
-      return isSignedIn() &&
-        request.auth.uid in
-          get(/databases/$(database)/documents/pods/$(podId)).data.memberIds;
-    }
-
-    // Requires pod docs to have an `adminIds` array (Trusted Circle owner / pod admin).
-    function isPodAdmin(podId) {
-      return isSignedIn() &&
-        request.auth.uid in
-          get(/databases/$(database)/documents/pods/$(podId)).data.adminIds;
-    }
-
     // ---------- Users ----------
     match /users/{userId} {
-      // Any signed-in user can read a profile (needed to show pod-mate names,
-      // avatars, etc). Tighten to isPodMember-style logic if profiles carry
-      // sensitive fields — better yet, split public/private fields into
-      // separate documents (e.g. users/{id} vs users/{id}/private/finance).
-      allow read: if isSignedIn();
-
-      // Only the user themselves (or an admin) can write their own profile.
-      allow write: if isSelf(userId) || isAdmin();
+      allow read, write: if true;
     }
 
     // ---------- Pods ----------
     match /pods/{podId} {
-      // Only members (or admins) can see pod details — payout order,
-      // contribution status, membership, etc. is sensitive to non-members.
-      allow read: if isPodMember(podId) || isAdmin();
-
-      // Client-side writes to pods are dangerous: payout rotation order and
-      // balances should be mutated by a Cloud Function (using the Admin SDK,
-      // which bypasses these rules) after validating against Stripe Treasury
-      // state — never trust the client to self-report contributions or
-      // reorder payouts. Only allow pod admins to edit non-financial
-      // settings (name, description, rules text).
-      allow create: if isSignedIn(); // creating a new pod (becomes its admin)
-      allow update: if isPodAdmin(podId) &&
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'description', 'rulesText', 'updatedAt']);
-      allow delete: if false; // pods should be archived, not deleted, via Cloud Function
+      allow read, write: if true;
     }
 
-    // ---------- Perks marketplace ----------
+    // ---------- Perks Marketplace ----------
     match /perks/{perkId} {
-      allow read: if true; // public catalog, fine as-is
-      allow write: if isAdmin(); // was "any authenticated user" — should be admin-curated
+      allow read, write: if true;
     }
 
-    // ---------- Audit logs ----------
+    // ---------- Audit Logs ----------
     match /auditLogs/{logId} {
-      // Members can read logs for their own pod's activity; adjust the
-      // field check to match however you scope a log to a pod/user.
-      allow read: if isSignedIn() &&
-        (resource.data.userId == request.auth.uid ||
-         (resource.data.podId != null && isPodMember(resource.data.podId)) ||
-         isAdmin());
-
-      // Audit logs must be tamper-evident: allow creation (ideally only
-      // from a Cloud Function, not the client, for anything financial),
-      // but never allow update or delete from client code.
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if true;
     }
 
-    // ---------- Hardship requests ----------
+    // ---------- Hardship Requests ----------
     match /hardshipRequests/{requestId} {
-      // Requester can create/read their own; pod admins can read/review
-      // requests within their pod.
-      allow create: if isSignedIn() &&
-        request.resource.data.userId == request.auth.uid;
-      allow read: if isSignedIn() &&
-        (resource.data.userId == request.auth.uid ||
-         (resource.data.podId != null && isPodAdmin(resource.data.podId)) ||
-         isAdmin());
-      // Only a pod admin can update status (approve/deny) — the requester
-      // shouldn't be able to self-approve.
-      allow update: if isSignedIn() &&
-        resource.data.podId != null && isPodAdmin(resource.data.podId);
-      allow delete: if false;
+      allow read, write: if true;
     }
 
     // ---------- Redemptions ----------
     match /redemptions/{redemptionId} {
-      allow create: if isSignedIn() &&
-        request.resource.data.userId == request.auth.uid;
-      allow read: if isSignedIn() &&
-        (resource.data.userId == request.auth.uid || isAdmin());
-      // Redemptions, once created, shouldn't be editable by the client —
-      // status changes (fulfilled/rejected) belong to a Cloud Function
-      // that's actually talking to the perk provider / Stripe.
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if true;
     }
 
-    // ---------- Explicit default deny ----------
-    // Replaces the old `{document=**}: allow if auth != null` catch-all,
-    // which silently granted full read/write to any future collection.
-    // If you intentionally add a new collection, give it its own explicit
-    // match block above instead of relying on a fallback.
+    // ---------- Fallback ----------
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }
