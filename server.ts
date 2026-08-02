@@ -147,7 +147,11 @@ app.use((req, res, next) => {
 
 // Normalize request URL for serverless environments (e.g., Vercel rewrites stripping /api)
 app.use((req, res, next) => {
-  if (!req.url.startsWith('/api') && !req.url.startsWith('/health')) {
+  const rawUrl = req.originalUrl || req.url || '/';
+  const pathPart = rawUrl.split('?')[0];
+  if (pathPart.startsWith('/api')) {
+    req.url = rawUrl;
+  } else if (!req.url.startsWith('/api') && !req.url.startsWith('/health')) {
     req.url = '/api' + (req.url.startsWith('/') ? '' : '/') + req.url;
   }
   next();
@@ -1596,14 +1600,14 @@ app.use((req, res, next) => {
 
     const isAdmin = checkIsAdmin(req);
     const userOffers = perks.filter(p => {
+      if (isAdmin) return true; // Platform Admins oversee all partner offer performances & approvals
       if (p.submittedByUserId && p.submittedByUserId === targetUserId) return true;
       if (user && p.submittedByUserId && p.submittedByUserId === user.id) return true;
       if (queryEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === queryEmail) return true;
       if (user?.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) return true;
       if (user?.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) return true;
       if (user?.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) return true;
-      if (isAdmin && p.status === 'PENDING') return true;
-      if (targetUserId === 'usr_guest' && (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner' || p.submittedBy === 'Community Partner')) return true;
+      if (targetUserId === 'usr_guest' && (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner' || p.submittedBy === 'Community Partner' || p.submittedBy?.includes('Official Partner'))) return true;
       return false;
     });
     res.json(userOffers);

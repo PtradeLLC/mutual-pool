@@ -172,14 +172,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         const userId = currentUser?.id;
 
         const myOffersFromFirestore = firestorePerks.filter(p => {
+          if (isAdmin) return true; // Platform Admins oversee all partner offer performances & approvals
           if (userId && userId !== 'usr_guest' && p.submittedByUserId === userId) return true;
           if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
           if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
           if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
           if (userId === 'usr_guest' || !userId) {
-            if (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner' || p.submittedBy === 'Community Partner') return true;
+            if (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner' || p.submittedBy === 'Community Partner' || p.submittedBy?.includes('Official Partner')) return true;
           }
-          if (isAdmin && p.status === 'PENDING') return true;
           return false;
         });
 

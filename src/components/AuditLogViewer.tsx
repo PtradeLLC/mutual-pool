@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuditLogEntry } from '../types';
 import { Activity, Search, ShieldCheck, Lock, FileText, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { subscribeToAuditLogs } from '../lib/firestoreService';
 
 export const AuditLogViewer: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
@@ -20,6 +21,12 @@ export const AuditLogViewer: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
+    const unsubscribe = subscribeToAuditLogs((firestoreLogs) => {
+      if (firestoreLogs && firestoreLogs.length > 0) {
+        setLogs(firestoreLogs);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   const filteredLogs = logs.filter((log) => {
