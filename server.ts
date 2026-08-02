@@ -1,8 +1,8 @@
 import express from 'express';
-
 type Request = express.Request;
 type Response = express.Response;
 import path from 'path';
+import fs from 'fs';
 import { 
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
@@ -141,6 +141,14 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id');
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+  next();
+});
+
+// Normalize request URL for serverless environments (e.g., Vercel rewrites stripping /api)
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api') && !req.url.startsWith('/health')) {
+    req.url = '/api' + (req.url.startsWith('/') ? '' : '/') + req.url;
   }
   next();
 });
@@ -1834,7 +1842,12 @@ app.use((req, res, next) => {
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
       app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
+        const indexPath = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(404).json({ error: 'Endpoint or asset not found' });
+        }
       });
     }
 
@@ -1844,6 +1857,12 @@ app.use((req, res, next) => {
       });
     }
   }
+
+// Global error handler
+app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
+  console.error('[Server Error]', err);
+  res.status(500).json({ error: err?.message || 'Internal Server Error' });
+});
 
 if (!process.env.VERCEL) {
   startServer().catch((err) => {
