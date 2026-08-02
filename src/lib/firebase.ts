@@ -22,15 +22,8 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
 export const defaultDb = getFirestore(app);
-
-// Use custom database ID if explicitly provided in VITE_FIREBASE_DATABASE_ID or firebase-applet-config.json
-const dbId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId;
-
-export const db = dbId && dbId !== '(default)'
-  ? getFirestore(app, dbId)
-  : defaultDb;
-
-export const allDbs = db === defaultDb ? [defaultDb] : [db, defaultDb];
+export const db = defaultDb;
+export const allDbs = [defaultDb];
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
