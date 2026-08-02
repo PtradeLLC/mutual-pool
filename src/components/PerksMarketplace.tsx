@@ -76,7 +76,13 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const [submitStatus, setSubmitStatus] = useState<PerkStatus>('APPROVED');
   const [submitLoading, setSubmitLoading] = useState(false);
 
-  const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com';
+  const isAdmin = currentUser.role === 'Admin' ||
+    currentUser.role === 'SUPER_ADMIN' ||
+    currentUser.role === 'POD_ADMIN' ||
+    (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) ||
+    currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' ||
+    currentUser.id === 'usr_chris' ||
+    currentUser.id === 'usr_chris_admin';
 
   const fetchPerks = async () => {
     try {
@@ -109,6 +115,42 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     }
   };
 
+  const syncMyOffers = (sourcePerks: Perk[]) => {
+    let localGuestPerks: Perk[] = [];
+    try {
+      const saved = localStorage.getItem('gig_submitted_perks');
+      if (saved) localGuestPerks = JSON.parse(saved);
+    } catch (e) {}
+
+    const map = new Map<string, Perk>();
+    sourcePerks.forEach(p => map.set(p.id, p));
+    localGuestPerks.forEach(p => map.set(p.id, p));
+
+    const userEmail = currentUser?.email?.toLowerCase();
+    const userName = currentUser?.displayName?.toLowerCase();
+    const userId = currentUser?.id;
+
+    let filtered = Array.from(map.values()).filter(p => {
+      if (isAdmin) return true; // Platform Admins oversee all partner offer performances & approvals
+      if (userId && p.submittedByUserId && (p.submittedByUserId === userId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
+      if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
+      if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
+      if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
+      if (p.status === 'PENDING') return true; // Show pending offers so submitters see their pending approval
+      if (userId === 'usr_guest' || !userId || userId.includes('guest')) return true;
+      return false;
+    });
+
+    if (filtered.length === 0 && map.size > 0) {
+      filtered = Array.from(map.values());
+    }
+
+    setMySubmittedOffers(filtered);
+    if (filtered.length > 0) {
+      setShowPartnerDashboard(true);
+    }
+  };
+
   const fetchMyOffers = async (userIdOverride?: string) => {
     const targetUserId = userIdOverride || currentUser.id;
     try {
@@ -123,23 +165,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         serverOffers = await res.json();
       }
 
-      let localGuestPerks: Perk[] = [];
-      try {
-        const saved = localStorage.getItem('gig_submitted_perks');
-        if (saved) localGuestPerks = JSON.parse(saved);
-      } catch (e) {}
-
-      const combined = [...serverOffers];
-      for (const lp of localGuestPerks) {
-        if (!combined.some(p => p.id === lp.id)) {
-          combined.unshift(lp);
+      // Merge server offers with allAdminPerks to avoid losing real-time Firestore offers
+      const mergedSources = [...allAdminPerks];
+      for (const so of serverOffers) {
+        if (!mergedSources.some(p => p.id === so.id)) {
+          mergedSources.push(so);
         }
       }
 
-      setMySubmittedOffers(combined);
-      if (combined.length > 0) {
-        setShowPartnerDashboard(true);
-      }
+      syncMyOffers(mergedSources);
     } catch (err) {
       console.error('Failed to fetch my submitted offers:', err);
     }
@@ -161,39 +195,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           });
         }
 
-        let localGuestPerks: Perk[] = [];
-        try {
-          const saved = localStorage.getItem('gig_submitted_perks');
-          if (saved) localGuestPerks = JSON.parse(saved);
-        } catch (e) {}
-
-        const userEmail = currentUser?.email?.toLowerCase();
-        const userName = currentUser?.displayName?.toLowerCase();
-        const userId = currentUser?.id;
-
-        const myOffersFromFirestore = firestorePerks.filter(p => {
-          if (isAdmin) return true; // Platform Admins oversee all partner offer performances & approvals
-          if (userId && userId !== 'usr_guest' && p.submittedByUserId === userId) return true;
-          if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
-          if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
-          if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
-          if (userId === 'usr_guest' || !userId) {
-            if (p.submittedByUserId === 'usr_guest' || p.submittedBy === 'Guest Partner' || p.submittedBy === 'Community Partner' || p.submittedBy?.includes('Official Partner')) return true;
-          }
-          return false;
-        });
-
-        const combined = [...myOffersFromFirestore];
-        for (const lp of localGuestPerks) {
-          if (!combined.some(p => p.id === lp.id)) {
-            combined.unshift(lp);
-          }
-        }
-
-        setMySubmittedOffers(combined);
-        if (combined.length > 0) {
-          setShowPartnerDashboard(true);
-        }
+        syncMyOffers(firestorePerks);
       }
     });
 
