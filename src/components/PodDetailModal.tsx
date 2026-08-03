@@ -14,7 +14,6 @@ interface PodDetailModalProps {
   onClose: () => void;
   onRefreshPod: () => void;
   onOpenAgreementModal: () => void;
-  onOpenKYCGate: () => void;
 }
 
 export const PodDetailModal: React.FC<PodDetailModalProps> = ({
@@ -24,7 +23,6 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   onClose,
   onRefreshPod,
   onOpenAgreementModal,
-  onOpenKYCGate,
 }) => {
   const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>('rotation');
   const [depositing, setDepositing] = useState(false);
@@ -248,11 +246,6 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
   // Deposit Action
   const handleDeposit = async () => {
-    if (currentUser.kycStatus !== 'VERIFIED') {
-      onOpenKYCGate();
-      return;
-    }
-
     setDepositing(true);
     setActionError(null);
     setActionSuccess(null);
@@ -490,7 +483,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
               {pod.status === 'FORMING' && pod.members.length >= 2 && (
                 <button
-                  onClick={handleLockPod}
+                  onClick={() => handleLockPod()}
                   className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
                 >
                   <Lock className="w-3.5 h-3.5" />

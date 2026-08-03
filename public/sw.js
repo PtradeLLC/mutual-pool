@@ -41,8 +41,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip backend API calls, webhooks, and websockets
-  if (reqUrl.includes('/api/')) return;
+  // Skip backend API calls, dev modules, vite assets, and websockets
+  if (reqUrl.includes('/api/') || reqUrl.includes('/@vite/') || reqUrl.includes('/src/') || reqUrl.includes('node_modules')) return;
 
   // Safe helper to cache a response without throwing unhandled promise rejections
   const safeCachePut = (request, response) => {

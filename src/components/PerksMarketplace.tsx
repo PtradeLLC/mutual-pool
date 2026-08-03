@@ -10,7 +10,6 @@ import {
 
 interface PerksMarketplaceProps {
   currentUser: User;
-  onOpenKYCGate: () => void;
   initialOpenSubmitModal?: boolean;
   onSelectUser?: (user: User) => void;
 }
@@ -41,7 +40,7 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
   'Family Benefits'
 ];
 
-export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, onOpenKYCGate, initialOpenSubmitModal, onSelectUser }) => {
+export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onSelectUser }) => {
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
@@ -234,10 +233,6 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   });
 
   const handleRedeem = async (perk: Perk) => {
-    if (currentUser.kycStatus !== 'VERIFIED') {
-      onOpenKYCGate();
-      return;
-    }
 
     try {
       const res = await fetch('/api/perks/redeem', {

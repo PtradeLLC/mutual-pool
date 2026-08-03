@@ -13,7 +13,6 @@ interface HeaderProps {
   activeTab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops';
   setActiveTab: (tab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops') => void;
   onLogoClick?: () => void;
-  onOpenKYCGate: () => void;
   onOpenBankModal: () => void;
   onOpenEditProfile?: () => void;
   onOpenSubmitPerk?: () => void;
@@ -33,7 +32,6 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   onLogoClick,
-  onOpenKYCGate,
   onOpenBankModal,
   onOpenEditProfile,
   onOpenSubmitPerk,
@@ -99,28 +97,14 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
-            {/* KYC Status Badge */}
-            <button
-              onClick={onOpenKYCGate}
-              className={`px-3 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                currentUser.kycStatus === 'VERIFIED'
-                  ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-              }`}
-              title={currentUser.kycStatus === 'VERIFIED' ? 'Identity Verified via Stripe' : 'Click to complete identity verification'}
+            {/* Verified Status Badge */}
+            <div
+              className="px-3 py-1 rounded-full border border-green-200 bg-green-50 text-green-700 text-xs font-semibold flex items-center gap-1.5"
+              title="Identity Verified"
             >
-              {currentUser.kycStatus === 'VERIFIED' ? (
-                <>
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">KYC VERIFIED</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                  <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">KYC PENDING</span>
-                </>
-              )}
-            </button>
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">VERIFIED MEMBER</span>
+            </div>
 
             {/* User Switcher Dropdown */}
             <div className="relative">

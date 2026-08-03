@@ -244,6 +244,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Normalize request URL for serverless environments (e.g., Vercel rewrites)
 app.use((req, res, next) => {
   if (res.headersSent) return next();
@@ -2013,33 +2018,32 @@ app.use((req, res, next) => {
       });
     }
 
+    // 404 handler for unmatched API routes
+    app.use('/api', (req: Request, res: Response) => {
+      res.status(404).json({
+        error: 'API endpoint not found',
+        requestedUrl: req.originalUrl || req.url,
+      });
+    });
+
+    // Global error handler
+    app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
+      console.error('[Server Error]', err);
+      if (res.headersSent) {
+        return next(err);
+      }
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: err?.message || String(err),
+      });
+    });
+
     if (!process.env.VERCEL) {
       app.listen(PORT, '0.0.0.0', () => {
         console.log(`[Gig Mutual Pool PWA Server] running on http://0.0.0.0:${PORT}`);
       });
     }
   }
-
-// 404 handler for unmatched API routes
-app.use('/api/*', (req: Request, res: Response, next: express.NextFunction) => {
-  if (res.headersSent) return next();
-  res.status(404).json({
-    error: 'API endpoint not found',
-    requestedUrl: req.originalUrl || req.url,
-  });
-});
-
-// Global error handler
-app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
-  console.error('[Server Error]', err);
-  if (res.headersSent) {
-    return next(err);
-  }
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err?.message || String(err),
-  });
-});
 
 if (!process.env.VERCEL) {
   startServer().catch((err) => {

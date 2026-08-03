@@ -7,7 +7,6 @@ import { FDICNoticeBanner } from './components/FDICNoticeBanner';
 import { PodCard } from './components/PodCard';
 import { PodDetailModal } from './components/PodDetailModal';
 import { CreatePodModal } from './components/CreatePodModal';
-import { KYCGateModal } from './components/KYCGateModal';
 import { StripeBankModal } from './components/StripeBankModal';
 import { PodAgreementModal } from './components/PodAgreementModal';
 import { PerksMarketplace } from './components/PerksMarketplace';
@@ -42,12 +41,11 @@ export default function App() {
 
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE'>('LOGIN');
+  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE'>('LOGIN');
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
-  const [showKYCGateModal, setShowKYCGateModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showHardshipModal, setShowHardshipModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -334,10 +332,6 @@ export default function App() {
       handleOpenAuth('LOGIN');
       return;
     }
-    if (currentUser.kycStatus !== 'VERIFIED') {
-      setShowKYCGateModal(true);
-      return;
-    }
 
     // Check if Trusted Circle and user is not already invited
     if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== currentUser.id && !inviteCode) {
@@ -467,7 +461,6 @@ export default function App() {
           setActiveTab('my-pods');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        onOpenKYCGate={() => setShowKYCGateModal(true)}
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
         onOpenSubmitPerk={() => {
@@ -550,16 +543,6 @@ export default function App() {
 
             {/* Quick Action Controls */}
             <div className="flex flex-wrap items-center gap-2.5">
-              {currentUser.kycStatus !== 'VERIFIED' && (
-                <button
-                  onClick={() => setShowKYCGateModal(true)}
-                  className="px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs animate-pulse"
-                >
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Verify Identity (KYC Gate)</span>
-                </button>
-              )}
-
               <button
                 onClick={() => setShowBankModal(true)}
                 className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
@@ -595,16 +578,16 @@ export default function App() {
             </div>
 
             <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">KYC Verification</span>
-              <span className={`font-extrabold font-mono text-xs ${currentUser.kycStatus === 'VERIFIED' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {currentUser.kycStatus}
+              <span className="text-[#6B7280] text-[10px] block font-medium">Member Status</span>
+              <span className="font-extrabold font-mono text-xs text-emerald-700">
+                VERIFIED MEMBER
               </span>
             </div>
 
             <div>
               <span className="text-[#6B7280] text-[10px] block font-medium">Stripe Treasury Account</span>
               <span className="font-mono text-[#111827] text-xs truncate block">
-                {currentUser.treasury.stripeFinAccountId || 'Pending KYC'}
+                {currentUser.treasury.stripeFinAccountId || 'Active Treasury'}
               </span>
             </div>
 
@@ -719,12 +702,11 @@ export default function App() {
               platform: 'Partner Provider',
               role: 'RIDER',
               accountAgeDays: 0,
-              kycStatus: 'UNINITIALIZED',
-              treasury: { balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'UNINITIALIZED' },
+              kycStatus: 'VERIFIED',
+              treasury: { stripeAccountId: '', stripeFinAccountId: '', balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'ACTIVE' },
               externalBank: { bankName: '', last4: '', routingNumber: '', accountType: 'CHECKING', status: 'NOT_LINKED' },
               completedPodsCount: 0,
             }}
-            onOpenKYCGate={() => setShowKYCGateModal(true)}
             initialOpenSubmitModal={openSubmitPerkDirectly}
             onSelectUser={handleAuthSuccess}
           />
@@ -762,23 +744,6 @@ export default function App() {
         onRegistered={handleAuthSuccess}
         initialMode={authInitialMode}
       />
-      {showKYCGateModal && (
-        <KYCGateModal
-          user={currentUser}
-          onClose={() => setShowKYCGateModal(false)}
-          onVerified={async (updatedUser) => {
-            setCurrentUser(updatedUser);
-            setShowKYCGateModal(false);
-            try {
-              await saveUserToFirestore(updatedUser);
-              await syncUserWithBackend(updatedUser);
-            } catch (err) {
-              console.warn('Post-KYC sync warning:', err);
-            }
-            fetchAppData();
-          }}
-        />
-      )}
 
       {showBankModal && (
         <StripeBankModal
@@ -802,7 +767,6 @@ export default function App() {
           }}
         />
       )}
-
       {selectedPodDetail && (
         <PodDetailModal
           pod={selectedPodDetail}
@@ -813,7 +777,6 @@ export default function App() {
           onOpenAgreementModal={() => {
             setAgreementPod(selectedPodDetail);
           }}
-          onOpenKYCGate={() => setShowKYCGateModal(true)}
         />
       )}
 

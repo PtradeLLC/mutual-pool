@@ -45,11 +45,6 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (user.kycStatus !== 'VERIFIED') {
-      setError('You must complete Stripe Identity KYC verification before creating a mutual savings pod.');
-      return;
-    }
-
     if (podType === 'OPEN_POD' && !canCreateOpenPod) {
       setError('Creating an Open Pod requires having completed at least 1 full Trusted Circle pod cycle with no missed payments.');
       return;

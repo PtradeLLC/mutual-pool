@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pod, User } from '../types';
+import { Pod, User, Perk } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
 import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
 import { Logo } from './Logo';
@@ -111,11 +111,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       const newPerk: Perk = {
         id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         title: submitTitle,
-        category: submitCategory,
+        category: submitCategory as any,
         provider: finalProvider,
         description: submitDesc || '',
         valueBadge: submitBadge || 'Special Member Offer',
-        redemptionType: submitRedeemType || 'CODE',
+        redemptionType: (submitRedeemType || 'CODE') as any,
         redemptionData: submitRedeemData || 'PENDING_APPROVAL',
         eligibility: 'All verified members',
         submittedBy: currentUser?.displayName || finalProvider,
