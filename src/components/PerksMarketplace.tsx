@@ -11,6 +11,7 @@ import {
 interface PerksMarketplaceProps {
   currentUser: User;
   initialOpenSubmitModal?: boolean;
+  onClearInitialSubmitModal?: () => void;
   onSelectUser?: (user: User) => void;
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
 }
@@ -41,7 +42,7 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
   'Family Benefits'
 ];
 
-export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onSelectUser, onOpenAuth }) => {
+export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onClearInitialSubmitModal, onSelectUser, onOpenAuth }) => {
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
@@ -232,11 +233,12 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         if (onOpenAuth) onOpenAuth('LOGIN');
       } else {
         setPendingSubmitModalAfterAuth(false);
+        if (onClearInitialSubmitModal) onClearInitialSubmitModal();
         resetForm();
         setShowSubmitModal(true);
       }
     }
-  }, [initialOpenSubmitModal, pendingSubmitModalAfterAuth, currentUser, onOpenAuth]);
+  }, [initialOpenSubmitModal, pendingSubmitModalAfterAuth, currentUser, onOpenAuth, onClearInitialSubmitModal]);
 
   useEffect(() => {
     if (isAdmin) {

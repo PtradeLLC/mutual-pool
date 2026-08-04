@@ -714,6 +714,7 @@ export default function App() {
               completedPodsCount: 0,
             }}
             initialOpenSubmitModal={openSubmitPerkDirectly}
+            onClearInitialSubmitModal={() => setOpenSubmitPerkDirectly(false)}
             onSelectUser={handleAuthSuccess}
             onOpenAuth={handleOpenAuth}
           />

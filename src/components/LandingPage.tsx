@@ -260,12 +260,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
             <button
               onClick={() => {
-                if (!currentUser || currentUser.id === 'usr_guest') {
+                if (onOpenSubmitPerk) {
+                  onOpenSubmitPerk();
+                } else if (!currentUser || currentUser.id === 'usr_guest') {
                   onOpenAuth('LOGIN');
-                  return;
+                } else {
+                  resetSubmitForm();
+                  setShowSubmitPerkModal(true);
                 }
-                resetSubmitForm();
-                setShowSubmitPerkModal(true);
               }}
               className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
               title="Submit a partner or community benefit offer for admin review"
