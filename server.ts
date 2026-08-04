@@ -548,6 +548,9 @@ app.use((req, res, next) => {
   // 5. Create Pod (Enforces Tenure & Deposit Tier Guardrails)
   app.post(['/api/pods', '/pods'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { 
       name, 
       description, 
@@ -686,6 +689,9 @@ app.use((req, res, next) => {
   // 5b. Add / Invite Contacts to Pod's Trusted Circle (Friends of Friends Enabled)
   app.post('/api/pods/:id/contacts', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
@@ -760,6 +766,9 @@ app.use((req, res, next) => {
   // 5c. Convert Trusted Circle Pod to Open Pod
   app.post('/api/pods/:id/convert-open', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
@@ -786,6 +795,9 @@ app.use((req, res, next) => {
   // 6. Join Pod (Supports Friends of Friends Referral Attribution)
   app.post('/api/pods/:id/join', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { inviteCode, refUserId, refName } = req.body || {};
     const pod = pods.find(p => p.id === req.params.id);
 
@@ -896,6 +908,9 @@ app.use((req, res, next) => {
   // 7. Digital Signature on Pod Agreement
   app.post('/api/pods/:id/agreement/sign', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { signatureName } = req.body;
     const pod = pods.find(p => p.id === req.params.id);
 
@@ -925,6 +940,9 @@ app.use((req, res, next) => {
   // 8. Lock Pod & Generate Fixed Rotation Order
   app.post('/api/pods/:id/lock', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
@@ -1002,6 +1020,9 @@ app.use((req, res, next) => {
   // 9. Deposit Weekly Funds to Stripe Treasury Holding Account
   app.post('/api/pods/:id/deposit', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
@@ -1064,6 +1085,9 @@ app.use((req, res, next) => {
   // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
   app.post('/api/pods/:id/cycle/process', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const pod = pods.find(p => p.id === req.params.id);
 
     if (!pod) {
@@ -1152,6 +1176,9 @@ app.use((req, res, next) => {
   // 10b. Withdraw / Claim Earmarked Treasury Payout to External Bank Account
   app.post('/api/treasury/payouts/withdraw', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { amount, podId } = req.body;
 
     const targetUser = users.find(u => u.id === user.id);
@@ -1480,6 +1507,9 @@ app.use((req, res, next) => {
   // 11. Emergency Reprioritization Request & Voting
   app.post('/api/pods/:id/reprioritize/request', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { reason } = req.body;
     const pod = pods.find(p => p.id === req.params.id);
 
@@ -1525,6 +1555,9 @@ app.use((req, res, next) => {
 
   app.post('/api/pods/:id/reprioritize/vote', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { requestId, vote } = req.body; // vote: 'FOR' | 'AGAINST'
     const pod = pods.find(p => p.id === req.params.id);
 
@@ -1586,6 +1619,9 @@ app.use((req, res, next) => {
   // 12. Voluntary Slot Swap Between Two Members
   app.post('/api/pods/:id/swap', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { targetMemberUserId } = req.body;
     const pod = pods.find(p => p.id === req.params.id);
 
@@ -1641,6 +1677,9 @@ app.use((req, res, next) => {
 
   app.post('/api/perks/redeem', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
     const { perkId } = req.body;
 
     const perk = perks.find(p => p.id === perkId);
