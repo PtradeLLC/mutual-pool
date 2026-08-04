@@ -253,26 +253,18 @@ app.get('/api/health', (req, res) => {
 app.use((req, res, next) => {
   if (res.headersSent) return next();
 
-  let path = req.originalUrl || req.url || '/';
-  let cleanPath = path.split('?')[0];
+  if (process.env.VERCEL) {
+    let path = req.originalUrl || req.url || '/';
+    let cleanPath = path.split('?')[0];
 
-  // If path is pointing to Vercel index function target
-  if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js') || cleanPath === '/api' || cleanPath === '/api/') {
-    const forwardedUri = (req.headers['x-forwarded-uri'] as string) || (req.headers['x-invoke-path'] as string);
-    if (forwardedUri && !forwardedUri.includes('index.ts') && !forwardedUri.includes('index.js')) {
-      path = forwardedUri;
-      cleanPath = path.split('?')[0];
-    } else if (req.url && !req.url.includes('index.ts') && !req.url.includes('index.js')) {
-      path = req.url;
-      cleanPath = path.split('?')[0];
+    if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js') || cleanPath === '/api' || cleanPath === '/api/') {
+      const forwardedUri = (req.headers['x-forwarded-uri'] as string) || (req.headers['x-invoke-path'] as string);
+      if (forwardedUri && forwardedUri.startsWith('/api')) {
+        req.url = forwardedUri;
+      }
     }
   }
 
-  if (!cleanPath.startsWith('/api') && !cleanPath.startsWith('/health')) {
-    path = '/api' + (path.startsWith('/') ? '' : '/') + path;
-  }
-
-  req.url = path;
   next();
 });
 
