@@ -389,6 +389,10 @@ export default function App() {
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           onOpenContact={() => setShowContactModal(true)}
           onOpenSubmitPerk={() => {
+            if (!currentUser || currentUser.id === 'usr_guest') {
+              handleOpenAuth('LOGIN');
+              return;
+            }
             setViewMode('DASHBOARD');
             setActiveTab('perks');
             setOpenSubmitPerkDirectly(true);
@@ -464,6 +468,10 @@ export default function App() {
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
         onOpenSubmitPerk={() => {
+          if (!currentUser || currentUser.id === 'usr_guest') {
+            handleOpenAuth('LOGIN');
+            return;
+          }
           setActiveTab('perks');
           setOpenSubmitPerkDirectly(true);
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -709,6 +717,7 @@ export default function App() {
             }}
             initialOpenSubmitModal={openSubmitPerkDirectly}
             onSelectUser={handleAuthSuccess}
+            onOpenAuth={handleOpenAuth}
           />
         )}
 

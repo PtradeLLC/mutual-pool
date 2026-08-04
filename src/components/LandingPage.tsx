@@ -260,6 +260,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
             <button
               onClick={() => {
+                if (!currentUser || currentUser.id === 'usr_guest') {
+                  onOpenAuth('LOGIN');
+                  return;
+                }
                 resetSubmitForm();
                 setShowSubmitPerkModal(true);
               }}

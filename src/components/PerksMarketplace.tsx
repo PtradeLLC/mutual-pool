@@ -12,6 +12,7 @@ interface PerksMarketplaceProps {
   currentUser: User;
   initialOpenSubmitModal?: boolean;
   onSelectUser?: (user: User) => void;
+  onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
 }
 
 const CATEGORIES: (PerkCategory | 'All')[] = [
@@ -40,7 +41,7 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
   'Family Benefits'
 ];
 
-export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onSelectUser }) => {
+export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onSelectUser, onOpenAuth }) => {
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
@@ -225,10 +226,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
   useEffect(() => {
     if (initialOpenSubmitModal) {
-      resetForm();
-      setShowSubmitModal(true);
+      if (!currentUser || currentUser.id === 'usr_guest') {
+        if (onOpenAuth) onOpenAuth('LOGIN');
+      } else {
+        resetForm();
+        setShowSubmitModal(true);
+      }
     }
-  }, [initialOpenSubmitModal]);
+  }, [initialOpenSubmitModal, currentUser, onOpenAuth]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -595,7 +600,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => { resetForm(); setShowSubmitModal(true); }}
+              onClick={() => {
+                if (!currentUser || currentUser.id === 'usr_guest') {
+                  if (onOpenAuth) onOpenAuth('LOGIN');
+                  return;
+                }
+                resetForm();
+                setShowSubmitModal(true);
+              }}
               className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
@@ -644,7 +656,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             </div>
 
             <button
-              onClick={() => { resetForm(); setShowSubmitModal(true); }}
+              onClick={() => {
+                if (!currentUser || currentUser.id === 'usr_guest') {
+                  if (onOpenAuth) onOpenAuth('LOGIN');
+                  return;
+                }
+                resetForm();
+                setShowSubmitModal(true);
+              }}
               className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
