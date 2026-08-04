@@ -183,9 +183,26 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   useEffect(() => {
     const unsubscribe = subscribeToPerks((firestorePerks) => {
       const perksData = firestorePerks || [];
-      setAllAdminPerks(perksData);
 
-      let approved = perksData.filter(p => p.status === 'APPROVED');
+      let localGuestPerks: Perk[] = [];
+      try {
+        const saved = localStorage.getItem('gig_submitted_perks');
+        if (saved) localGuestPerks = JSON.parse(saved);
+      } catch (e) {}
+
+      const map = new Map<string, Perk>();
+      if (perksData && perksData.length > 0) {
+        perksData.forEach(p => map.set(p.id, p));
+      }
+      localGuestPerks.forEach(p => {
+        if (!map.has(p.id)) map.set(p.id, p);
+      });
+
+      const allMergedPerks = Array.from(map.values());
+
+      setAllAdminPerks(allMergedPerks);
+
+      let approved = allMergedPerks.filter(p => p.status === 'APPROVED');
       if (selectedCategory !== 'All') {
         approved = approved.filter(p => p.category === selectedCategory);
       }
@@ -199,7 +216,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       }
       setPerks(approved);
 
-      syncMyOffers(perksData);
+      syncMyOffers(allMergedPerks);
     });
 
     return () => unsubscribe();
@@ -411,6 +428,23 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
       await savePerkToFirestore(updatedPerk);
 
+      try {
+        const saved = localStorage.getItem('gig_submitted_perks');
+        if (saved) {
+          const list: Perk[] = JSON.parse(saved);
+          const updatedList = list.map(p => p.id === updatedPerk.id ? updatedPerk : p);
+          localStorage.setItem('gig_submitted_perks', JSON.stringify(updatedList));
+        }
+      } catch (e) {}
+
+      setAllAdminPerks(prev => prev.map(p => p.id === updatedPerk.id ? updatedPerk : p));
+      setMySubmittedOffers(prev => prev.map(p => p.id === updatedPerk.id ? updatedPerk : p));
+      if (updatedPerk.status === 'APPROVED') {
+        setPerks(prev => prev.map(p => p.id === updatedPerk.id ? updatedPerk : p));
+      } else {
+        setPerks(prev => prev.filter(p => p.id !== updatedPerk.id));
+      }
+
       fetch(`/api/admin/perks/${editingPerk.id}`, {
         method: 'PUT',
         headers: {
@@ -440,6 +474,26 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (targetPerk) {
         const updatedPerk: Perk = { ...targetPerk, status };
         await savePerkToFirestore(updatedPerk);
+
+        try {
+          const saved = localStorage.getItem('gig_submitted_perks');
+          if (saved) {
+            const list: Perk[] = JSON.parse(saved);
+            const updatedList = list.map(p => p.id === perkId ? { ...p, status } : p);
+            localStorage.setItem('gig_submitted_perks', JSON.stringify(updatedList));
+          }
+        } catch (e) {}
+
+        setAllAdminPerks(prev => prev.map(p => p.id === perkId ? { ...p, status } : p));
+        setMySubmittedOffers(prev => prev.map(p => p.id === perkId ? { ...p, status } : p));
+        if (status === 'APPROVED') {
+          setPerks(prev => {
+            if (!prev.some(p => p.id === perkId)) return [...prev, updatedPerk];
+            return prev.map(p => p.id === perkId ? updatedPerk : p);
+          });
+        } else {
+          setPerks(prev => prev.filter(p => p.id !== perkId));
+        }
       }
 
       fetch(`/api/admin/perks/${perkId}/status`, {
@@ -461,6 +515,19 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
     try {
       await deletePerkFromFirestore(perkId);
+
+      try {
+        const saved = localStorage.getItem('gig_submitted_perks');
+        if (saved) {
+          const list: Perk[] = JSON.parse(saved);
+          const updatedList = list.filter(p => p.id !== perkId);
+          localStorage.setItem('gig_submitted_perks', JSON.stringify(updatedList));
+        }
+      } catch (e) {}
+
+      setAllAdminPerks(prev => prev.filter(p => p.id !== perkId));
+      setMySubmittedOffers(prev => prev.filter(p => p.id !== perkId));
+      setPerks(prev => prev.filter(p => p.id !== perkId));
 
       fetch(`/api/admin/perks/${perkId}`, {
         method: 'DELETE',

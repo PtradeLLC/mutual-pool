@@ -188,6 +188,12 @@ export const app = express();
 app.use((req, res, next) => {
   if (res.headersSent) return next();
 
+  // For GET, HEAD, or OPTIONS, do not attempt stream body parsing
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    req.body = req.body || {};
+    return next();
+  }
+
   // If req.body is already parsed (or pre-populated by serverless helpers)
   if (req.body !== undefined && req.body !== null) {
     if (typeof req.body === 'string' && req.body.trim().length > 0) {
@@ -243,38 +249,23 @@ app.use((req, res, next) => {
   try {
     let rawPath = req.originalUrl || req.url || '/';
     
-    // Safely check x-forwarded-uri if present from proxy rewrites
+    // Check forwarded headers from Vercel proxy rewrites
     const rawForwarded = req.headers['x-forwarded-uri'];
     const forwardedStr = Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded;
 
-    if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api') && !forwardedStr.includes('/index')) {
+    if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api')) {
       rawPath = forwardedStr;
     }
 
-    const [pathname, search] = rawPath.split('?');
-    const queryStr = search ? `?${search}` : '';
-
-    let cleanPath = pathname || '/';
-
-    // Remove trailing /index.ts or /index.js or /index if Vercel appended it to function name
-    if (cleanPath.endsWith('/index.ts')) {
-      cleanPath = cleanPath.slice(0, -9);
-    } else if (cleanPath.endsWith('/index.js')) {
-      cleanPath = cleanPath.slice(0, -9);
-    } else if (cleanPath.endsWith('/index')) {
-      cleanPath = cleanPath.slice(0, -6);
+    // Ensure req.url retains full path for matching API routes
+    if (rawPath.startsWith('/api')) {
+      const [pathname, search] = rawPath.split('?');
+      let cleanPath = pathname || '/api';
+      if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js')) {
+        cleanPath = cleanPath.replace(/\/index\.(ts|js)$/, '');
+      }
+      req.url = cleanPath + (search ? `?${search}` : '');
     }
-
-    if (!cleanPath || cleanPath === '') {
-      cleanPath = '/api';
-    }
-
-    // Prepend /api if path is an API endpoint missing /api prefix
-    if (!cleanPath.startsWith('/api') && cleanPath !== '/' && !cleanPath.includes('.')) {
-      cleanPath = '/api' + (cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath);
-    }
-
-    req.url = cleanPath + queryStr;
   } catch (err) {
     console.error('[URL Normalization Error]', err);
   }

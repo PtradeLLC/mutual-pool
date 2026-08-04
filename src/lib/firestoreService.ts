@@ -96,15 +96,18 @@ export async function seedInitialFirestoreData(): Promise<void> {
 
 // --- USERS ---
 export async function getUserFromFirestore(userId: string): Promise<User | null> {
+  if (!userId || typeof userId !== 'string' || !userId.trim()) return null;
   try {
     const userDoc = await getDoc(doc(db, 'users', userId));
     return userDoc.exists() ? (userDoc.data() as User) : null;
   } catch (err) {
+    if ((err as any)?.code === 'permission-denied') return null;
     throw wrapError(`getUserFromFirestore(${userId})`, err);
   }
 }
 
 export async function saveUserToFirestore(user: User): Promise<void> {
+  if (!user || !user.id || typeof user.id !== 'string' || !user.id.trim()) return;
   try {
     await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(user), { merge: true });
   } catch (err: any) {
@@ -121,6 +124,10 @@ export function subscribeToUser(
   callback: (user: User | null) => void,
   onError?: (err: Error) => void
 ) {
+  if (!userId || typeof userId !== 'string' || !userId.trim()) {
+    callback(null);
+    return () => {};
+  }
   return onSnapshot(
     doc(db, 'users', userId),
     (docSnap) => callback(docSnap.exists() ? (docSnap.data() as User) : null),
@@ -141,6 +148,7 @@ export function subscribeToPods(
 }
 
 export async function savePodToFirestore(pod: Pod): Promise<void> {
+  if (!pod || !pod.id || typeof pod.id !== 'string' || !pod.id.trim()) return;
   try {
     await setDoc(doc(db, 'pods', pod.id), sanitizeForFirestore(pod), { merge: true });
   } catch (err) {
@@ -161,6 +169,7 @@ export function subscribeToPerks(
 }
 
 export async function savePerkToFirestore(perk: Perk): Promise<void> {
+  if (!perk || !perk.id || typeof perk.id !== 'string' || !perk.id.trim()) return;
   try {
     const clean = sanitizeForFirestore(perk);
     await setDoc(doc(db, 'perks', clean.id), clean, { merge: true });
@@ -174,6 +183,7 @@ export async function savePerkToFirestore(perk: Perk): Promise<void> {
 }
 
 export async function deletePerkFromFirestore(perkId: string): Promise<void> {
+  if (!perkId || typeof perkId !== 'string' || !perkId.trim()) return;
   try {
     await deleteDoc(doc(db, 'perks', perkId));
   } catch (err) {
