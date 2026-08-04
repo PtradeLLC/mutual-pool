@@ -294,13 +294,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
       } catch (e) {}
 
+      const submitHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (currentUser?.id && currentUser.id !== 'usr_guest') {
+        submitHeaders['x-user-id'] = currentUser.id;
+      }
+
       // Optional REST call for server-side user/account creation if server is present
       fetch('/api/perks/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-        },
+        headers: submitHeaders,
         body: JSON.stringify({
           ...newPerk,
           guestEmail: submitPartnerEmail || currentUser.email,

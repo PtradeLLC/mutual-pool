@@ -139,7 +139,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       };
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (currentUser?.id) {
+      if (currentUser?.id && currentUser.id !== 'usr_guest') {
         headers['x-user-id'] = currentUser.id;
       }
 
