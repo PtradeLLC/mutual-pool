@@ -262,26 +262,43 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   });
 
   const handleRedeem = async (perk: Perk) => {
-
     try {
+      const updatedCount = (perk.redeemedCount || 0) + 1;
+      const updatedPerk: Perk = { ...perk, redeemedCount: updatedCount };
+
+      // 1. Immediately update local React state for instant UI update
+      setSelectedPerkForRedeem(updatedPerk);
+      setPerks(prev => prev.map(p => p.id === perk.id ? updatedPerk : p));
+      setAllAdminPerks(prev => prev.map(p => p.id === perk.id ? updatedPerk : p));
+      setMySubmittedOffers(prev => prev.map(p => p.id === perk.id ? updatedPerk : p));
+
+      // 2. Persist directly to Firestore live database
+      await savePerkToFirestore(updatedPerk).catch(err => {
+        console.error('Firestore save perk redemption error:', err);
+      });
+
+      // 3. Sync backend API
       const res = await fetch('/api/perks/redeem', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
+          'x-user-id': currentUser?.id || 'usr_guest',
         },
         body: JSON.stringify({ perkId: perk.id }),
       }).catch(() => null);
 
       if (res && res.ok) {
         const data = await res.json().catch(() => null);
-        if (data?.perk) setSelectedPerkForRedeem(data.perk);
-      } else {
-        setSelectedPerkForRedeem(perk);
+        if (data?.perk) {
+          const apiPerk = data.perk;
+          setSelectedPerkForRedeem(apiPerk);
+          setPerks(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
+          setAllAdminPerks(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
+          setMySubmittedOffers(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
+        }
       }
     } catch (err) {
       console.error('Redemption error:', err);
-      setSelectedPerkForRedeem(perk);
     }
   };
 
