@@ -1989,6 +1989,7 @@ app.use((req, res, next) => {
   // 16. Operations Admin: Delinquency & Webhook Triggers
   app.post('/api/admin/delinquency/handle', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized: Admin user required' });
     const { podId, memberUserId, actionChoice } = req.body; // actionChoice: 'GRACE_PERIOD' | 'COVER_GAP' | 'REMOVE'
 
     const pod = pods.find(p => p.id === podId);
