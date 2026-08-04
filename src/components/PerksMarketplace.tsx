@@ -285,8 +285,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         redeemedCount: 0,
       };
 
-      // Always save directly to Firestore live database
-      await savePerkToFirestore(newPerk);
+      // Save directly to Firestore live database (non-blocking)
+      savePerkToFirestore(newPerk).catch(() => {});
 
       try {
         const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');

@@ -107,8 +107,12 @@ export async function getUserFromFirestore(userId: string): Promise<User | null>
 export async function saveUserToFirestore(user: User): Promise<void> {
   try {
     await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(user), { merge: true });
-  } catch (err) {
-    throw wrapError(`saveUserToFirestore(${user.id})`, err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied' || err?.message?.includes('permission')) {
+      console.debug(`saveUserToFirestore(${user.id}) skipped (permission required)`);
+    } else {
+      throw wrapError(`saveUserToFirestore(${user.id})`, err);
+    }
   }
 }
 
@@ -160,8 +164,12 @@ export async function savePerkToFirestore(perk: Perk): Promise<void> {
   try {
     const clean = sanitizeForFirestore(perk);
     await setDoc(doc(db, 'perks', clean.id), clean, { merge: true });
-  } catch (err) {
-    throw wrapError(`savePerkToFirestore(${perk.id})`, err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied' || err?.message?.includes('permission')) {
+      console.debug(`savePerkToFirestore(${perk.id}) skipped (permission required)`);
+    } else {
+      throw wrapError(`savePerkToFirestore(${perk.id})`, err);
+    }
   }
 }
 

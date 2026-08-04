@@ -108,6 +108,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setSubmitSuccessMsg(null);
     try {
       const finalProvider = submitProvider || 'Community Partner';
+      const isGuest = !currentUser || currentUser.id === 'usr_guest';
+
       const newPerk: Perk = {
         id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         title: submitTitle,
@@ -127,19 +129,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         redeemedCount: 0,
       };
 
-      // Always save directly to Firestore first!
-      await savePerkToFirestore(newPerk);
-
-      try {
-        const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
-        existing.unshift(newPerk);
-        localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
-      } catch (e) {}
-
-      // Optional REST call for backend user creation
+      // 1. Send REST payload to backend for account creation & perk registration
       const payload = {
         ...newPerk,
-        createAccount: !currentUser ? createAccount : false,
+        partnerEmail: submitPartnerEmail || currentUser?.email,
+        createAccount: isGuest ? createAccount : false,
       };
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -147,38 +141,54 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         headers['x-user-id'] = currentUser.id;
       }
 
-      const res = await fetch('/api/perks/submit', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      }).catch(() => null);
-
-      if (res && res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.user && !currentUser) {
-          onSelectUser(data.user);
-          setSubmitSuccessMsg(data.message || `Partner account created for ${data.user.email}! Offer submitted for Admin review.`);
-          setTimeout(() => {
-            setShowSubmitPerkModal(false);
-            resetSubmitForm();
-            if (onGoToDashboard) onGoToDashboard();
-          }, 2200);
-          return;
+      let resData: any = null;
+      try {
+        const res = await fetch('/api/perks/submit', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+        if (res && res.ok) {
+          resData = await res.json().catch(() => null);
         }
+      } catch (fetchErr) {
+        console.warn('Backend submit fetch error:', fetchErr);
+      }
+
+      // 2. Best-effort Firestore & LocalStorage sync
+      savePerkToFirestore(newPerk).catch(() => {});
+
+      try {
+        const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
+        existing.unshift(newPerk);
+        localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
+      } catch (e) {}
+
+      // 3. Handle returned user account
+      if (resData?.user) {
+        const newlyCreatedUser = resData.user;
+        setSubmitSuccessMsg(resData.message || `Partner account created for ${newlyCreatedUser.email}! Offer submitted for Admin review.`);
+        setTimeout(() => {
+          onSelectUser(newlyCreatedUser);
+          setShowSubmitPerkModal(false);
+          resetSubmitForm();
+          if (onGoToDashboard) onGoToDashboard();
+        }, 1800);
+        return;
       }
 
       setSubmitSuccessMsg('Benefit offer submitted successfully for Admin review!');
       setTimeout(() => {
         setShowSubmitPerkModal(false);
         resetSubmitForm();
-      }, 2200);
+      }, 1800);
     } catch (err) {
       console.error('Submit perk offer error:', err);
       setSubmitSuccessMsg('Benefit offer submitted successfully for Admin review!');
       setTimeout(() => {
         setShowSubmitPerkModal(false);
         resetSubmitForm();
-      }, 2200);
+      }, 1800);
     } finally {
       setSubmitLoading(false);
     }
