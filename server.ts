@@ -187,45 +187,35 @@ function checkIsAdmin(req: Request): boolean {
 
 export const app = express();
 
-// Middleware to safely handle body parsing across local Express and Vercel Serverless Function runtimes
+// Middleware to safely handle body parsing across local Express, Cloud Run, and Vercel Serverless runtimes
 app.use((req, res, next) => {
   if (res.headersSent) return next();
 
-  // On Vercel, the body stream is already consumed by the serverless runtime.
-  // Calling express.json() stream listeners on Vercel will hang the function and cause FUNCTION_INVOCATION_FAILED.
-  if (process.env.VERCEL) {
-    if (req.body !== undefined && req.body !== null) {
-      if (typeof req.body === 'string' && req.body.trim().length > 0) {
-        try {
-          req.body = JSON.parse(req.body);
-        } catch {
-          // ignore
-        }
-      } else if (Buffer.isBuffer(req.body)) {
-        try {
-          req.body = JSON.parse(req.body.toString('utf-8'));
-        } catch {
-          // ignore
-        }
-      }
-    } else {
-      req.body = {};
-    }
-    return next();
-  }
-
-  // Local / Cloud Run environment
+  // If req.body is already parsed (or pre-populated by serverless helpers)
   if (req.body !== undefined && req.body !== null) {
     if (typeof req.body === 'string' && req.body.trim().length > 0) {
       try {
         req.body = JSON.parse(req.body);
       } catch {
-        // ignore
+        // ignore JSON parse error
+      }
+    } else if (Buffer.isBuffer(req.body)) {
+      try {
+        req.body = JSON.parse(req.body.toString('utf-8'));
+      } catch {
+        // ignore JSON parse error
       }
     }
     return next();
   }
 
+  // If request stream is already ended (no readable body content left to stream)
+  if (req.readableEnded) {
+    req.body = {};
+    return next();
+  }
+
+  // Otherwise, parse incoming stream using express.json()
   express.json({ limit: '10mb' })(req, res, (err) => {
     if (err) req.body = {};
     if (!res.headersSent) next();
