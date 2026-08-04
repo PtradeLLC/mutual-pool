@@ -35,6 +35,7 @@ import {
 export default function App() {
   const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD'>('LANDING');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allPods, setAllPods] = useState<Pod[]>([]);
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops'>('my-pods');
@@ -184,6 +185,7 @@ export default function App() {
 
     // 3. Firebase Auth state listener
     const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+      setAuthLoading(false);
       if (fbUser) {
         // Immediately show dashboard and close auth modal
         setShowAuthModal(false);
@@ -425,7 +427,7 @@ export default function App() {
     );
   }
 
-  if (!currentUser) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex items-center justify-center p-4 font-sans">
         <div className="flex items-center gap-3 text-[#005FB8] font-semibold">
@@ -436,8 +438,36 @@ export default function App() {
     );
   }
 
+  const activeUser: User = currentUser || {
+    id: 'usr_guest',
+    email: '',
+    displayName: 'Guest Member',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    platform: 'Gig Worker',
+    role: 'RIDER',
+    accountAgeDays: 0,
+    kycStatus: 'VERIFIED',
+    treasury: {
+      stripeAccountId: '',
+      stripeFinAccountId: '',
+      balanceUsd: 0,
+      pendingInboundUsd: 0,
+      totalPayoutsReceivedUsd: 0,
+      fdicPassThroughEligible: false,
+      status: 'ACTIVE',
+    },
+    externalBank: {
+      bankName: '',
+      last4: '',
+      routingNumber: '',
+      accountType: 'CHECKING',
+      status: 'NOT_LINKED',
+    },
+    completedPodsCount: 0,
+  };
+
   // Filter Pods
-  const myPods = allPods.filter(p => p.members.some(m => m.userId === currentUser.id));
+  const myPods = allPods.filter(p => p.members.some(m => m.userId === activeUser.id));
 
   // User-created forming pods (excluding initial demo seed pods)
   const userCreatedFormingPods = allPods.filter(
@@ -447,14 +477,14 @@ export default function App() {
   // If actual user-created forming pods exist, replace the demo seed pod with actual user-created pods
   const explorePods = userCreatedFormingPods.length > 0
     ? userCreatedFormingPods
-    : allPods.filter(p => p.status === 'FORMING' && !p.members.some(m => m.userId === currentUser.id));
+    : allPods.filter(p => p.status === 'FORMING' && !p.members.some(m => m.userId === activeUser.id));
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
       
       {/* App Header */}
       <Header
-        currentUser={currentUser}
+        currentUser={activeUser}
         allUsers={allUsers}
         onSwitchUser={handleSwitchUser}
         activeTab={activeTab}
@@ -479,13 +509,14 @@ export default function App() {
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
         onOpenContact={() => setShowContactModal(true)}
         onLogout={handleLogout}
+        onOpenAuth={handleOpenAuth}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Financial Hardship Hold & Repayment Alert Banner */}
-        {currentUser.isHardshipInactive && (
+        {activeUser.isHardshipInactive && (
           <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-amber-100 rounded-lg text-amber-800 shrink-0 mt-0.5">
@@ -504,7 +535,7 @@ export default function App() {
                   A Financial Hardship Fund deposit was disbursed on your behalf. While on hold, you cannot participate in weekly pool deposits or join new pods until repaid.
                 </p>
                 <div className="mt-2 flex items-center gap-3 font-mono text-xs text-amber-950 font-bold">
-                  <span>Owed Balance: ${(currentUser.hardshipOwedUsd || 0).toFixed(2)} (Deposit + 7% service fee)</span>
+                  <span>Owed Balance: ${(activeUser.hardshipOwedUsd || 0).toFixed(2)} (Deposit + 7% service fee)</span>
                 </div>
               </div>
             </div>
@@ -515,7 +546,7 @@ export default function App() {
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer"
             >
               <DollarSign className="w-4 h-4" />
-              <span>{repayingHardship ? 'Processing...' : `Pay $${(currentUser.hardshipOwedUsd || 0).toFixed(2)} & Reactivate`}</span>
+              <span>{repayingHardship ? 'Processing...' : `Pay $${(activeUser.hardshipOwedUsd || 0).toFixed(2)} & Reactivate`}</span>
             </button>
           </div>
         )}
@@ -532,18 +563,18 @@ export default function App() {
                   title="Click to change your primary gig platform or role"
                   className="text-xs font-mono font-bold text-[#005FB8] bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  <span>{currentUser.platform} Fleet Member</span>
+                  <span>{activeUser.platform} Fleet Member</span>
                   <Pencil className="w-3 h-3 text-[#005FB8]" />
                 </button>
                 <span className="text-xs font-mono text-[#6B7280]">
-                  {currentUser.accountAgeDays} days account tenure
+                  {activeUser.accountAgeDays} days account tenure
                 </span>
               </div>
               <h2 className="text-2xl font-bold text-[#111827]">
-                Welcome, {currentUser.displayName}
+                Welcome, {activeUser.displayName}
               </h2>
               <p className="text-xs text-[#6B7280] mt-0.5">
-                FDIC Pass-Through Treasury Balance: <strong className="text-emerald-700 font-mono">${currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                FDIC Pass-Through Treasury Balance: <strong className="text-emerald-700 font-mono">${activeUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
               </p>
             </div>
 
@@ -554,7 +585,7 @@ export default function App() {
                 className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Building2 className="w-4 h-4 text-[#005FB8]" />
-                <span>{currentUser.externalBank.status === 'LINKED' ? `Bank: ${currentUser.externalBank.bankName}` : 'Link Bank Account'}</span>
+                <span>{activeUser.externalBank.status === 'LINKED' ? `Bank: ${activeUser.externalBank.bankName}` : 'Link Bank Account'}</span>
               </button>
 
               <button
@@ -593,13 +624,13 @@ export default function App() {
             <div>
               <span className="text-[#6B7280] text-[10px] block font-medium">Stripe Treasury Account</span>
               <span className="font-mono text-[#111827] text-xs truncate block">
-                {currentUser.treasury.stripeFinAccountId || 'Active Treasury'}
+                {activeUser.treasury.stripeFinAccountId || 'Active Treasury'}
               </span>
             </div>
 
             <div>
               <span className="text-[#6B7280] text-[10px] block font-medium">Completed Pod Cycles</span>
-              <span className="font-extrabold text-[#005FB8] font-mono text-sm">{currentUser.completedPodsCount} Completed</span>
+              <span className="font-extrabold text-[#005FB8] font-mono text-sm">{activeUser.completedPodsCount} Completed</span>
             </div>
           </div>
         </div>
@@ -647,7 +678,7 @@ export default function App() {
                   <PodCard
                     key={pod.id}
                     pod={pod}
-                    currentUser={currentUser}
+                    currentUser={activeUser}
                     onSelectPod={(p) => setSelectedPodDetail(p)}
                     onJoinPod={handleJoinPod}
                     onSignAgreement={(p) => setAgreementPod(p)}
@@ -686,7 +717,7 @@ export default function App() {
                   <PodCard
                     key={pod.id}
                     pod={pod}
-                    currentUser={currentUser}
+                    currentUser={activeUser}
                     onSelectPod={(p) => setSelectedPodDetail(p)}
                     onJoinPod={handleJoinPod}
                     onSignAgreement={(p) => setAgreementPod(p)}
