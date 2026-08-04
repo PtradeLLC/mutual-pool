@@ -85,8 +85,12 @@ export async function seedInitialFirestoreData(): Promise<void> {
       }
       await batch.commit();
     }
-  } catch (err) {
-    console.warn('Seed error:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied' || err?.message?.includes('permission')) {
+      console.debug('Firestore seeding skipped (rules require auth or permission denied)');
+    } else {
+      console.warn('Seed error:', err);
+    }
   }
 }
 
