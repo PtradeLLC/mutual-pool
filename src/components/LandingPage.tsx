@@ -133,6 +133,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       const payload = {
         ...newPerk,
         partnerEmail: submitPartnerEmail || currentUser?.email,
+        guestEmail: submitPartnerEmail || currentUser?.email,
+        guestDisplayName: finalProvider,
         createAccount: isGuest ? createAccount : false,
       };
 

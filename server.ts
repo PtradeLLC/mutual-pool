@@ -1636,28 +1636,30 @@ app.use((req, res, next) => {
   app.post('/api/perks/submit', (req: Request, res: Response) => {
     try {
       let user = getCurrentUser(req);
-      const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, partnerNotes, createAccount } = req.body || {};
+      const { title, category, provider, guestDisplayName, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, guestEmail, partnerNotes, createAccount } = req.body || {};
 
       if (!title || !category) {
         return res.status(400).json({ error: 'Title and category are required.' });
       }
 
-      const finalProvider = provider || partnerEmail || (user ? user.displayName : 'Community Partner');
+      const effectiveEmail = partnerEmail || guestEmail;
+      const effectiveProvider = provider || guestDisplayName || effectiveEmail || (user ? user.displayName : 'Community Partner');
+      const finalProvider = effectiveProvider;
       const perkStatus: PerkStatus = req.body?.status || 'PENDING';
 
       let partnerUser: User | undefined = user || undefined;
       let createdAccount = false;
 
       // If no active session or createAccount requested with email, establish partner account
-      if (partnerEmail && (!partnerUser || createAccount)) {
-        const existing = users.find(u => u.email && u.email.toLowerCase() === partnerEmail.toLowerCase());
+      if (effectiveEmail && (!partnerUser || createAccount)) {
+        const existing = users.find(u => u.email && u.email.toLowerCase() === effectiveEmail.toLowerCase());
         if (existing) {
           partnerUser = existing;
         } else {
           const newUserId = `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
           partnerUser = {
             id: newUserId,
-            email: partnerEmail,
+            email: effectiveEmail,
             displayName: finalProvider,
             avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(finalProvider)}&background=10B981&color=fff&size=200`,
             platform: 'Partner Provider',

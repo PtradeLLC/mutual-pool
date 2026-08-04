@@ -303,6 +303,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         },
         body: JSON.stringify({
           ...newPerk,
+          guestEmail: submitPartnerEmail || currentUser.email,
+          guestDisplayName: finalProvider,
           createAccount: isGuest ? createAccount : false,
         }),
       }).then(async res => {
