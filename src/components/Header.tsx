@@ -23,6 +23,7 @@ interface HeaderProps {
   onOpenHowItWorks?: () => void;
   onOpenContact?: () => void;
   onLogout?: () => void;
+  onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({

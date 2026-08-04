@@ -5,7 +5,8 @@ import { INITIAL_PERKS } from '../data/initialData';
 import { 
   Gift, Search, Filter, ExternalLink, Copy, Check, PlusCircle, 
   ShieldCheck, HeartPulse, ShieldAlert, Car, Calculator, Smile, Zap, Sparkles, X,
-  Pencil, Trash2, CheckCircle2, XCircle, Building2, UserCheck, AlertCircle, FileText
+  Pencil, Trash2, CheckCircle2, XCircle, Building2, UserCheck, AlertCircle, FileText,
+  PauseCircle, PlayCircle, EyeOff
 } from 'lucide-react';
 
 interface PerksMarketplaceProps {
@@ -57,7 +58,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
   // Admin CMS State
   const [showAdminTab, setShowAdminTab] = useState(false);
-  const [adminStatusFilter, setAdminStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [adminStatusFilter, setAdminStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED' | 'SUSPENDED'>('ALL');
   const [adminSearch, setAdminSearch] = useState('');
   const [editingPerk, setEditingPerk] = useState<Perk | null>(null);
   const [showAddPartnerModal, setShowAddPartnerModal] = useState(false);
@@ -249,6 +250,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const approvedCount = allAdminPerks.filter(p => p.status === 'APPROVED').length;
   const pendingCount = allAdminPerks.filter(p => p.status === 'PENDING').length;
   const rejectedCount = allAdminPerks.filter(p => p.status === 'REJECTED').length;
+  const suspendedCount = allAdminPerks.filter(p => p.status === 'SUSPENDED').length;
 
   const filteredAdminPerks = allAdminPerks.filter(p => {
     if (adminStatusFilter !== 'ALL' && p.status !== adminStatusFilter) return false;
@@ -480,7 +482,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   // Quick Change Perk Status
   const handleQuickStatusChange = async (perkId: string, status: PerkStatus) => {
     try {
-      const targetPerk = allAdminPerks.find(p => p.id === perkId) || perks.find(p => p.id === perkId);
+      const targetPerk = allAdminPerks.find(p => p.id === perkId) || mySubmittedOffers.find(p => p.id === perkId) || perks.find(p => p.id === perkId);
       if (targetPerk) {
         const updatedPerk: Perk = { ...targetPerk, status };
         await savePerkToFirestore(updatedPerk);
@@ -501,9 +503,18 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             if (!prev.some(p => p.id === perkId)) return [...prev, updatedPerk];
             return prev.map(p => p.id === perkId ? updatedPerk : p);
           });
+          setActionSuccessMsg(`"${targetPerk.title}" is now reactivated and live for public members!`);
+        } else if (status === 'SUSPENDED') {
+          setPerks(prev => prev.filter(p => p.id !== perkId));
+          setActionSuccessMsg(`"${targetPerk.title}" has been suspended and removed from public view.`);
         } else {
           setPerks(prev => prev.filter(p => p.id !== perkId));
+          setActionSuccessMsg(`Status for "${targetPerk.title}" updated to ${status}.`);
         }
+
+        setTimeout(() => {
+          setActionSuccessMsg(null);
+        }, 3000);
       }
 
       fetch(`/api/admin/perks/${perkId}/status`, {
@@ -679,13 +690,13 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           </div>
 
           {/* Metrics summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
               <span className="text-[10px] uppercase font-bold text-blue-800 block">Total Submitted</span>
               <span className="text-lg font-bold text-[#005FB8] font-mono">{mySubmittedOffers.length} Offers</span>
             </div>
             <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-              <span className="text-[10px] uppercase font-bold text-amber-800 block">Pending Admin Approval</span>
+              <span className="text-[10px] uppercase font-bold text-amber-800 block">Pending Admin Review</span>
               <span className="text-lg font-bold text-amber-900 font-mono">
                 {mySubmittedOffers.filter(p => p.status === 'PENDING').length} Pending
               </span>
@@ -696,8 +707,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 {mySubmittedOffers.filter(p => p.status === 'APPROVED').length} Active
               </span>
             </div>
+            <div className="bg-rose-50 p-3 rounded-lg border border-rose-200">
+              <span className="text-[10px] uppercase font-bold text-rose-800 block">Suspended (Hidden)</span>
+              <span className="text-lg font-bold text-rose-900 font-mono">
+                {mySubmittedOffers.filter(p => p.status === 'SUSPENDED').length} Suspended
+              </span>
+            </div>
             <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-              <span className="text-[10px] uppercase font-bold text-purple-800 block">Member Claims / Redemptions</span>
+              <span className="text-[10px] uppercase font-bold text-purple-800 block">Member Claims</span>
               <span className="text-lg font-bold text-purple-900 font-mono">
                 {mySubmittedOffers.reduce((acc, p) => acc + (p.redeemedCount || 0), 0)} Claims
               </span>
@@ -714,12 +731,13 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   <th className="p-3">Discount Badge</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Redeemed Claims</th>
+                  <th className="p-3 text-right">Partner Controls</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {mySubmittedOffers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-4 text-center text-gray-500 text-xs">
+                    <td colSpan={6} className="p-4 text-center text-gray-500 text-xs">
                       No perk offers submitted yet. Click "Submit Benefits & Perks" to submit your first offer to GigMutual members!
                     </td>
                   </tr>
@@ -741,16 +759,52 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                         {p.valueBadge}
                       </td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
                           p.status === 'APPROVED' ? 'bg-green-100 text-green-800 border border-green-300' :
                           p.status === 'PENDING' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                          'bg-rose-100 text-rose-800 border border-rose-300'
+                          p.status === 'SUSPENDED' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                          'bg-gray-100 text-gray-800 border border-gray-300'
                         }`}>
-                          {p.status === 'APPROVED' ? 'APPROVED & LIVE' : p.status === 'PENDING' ? 'PENDING REVIEW' : 'REJECTED'}
+                          {p.status === 'SUSPENDED' && <EyeOff className="w-3 h-3 text-rose-700 inline shrink-0" />}
+                          {p.status === 'APPROVED' ? 'APPROVED & LIVE' : 
+                           p.status === 'PENDING' ? 'PENDING REVIEW' : 
+                           p.status === 'SUSPENDED' ? 'SUSPENDED (HIDDEN)' : 'REJECTED'}
                         </span>
                       </td>
                       <td className="p-3 font-mono font-bold text-gray-700">
                         {p.redeemedCount || 0} claims
+                      </td>
+                      <td className="p-3 text-right space-x-2 shrink-0">
+                        {p.status === 'APPROVED' && (
+                          <button
+                            onClick={() => handleQuickStatusChange(p.id, 'SUSPENDED')}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                            title="Suspend this perk offer to temporarily remove it from public member view"
+                          >
+                            <PauseCircle className="w-3.5 h-3.5 text-rose-700" />
+                            <span>Suspend Listing</span>
+                          </button>
+                        )}
+
+                        {p.status === 'SUSPENDED' && (
+                          <button
+                            onClick={() => handleQuickStatusChange(p.id, 'APPROVED')}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                            title="Reactivate and republish this perk offer for public members"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Reactivate Listing</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => openEditModal(p)}
+                          className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1 border border-gray-300"
+                          title="Edit Partner Offer Details"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-gray-600" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -812,7 +866,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           {/* Filter & Search Controls */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200 text-xs">
             <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-              {(['ALL', 'APPROVED', 'PENDING', 'REJECTED'] as const).map((st) => (
+              {(['ALL', 'APPROVED', 'PENDING', 'SUSPENDED', 'REJECTED'] as const).map((st) => (
                 <button
                   key={st}
                   onClick={() => setAdminStatusFilter(st)}
@@ -825,6 +879,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   {st === 'ALL' && `All (${allAdminPerks.length})`}
                   {st === 'APPROVED' && `Active (${approvedCount})`}
                   {st === 'PENDING' && `Pending (${pendingCount})`}
+                  {st === 'SUSPENDED' && `Suspended (${suspendedCount})`}
                   {st === 'REJECTED' && `Rejected (${rejectedCount})`}
                 </button>
               ))}
@@ -1402,6 +1457,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   >
                     <option value="APPROVED">APPROVED (Active Immediately)</option>
                     <option value="PENDING">PENDING (Hold for Review)</option>
+                    <option value="SUSPENDED">SUSPENDED (Partner Suspended / Hidden)</option>
                     <option value="REJECTED">REJECTED (Inactive)</option>
                   </select>
                 </div>
@@ -1569,6 +1625,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   >
                     <option value="APPROVED">APPROVED (Published)</option>
                     <option value="PENDING">PENDING (Review Queue)</option>
+                    <option value="SUSPENDED">SUSPENDED (Partner Suspended / Hidden)</option>
                     <option value="REJECTED">REJECTED (Archived/Inactive)</option>
                   </select>
                 </div>

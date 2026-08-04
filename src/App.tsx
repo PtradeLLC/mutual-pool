@@ -443,7 +443,7 @@ export default function App() {
     email: '',
     displayName: 'Guest Member',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    platform: 'Gig Worker',
+    platform: 'DoorDash',
     role: 'RIDER',
     accountAgeDays: 0,
     kycStatus: 'VERIFIED',

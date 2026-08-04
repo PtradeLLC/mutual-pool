@@ -243,7 +243,7 @@ export type PerkCategory =
 
 export type PerkRedemptionType = 'CODE' | 'LINK' | 'VOUCHER' | 'PARTNER_API';
 
-export type PerkStatus = 'APPROVED' | 'PENDING' | 'REJECTED';
+export type PerkStatus = 'APPROVED' | 'PENDING' | 'REJECTED' | 'SUSPENDED';
 
 export interface Perk {
   id: string;

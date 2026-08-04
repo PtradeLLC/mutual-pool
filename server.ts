@@ -1940,18 +1940,23 @@ app.use((req, res, next) => {
   });
 
   app.post('/api/admin/perks/:id/status', (req: Request, res: Response) => {
-    if (!checkIsAdmin(req)) {
-      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
-    }
-
     const user = getCurrentUser(req);
     if (!user) return res.status(401).json({ error: 'User context required.' });
 
     const perk = perks.find(p => p.id === req.params.id);
     if (!perk) return res.status(404).json({ error: 'Perk not found' });
 
-    const { status } = req.body; // 'APPROVED' | 'PENDING' | 'REJECTED'
-    if (!['APPROVED', 'PENDING', 'REJECTED'].includes(status)) {
+    const isAdmin = checkIsAdmin(req);
+    const isOwner = perk.submittedByUserId === user.id ||
+      (perk.partnerEmail && perk.partnerEmail.toLowerCase() === user.email?.toLowerCase()) ||
+      (perk.submittedBy && perk.submittedBy.toLowerCase() === user.displayName?.toLowerCase());
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ error: 'Access denied. You can only manage your own partner perk offers.' });
+    }
+
+    const { status } = req.body; // 'APPROVED' | 'PENDING' | 'REJECTED' | 'SUSPENDED'
+    if (!['APPROVED', 'PENDING', 'REJECTED', 'SUSPENDED'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
@@ -1962,7 +1967,7 @@ app.use((req, res, next) => {
       user.id,
       user.displayName,
       'PERK_STATUS_CHANGED' as any,
-      `Admin changed perk status for "${perk.title}" to ${status}`,
+      `Perk status changed for "${perk.title}" to ${status} by ${isAdmin ? 'Admin' : 'Partner'}`,
       { perkId: perk.id, status }
     );
 
