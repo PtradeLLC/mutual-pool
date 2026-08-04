@@ -389,13 +389,12 @@ export default function App() {
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           onOpenContact={() => setShowContactModal(true)}
           onOpenSubmitPerk={() => {
-            if (!currentUser || currentUser.id === 'usr_guest') {
-              handleOpenAuth('LOGIN');
-              return;
-            }
             setViewMode('DASHBOARD');
             setActiveTab('perks');
             setOpenSubmitPerkDirectly(true);
+            if (!currentUser || currentUser.id === 'usr_guest') {
+              handleOpenAuth('LOGIN');
+            }
           }}
         />
 
@@ -468,13 +467,12 @@ export default function App() {
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
         onOpenSubmitPerk={() => {
-          if (!currentUser || currentUser.id === 'usr_guest') {
-            handleOpenAuth('LOGIN');
-            return;
-          }
           setActiveTab('perks');
           setOpenSubmitPerkDirectly(true);
           window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (!currentUser || currentUser.id === 'usr_guest') {
+            handleOpenAuth('LOGIN');
+          }
         }}
         onExitToLanding={() => setViewMode('LANDING')}
         onOpenAbout={() => setShowAboutModal(true)}

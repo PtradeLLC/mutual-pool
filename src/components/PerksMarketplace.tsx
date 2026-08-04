@@ -52,6 +52,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   // Partner Submitted Offers Dashboard State
   const [mySubmittedOffers, setMySubmittedOffers] = useState<Perk[]>([]);
   const [showPartnerDashboard, setShowPartnerDashboard] = useState(false);
+  const [pendingSubmitModalAfterAuth, setPendingSubmitModalAfterAuth] = useState(false);
 
   // Admin CMS State
   const [showAdminTab, setShowAdminTab] = useState(false);
@@ -225,15 +226,17 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
 
   useEffect(() => {
-    if (initialOpenSubmitModal) {
+    if (initialOpenSubmitModal || pendingSubmitModalAfterAuth) {
       if (!currentUser || currentUser.id === 'usr_guest') {
+        setPendingSubmitModalAfterAuth(true);
         if (onOpenAuth) onOpenAuth('LOGIN');
       } else {
+        setPendingSubmitModalAfterAuth(false);
         resetForm();
         setShowSubmitModal(true);
       }
     }
-  }, [initialOpenSubmitModal, currentUser, onOpenAuth]);
+  }, [initialOpenSubmitModal, pendingSubmitModalAfterAuth, currentUser, onOpenAuth]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -602,6 +605,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <button
               onClick={() => {
                 if (!currentUser || currentUser.id === 'usr_guest') {
+                  setPendingSubmitModalAfterAuth(true);
                   if (onOpenAuth) onOpenAuth('LOGIN');
                   return;
                 }
@@ -658,6 +662,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <button
               onClick={() => {
                 if (!currentUser || currentUser.id === 'usr_guest') {
+                  setPendingSubmitModalAfterAuth(true);
                   if (onOpenAuth) onOpenAuth('LOGIN');
                   return;
                 }
