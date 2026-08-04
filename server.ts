@@ -232,7 +232,7 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get(['/api/health', '/health'], (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -240,48 +240,74 @@ app.get('/api/health', (req, res) => {
 app.use((req, res, next) => {
   if (res.headersSent) return next();
 
-  if (process.env.VERCEL) {
-    let path = req.originalUrl || req.url || '/';
-    let cleanPath = path.split('?')[0];
+  let rawPath = req.originalUrl || req.url || '';
+  const [pathname, search] = rawPath.split('?')[0] ? [rawPath.split('?')[0], rawPath.split('?')[1]] : [rawPath, ''];
+  const queryStr = search ? `?${search}` : '';
 
-    if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js') || cleanPath === '/api' || cleanPath === '/api/') {
-      const forwardedUri = (req.headers['x-forwarded-uri'] as string) || (req.headers['x-invoke-path'] as string);
-      if (forwardedUri && forwardedUri.startsWith('/api')) {
-        req.url = forwardedUri;
-      }
-    }
+  let cleanPath = pathname;
+
+  // On Vercel, check forwarded or invoke path headers if rewritten to index.ts/js
+  const forwarded = (req.headers['x-forwarded-uri'] as string) || 
+                    (req.headers['x-invoke-path'] as string) || 
+                    (req.headers['x-matched-path'] as string);
+
+  if (forwarded && forwarded.startsWith('/api')) {
+    cleanPath = forwarded.split('?')[0];
+  } else if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js')) {
+    cleanPath = '/api';
   }
 
+  // Prepend /api if path is an API endpoint missing /api prefix
+  if (!cleanPath.startsWith('/api') && cleanPath !== '/' && !cleanPath.includes('.')) {
+    cleanPath = '/api' + (cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath);
+  }
+
+  req.url = cleanPath + queryStr;
   next();
 });
 
 // --- API ROUTES ---
 
   // 1. Current User Profile, Sync, Login, Registration & User Switcher
-  app.get('/api/users/current', (req: Request, res: Response) => {
-    const user = getCurrentUser(req);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+  app.get(['/api/users/current', '/users/current'], (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json(user);
+    } catch (err) {
+      console.error('[/api/users/current] error:', err);
+      res.status(500).json({ error: 'Failed to retrieve user.' });
     }
-    res.json(user);
   });
 
-  app.post('/api/users/sync', (req: Request, res: Response) => {
-    const syncUser = req.body as User;
-    if (!syncUser || !syncUser.id) {
-      return res.status(400).json({ error: 'Invalid user payload' });
+  app.post(['/api/users/sync', '/users/sync'], (req: Request, res: Response) => {
+    try {
+      const syncUser = req.body as User;
+      if (!syncUser || !syncUser.id) {
+        return res.status(400).json({ error: 'Invalid user payload' });
+      }
+      const index = users.findIndex(u => u.id === syncUser.id);
+      if (index >= 0) {
+        users[index] = { ...users[index], ...syncUser };
+      } else {
+        users.push(syncUser);
+      }
+      res.json({ success: true, user: syncUser });
+    } catch (err) {
+      console.error('[/api/users/sync] error:', err);
+      res.status(500).json({ error: 'Failed to sync user.' });
     }
-    const index = users.findIndex(u => u.id === syncUser.id);
-    if (index >= 0) {
-      users[index] = { ...users[index], ...syncUser };
-    } else {
-      users.push(syncUser);
-    }
-    res.json({ success: true, user: syncUser });
   });
 
-  app.get('/api/users', (req: Request, res: Response) => {
-    res.json(users);
+  app.get(['/api/users', '/users'], (req: Request, res: Response) => {
+    try {
+      res.json(users);
+    } catch (err) {
+      console.error('[/api/users] error:', err);
+      res.status(500).json({ error: 'Failed to retrieve users.' });
+    }
   });
 
   app.post('/api/users/login', (req: Request, res: Response) => {
@@ -486,31 +512,41 @@ app.use((req, res, next) => {
   });
 
   // 4. Pods List & Details
-  app.get('/api/pods', (req: Request, res: Response) => {
-    res.json(pods);
+  app.get(['/api/pods', '/pods'], (req: Request, res: Response) => {
+    try {
+      res.json(pods);
+    } catch (err) {
+      console.error('[/api/pods] error:', err);
+      res.status(500).json({ error: 'Failed to fetch pods.' });
+    }
   });
 
-  app.get('/api/pods/:id', (req: Request, res: Response) => {
-    const pod = pods.find(p => p.id === req.params.id);
-    if (!pod) {
-      return res.status(404).json({ error: 'Pod not found' });
-    }
-    
-    // Attached deposits and requests
-    const podDeposits = deposits.filter(d => d.podId === pod.id);
-    const podRequests = reprioritizationRequests.filter(r => r.podId === pod.id);
-    const podLogs = auditLogs.filter(l => l.podId === pod.id);
+  app.get(['/api/pods/:id', '/pods/:id'], (req: Request, res: Response) => {
+    try {
+      const pod = pods.find(p => p.id === req.params.id);
+      if (!pod) {
+        return res.status(404).json({ error: 'Pod not found' });
+      }
+      
+      // Attached deposits and requests
+      const podDeposits = deposits.filter(d => d.podId === pod.id);
+      const podRequests = reprioritizationRequests.filter(r => r.podId === pod.id);
+      const podLogs = auditLogs.filter(l => l.podId === pod.id);
 
-    res.json({
-      ...pod,
-      deposits: podDeposits,
-      reprioritizationRequests: podRequests,
-      auditLogs: podLogs,
-    });
+      res.json({
+        ...pod,
+        deposits: podDeposits,
+        reprioritizationRequests: podRequests,
+        auditLogs: podLogs,
+      });
+    } catch (err) {
+      console.error('[/api/pods/:id] error:', err);
+      res.status(500).json({ error: 'Failed to fetch pod details.' });
+    }
   });
 
   // 5. Create Pod (Enforces Tenure & Deposit Tier Guardrails)
-  app.post('/api/pods', (req: Request, res: Response) => {
+  app.post(['/api/pods', '/pods'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     const { 
       name, 
@@ -1981,7 +2017,7 @@ app.use((req, res, next) => {
   });
 
 // 404 handler for unmatched API routes
-app.use('/api', (req: Request, res: Response) => {
+app.use(['/api', '/api/*'], (req: Request, res: Response) => {
   res.status(404).json({
     error: 'API endpoint not found',
     requestedUrl: req.originalUrl || req.url,
