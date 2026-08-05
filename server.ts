@@ -102,18 +102,35 @@ function addAuditLog(
   return entry;
 }
 
+function getHeaderValue(req: Request, headerName: string): string | undefined {
+  const value = req.headers[headerName];
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
+function getQueryValue(req: Request, key: string): string | undefined {
+  const value = req.query[key];
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
 // Helper: Get Current User from Request Header/Query or default
 function getCurrentUser(req: Request): User | null {
   try {
-    const rawUserId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
-    const userId = typeof rawUserId === 'string' ? rawUserId : undefined;
-    if (!userId || userId === 'usr_guest') {
+    const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId');
+    const userId = rawUserId && rawUserId !== 'usr_guest' ? rawUserId : undefined;
+    if (!userId) {
       return null;
     }
+
     let found: User | undefined = users.find(u => u && u.id === userId);
     if (!found) {
-      const userName = (req.headers['x-user-name'] as string) || 'Verified Member';
-      const userEmail = (req.headers['x-user-email'] as string) || `${userId.substring(0, 8)}@mutualpool.org`;
+      const userName = getHeaderValue(req, 'x-user-name') || 'Verified Member';
+      const userEmail = getHeaderValue(req, 'x-user-email') || `${userId.substring(0, 8)}@mutualpool.org`;
       found = {
         id: userId,
         email: userEmail,
@@ -156,10 +173,10 @@ function getCurrentUser(req: Request): User | null {
 // Helper: Check if Request Sender Has Admin Role
 function checkIsAdmin(req: Request): boolean {
   try {
-    const rawUserId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
-    const userId = typeof rawUserId === 'string' ? rawUserId : undefined;
-    const rawEmail = req.query.email;
-    const userEmail = typeof rawEmail === 'string' ? rawEmail.toLowerCase() : undefined;
+    const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId');
+    const userId = rawUserId && rawUserId !== 'usr_guest' ? rawUserId : undefined;
+    const rawEmail = getQueryValue(req, 'email');
+    const userEmail = rawEmail?.toLowerCase();
 
     if (userEmail === 'chrisbitoy@gmail.com' || userId === 'usr_chris' || userId === 'usr_chris_admin') {
       return true;
