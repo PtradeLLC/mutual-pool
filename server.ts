@@ -236,23 +236,24 @@ app.use((req, res, next) => {
   if (res.headersSent) return next();
 
   try {
-    const rawForwarded = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.headers['x-invoke-path'];
+    // If req.url is already a specific API route like /api/pods or /api/users/current, leave it alone!
+    if (req.url && req.url.startsWith('/api/') && !req.url.startsWith('/api/index')) {
+      return next();
+    }
+
+    // Check x-forwarded-uri (set by Vercel proxy for the original incoming client URL)
+    const rawForwarded = req.headers['x-forwarded-uri'];
     const forwardedStr = Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded;
 
-    let rawPath = (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api'))
-      ? forwardedStr
-      : (req.originalUrl || req.url || '/');
+    if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api/') && !forwardedStr.startsWith('/api/index')) {
+      req.url = forwardedStr;
+      return next();
+    }
 
-    if (rawPath.startsWith('/api')) {
-      const [pathname, search] = rawPath.split('?');
-      let cleanPath = pathname || '/api';
-      
-      // Only strip index.ts/index.js if the path literally points to the function file root
-      if (cleanPath === '/api/index.ts' || cleanPath === '/api/index.js' || cleanPath === '/api/index') {
-        cleanPath = '/api';
-      }
-      
-      req.url = cleanPath + (search ? `?${search}` : '');
+    // Fallback to req.originalUrl if it contains the real client path
+    if (req.originalUrl && req.originalUrl.startsWith('/api/') && !req.originalUrl.startsWith('/api/index')) {
+      req.url = req.originalUrl;
+      return next();
     }
   } catch (err) {
     console.error('[URL Normalization Error]', err);
