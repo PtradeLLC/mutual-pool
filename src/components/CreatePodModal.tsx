@@ -103,6 +103,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': user.id,
+          'x-user-name': user.displayName || 'Verified Member',
+          'x-user-email': user.email || `${user.id}@mutualpool.org`,
         },
         body: JSON.stringify({
           name: name.trim(),
@@ -119,9 +121,16 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { message: text || 'Server returned an invalid response.' };
+      }
+
       if (!res.ok) {
-        throw new Error(data.message || 'Stripe payment authorization failed.');
+        throw new Error(data.message || data.error || 'Stripe payment authorization failed.');
       }
 
       setCreatedPodResult(data);
