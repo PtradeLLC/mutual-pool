@@ -382,7 +382,7 @@ export const INITIAL_PERKS: Perk[] = [
     valueBadge: '20% OFF',
     redemptionType: 'CODE',
     redemptionData: 'MEINEKE20GIG',
-    eligibility: 'All active GigMutual members',
+    eligibility: 'All active Mutual Pool members',
     partnerEmail: 'partnerships@meineke.com',
     partnerNotes: 'Nationwide partner offer for rideshare and delivery drivers.',
     status: 'APPROVED',

@@ -160,13 +160,13 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
             </span>
           </div>
           <p className="text-emerald-900 leading-relaxed text-xs">
-            To build immediate platform trust and de-risk early savings cycles, GigMutual puts its own treasury funds behind your pod creation.
+            To build immediate platform trust and de-risk early savings cycles, Mutual Pool puts its own treasury funds behind your pod creation.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] pt-1">
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
               <strong className="text-emerald-950 block font-bold">🎁 $20 First Deposit Match</strong>
               <p className="text-emerald-800">
-                When a verified KYC member creates their first pod, GigMutual matches their first deposit up to $20.00.
+                When a verified KYC member creates their first pod, Mutual Pool matches their first deposit up to $20.00.
               </p>
             </div>
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
@@ -184,7 +184,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
               <strong className="text-emerald-950 block font-bold">🏦 Direct Treasury Backing</strong>
               <p className="text-emerald-800">
-                Funded entirely from GigMutual marketing/treasury budget — never from other members' deposits.
+                Funded entirely from Mutual Pool marketing/treasury budget — never from other members' deposits.
               </p>
             </div>
           </div>

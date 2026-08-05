@@ -755,7 +755,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 {mySubmittedOffers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-4 text-center text-gray-500 text-xs">
-                      No perk offers submitted yet. Click "Submit Benefits & Perks" to submit your first offer to GigMutual members!
+                      No perk offers submitted yet. Click "Submit Benefits & Perks" to submit your first offer to Mutual Pool members!
                     </td>
                   </tr>
                 ) : (
@@ -1295,7 +1295,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   value={submitPartnerNotes}
                   onChange={(e) => setSubmitPartnerNotes(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="Special instructions, contact details, or notes for the GigMutual admin review team."
+                  placeholder="Special instructions, contact details, or notes for the Mutual Pool admin review team."
                 />
               </div>
 
@@ -1311,7 +1311,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   <label htmlFor="marketplaceCreateAccount" className="cursor-pointer">
                     <strong className="block font-bold text-emerald-900">Establish Partner Account during submission</strong>
                     <span className="text-emerald-800">
-                      Creates a GigMutual Partner Account with your contact email so you can log in, track real-time approval status, view member redemption stats, and manage submitted offers anytime.
+                      Creates a Mutual Pool Partner Account with your contact email so you can log in, track real-time approval status, view member redemption stats, and manage submitted offers anytime.
                     </span>
                   </label>
                 </div>

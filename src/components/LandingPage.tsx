@@ -956,7 +956,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   value={submitPartnerNotes}
                   onChange={(e) => setSubmitPartnerNotes(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="Special instructions, contact details, or notes for the GigMutual admin review team."
+                  placeholder="Special instructions, contact details, or notes for the Mutual Pool admin review team."
                 />
               </div>
 
@@ -972,7 +972,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <label htmlFor="landingCreateAccount" className="cursor-pointer">
                     <strong className="block font-bold text-emerald-900">Establish Partner Account during submission</strong>
                     <span className="text-emerald-800">
-                      Creates a GigMutual Partner Account with your email so you can log in, track real-time approval status, view member redemption stats, and manage submitted offers anytime.
+                      Creates a Mutual Pool Partner Account with your email so you can log in, track real-time approval status, view member redemption stats, and manage submitted offers anytime.
                     </span>
                   </label>
                 </div>

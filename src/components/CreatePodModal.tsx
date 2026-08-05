@@ -120,7 +120,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
               </span>
             </div>
             <p className="text-xs text-emerald-800 leading-relaxed">
-              GigMutual matches up to <strong>${Math.min(depositTier, 20)}.00</strong> on your first pod creation deposit! This promotional credit goes directly into your pod's <strong>First-Cycle Contingency Buffer</strong> to guarantee rotation stability if any member misses a deposit during Cycle 1.
+              Mutual Pool matches up to <strong>${Math.min(depositTier, 20)}.00</strong> on your first pod creation deposit! This promotional credit goes directly into your pod's <strong>First-Cycle Contingency Buffer</strong> to guarantee rotation stability if any member misses a deposit during Cycle 1.
             </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold text-emerald-700 pt-1 border-t border-emerald-200/60">
               <span className="flex items-center gap-1">

@@ -118,9 +118,9 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
           </section>
 
           <section>
-            <h4 className="font-bold text-[#111827] text-sm mb-1">6. GigMutual First Deposit Welcome Match & Contingency Buffer</h4>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">6. Mutual Pool First Deposit Welcome Match & Contingency Buffer</h4>
             <p>
-              For new pod creators with verified KYC accounts, GigMutual provides a 100% platform-funded Welcome Match up to $20.00. This non-withdrawable promotional credit is deposited directly into the pod's First-Cycle Contingency Buffer to safeguard rotation payout schedules against missed deposits during Cycle 1. If the pod disbands prior to activation, unspent match funds revert to GigMutual Treasury.
+              For new pod creators with verified KYC accounts, Mutual Pool provides a 100% platform-funded Welcome Match up to $20.00. This non-withdrawable promotional credit is deposited directly into the pod's First-Cycle Contingency Buffer to safeguard rotation payout schedules against missed deposits during Cycle 1. If the pod disbands prior to activation, unspent match funds revert to Mutual Pool Treasury.
             </p>
           </section>
         </div>

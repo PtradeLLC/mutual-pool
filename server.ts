@@ -709,8 +709,8 @@ app.use((req, res, next) => {
         user.id,
         user.displayName,
         'WELCOME_MATCH_GRANTED',
-        `🎁 GigMutual Founding Member Welcome Match granted! $${welcomeMatchAmount.toFixed(2)} promotional match funded 100% directly from GigMutual Treasury into pod "${newPod.name}" First-Cycle Contingency Buffer (Non-withdrawable promotional reserve protecting rotation continuity against missed deposits in Cycle 1).`,
-        { welcomeMatchAmount, fundedBy: 'GigMutual Treasury', creatorUserId: user.id }
+        `🎁 Mutual Pool Founding Member Welcome Match granted! $${welcomeMatchAmount.toFixed(2)} promotional match funded 100% directly from Mutual Pool Treasury into pod "${newPod.name}" First-Cycle Contingency Buffer (Non-withdrawable promotional reserve protecting rotation continuity against missed deposits in Cycle 1).`,
+        { welcomeMatchAmount, fundedBy: 'Mutual Pool Treasury', creatorUserId: user.id }
       );
     }
 
@@ -2089,7 +2089,7 @@ app.use((req, res, next) => {
           user.id,
           user.displayName,
           'CONTINGENCY_BUFFER_USED',
-          `🛡️ Covered $${pod.depositTier.toFixed(2)} missed deposit gap for ${member.displayName} using pod's GigMutual First-Cycle Contingency Buffer. Remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}.`,
+          `🛡️ Covered $${pod.depositTier.toFixed(2)} missed deposit gap for ${member.displayName} using pod's Mutual Pool First-Cycle Contingency Buffer. Remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}.`,
           { coveredMemberUserId: memberUserId, coverAmount, remainingBuffer: pod.contingencyBufferUsd }
         );
       } else {
