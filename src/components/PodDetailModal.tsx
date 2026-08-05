@@ -3,7 +3,7 @@ import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Depos
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { 
-  X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, 
+  X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
   Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle
 } from 'lucide-react';
 
@@ -568,9 +568,38 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         </div>
 
         {/* FDIC Disclosure Banner */}
-        <div className="mb-4 shrink-0">
+        <div className="mb-3 shrink-0">
           <FDICNoticeBanner />
         </div>
+
+        {/* First-Cycle Contingency Buffer Banner */}
+        {pod.contingencyBufferUsd !== undefined && (
+          <div className="mb-3 p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs shrink-0">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 sm:mt-0 fill-emerald-600/20" />
+              <div>
+                <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
+                  <span>First-Cycle Contingency Buffer: ${pod.contingencyBufferUsd.toFixed(2)} Active</span>
+                  {pod.contingencyBufferUsd > 0 ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider">
+                      Protected
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wider">
+                      Fully Drawn
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
+                  100% Platform-Funded by GigMutual Welcome Match (${pod.welcomeMatchAmountUsd || 20}.00). Automatically covers member deposit gaps during Cycle 1 so rotation payout timeline stays on schedule.
+                </p>
+              </div>
+            </div>
+            <div className="text-[10px] font-semibold text-emerald-800 shrink-0 bg-white/80 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-emerald-200">
+              Non-Withdrawable Pod Reserve
+            </div>
+          </div>
+        )}
 
         {/* Key Metrics Dashboard Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 shrink-0">

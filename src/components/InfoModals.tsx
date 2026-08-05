@@ -148,6 +148,48 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
           </p>
         </div>
 
+        {/* Highlight Feature: Welcome Match & First-Cycle Contingency Buffer */}
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 space-y-3 text-xs shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-black text-sm text-emerald-950">
+              <Sparkles className="w-5 h-5 text-emerald-600 fill-emerald-600/30 shrink-0" />
+              <span>Founding Member Welcome Match & First-Cycle Contingency Buffer</span>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-700 text-white uppercase tracking-wider">
+              100% Platform Funded
+            </span>
+          </div>
+          <p className="text-emerald-900 leading-relaxed text-xs">
+            To build immediate platform trust and de-risk early savings cycles, GigMutual puts its own treasury funds behind your pod creation.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] pt-1">
+            <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
+              <strong className="text-emerald-950 block font-bold">🎁 $20 First Deposit Match</strong>
+              <p className="text-emerald-800">
+                When a verified KYC member creates their first pod, GigMutual matches their first deposit up to $20.00.
+              </p>
+            </div>
+            <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
+              <strong className="text-emerald-950 block font-bold">🛡️ Pod Contingency Buffer</strong>
+              <p className="text-emerald-800">
+                The match goes directly into your pod's non-withdrawable <strong>First-Cycle Contingency Buffer</strong> to cover any missed member deposits.
+              </p>
+            </div>
+            <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
+              <strong className="text-emerald-950 block font-bold">🔒 Fair & Secure Rules</strong>
+              <p className="text-emerald-800">
+                Gated behind verified KYC identity. Limited to 1 lifetime match per account to prevent gaming or pod farming.
+              </p>
+            </div>
+            <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
+              <strong className="text-emerald-950 block font-bold">🏦 Direct Treasury Backing</strong>
+              <p className="text-emerald-800">
+                Funded entirely from GigMutual marketing/treasury budget — never from other members' deposits.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Section 1: The Two Kinds of Pods */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-lg font-extrabold text-[#111827]">
@@ -343,8 +385,9 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
               <span>If a Payment is Missed</span>
             </h4>
             <ul className="space-y-1.5 text-[#374151] list-disc list-inside text-[11px]">
-              <li>A missed weekly deposit is flagged immediately and the member is marked delinquent.</li>
-              <li>Your pod's signed agreement spells out what happens next: whether the pod covers the gap, the cycle is delayed, or the member is removed — set before first cycle begins.</li>
+              <li>A missed weekly deposit is flagged immediately and the member is marked delinquent with a 24-hour grace window.</li>
+              <li><strong>First-Cycle Contingency Buffer:</strong> For new pods, the platform-funded $20 Welcome Match buffer automatically covers missed deposit gaps during Cycle 1 to ensure payout continuity.</li>
+              <li>Your pod's signed agreement spells out backup rules if the buffer is exhausted: whether remaining members cover the gap, payout is adjusted, or delinquent members are replaced.</li>
               <li>Repeated missed payments affect your ability to join or create pods in the future, including Open Pods.</li>
             </ul>
           </div>
@@ -360,6 +403,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
             <ul className="space-y-1 text-[#374151] list-disc list-inside text-[11px]">
               <li>The fixed payout order and how it was set</li>
               <li>No guaranteed return and no interest</li>
+              <li>Welcome Match rules and First-Cycle Contingency Buffer governance</li>
               <li>How reprioritization requests and slot swaps work</li>
               <li>What happens if someone misses a payment</li>
               <li>A link to the current insurance disclosure</li>

@@ -49,6 +49,8 @@ export const AuditLogViewer: React.FC = () => {
       case 'REPRIORITIZATION_REQUESTED': return 'bg-amber-50 text-amber-800 border-amber-200';
       case 'SLOT_SWAP_EXECUTED': return 'bg-purple-50 text-purple-800 border-purple-200';
       case 'KYC_VERIFIED': return 'bg-blue-50 text-blue-800 border-blue-200';
+      case 'WELCOME_MATCH_GRANTED': return 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold';
+      case 'CONTINGENCY_BUFFER_USED': return 'bg-teal-100 text-teal-900 border-teal-300 font-bold';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };

@@ -614,10 +614,19 @@ app.use((req, res, next) => {
     const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
     const totalChargedAmount = baseDepositAmount + platformFee;
 
-    // Deduct initial total deposit payment from creator's treasury balance if available
+    // Check Welcome Match Eligibility (Up to $20 match for verified KYC first pod creation)
     const creatorUser = users.find(u => u.id === user.id);
+    const isKycVerified = user.kycStatus === 'VERIFIED' || creatorUser?.kycStatus === 'VERIFIED';
+    const isEligibleForWelcomeMatch = isKycVerified && !creatorUser?.welcomeMatchReceived;
+    const welcomeMatchAmount = isEligibleForWelcomeMatch ? Math.min(baseDepositAmount, 20) : 0;
+
+    // Deduct initial total deposit payment from creator's treasury balance if available
     if (creatorUser) {
       creatorUser.treasury.balanceUsd = Math.max(0, creatorUser.treasury.balanceUsd - totalChargedAmount);
+      if (welcomeMatchAmount > 0) {
+        creatorUser.welcomeMatchReceived = true;
+        creatorUser.welcomeMatchAmountUsd = welcomeMatchAmount;
+      }
     }
 
     // Process initial deposit record for creator (Member #1)
@@ -659,6 +668,10 @@ app.use((req, res, next) => {
       createdAt: new Date().toISOString(),
       weeklyPoolTarget: Number(sizeTier) * Number(depositTier),
       currentWeeklyCollected: baseDepositAmount,
+      welcomeMatchGranted: welcomeMatchAmount > 0,
+      welcomeMatchAmountUsd: welcomeMatchAmount,
+      contingencyBufferUsd: welcomeMatchAmount,
+      contingencyBufferInitialUsd: welcomeMatchAmount,
       members: [
         {
           id: creatorMemberId,
@@ -689,6 +702,17 @@ app.use((req, res, next) => {
       `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Initial pool deposit charged: $${baseDepositAmount.toFixed(2)} deposit + $${platformFee.toFixed(2)} (5% platform fee) = $${totalChargedAmount.toFixed(2)} total. Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} initialized.`,
       { baseDepositAmount, platformFee, totalChargedAmount, sizeTier, depositTier }
     );
+
+    if (welcomeMatchAmount > 0) {
+      addAuditLog(
+        newPod.id,
+        user.id,
+        user.displayName,
+        'WELCOME_MATCH_GRANTED',
+        `🎁 GigMutual Founding Member Welcome Match granted! $${welcomeMatchAmount.toFixed(2)} promotional match funded 100% directly from GigMutual Treasury into pod "${newPod.name}" First-Cycle Contingency Buffer (Non-withdrawable promotional reserve protecting rotation continuity against missed deposits in Cycle 1).`,
+        { welcomeMatchAmount, fundedBy: 'GigMutual Treasury', creatorUserId: user.id }
+      );
+    }
 
     res.json(newPod);
   });
@@ -2053,7 +2077,24 @@ app.use((req, res, next) => {
       member.delinquencyStatus = 'GRACE_PERIOD';
     } else if (actionChoice === 'COVER_GAP') {
       member.delinquencyStatus = 'CLEAN';
-      pod.currentWeeklyCollected += pod.depositTier;
+
+      // Check if pod has a First-Cycle Contingency Buffer available
+      if (pod.contingencyBufferUsd && pod.contingencyBufferUsd > 0) {
+        const coverAmount = Math.min(pod.depositTier, pod.contingencyBufferUsd);
+        pod.contingencyBufferUsd -= coverAmount;
+        pod.currentWeeklyCollected += pod.depositTier;
+
+        addAuditLog(
+          pod.id,
+          user.id,
+          user.displayName,
+          'CONTINGENCY_BUFFER_USED',
+          `🛡️ Covered $${pod.depositTier.toFixed(2)} missed deposit gap for ${member.displayName} using pod's GigMutual First-Cycle Contingency Buffer. Remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}.`,
+          { coveredMemberUserId: memberUserId, coverAmount, remainingBuffer: pod.contingencyBufferUsd }
+        );
+      } else {
+        pod.currentWeeklyCollected += pod.depositTier;
+      }
     }
 
     addAuditLog(

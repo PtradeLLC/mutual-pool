@@ -116,6 +116,13 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
               Pod cycle balances sit in Stripe Treasury Financial Accounts backed by Evolve Bank & Trust or Fifth Third Bank, N.A., Members FDIC. Deposits are FDIC-insured pass-through up to $250,000 per user, subject to standard policy conditions.
             </p>
           </section>
+
+          <section>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">6. GigMutual First Deposit Welcome Match & Contingency Buffer</h4>
+            <p>
+              For new pod creators with verified KYC accounts, GigMutual provides a 100% platform-funded Welcome Match up to $20.00. This non-withdrawable promotional credit is deposited directly into the pod's First-Cycle Contingency Buffer to safeguard rotation payout schedules against missed deposits during Cycle 1. If the pod disbands prior to activation, unspent match funds revert to GigMutual Treasury.
+            </p>
+          </section>
         </div>
 
         {/* Signature Controls */}

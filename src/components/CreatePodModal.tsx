@@ -107,6 +107,42 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           </div>
         </div>
 
+        {/* Welcome Match & First-Cycle Contingency Buffer Banner */}
+        {!user.welcomeMatchReceived ? (
+          <div className="mb-5 p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 space-y-2 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm text-emerald-900">
+                <Sparkles className="w-4 h-4 text-emerald-600 fill-emerald-600 shrink-0" />
+                <span>$20 Founding Member Welcome Match & Contingency Buffer</span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider shrink-0">
+                100% Platform Funded
+              </span>
+            </div>
+            <p className="text-xs text-emerald-800 leading-relaxed">
+              GigMutual matches up to <strong>${Math.min(depositTier, 20)}.00</strong> on your first pod creation deposit! This promotional credit goes directly into your pod's <strong>First-Cycle Contingency Buffer</strong> to guarantee rotation stability if any member misses a deposit during Cycle 1.
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold text-emerald-700 pt-1 border-t border-emerald-200/60">
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{user.kycStatus === 'VERIFIED' ? 'Verified KYC Account Qualified' : 'Requires Verified KYC Account'}</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Non-Withdrawal Pod Buffer</span>
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-5 p-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-xs flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Lifetime Welcome Match Claimed (${user.welcomeMatchAmountUsd || 20}.00)</span>
+            </span>
+            <span className="text-[11px] text-gray-500 font-mono">1 match per account limit</span>
+          </div>
+        )}
+
         {/* Tenure Rule Notice Banner */}
         <div className={`mb-5 p-3.5 rounded-lg border text-xs flex items-start gap-2.5 ${
           isSeasoned 

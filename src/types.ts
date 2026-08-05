@@ -36,6 +36,8 @@ export interface User {
   treasury: StripeTreasuryAccount;
   externalBank: ExternalBankAccount;
   completedPodsCount: number;
+  welcomeMatchReceived?: boolean;
+  welcomeMatchAmountUsd?: number;
   isHardshipInactive?: boolean;
   hardshipOwedUsd?: number;
   lastHardshipRequestedAt?: string;
@@ -112,6 +114,10 @@ export interface Pod {
   members: PodMembership[];
   weeklyPoolTarget: number;
   currentWeeklyCollected: number;
+  welcomeMatchGranted?: boolean;
+  welcomeMatchAmountUsd?: number;
+  contingencyBufferUsd?: number;
+  contingencyBufferInitialUsd?: number;
   isPrioritizedForReplacement?: boolean;
   replacementVacanciesCount?: number;
 }
@@ -208,6 +214,8 @@ export interface AuditLogEntry {
     | 'PERK_UPDATED'
     | 'PERK_STATUS_CHANGED'
     | 'PERK_DELETED'
+    | 'WELCOME_MATCH_GRANTED'
+    | 'CONTINGENCY_BUFFER_USED'
     | 'HARDSHIP_REQUESTED'
     | 'HARDSHIP_APPROVED'
     | 'HARDSHIP_REPAID'
