@@ -121,15 +121,15 @@ function getCurrentUser(req: Request): User | null {
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005FB8&color=fff&size=200`,
         platform: 'DoorDash',
         role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : 'RIDER',
-        accountAgeDays: 90,
-        kycStatus: 'VERIFIED',
+        accountAgeDays: 1,
+        kycStatus: 'PENDING',
         treasury: {
           stripeAccountId: '',
           stripeFinAccountId: '',
           balanceUsd: 0.00,
           pendingInboundUsd: 0.00,
           totalPayoutsReceivedUsd: 0.00,
-          fdicPassThroughEligible: true,
+          fdicPassThroughEligible: false,
           status: 'UNINITIALIZED',
         },
         externalBank: {
@@ -139,7 +139,7 @@ function getCurrentUser(req: Request): User | null {
           accountType: 'CHECKING',
           status: 'NOT_LINKED',
         },
-        completedPodsCount: 1,
+        completedPodsCount: 0,
       };
       users.push(found);
     }
@@ -248,21 +248,22 @@ app.use((req, res, next) => {
 
   try {
     let rawPath = req.originalUrl || req.url || '/';
+    
+    // Check forwarded headers from Vercel proxy rewrites
+    const rawForwarded = req.headers['x-forwarded-uri'];
+    const forwardedStr = Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded;
 
-    // In Vercel serverless functions, x-invoke-path or x-matched-path can contain the original route
-    const invokePath = (req.headers['x-invoke-path'] as string) || (req.headers['x-matched-path'] as string);
-    if ((rawPath.endsWith('/index.ts') || rawPath.endsWith('/index.js') || rawPath === '/api' || rawPath === '/api/') && invokePath && invokePath.startsWith('/api') && !invokePath.includes('index.')) {
-      rawPath = invokePath;
+    if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api')) {
+      rawPath = forwardedStr;
     }
 
-    // Preserve query parameters and strip only trailing /index.ts or /index.js if appended by serverless wrappers
-    const [pathname, search] = rawPath.split('?');
-    let cleanPath = pathname || '/';
-    if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js')) {
-      cleanPath = cleanPath.replace(/\/index\.(ts|js)$/, '') || '/';
-    }
-
-    if (cleanPath && cleanPath !== req.url) {
+    // Ensure req.url retains full path for matching API routes
+    if (rawPath.startsWith('/api')) {
+      const [pathname, search] = rawPath.split('?');
+      let cleanPath = pathname || '/api';
+      if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js')) {
+        cleanPath = cleanPath.replace(/\/index\.(ts|js)$/, '');
+      }
       req.url = cleanPath + (search ? `?${search}` : '');
     }
   } catch (err) {
@@ -553,191 +554,201 @@ app.use((req, res, next) => {
 
   // 5. Create Pod (Enforces Tenure & Deposit Tier Guardrails)
   app.post(['/api/pods', '/pods'], (req: Request, res: Response) => {
-    try {
-      let user = getCurrentUser(req);
-      if (!user) {
-        const rawUserId = (req.headers['x-user-id'] as string) || (req.body?.userId as string) || 'usr_marcus';
-        user = users.find(u => u.id === rawUserId) || users[0];
-      }
+   try {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
+    const body = req.body || {};
+    const { 
+      name, 
+      description, 
+      category, 
+      sizeTier, 
+      depositTier, 
+      podType, 
+      activationPolicy,
+      inviteWindowDays, 
+      autoOpenOnExpire, 
+      invitedContacts 
+    } = body;
 
-      const { 
-        name, 
-        description, 
-        category, 
-        sizeTier = 20, 
-        depositTier = 20, 
-        podType = 'TRUSTED_CIRCLE', 
-        activationPolicy = 'WHEN_FULL',
-        inviteWindowDays = 7, 
-        autoOpenOnExpire = true, 
-        invitedContacts = []
-      } = req.body || {};
+    // Validate required fields before doing any money math
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Pod name is required.' });
+    }
+    const validSizeTiers = [20, 50, 100, 500, 1000, 5000, 10000];
+    const validDepositTiers = [5, 10, 20, 50, 100];
+    if (!validSizeTiers.includes(Number(sizeTier))) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'sizeTier must be one of ' + validSizeTiers.join(', ') });
+    }
+    if (!validDepositTiers.includes(Number(depositTier))) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'depositTier must be one of ' + validDepositTiers.join(', ') });
+    }
 
-      const podName = typeof name === 'string' && name.trim() ? name.trim() : 'Mutual Savings Pod';
-      const requestedActivationPolicy = activationPolicy === 'FLEXIBLE_EARLY' ? 'FLEXIBLE_EARLY' : 'WHEN_FULL';
+    const requestedActivationPolicy = activationPolicy === 'FLEXIBLE_EARLY' ? 'FLEXIBLE_EARLY' : 'WHEN_FULL';
 
-      // Auto-verify user KYC if needed for seamless creation in active sessions
-      if (user.kycStatus !== 'VERIFIED') {
-        user.kycStatus = 'VERIFIED';
-      }
+    // Hard Gate: KYC Must be Verified
+    if (user.kycStatus !== 'VERIFIED') {
+      return res.status(403).json({
+        error: 'KYC_REQUIRED',
+        message: 'You must complete Stripe Identity KYC verification before creating a mutual savings pod.'
+      });
+    }
 
-      if (typeof user.accountAgeDays !== 'number') user.accountAgeDays = 90;
-      if (typeof user.completedPodsCount !== 'number') user.completedPodsCount = 1;
-
-      // Tenure Rule Enforcement:
-      const numSizeTier = Number(sizeTier) || 20;
-      const numDepositTier = Number(depositTier) || 20;
-      const isSeasoned = user.accountAgeDays >= 90 || user.completedPodsCount >= 1;
-      if (!isSeasoned) {
-        if (numSizeTier > 50) {
-          return res.status(400).json({
-            error: 'TENURE_RESTRICTION',
-            message: 'New accounts (< 90 days tenure) can only create 20 or 50 member pods. Higher member tiers unlock after 3 months of successful operation.'
-          });
-        }
-        if (numDepositTier > 20) {
-          return res.status(400).json({
-            error: 'DEPOSIT_TIER_RESTRICTION',
-            message: 'New accounts can start at $5, $10, or $20 deposit tiers. $50 and $100 tiers unlock after completing 1 full pod cycle.'
-          });
-        }
-      }
-
-      // Open Pod Rule: Requires at least 1 completed cycle or seasoned status
-      const requestedPodType = podType === 'OPEN_POD' ? 'OPEN_POD' : 'TRUSTED_CIRCLE';
-      if (requestedPodType === 'OPEN_POD' && user.completedPodsCount < 1 && user.accountAgeDays < 90) {
+    // Tenure Rule Enforcement:
+    const isSeasoned = user.accountAgeDays >= 90 || user.completedPodsCount >= 1;
+    if (!isSeasoned) {
+      if (sizeTier > 50) {
         return res.status(400).json({
-          error: 'OPEN_POD_RESTRICTION',
-          message: 'Creating an Open Pod requires having completed at least 1 full Trusted Circle pod cycle with no missed payments.'
+          error: 'TENURE_RESTRICTION',
+          message: 'New accounts (< 90 days tenure) can only create 20 or 50 member pods. Higher member tiers unlock after 3 months of successful operation.'
         });
       }
+      if (depositTier > 20) {
+        return res.status(400).json({
+          error: 'DEPOSIT_TIER_RESTRICTION',
+          message: 'New accounts can start at $5, $10, or $20 deposit tiers. $50 and $100 tiers unlock after completing 1 full pod cycle.'
+        });
+      }
+    }
 
-      const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const podId = `pod_${Date.now()}`;
+    // Open Pod Rule: Requires at least 1 completed cycle or seasoned status
+    const requestedPodType = podType === 'OPEN_POD' ? 'OPEN_POD' : 'TRUSTED_CIRCLE';
+    if (requestedPodType === 'OPEN_POD' && user.completedPodsCount < 1 && user.accountAgeDays < 90) {
+      return res.status(400).json({
+        error: 'OPEN_POD_RESTRICTION',
+        message: 'Creating an Open Pod requires having completed at least 1 full Trusted Circle pod cycle with no missed payments.'
+      });
+    }
 
-      const baseDepositAmount = numDepositTier;
-      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
-      const totalChargedAmount = baseDepositAmount + platformFee;
+    const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const podId = `pod_${Date.now()}`;
 
-      // Check Welcome Match Eligibility (Up to $20 match for verified KYC first pod creation)
-      const creatorUser = users.find(u => u.id === user.id) || user;
-      
+    const baseDepositAmount = Number(depositTier);
+    const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+    const totalChargedAmount = baseDepositAmount + platformFee;
+
+    // Check Welcome Match Eligibility (Up to $20 match for verified KYC first pod creation)
+    const creatorUser = users.find(u => u.id === user.id);
+    const isKycVerified = user.kycStatus === 'VERIFIED' || creatorUser?.kycStatus === 'VERIFIED';
+    const isEligibleForWelcomeMatch = isKycVerified && !creatorUser?.welcomeMatchReceived;
+    const welcomeMatchAmount = isEligibleForWelcomeMatch ? Math.min(baseDepositAmount, 20) : 0;
+
+    // Deduct initial total deposit payment from creator's treasury balance if available
+    if (creatorUser) {
+      // Defensive guard: some seeded/legacy user records may predate the treasury shape
       if (!creatorUser.treasury) {
         creatorUser.treasury = {
           stripeAccountId: '',
           stripeFinAccountId: '',
-          balanceUsd: 1000.00,
-          pendingInboundUsd: 0.00,
-          totalPayoutsReceivedUsd: 0.00,
-          fdicPassThroughEligible: true,
-          status: 'ACTIVE',
+          balanceUsd: 0,
+          pendingInboundUsd: 0,
+          totalPayoutsReceivedUsd: 0,
+          fdicPassThroughEligible: false,
+          status: 'UNINITIALIZED',
         };
       }
-
-      const isKycVerified = user.kycStatus === 'VERIFIED' || creatorUser.kycStatus === 'VERIFIED';
-      const isEligibleForWelcomeMatch = isKycVerified && !creatorUser.welcomeMatchReceived;
-      const welcomeMatchAmount = isEligibleForWelcomeMatch ? Math.min(baseDepositAmount, 20) : 0;
-
-      // Deduct initial total deposit payment from creator's treasury balance if available
       creatorUser.treasury.balanceUsd = Math.max(0, (creatorUser.treasury.balanceUsd || 0) - totalChargedAmount);
       if (welcomeMatchAmount > 0) {
         creatorUser.welcomeMatchReceived = true;
         creatorUser.welcomeMatchAmountUsd = welcomeMatchAmount;
       }
+    }
 
-      // Process initial deposit record for creator (Member #1)
-      const creatorMemberId = `pm_${Date.now()}_1`;
-      const initialDeposit: Deposit = {
-        id: `dep_init_${Date.now()}`,
-        membershipId: creatorMemberId,
-        podId: podId,
-        cycleId: `cyc_w1`,
-        userId: user.id,
-        userName: user.displayName || 'Verified Member',
-        amount: baseDepositAmount,
-        stripePaymentId: `pi_create_pod_${Date.now()}`,
-        status: 'COMPLETE',
-        createdAt: new Date().toISOString(),
-      };
-      deposits.unshift(initialDeposit);
+    // Process initial deposit record for creator (Member #1)
+    const creatorMemberId = `pm_${Date.now()}_1`;
+    const initialDeposit: Deposit = {
+      id: `dep_init_${Date.now()}`,
+      membershipId: creatorMemberId,
+      podId: podId,
+      cycleId: `cyc_w1`,
+      userId: user.id,
+      userName: user.displayName,
+      amount: baseDepositAmount,
+      stripePaymentId: `pi_create_pod_${Date.now()}`,
+      status: 'COMPLETE',
+      createdAt: new Date().toISOString(),
+    };
+    deposits.unshift(initialDeposit);
 
-      const newPod: Pod = {
-        id: podId,
-        name: podName,
-        description: description || 'Community gig worker mutual savings pool',
-        category: category || 'General Gig Workers',
-        podType: requestedPodType,
-        activationPolicy: requestedActivationPolicy,
-        inviteWindowDays: Number(inviteWindowDays) || 7,
-        autoOpenOnExpire: autoOpenOnExpire !== false,
-        inviteCode: randomCode,
-        invitedContacts: Array.isArray(invitedContacts) ? invitedContacts : [],
-        sizeTier: numSizeTier as Pod['sizeTier'],
-        depositTier: numDepositTier as Pod['depositTier'],
-        status: 'FORMING',
-        currentCycleWeek: 1,
-        totalCycles: numSizeTier,
-        agreementVersion: 'v2.0-2026',
-        holdingFinAccountId: `fa_pod_holding_${Date.now()}`,
-        createdBy: user.id,
-        creatorName: user.displayName || 'Verified Member',
-        createdAt: new Date().toISOString(),
-        weeklyPoolTarget: numSizeTier * numDepositTier,
-        currentWeeklyCollected: baseDepositAmount,
-        welcomeMatchGranted: welcomeMatchAmount > 0,
-        welcomeMatchAmountUsd: welcomeMatchAmount,
-        contingencyBufferUsd: welcomeMatchAmount,
-        contingencyBufferInitialUsd: welcomeMatchAmount,
-        members: [
-          {
-            id: creatorMemberId,
-            podId: podId,
-            userId: user.id,
-            displayName: user.displayName || 'Verified Member',
-            avatarUrl: user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'Member')}&background=005FB8&color=fff&size=200`,
-            platform: user.platform || 'DoorDash',
-            rotationIndex: 0,
-            hasReceivedPayout: false,
-            delinquencyStatus: 'CLEAN',
-            joinedAt: new Date().toISOString(),
-          }
-        ],
-      };
+    const newPod: Pod = {
+      id: podId,
+      name,
+      description: description || 'Community gig worker mutual savings pool',
+      category: category || 'General Gig Workers',
+      podType: requestedPodType,
+      activationPolicy: requestedActivationPolicy,
+      inviteWindowDays: Number(inviteWindowDays) || 7,
+      autoOpenOnExpire: autoOpenOnExpire !== false,
+      inviteCode: randomCode,
+      invitedContacts: Array.isArray(invitedContacts) ? invitedContacts : [],
+      sizeTier: Number(sizeTier) as Pod['sizeTier'],
+      depositTier: Number(depositTier) as Pod['depositTier'],
+      status: 'FORMING',
+      currentCycleWeek: 1,
+      totalCycles: Number(sizeTier),
+      agreementVersion: 'v2.0-2026',
+      holdingFinAccountId: `fa_pod_holding_${Date.now()}`,
+      createdBy: user.id,
+      creatorName: user.displayName,
+      createdAt: new Date().toISOString(),
+      weeklyPoolTarget: Number(sizeTier) * Number(depositTier),
+      currentWeeklyCollected: baseDepositAmount,
+      welcomeMatchGranted: welcomeMatchAmount > 0,
+      welcomeMatchAmountUsd: welcomeMatchAmount,
+      contingencyBufferUsd: welcomeMatchAmount,
+      contingencyBufferInitialUsd: welcomeMatchAmount,
+      members: [
+        {
+          id: creatorMemberId,
+          podId: podId,
+          userId: user.id,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          platform: user.platform,
+          rotationIndex: 0,
+          hasReceivedPayout: false,
+          delinquencyStatus: 'CLEAN',
+          joinedAt: new Date().toISOString(),
+        }
+      ],
+    };
 
-      pods.unshift(newPod);
+    pods.unshift(newPod);
 
-      const policyLabel = requestedActivationPolicy === 'WHEN_FULL' 
-        ? 'Wait Until 100% Full Capacity' 
-        : 'Flexible Early Activation Allowed';
+    const policyLabel = requestedActivationPolicy === 'WHEN_FULL' 
+      ? 'Wait Until 100% Full Capacity' 
+      : 'Flexible Early Activation Allowed';
 
+    addAuditLog(
+      newPod.id,
+      user.id,
+      user.displayName,
+      'POD_CREATED',
+      `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Initial pool deposit charged: $${baseDepositAmount.toFixed(2)} deposit + $${platformFee.toFixed(2)} (5% platform fee) = $${totalChargedAmount.toFixed(2)} total. Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} initialized.`,
+      { baseDepositAmount, platformFee, totalChargedAmount, sizeTier, depositTier }
+    );
+
+    if (welcomeMatchAmount > 0) {
       addAuditLog(
         newPod.id,
         user.id,
-        user.displayName || 'Verified Member',
-        'POD_CREATED',
-        `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Initial pool deposit charged: $${baseDepositAmount.toFixed(2)} deposit + $${platformFee.toFixed(2)} (5% platform fee) = $${totalChargedAmount.toFixed(2)} total. Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} initialized.`,
-        { baseDepositAmount, platformFee, totalChargedAmount, sizeTier: numSizeTier, depositTier: numDepositTier }
+        user.displayName,
+        'WELCOME_MATCH_GRANTED',
+        `🎁 Mutual Pool Founding Member Welcome Match granted! $${welcomeMatchAmount.toFixed(2)} promotional match funded 100% directly from Mutual Pool Treasury into pod "${newPod.name}" First-Cycle Contingency Buffer (Non-withdrawable promotional reserve protecting rotation continuity against missed deposits in Cycle 1).`,
+        { welcomeMatchAmount, fundedBy: 'Mutual Pool Treasury', creatorUserId: user.id }
       );
-
-      if (welcomeMatchAmount > 0) {
-        addAuditLog(
-          newPod.id,
-          user.id,
-          user.displayName || 'Verified Member',
-          'WELCOME_MATCH_GRANTED',
-          `🎁 Mutual Pool Founding Member Welcome Match granted! $${welcomeMatchAmount.toFixed(2)} promotional match funded 100% directly from Mutual Pool Treasury into pod "${newPod.name}" First-Cycle Contingency Buffer (Non-withdrawable promotional reserve protecting rotation continuity against missed deposits in Cycle 1).`,
-          { welcomeMatchAmount, fundedBy: 'Mutual Pool Treasury', creatorUserId: user.id }
-        );
-      }
-
-      return res.json(newPod);
-    } catch (err: unknown) {
-      console.error('[/api/pods] creation error:', err);
-      return res.status(500).json({
-        error: 'SERVER_ERROR',
-        message: err instanceof Error ? err.message : 'An error occurred while creating the pod.'
-      });
     }
+
+    res.json(newPod);
+   } catch (err: any) {
+     console.error('[POST /api/pods] error:', err);
+     res.status(500).json({
+       error: 'POD_CREATION_FAILED',
+       message: err?.message || 'Failed to create pod due to an internal error.',
+     });
+   }
   });
 
   // 5b. Add / Invite Contacts to Pod's Trusted Circle (Friends of Friends Enabled)
