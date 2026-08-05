@@ -91,6 +91,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-2xl w-full p-6 shadow-2xl relative my-8 text-[#111827] max-h-[85vh] overflow-y-auto">
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
         >

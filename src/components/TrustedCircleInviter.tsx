@@ -88,8 +88,8 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handleAddSingle = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddSingle = (e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
     if (!customContact.trim()) return;
     onAddContacts([{ name: customName.trim() || customContact.trim(), emailOrPhone: customContact.trim() }]);
     setCustomName('');
@@ -270,7 +270,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
         </div>
 
         {/* Manual Add Form */}
-        <form onSubmit={handleAddSingle} className="bg-white p-3 rounded-lg border border-[#DDE1E6] space-y-2">
+        <div className="bg-white p-3 rounded-lg border border-[#DDE1E6] space-y-2">
           <span className="font-bold text-[#111827] block text-[11px] flex items-center gap-1.5">
             <Plus className="w-4 h-4 text-emerald-600" />
             <span>Add Individual Contact</span>
@@ -281,25 +281,37 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
               placeholder="Name (e.g. Carlos)"
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddSingle(e);
+                }
+              }}
               className="bg-white border border-gray-300 rounded-md px-2.5 py-1 text-[11px] focus:outline-none focus:border-[#005FB8]"
             />
             <input
               type="text"
-              required
               placeholder="Email or Phone #"
               value={customContact}
               onChange={(e) => setCustomContact(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddSingle(e);
+                }
+              }}
               className="bg-white border border-gray-300 rounded-md px-2.5 py-1 text-[11px] focus:outline-none focus:border-[#005FB8]"
             />
           </div>
           <button
-            type="submit"
-            className="w-full py-1.5 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors flex items-center justify-center gap-1 shadow-2xs"
+            type="button"
+            onClick={handleAddSingle}
+            className="w-full py-1.5 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add & Cross-Reference Contact</span>
           </button>
-        </form>
+        </div>
 
       </div>
 
