@@ -271,7 +271,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                     </div>
                   </div>
 
-                  {/* OPEN POD CARD */}
+                  {/* OPENPODCARD*/}
                   <div
                     onClick={() => canCreateOpenPod && setPodType('OPEN_POD')}
                     className={`p-4 rounded-xl border transition-all space-y-2 relative ${
