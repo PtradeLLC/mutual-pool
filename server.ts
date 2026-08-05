@@ -184,17 +184,14 @@ function checkIsAdmin(req: Request): boolean {
 
 export const app = express();
 
-// Middleware to safely handle body parsing across local Express, Cloud Run, and Vercel Serverless runtimes
+// Standard Express body parsing middlewares (non-blocking, serverless-compatible)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Safe body guard middleware for pre-parsed string/Buffer or empty bodies
 app.use((req, res, next) => {
   if (res.headersSent) return next();
 
-  // For GET, HEAD, or OPTIONS, do not attempt stream body parsing
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
-    req.body = req.body || {};
-    return next();
-  }
-
-  // If req.body is already parsed (or pre-populated by serverless helpers)
   if (req.body !== undefined && req.body !== null) {
     if (typeof req.body === 'string' && req.body.trim().length > 0) {
       try {
@@ -209,20 +206,12 @@ app.use((req, res, next) => {
         // ignore JSON parse error
       }
     }
-    return next();
   }
 
-  // If request stream is already ended (no readable body content left to stream)
-  if (req.readableEnded) {
+  if (!req.body || typeof req.body !== 'object') {
     req.body = {};
-    return next();
   }
-
-  // Otherwise, parse incoming stream using express.json()
-  express.json({ limit: '10mb' })(req, res, (err) => {
-    if (err) req.body = {};
-    if (!res.headersSent) next();
-  });
+  next();
 });
 
 // Enable CORS and OPTIONS preflight for all routes
@@ -242,28 +231,27 @@ app.get(['/api/health', '/health'], (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Normalize request URL for serverless environments (e.g., Vercel rewrites)
+// Normalize request URL for serverless environments (e.g., Vercel proxy rewrites)
 app.use((req, res, next) => {
   if (res.headersSent) return next();
 
   try {
-    let rawPath = req.originalUrl || req.url || '/';
-    
-    // Check forwarded headers from Vercel proxy rewrites
-    const rawForwarded = req.headers['x-forwarded-uri'];
+    const rawForwarded = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.headers['x-invoke-path'];
     const forwardedStr = Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded;
 
-    if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api')) {
-      rawPath = forwardedStr;
-    }
+    let rawPath = (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api'))
+      ? forwardedStr
+      : (req.originalUrl || req.url || '/');
 
-    // Ensure req.url retains full path for matching API routes
     if (rawPath.startsWith('/api')) {
       const [pathname, search] = rawPath.split('?');
       let cleanPath = pathname || '/api';
-      if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js')) {
-        cleanPath = cleanPath.replace(/\/index\.(ts|js)$/, '');
+      
+      // Only strip index.ts/index.js if the path literally points to the function file root
+      if (cleanPath === '/api/index.ts' || cleanPath === '/api/index.js' || cleanPath === '/api/index') {
+        cleanPath = '/api';
       }
+      
       req.url = cleanPath + (search ? `?${search}` : '');
     }
   } catch (err) {
