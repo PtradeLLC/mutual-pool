@@ -248,22 +248,21 @@ app.use((req, res, next) => {
 
   try {
     let rawPath = req.originalUrl || req.url || '/';
-    
-    // Check forwarded headers from Vercel proxy rewrites
-    const rawForwarded = req.headers['x-forwarded-uri'];
-    const forwardedStr = Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded;
 
-    if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api')) {
-      rawPath = forwardedStr;
+    // In Vercel serverless functions, x-invoke-path or x-matched-path can contain the original route
+    const invokePath = (req.headers['x-invoke-path'] as string) || (req.headers['x-matched-path'] as string);
+    if ((rawPath.endsWith('/index.ts') || rawPath.endsWith('/index.js') || rawPath === '/api' || rawPath === '/api/') && invokePath && invokePath.startsWith('/api') && !invokePath.includes('index.')) {
+      rawPath = invokePath;
     }
 
-    // Ensure req.url retains full path for matching API routes
-    if (rawPath.startsWith('/api')) {
-      const [pathname, search] = rawPath.split('?');
-      let cleanPath = pathname || '/api';
-      if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js')) {
-        cleanPath = cleanPath.replace(/\/index\.(ts|js)$/, '');
-      }
+    // Preserve query parameters and strip only trailing /index.ts or /index.js if appended by serverless wrappers
+    const [pathname, search] = rawPath.split('?');
+    let cleanPath = pathname || '/';
+    if (cleanPath.endsWith('/index.ts') || cleanPath.endsWith('/index.js')) {
+      cleanPath = cleanPath.replace(/\/index\.(ts|js)$/, '') || '/';
+    }
+
+    if (cleanPath && cleanPath !== req.url) {
       req.url = cleanPath + (search ? `?${search}` : '');
     }
   } catch (err) {
