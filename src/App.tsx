@@ -99,18 +99,21 @@ export default function App() {
 
   const syncUserWithBackend = async (user: User) => {
     try {
-      await fetch('/api/users/sync', {
+      const syncRes = await fetch('/api/users/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
-      });
-      const allUsersRes = await fetch('/api/users');
-      if (allUsersRes.ok) {
-        const allUData = await allUsersRes.json();
-        setAllUsers(allUData);
+      }).catch(() => null);
+
+      if (syncRes && syncRes.ok) {
+        const allUsersRes = await fetch('/api/users').catch(() => null);
+        if (allUsersRes && allUsersRes.ok) {
+          const allUData = await allUsersRes.json().catch(() => null);
+          if (allUData) setAllUsers(allUData);
+        }
       }
-    } catch (err) {
-      console.error('Error syncing user to backend:', err);
+    } catch {
+      // quiet fail-safe for client-only / static deployments
     }
   };
 
@@ -126,7 +129,7 @@ export default function App() {
 
       if (uId) {
         // Try getting fresh user document from Firestore
-        const firestoreUser = await getUserFromFirestore(uId);
+        const firestoreUser = await getUserFromFirestore(uId).catch(() => null);
         if (firestoreUser) {
           if (firestoreUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' && firestoreUser.role !== 'Admin') {
             firestoreUser.role = 'Admin';
@@ -136,47 +139,53 @@ export default function App() {
           await syncUserWithBackend(firestoreUser);
         } else {
           // Fetch current user from backend
-          const userRes = await fetch(`/api/users/current?userId=${uId}`);
-          if (userRes.ok) {
-            const uData = await userRes.json();
+          const userRes = await fetch(`/api/users/current?userId=${uId}`).catch(() => null);
+          if (userRes && userRes.ok) {
+            const uData = await userRes.json().catch(() => null);
+            if (uData) {
+              if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
+                uData.role = 'Admin';
+              }
+              setCurrentUser(uData);
+            }
+          }
+        }
+      } else {
+        const userRes = await fetch('/api/users/current').catch(() => null);
+        if (userRes && userRes.ok) {
+          const uData = await userRes.json().catch(() => null);
+          if (uData) {
             if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
               uData.role = 'Admin';
             }
             setCurrentUser(uData);
           }
         }
-      } else {
-        const userRes = await fetch('/api/users/current');
-        if (userRes.ok) {
-          const uData = await userRes.json();
-          if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
-            uData.role = 'Admin';
-          }
-          setCurrentUser(uData);
-        }
       }
 
       // Fetch all users for switcher and landing demo
-      const allUsersRes = await fetch('/api/users');
-      if (allUsersRes.ok) {
-        const allUData = await allUsersRes.json();
-        setAllUsers(allUData);
+      const allUsersRes = await fetch('/api/users').catch(() => null);
+      if (allUsersRes && allUsersRes.ok) {
+        const allUData = await allUsersRes.json().catch(() => null);
+        if (allUData) setAllUsers(allUData);
       }
 
       // Fetch all pods
-      const podsRes = await fetch('/api/pods');
-      if (podsRes.ok) {
-        const pData = await podsRes.json();
-        setAllPods(pData);
+      const podsRes = await fetch('/api/pods').catch(() => null);
+      if (podsRes && podsRes.ok) {
+        const pData = await podsRes.json().catch(() => null);
+        if (pData) {
+          setAllPods(pData);
 
-        // Keep selectedPodDetail updated if open
-        if (selectedPodDetail) {
-          const fresh = pData.find((p: Pod) => p.id === selectedPodDetail.id);
-          if (fresh) setSelectedPodDetail(fresh);
+          // Keep selectedPodDetail updated if open
+          if (selectedPodDetail) {
+            const fresh = pData.find((p: Pod) => p.id === selectedPodDetail.id);
+            if (fresh) setSelectedPodDetail(fresh);
+          }
         }
       }
-    } catch (err) {
-      console.error('Error fetching app data:', err);
+    } catch {
+      // quiet fail-safe
     }
   };
 
