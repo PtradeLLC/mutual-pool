@@ -171,14 +171,15 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
         // Fail-safe fallback to client-side creation for 500 or offline backend
       }
 
-      // If backend didn't return created pod, perform client-side creation & Firestore save
+      const baseDepositAmount = Number(depositTier);
+      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+      const totalChargedAmount = baseDepositAmount + platformFee;
+      const isEligibleForWelcomeMatch = currentUserState.kycStatus === 'VERIFIED' && !currentUserState.welcomeMatchReceived;
+      const welcomeMatchAmount = isEligibleForWelcomeMatch ? Math.min(baseDepositAmount, 20) : 0;
+
+      // If backend didn't return created pod, perform client-side creation
       if (!podData) {
         const podId = `pod_${Date.now()}`;
-        const baseDepositAmount = Number(depositTier);
-        const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
-        const totalChargedAmount = baseDepositAmount + platformFee;
-        const isEligibleForWelcomeMatch = currentUserState.kycStatus === 'VERIFIED' && !currentUserState.welcomeMatchReceived;
-        const welcomeMatchAmount = isEligibleForWelcomeMatch ? Math.min(baseDepositAmount, 20) : 0;
         const creatorMemberId = `pm_${Date.now()}_1`;
 
         podData = {
@@ -223,8 +224,10 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
             }
           ],
         };
+      }
 
-        // Save created pod to Firestore
+      // ALWAYS save created pod to Firestore so real-time listeners and page reloads pick it up!
+      if (podData) {
         await savePodToFirestore(podData).catch((err) => console.warn('Firestore pod save warning:', err));
 
         // Add audit log entry to Firestore

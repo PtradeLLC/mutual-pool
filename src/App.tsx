@@ -37,12 +37,44 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD'>('LANDING');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem('mutualpool_active_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD'>(() => {
+    try {
+      return localStorage.getItem('mutualpool_active_user') ? 'DASHBOARD' : 'LANDING';
+    } catch {
+      return 'LANDING';
+    }
+  });
   const [authLoading, setAuthLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allPods, setAllPods] = useState<Pod[]>([]);
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops'>('my-pods');
+
+  // Sync active user to localStorage for session persistence across refreshes
+  useEffect(() => {
+    if (currentUser) {
+      try {
+        localStorage.setItem('mutualpool_active_user', JSON.stringify(currentUser));
+        localStorage.setItem('mutualpool_active_user_id', currentUser.id);
+      } catch {
+        // quiet storage fail
+      }
+    } else {
+      try {
+        localStorage.removeItem('mutualpool_active_user');
+        localStorage.removeItem('mutualpool_active_user_id');
+      } catch {
+        // quiet storage fail
+      }
+    }
+  }, [currentUser]);
 
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -125,7 +157,8 @@ export default function App() {
 
   const fetchAppData = async (userIdOverride?: string) => {
     try {
-      const uId = userIdOverride || (currentUser ? currentUser.id : undefined);
+      const savedUserId = typeof window !== 'undefined' ? (localStorage.getItem('mutualpool_active_user_id') || undefined) : undefined;
+      const uId = userIdOverride || (currentUser ? currentUser.id : savedUserId);
 
       if (uId) {
         // Try getting fresh user document from Firestore
