@@ -1163,13 +1163,24 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
       {/* Partner Perk Submission Modal */}
       {showSubmitModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div 
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowSubmitModal(false);
+            }
+          }}
+        >
           <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-lg w-full p-6 shadow-2xl relative text-[#111827] max-h-[90vh] overflow-y-auto">
             <button
-              onClick={() => setShowSubmitModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors cursor-pointer"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowSubmitModal(false);
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors cursor-pointer z-20"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 pointer-events-none" />
             </button>
 
             <h3 className="text-lg font-bold text-[#111827] mb-1 flex items-center gap-2">
