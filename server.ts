@@ -118,6 +118,39 @@ function getQueryValue(req: Request, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function getHeaderNumber(req: Request, headerName: string): number | undefined {
+  const rawValue = getHeaderValue(req, headerName);
+  if (!rawValue) return undefined;
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getProfileFromHeaders(req: Request) {
+  const rawKycStatus = getHeaderValue(req, 'x-user-kyc-status')?.toUpperCase();
+  const kycStatus: User['kycStatus'] = rawKycStatus === 'VERIFIED' || rawKycStatus === 'PENDING' || rawKycStatus === 'FAILED' || rawKycStatus === 'UNVERIFIED'
+    ? rawKycStatus
+    : 'PENDING';
+
+  const accountAgeDays = getHeaderNumber(req, 'x-user-account-age-days') ?? 1;
+  const completedPodsCount = getHeaderNumber(req, 'x-user-completed-pods-count') ?? 0;
+  const platform = getHeaderValue(req, 'x-user-platform') || 'DoorDash';
+  const role = (getHeaderValue(req, 'x-user-role') as User['role'] | undefined) || 'RIDER';
+  const treasuryStripeAccountId = getHeaderValue(req, 'x-user-treasury-stripe-account-id') || '';
+  const treasuryStripeFinAccountId = getHeaderValue(req, 'x-user-treasury-stripe-fin-account-id') || '';
+  const treasuryStatus = getHeaderValue(req, 'x-user-treasury-status') || (kycStatus === 'VERIFIED' ? 'ACTIVE' : 'UNINITIALIZED');
+
+  return {
+    kycStatus,
+    accountAgeDays,
+    completedPodsCount,
+    platform,
+    role,
+    treasuryStripeAccountId,
+    treasuryStripeFinAccountId,
+    treasuryStatus,
+  };
+}
+
 // Helper: Get Current User from Request Header/Query or default
 function getCurrentUser(req: Request): User | null {
   try {
@@ -131,23 +164,24 @@ function getCurrentUser(req: Request): User | null {
     if (!found) {
       const userName = getHeaderValue(req, 'x-user-name') || 'Verified Member';
       const userEmail = getHeaderValue(req, 'x-user-email') || `${userId.substring(0, 8)}@mutualpool.org`;
+      const profile = getProfileFromHeaders(req);
       found = {
         id: userId,
         email: userEmail,
         displayName: userName,
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005FB8&color=fff&size=200`,
-        platform: 'DoorDash',
-        role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : 'RIDER',
-        accountAgeDays: 1,
-        kycStatus: 'PENDING',
+        platform: profile.platform,
+        role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : (profile.role === 'Admin' ? 'Admin' : profile.role),
+        accountAgeDays: profile.accountAgeDays,
+        kycStatus: profile.kycStatus,
         treasury: {
-          stripeAccountId: '',
-          stripeFinAccountId: '',
+          stripeAccountId: profile.treasuryStripeAccountId,
+          stripeFinAccountId: profile.treasuryStripeFinAccountId,
           balanceUsd: 0.00,
           pendingInboundUsd: 0.00,
           totalPayoutsReceivedUsd: 0.00,
-          fdicPassThroughEligible: false,
-          status: 'UNINITIALIZED',
+          fdicPassThroughEligible: profile.kycStatus === 'VERIFIED',
+          status: profile.treasuryStatus as User['treasury']['status'],
         },
         externalBank: {
           bankName: '',
@@ -156,7 +190,7 @@ function getCurrentUser(req: Request): User | null {
           accountType: 'CHECKING',
           status: 'NOT_LINKED',
         },
-        completedPodsCount: 0,
+        completedPodsCount: profile.completedPodsCount,
       };
       users.push(found);
     }
@@ -200,6 +234,15 @@ function checkIsAdmin(req: Request): boolean {
 }
 
 export const app = express();
+
+export function isServerlessRuntime(): boolean {
+  return Boolean(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NETLIFY ||
+    process.env.CF_PAGES
+  );
+}
 
 // Standard Express body parsing middlewares (non-blocking, serverless-compatible)
 app.use(express.json({ limit: '10mb' }));
@@ -2204,4 +2247,9 @@ if (!process.env.VERCEL) {
   });
 }
 
-export default app;
+export default function handler(req: express.Request, res: express.Response, next?: express.NextFunction) {
+  if (typeof next === 'function') {
+    return app(req, res, next);
+  }
+  return app(req, res);
+}

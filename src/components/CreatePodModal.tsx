@@ -105,6 +105,11 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           'x-user-id': user.id,
           'x-user-name': user.displayName || 'Verified Member',
           'x-user-email': user.email || `${user.id}@mutualpool.org`,
+          'x-user-kyc-status': user.kycStatus,
+          'x-user-account-age-days': String(user.accountAgeDays),
+          'x-user-completed-pods-count': String(user.completedPodsCount),
+          'x-user-platform': user.platform,
+          'x-user-role': user.role,
         },
         body: JSON.stringify({
           name: name.trim(),
