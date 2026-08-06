@@ -310,6 +310,11 @@ export default function App() {
     setShowAuthModal(true);
   };
 
+  const handleCloseAuth = () => {
+    setShowAuthModal(false);
+    setOpenSubmitPerkDirectly(false);
+  };
+
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setViewMode('DASHBOARD');
@@ -417,7 +422,7 @@ export default function App() {
 
         <AuthModal
           isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
+          onClose={handleCloseAuth}
           allUsers={allUsers}
           onSelectUser={handleAuthSuccess}
           onRegistered={handleAuthSuccess}
@@ -801,7 +806,7 @@ export default function App() {
       {/* MODALS */}
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={handleCloseAuth}
         allUsers={allUsers}
         onSelectUser={handleAuthSuccess}
         onRegistered={handleAuthSuccess}

@@ -228,16 +228,20 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
 
   useEffect(() => {
-    if (initialOpenSubmitModal || pendingSubmitModalAfterAuth) {
+    if (initialOpenSubmitModal) {
+      if (onClearInitialSubmitModal) onClearInitialSubmitModal();
       if (!currentUser || currentUser.id === 'usr_guest') {
         setPendingSubmitModalAfterAuth(true);
         if (onOpenAuth) onOpenAuth('LOGIN');
       } else {
         setPendingSubmitModalAfterAuth(false);
-        if (onClearInitialSubmitModal) onClearInitialSubmitModal();
         resetForm();
         setShowSubmitModal(true);
       }
+    } else if (pendingSubmitModalAfterAuth && currentUser && currentUser.id !== 'usr_guest') {
+      setPendingSubmitModalAfterAuth(false);
+      resetForm();
+      setShowSubmitModal(true);
     }
   }, [initialOpenSubmitModal, pendingSubmitModalAfterAuth, currentUser, onOpenAuth, onClearInitialSubmitModal]);
 

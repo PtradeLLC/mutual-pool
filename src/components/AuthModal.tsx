@@ -331,7 +331,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+    <div 
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative text-[#111827] my-auto max-h-[85vh] overflow-y-auto">
         
         {/* Invisible Recaptcha Container */}
@@ -339,8 +346,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
+          aria-label="Close Auth Modal"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors z-20 cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>

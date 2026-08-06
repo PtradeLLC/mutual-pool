@@ -2253,7 +2253,7 @@ async function startServer() {
 
   if (!process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`[Gig Mutual Pool PWA Server] running on http://0.0.0.0:${PORT}`);
+      console.log(`[Gig Mutual Pool PWA Server] running on http://localhost:${PORT}`);
     });
   }
 }
