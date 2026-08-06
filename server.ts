@@ -196,17 +196,33 @@ function getCurrentUser(req: Request): User | null {
     }
     if (found) {
       const profile = getProfileFromHeaders(req);
-      if (profile.kycStatus === 'VERIFIED' && found.kycStatus !== 'VERIFIED') {
+      if (profile.accountAgeDays > (found.accountAgeDays || 0)) {
+        found.accountAgeDays = profile.accountAgeDays;
+      }
+      if (profile.completedPodsCount > (found.completedPodsCount || 0)) {
+        found.completedPodsCount = profile.completedPodsCount;
+      }
+      if (profile.kycStatus === 'VERIFIED' || found.kycStatus === 'VERIFIED') {
         found.kycStatus = 'VERIFIED';
         found.kycVerifiedAt = found.kycVerifiedAt || new Date().toISOString();
-        if (found.treasury) {
+        if (!found.treasury) {
+          found.treasury = {
+            stripeAccountId: profile.treasuryStripeAccountId || `acct_1xCustom_${Date.now()}`,
+            stripeFinAccountId: profile.treasuryStripeFinAccountId || `fa_1xTreasury_${Date.now()}`,
+            balanceUsd: 0.00,
+            pendingInboundUsd: 0.00,
+            totalPayoutsReceivedUsd: 0.00,
+            fdicPassThroughEligible: true,
+            status: 'ACTIVE',
+          };
+        } else {
           found.treasury.status = 'ACTIVE';
           found.treasury.fdicPassThroughEligible = true;
           if (!found.treasury.stripeAccountId) {
-            found.treasury.stripeAccountId = `acct_1xCustom_${Date.now()}`;
+            found.treasury.stripeAccountId = profile.treasuryStripeAccountId || `acct_1xCustom_${Date.now()}`;
           }
           if (!found.treasury.stripeFinAccountId) {
-            found.treasury.stripeFinAccountId = `fa_1xTreasury_${Date.now()}`;
+            found.treasury.stripeFinAccountId = profile.treasuryStripeFinAccountId || `fa_1xTreasury_${Date.now()}`;
           }
         }
       }
