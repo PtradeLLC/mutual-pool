@@ -45,8 +45,8 @@ export const createPodSchema = z.object({
   name: z.string().min(3).max(100),
   description: z.string().max(500).optional(),
   category: z.string().min(2).max(50),
-  sizeTier: z.enum([20, 50, 100, 500, 1000, 5000, 10000] as [PodSizeTier, ...PodSizeTier[]]),
-  depositTier: z.enum([5, 10, 20, 50, 100] as [DepositTier, ...DepositTier[]]),
+  sizeTier: z.number(),
+  depositTier: z.number(),
 });
 
 export const joinPodSchema = z.object({});
@@ -107,7 +107,7 @@ export const delinquencyActionSchema = z.object({
 
 export const webhookSchema = z.object({
   eventType: z.string().min(1),
-  data: z.record(z.any()).optional(),
+  data: z.record(z.string(), z.any()).optional(),
 });
 
 // Audit log query schema

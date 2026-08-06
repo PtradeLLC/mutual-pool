@@ -4,7 +4,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-06-20',
+  apiVersion: '2024-06-20' as any,
   typescript: true,
 });
 
@@ -149,18 +149,17 @@ export async function createTreasuryFinancialAccount(
   const financialAccount = await stripe.treasury.financialAccounts.create({
     supported_currencies: ['usd'],
     features: {
-      deposit: { requested: true },
       withdraw: { requested: true },
       outbound_transfer: { requested: true },
       inbound_transfer: { requested: true },
-    },
+    } as any,
     account: connectAccountId,
     metadata: {
       userId,
       podId: podId || '',
       platform: 'gig-mutual-pool',
     },
-  });
+  } as any);
 
   return financialAccount as any;
 }
@@ -223,11 +222,7 @@ export async function createFinancialConnectionsSession(
     },
     permissions: ['balances', 'ownership', 'transactions'],
     prefetch: ['balances', 'ownership', 'transactions'],
-    metadata: {
-      userId,
-      platform: 'gig-mutual-pool',
-    },
-  });
+  } as any);
 
   return {
     id: session.id,
@@ -294,10 +289,10 @@ export async function createTestPaymentMethod(
 
 // Get Financial Account Balance
 export async function getFinancialAccountBalance(financialAccountId: string): Promise<{ available: number; pending: number }> {
-  const balance = await stripe.treasury.financialAccounts.retrieveBalance(financialAccountId);
+  const balance = await (stripe.treasury.financialAccounts as any).retrieveBalance(financialAccountId);
   return {
-    available: balance.available[0]?.amount || 0,
-    pending: balance.pending[0]?.amount || 0,
+    available: balance?.available?.[0]?.amount || 0,
+    pending: balance?.pending?.[0]?.amount || 0,
   };
 }
 
@@ -305,7 +300,7 @@ export async function getFinancialAccountBalance(financialAccountId: string): Pr
 export async function handleStripeWebhook(event: Stripe.Event): Promise<void> {
   const db = getDb();
   
-  switch (event.type) {
+  switch (event.type as string) {
     case 'account.updated': {
       const account = event.data.object as Stripe.Account;
       // Update user's Connect account status

@@ -170,7 +170,7 @@ function getCurrentUser(req: Request): User | null {
         email: userEmail,
         displayName: userName,
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005FB8&color=fff&size=200`,
-        platform: profile.platform,
+        platform: profile.platform as any,
         role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : (profile.role === 'Admin' ? 'Admin' : profile.role),
         accountAgeDays: profile.accountAgeDays,
         kycStatus: profile.kycStatus,

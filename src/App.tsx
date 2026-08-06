@@ -174,8 +174,13 @@ export default function App() {
       const podsRes = await fetch('/api/pods').catch(() => null);
       if (podsRes && podsRes.ok) {
         const pData = await podsRes.json().catch(() => null);
-        if (pData) {
-          setAllPods(pData);
+        if (pData && Array.isArray(pData)) {
+          setAllPods((prev) => {
+            const map = new Map<string, Pod>();
+            for (const p of prev) map.set(p.id, p);
+            for (const p of pData) map.set(p.id, p);
+            return Array.from(map.values());
+          });
 
           // Keep selectedPodDetail updated if open
           if (selectedPodDetail) {
@@ -199,7 +204,14 @@ export default function App() {
     // 2. Subscribe to real-time Pods in Firestore
     const unsubscribePods = subscribeToPods((firestorePods) => {
       if (firestorePods && firestorePods.length > 0) {
-        setAllPods(firestorePods);
+        setAllPods((prevPods) => {
+          const map = new Map<string, Pod>();
+          for (const p of firestorePods) map.set(p.id, p);
+          for (const p of prevPods) {
+            if (!map.has(p.id)) map.set(p.id, p);
+          }
+          return Array.from(map.values());
+        });
       }
     });
 
@@ -501,7 +513,15 @@ export default function App() {
   };
 
   // Filter Pods
-  const myPods = allPods.filter(p => p.members.some(m => m.userId === activeUser.id));
+  const myPods = allPods.filter(p =>
+    p.createdBy === activeUser.id ||
+    (currentUser && p.createdBy === currentUser.id) ||
+    p.members.some(m =>
+      m.userId === activeUser.id ||
+      (currentUser && m.userId === currentUser.id) ||
+      (activeUser.email && (m as any).email === activeUser.email)
+    )
+  );
 
   // User-created forming pods (excluding initial demo seed pods)
   const userCreatedFormingPods = allPods.filter(
@@ -863,8 +883,17 @@ export default function App() {
             user={currentUser}
             onClose={() => setShowCreatePodModal(false)}
             onUserUpdated={handleUserUpdated}
-            onPodCreated={() => {
+            onPodCreated={(newPod) => {
               setShowCreatePodModal(false);
+              if (newPod) {
+                setAllPods((prev) => {
+                  const exists = prev.some(p => p.id === newPod.id);
+                  if (exists) return prev.map(p => p.id === newPod.id ? newPod : p);
+                  return [newPod, ...prev];
+                });
+                setSelectedPodDetail(newPod);
+                setActiveTab('my-pods');
+              }
               fetchAppData();
             }}
           />

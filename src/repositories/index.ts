@@ -8,7 +8,7 @@ import { getDb, COLLECTIONS } from '../config/firebase';
 import { Timestamp, WriteBatch, Transaction, DocumentReference, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
 // Helper to convert Firestore timestamps to ISO strings
-function serializeDoc<T extends Record<string, any>>(doc: QueryDocumentSnapshot): T {
+function serializeDoc<T extends Record<string, any>>(doc: any): T {
   const data = doc.data();
   const result: Record<string, any> = { id: doc.id, ...data };
   

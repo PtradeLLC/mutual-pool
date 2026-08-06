@@ -25,7 +25,7 @@ import {
 interface CreatePodModalProps {
   user: User;
   onClose: () => void;
-  onPodCreated: () => void;
+  onPodCreated: (newPod?: Pod) => void;
   onUserUpdated?: (updatedUser: User) => void;
 }
 
@@ -1055,7 +1055,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
             <div className="pt-4 border-t border-gray-200">
               <button
                 type="button"
-                onClick={onPodCreated}
+                onClick={() => onPodCreated(createdPodResult || undefined)}
                 className="w-full max-w-sm py-3 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-colors shadow-md cursor-pointer mx-auto block"
               >
                 View My Pod & Start Inviting Members
