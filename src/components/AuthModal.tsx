@@ -71,7 +71,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       if (recaptchaVerifierRef.current) {
         try {
           recaptchaVerifierRef.current.clear();
@@ -80,7 +89,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
     };
-  }, []);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

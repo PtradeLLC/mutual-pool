@@ -318,6 +318,9 @@ export default function App() {
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setViewMode('DASHBOARD');
+    if (openSubmitPerkDirectly) {
+      setActiveTab('perks');
+    }
     setShowAuthModal(false);
 
     // Non-blocking background sync
@@ -411,11 +414,13 @@ export default function App() {
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           onOpenContact={() => setShowContactModal(true)}
           onOpenSubmitPerk={() => {
-            setViewMode('DASHBOARD');
-            setActiveTab('perks');
-            setOpenSubmitPerkDirectly(true);
             if (!currentUser || currentUser.id === 'usr_guest') {
+              setOpenSubmitPerkDirectly(true);
               handleOpenAuth('LOGIN');
+            } else {
+              setViewMode('DASHBOARD');
+              setActiveTab('perks');
+              setOpenSubmitPerkDirectly(true);
             }
           }}
         />
@@ -517,11 +522,13 @@ export default function App() {
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
         onOpenSubmitPerk={() => {
-          setActiveTab('perks');
-          setOpenSubmitPerkDirectly(true);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
           if (!currentUser || currentUser.id === 'usr_guest') {
+            setOpenSubmitPerkDirectly(true);
             handleOpenAuth('LOGIN');
+          } else {
+            setActiveTab('perks');
+            setOpenSubmitPerkDirectly(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         }}
         onExitToLanding={() => setViewMode('LANDING')}
