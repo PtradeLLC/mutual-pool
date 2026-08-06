@@ -114,6 +114,12 @@ export default function App() {
     }
   };
 
+  const handleUserUpdated = async (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+    saveUserToFirestore(updatedUser).catch(console.error);
+    await syncUserWithBackend(updatedUser);
+  };
+
   const fetchAppData = async (userIdOverride?: string) => {
     try {
       const uId = userIdOverride || (currentUser ? currentUser.id : undefined);
@@ -368,6 +374,10 @@ export default function App() {
         if (data.error === 'INVITE_REQUIRED') {
           setInviteCodeTargetPod(pod);
           setInviteCodeError(data.message || 'Invite code required for this Trusted Circle pod.');
+          return;
+        }
+        if (data.error === 'KYC_REQUIRED' || (data.message && data.message.includes('KYC'))) {
+          setShowKycModal(true);
           return;
         }
         alert(data.message || data.error || 'Failed to join pod');
