@@ -419,83 +419,216 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-4xl w-full p-5 sm:p-6 shadow-2xl relative my-6 max-h-[92vh] flex flex-col text-[#111827]">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+      <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-4xl w-full shadow-2xl relative my-auto max-h-[90vh] flex flex-col text-[#111827] overflow-hidden">
         
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors z-10"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Fixed Header */}
+        <div className="p-4 sm:p-5 pb-3.5 border-b border-gray-200 shrink-0 bg-white relative">
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors z-10 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
 
-        {/* Header & Status */}
-        <div className="mb-4 shrink-0">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-            <div>
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#005FB8] block">
-                  {pod.category} • Treasury Account {pod.holdingFinAccountId}
-                </span>
+          <div className="pr-8">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-1.5">
+              <div>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#005FB8] block">
+                    {pod.category} • Treasury Account {pod.holdingFinAccountId}
+                  </span>
 
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                  pod.podType === 'TRUSTED_CIRCLE' 
-                    ? 'bg-blue-50 text-[#005FB8] border-blue-200' 
-                    : 'bg-gray-100 text-gray-700 border-gray-200'
-                }`}>
-                  {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
-                  <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
-                </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                    pod.podType === 'TRUSTED_CIRCLE' 
+                      ? 'bg-blue-50 text-[#005FB8] border-blue-200' 
+                      : 'bg-gray-100 text-gray-700 border-gray-200'
+                  }`}>
+                    {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
+                    <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
+                  </span>
 
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                  pod.activationPolicy === 'FLEXIBLE_EARLY'
-                    ? 'bg-amber-50 text-amber-800 border-amber-200'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                }`}>
-                  {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
-                    <>
-                      <Zap className="w-3 h-3 text-amber-600" />
-                      <span>Early Start Allowed</span>
-                    </>
-                  ) : (
-                    <>
-                      <Users className="w-3 h-3 text-emerald-600" />
-                      <span>Full Capacity Required</span>
-                    </>
-                  )}
-                </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                    pod.activationPolicy === 'FLEXIBLE_EARLY'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  }`}>
+                    {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
+                      <>
+                        <Zap className="w-3 h-3 text-amber-600" />
+                        <span>Early Start Allowed</span>
+                      </>
+                    ) : (
+                      <>
+                        <Users className="w-3 h-3 text-emerald-600" />
+                        <span>Full Capacity Required</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-bold text-[#111827]">
+                  {pod.name}
+                </h2>
               </div>
 
-              <h2 className="text-xl sm:text-2xl font-bold text-[#111827]">
-                {pod.name}
-              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onOpenAgreementModal}
+                  className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[#005FB8]" />
+                  <span>Pod Agreement v2.0</span>
+                </button>
+
+                {pod.status === 'FORMING' && pod.members.length >= 2 && (
+                  <button
+                    onClick={() => handleLockPod()}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Lock Rotation Order</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onOpenAgreementModal}
-                className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-              >
-                <FileText className="w-3.5 h-3.5 text-[#005FB8]" />
-                <span>Pod Agreement v2.0</span>
-              </button>
+            <p className="text-xs text-[#6B7280] leading-relaxed max-w-3xl line-clamp-2 sm:line-clamp-none">
+              {pod.description}
+            </p>
+          </div>
+        </div>
 
-              {pod.status === 'FORMING' && pod.members.length >= 2 && (
-                <button
-                  onClick={() => handleLockPod()}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Lock Rotation Order</span>
-                </button>
-              )}
+        {/* Fixed Sub-Navigation Tabs Bar */}
+        <div className="px-4 sm:px-5 py-2.5 bg-gray-50 border-b border-gray-200 shrink-0 flex items-center gap-2 overflow-x-auto scrollbar-none">
+          <button
+            onClick={() => setActiveTab('rotation')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              activeTab === 'rotation'
+                ? 'bg-[#005FB8] text-white shadow-xs'
+                : 'text-[#4B5563] hover:bg-gray-200/60'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Fixed Rotation ({pod.members.length}/{pod.sizeTier})</span>
+          </button>
+
+          {pod.podType === 'TRUSTED_CIRCLE' && (
+            <button
+              onClick={() => setActiveTab('circle')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+                activeTab === 'circle'
+                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-200/60'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Trusted Circle Invites ({pod.invitedContacts?.length || 0})</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setActiveTab('deposits')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              activeTab === 'deposits'
+                ? 'bg-[#005FB8] text-white shadow-xs'
+                : 'text-[#4B5563] hover:bg-gray-200/60'
+            }`}
+          >
+            <DollarSign className="w-3.5 h-3.5" />
+            <span>Deposit & Payout Ledger</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('reprioritize')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              activeTab === 'reprioritize'
+                ? 'bg-[#005FB8] text-white shadow-xs'
+                : 'text-[#4B5563] hover:bg-gray-200/60'
+            }`}
+          >
+            <Vote className="w-3.5 h-3.5" />
+            <span>Emergency Swaps & Votes</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('hardship')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              activeTab === 'hardship'
+                ? 'bg-[#005FB8] text-white shadow-xs'
+                : 'text-[#4B5563] hover:bg-gray-200/60'
+            }`}
+          >
+            <HeartHandshake className="w-3.5 h-3.5" />
+            <span>Financial Hardship Fund</span>
+            {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length > 0 && (
+              <span className="px-1.5 py-0.2 bg-rose-500 text-white text-[10px] font-bold rounded-full">
+                {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Scrollable Body Container */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
+          
+          {/* Feedback Message Banners */}
+          {actionError && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{actionError}</span>
+            </div>
+          )}
+          {actionSuccess && (
+            <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-900 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+              <span>{actionSuccess}</span>
+            </div>
+          )}
+
+          {/* Key Metrics Dashboard Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
+              <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Active Weekly Pool</span>
+              <span className="font-mono font-bold text-[#005FB8] text-base">
+                ${currentActivePool.toLocaleString()}
+              </span>
+              <span className="text-[10px] text-[#6B7280] block font-mono">
+                {pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk
+              </span>
+            </div>
+
+            <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
+              <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Full Capacity Target</span>
+              <span className="font-mono font-bold text-slate-700 text-base">
+                ${fullCapacityTarget.toLocaleString()}
+              </span>
+              <span className="text-[10px] text-[#6B7280] block font-mono">
+                At {pod.sizeTier} max capacity
+              </span>
+            </div>
+
+            <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
+              <span className="text-[#6B7280] text-[10px] uppercase font-bold block">This Week Collected</span>
+              <span className="font-mono font-bold text-emerald-600 text-base">
+                ${pod.currentWeeklyCollected} / ${currentActivePool}
+              </span>
+              <span className="text-[10px] text-[#6B7280] block">
+                {Math.min(100, Math.round((pod.currentWeeklyCollected / (currentActivePool || 1)) * 100))}% deposited
+              </span>
+            </div>
+
+            <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
+              <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Current Turn Recipient</span>
+              <span className="font-semibold text-[#111827] text-xs truncate block">
+                {currentRecipientMember ? currentRecipientMember.displayName : 'Awaiting Lock'}
+              </span>
+              <span className="text-[10px] font-bold text-amber-700 uppercase font-mono block">
+                Status: {pod.status}
+              </span>
             </div>
           </div>
-
-          <p className="text-xs text-[#6B7280] leading-relaxed max-w-3xl mb-2">
-            {pod.description}
-          </p>
 
           {/* Trusted Circle Creator Banner & Conversion Controls */}
           {pod.podType === 'TRUSTED_CIRCLE' && (
@@ -516,7 +649,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <button
                   onClick={handleConvertOpen}
                   disabled={convertingOpen}
-                  className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-blue-300 font-bold text-[11px] shrink-0 transition-colors shadow-2xs flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-blue-300 font-bold text-[11px] shrink-0 transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
                 >
                   <Users className="w-3.5 h-3.5" />
                   <span>{convertingOpen ? 'Converting...' : 'Open Remaining Spots to Public'}</span>
@@ -527,7 +660,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
           {/* Pod Activation Policy Information Banner */}
           {pod.status === 'FORMING' && (
-            <div className={`mt-2 p-3 rounded-lg border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+            <div className={`p-3 rounded-lg border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
               pod.activationPolicy === 'FLEXIBLE_EARLY'
                 ? 'bg-amber-50/80 border-amber-200 text-amber-950'
                 : 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
@@ -553,7 +686,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               {isCreator && pod.members.length >= 2 && (
                 <button
                   onClick={() => handleLockPod(pod.activationPolicy === 'WHEN_FULL')}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 transition-colors shadow-xs flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer ${
                     pod.activationPolicy === 'FLEXIBLE_EARLY'
                       ? 'bg-amber-600 hover:bg-amber-700 text-white'
                       : 'bg-indigo-600 hover:bg-indigo-700 text-white'
@@ -565,183 +698,53 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               )}
             </div>
           )}
-        </div>
 
-        {/* FDIC Disclosure Banner */}
-        <div className="mb-3 shrink-0">
+          {/* FDIC Disclosure Banner */}
           <FDICNoticeBanner />
-        </div>
 
-        {/* First-Cycle Contingency Buffer Banner */}
-        {pod.contingencyBufferUsd !== undefined && (
-          <div className="mb-3 p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs shrink-0">
-            <div className="flex items-start sm:items-center gap-2.5">
-              <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 sm:mt-0 fill-emerald-600/20" />
-              <div>
-                <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
-                  <span>First-Cycle Contingency Buffer: ${pod.contingencyBufferUsd.toFixed(2)} Active</span>
-                  {pod.contingencyBufferUsd > 0 ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider">
-                      Protected
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wider">
-                      Fully Drawn
-                    </span>
-                  )}
+          {/* First-Cycle Contingency Buffer Banner */}
+          {pod.contingencyBufferUsd !== undefined && (
+            <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-start sm:items-center gap-2.5">
+                <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 sm:mt-0 fill-emerald-600/20" />
+                <div>
+                  <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
+                    <span>First-Cycle Contingency Buffer: ${pod.contingencyBufferUsd.toFixed(2)} Active</span>
+                    {pod.contingencyBufferUsd > 0 ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider">
+                        Protected
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wider">
+                        Fully Drawn
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
+                    100% Platform-Funded by Mutual Pool Welcome Match (${pod.welcomeMatchAmountUsd || 20}.00). Automatically covers member deposit gaps during Cycle 1 so rotation payout timeline stays on schedule.
+                  </p>
                 </div>
-                <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
-                  100% Platform-Funded by Mutual Pool Welcome Match (${pod.welcomeMatchAmountUsd || 20}.00). Automatically covers member deposit gaps during Cycle 1 so rotation payout timeline stays on schedule.
-                </p>
+              </div>
+              <div className="text-[10px] font-semibold text-emerald-800 shrink-0 bg-white/80 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-emerald-200">
+                Non-Withdrawable Pod Reserve
               </div>
             </div>
-            <div className="text-[10px] font-semibold text-emerald-800 shrink-0 bg-white/80 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-emerald-200">
-              Non-Withdrawable Pod Reserve
-            </div>
-          </div>
-        )}
-
-        {/* Key Metrics Dashboard Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 shrink-0">
-          <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Active Weekly Pool</span>
-            <span className="font-mono font-bold text-[#005FB8] text-base">
-              ${currentActivePool.toLocaleString()}
-            </span>
-            <span className="text-[10px] text-[#6B7280] block font-mono">
-              {pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk
-            </span>
-          </div>
-
-          <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Full Capacity Target</span>
-            <span className="font-mono font-bold text-slate-700 text-base">
-              ${fullCapacityTarget.toLocaleString()}
-            </span>
-            <span className="text-[10px] text-[#6B7280] block font-mono">
-              At {pod.sizeTier} max capacity
-            </span>
-          </div>
-
-          <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">This Week Collected</span>
-            <span className="font-mono font-bold text-emerald-600 text-base">
-              ${pod.currentWeeklyCollected} / ${currentActivePool}
-            </span>
-            <span className="text-[10px] text-[#6B7280] block">
-              {Math.min(100, Math.round((pod.currentWeeklyCollected / (currentActivePool || 1)) * 100))}% deposited
-            </span>
-          </div>
-
-          <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Current Turn Recipient</span>
-            <span className="font-semibold text-[#111827] text-xs truncate block">
-              {currentRecipientMember ? currentRecipientMember.displayName : 'Awaiting Lock'}
-            </span>
-            <span className="text-[10px] font-bold text-amber-700 uppercase font-mono block">
-              Status: {pod.status}
-            </span>
-          </div>
-        </div>
-
-        {/* Capacity & Dynamic Payout Explanation Banner */}
-        <div className="mb-4 p-3 bg-blue-50/80 border border-blue-200/90 rounded-lg text-xs text-blue-950 shrink-0 space-y-1">
-          <div className="flex items-center gap-1.5 font-bold text-[#005FB8]">
-            <Users className="w-4 h-4 text-[#005FB8]" />
-            <span>How Member Capacity & Dynamic Weekly Payouts Work</span>
-          </div>
-          <p className="text-[11.5px] leading-relaxed text-[#374151]">
-            Weekly payouts in Mutual Savings Pods are directly funded by active participating members. Currently, <strong>{pod.members.length} participating member{pod.members.length === 1 ? '' : 's'}</strong> contribute <strong>${pod.depositTier}/wk</strong> each, making the active weekly payout pool <strong>${currentActivePool.toLocaleString()}</strong> per rotation turn. As new members join, weekly payouts automatically scale up to the maximum capacity target of <strong>${fullCapacityTarget.toLocaleString()}</strong> ({pod.sizeTier} members).
-          </p>
-        </div>
-
-        {/* Feedback Message Banners */}
-        {actionError && (
-          <div className="mb-3 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 shrink-0">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{actionError}</span>
-          </div>
-        )}
-        {actionSuccess && (
-          <div className="mb-3 p-3 rounded-lg bg-green-50 border border-green-200 text-green-900 text-xs flex items-center gap-2 shrink-0">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
-            <span>{actionSuccess}</span>
-          </div>
-        )}
-
-        {/* Sub-Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-[#DDE1E6] pb-2 mb-4 shrink-0 flex-wrap">
-          <button
-            onClick={() => setActiveTab('rotation')}
-            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
-              activeTab === 'rotation'
-                ? 'bg-[#005FB8] text-white shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Fixed Rotation ({pod.members.length}/{pod.sizeTier})</span>
-          </button>
-
-          {pod.podType === 'TRUSTED_CIRCLE' && (
-            <button
-              onClick={() => setActiveTab('circle')}
-              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
-                activeTab === 'circle'
-                  ? 'bg-[#005FB8] text-white shadow-xs'
-                  : 'text-[#4B5563] hover:bg-gray-100'
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Trusted Circle Invites ({pod.invitedContacts?.length || 0})</span>
-            </button>
           )}
 
-          <button
-            onClick={() => setActiveTab('deposits')}
-            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
-              activeTab === 'deposits'
-                ? 'bg-[#005FB8] text-white shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <DollarSign className="w-3.5 h-3.5" />
-            <span>Deposit & Payout Ledger</span>
-          </button>
+          {/* Capacity & Dynamic Payout Explanation Banner */}
+          <div className="p-3 bg-blue-50/80 border border-blue-200/90 rounded-lg text-xs text-blue-950 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-[#005FB8]">
+              <Users className="w-4 h-4 text-[#005FB8]" />
+              <span>How Member Capacity & Dynamic Weekly Payouts Work</span>
+            </div>
+            <p className="text-[11.5px] leading-relaxed text-[#374151]">
+              Weekly payouts in Mutual Savings Pods are directly funded by active participating members. Currently, <strong>{pod.members.length} participating member{pod.members.length === 1 ? '' : 's'}</strong> contribute <strong>${pod.depositTier}/wk</strong> each, making the active weekly payout pool <strong>${currentActivePool.toLocaleString()}</strong> per rotation turn. As new members join, weekly payouts automatically scale up to the maximum capacity target of <strong>${fullCapacityTarget.toLocaleString()}</strong> ({pod.sizeTier} members).
+            </p>
+          </div>
 
-          <button
-            onClick={() => setActiveTab('reprioritize')}
-            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
-              activeTab === 'reprioritize'
-                ? 'bg-[#005FB8] text-white shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <Vote className="w-3.5 h-3.5" />
-            <span>Emergency Swaps & Votes</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('hardship')}
-            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors ${
-              activeTab === 'hardship'
-                ? 'bg-[#005FB8] text-white shadow-xs'
-                : 'text-[#4B5563] hover:bg-gray-100'
-            }`}
-          >
-            <HeartHandshake className="w-3.5 h-3.5" />
-            <span>Financial Hardship Fund</span>
-            {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length > 0 && (
-              <span className="px-1.5 py-0.2 bg-rose-500 text-white text-[10px] font-bold rounded-full">
-                {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* TAB 1: FIXED ROTATION LIST */}
-        {activeTab === 'rotation' && (
-          <div className="overflow-y-auto space-y-2 flex-1 pr-1">
+          {/* TAB 1: FIXED ROTATION LIST */}
+          {activeTab === 'rotation' && (
+            <div className="space-y-3">
             <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-[#4B5563] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
               <div>
                 <span className="text-[#111827]">
@@ -855,7 +858,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
         {/* TAB 1b: TRUSTED CIRCLE MANAGEMENT */}
         {activeTab === 'circle' && (
-          <div className="overflow-y-auto space-y-4 flex-1 pr-1">
+          <div className="space-y-4">
             <TrustedCircleInviter
               invitedContacts={pod.invitedContacts || []}
               inviteCode={pod.inviteCode || 'BAY2026'}
@@ -866,7 +869,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           </div>
         )}
         {activeTab === 'deposits' && (
-          <div className="overflow-y-auto space-y-4 flex-1 pr-1 text-xs">
+          <div className="space-y-4 text-xs">
             {/* Option A Rule Explanation Banner */}
             <div className="p-3 bg-slate-900 text-white rounded-xl space-y-1.5 shadow-sm">
               <div className="flex items-center gap-2 font-bold text-amber-400 text-xs">
@@ -1028,7 +1031,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
         {/* TAB 3: EMERGENCY REPRIORITIZATION & VOLUNTARY SWAPS */}
         {activeTab === 'reprioritize' && (
-          <div className="overflow-y-auto space-y-5 flex-1 pr-1 text-xs">
+          <div className="space-y-5 text-xs">
             
             {/* Voluntary Slot Swap Box */}
             {isMember && userMembership && !userMembership.hasReceivedPayout && (
@@ -1106,7 +1109,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
         {/* TAB 4: FINANCIAL HARDSHIP FUND */}
         {activeTab === 'hardship' && (
-          <div className="overflow-y-auto space-y-5 flex-1 pr-1 text-xs text-[#111827]">
+          <div className="space-y-5 text-xs text-[#111827]">
             {/* Hardship Overview Header */}
             <div className="bg-gradient-to-r from-blue-900 to-[#005FB8] text-white p-4 sm:p-5 rounded-xl space-y-3 shadow-sm">
               <div className="flex items-center gap-2">
@@ -1312,6 +1315,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           </div>
         )}
 
+        </div>
       </div>
     </div>
   );

@@ -265,8 +265,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-2xl w-full p-6 shadow-2xl relative my-8 text-[#111827] max-h-[85vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+      <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto text-[#111827]">
         
         {/* Modal Close Button */}
         <button
