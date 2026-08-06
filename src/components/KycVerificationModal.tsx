@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { 
   ShieldCheck, X, CheckCircle2, Lock, Building2, Sparkles, 
-  CreditCard, AlertCircle, FileText, UserCheck, ChevronRight 
+  CreditCard, AlertCircle, FileText, UserCheck, ChevronRight, ExternalLink
 } from 'lucide-react';
 
 interface KycVerificationModalProps {
@@ -142,21 +142,94 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
 
         {/* Modal Header */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-3 rounded-xl bg-blue-50 text-[#005FB8] border border-blue-100">
+          <div className={`p-3 rounded-xl ${user.kycStatus === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-50 text-[#005FB8] border border-blue-100'}`}>
             <ShieldCheck className="w-7 h-7" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-bold text-[#111827]">Stripe Identity Verification</h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold bg-blue-100 text-[#005FB8] uppercase">
-                KYC Required
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold uppercase ${user.kycStatus === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-[#005FB8]'}`}>
+                {user.kycStatus === 'VERIFIED' ? 'VERIFIED' : 'KYC Required'}
               </span>
             </div>
-            <p className="text-xs text-[#6B7280]">Verify your identity to create or join mutual savings pods</p>
+            <p className="text-xs text-[#6B7280]">
+              {user.kycStatus === 'VERIFIED' 
+                ? 'Your identity is fully verified with Stripe Identity & Treasury'
+                : 'Verify your identity to create or join mutual savings pods'}
+            </p>
           </div>
         </div>
 
-        {/* Security & Benefits Banner */}
+        {user.kycStatus === 'VERIFIED' ? (
+          <div className="space-y-4 my-2">
+            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 text-xs text-emerald-950 space-y-3">
+              <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>Identity Verified via Stripe Identity</span>
+              </div>
+              <p className="text-slate-700 leading-relaxed text-[11px]">
+                Your identity verification was processed and confirmed by Stripe Identity. Your active Stripe Treasury Financial Account is enabled with $250,000 FDIC pass-through coverage.
+              </p>
+              
+              <div className="pt-2 border-t border-emerald-200/80 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div>
+                  <span className="text-slate-500 block text-[10px]">VERIFIED MEMBER</span>
+                  <span className="font-bold text-slate-900">{user.displayName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">VERIFICATION DATE</span>
+                  <span className="font-bold text-slate-900">
+                    {user.kycVerifiedAt ? new Date(user.kycVerifiedAt).toLocaleDateString() : 'Active'}
+                  </span>
+                </div>
+                <div className="col-span-2 pt-1">
+                  <span className="text-slate-500 block text-[10px]">STRIPE TREASURY FINANCIAL ACCOUNT</span>
+                  <span className="font-bold text-[#005FB8] text-xs">
+                    {user.treasury?.stripeFinAccountId || 'fa_1xTreasury_Active'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-[#DDE1E6] bg-gray-50/80 space-y-2">
+              <span className="text-xs font-bold text-slate-800 block">Confirm Verification in Stripe</span>
+              <p className="text-[11px] text-slate-600">
+                You can review your active verification session logs and connected Treasury accounts directly on the official Stripe website:
+              </p>
+              
+              <div className="pt-1 flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer')}
+                  className="flex-1 bg-[#005FB8] hover:bg-[#004C93] text-white py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  <span>Stripe Identity Dashboard</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open('https://dashboard.stripe.com/test/connect/accounts', '_blank', 'noopener,noreferrer')}
+                  className="bg-white border border-gray-300 hover:bg-gray-100 text-slate-800 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>Connected Accounts</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 text-right">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Close Window
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Security & Benefits Banner */}
         <div className="mb-5 p-3.5 rounded-xl border border-blue-200 bg-blue-50/60 text-xs text-blue-950 space-y-2">
           <div className="font-bold flex items-center gap-1.5 text-[#005FB8]">
             <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
@@ -332,6 +405,8 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
             </div>
 
           </form>
+        )}
+        </>
         )}
 
       </div>

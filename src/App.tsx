@@ -33,7 +33,7 @@ import {
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
   Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil,
-  HeartHandshake, DollarSign, AlertTriangle
+  HeartHandshake, DollarSign, AlertTriangle, ExternalLink
 } from 'lucide-react';
 
 export default function App() {
@@ -653,16 +653,30 @@ export default function App() {
 
             <div>
               <span className="text-[#6B7280] text-[10px] block font-medium">Member Status</span>
-              <span className="font-extrabold font-mono text-xs text-emerald-700">
-                VERIFIED MEMBER
-              </span>
+              <a
+                href="https://dashboard.stripe.com/test/identity"
+                target="_blank"
+                rel="noreferrer"
+                className="font-extrabold font-mono text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
+                title="View Stripe Identity Verification in Stripe Dashboard"
+              >
+                <span>VERIFIED MEMBER</span>
+                <ExternalLink className="w-3 h-3 text-emerald-600 shrink-0" />
+              </a>
             </div>
 
             <div>
               <span className="text-[#6B7280] text-[10px] block font-medium">Stripe Treasury Account</span>
-              <span className="font-mono text-[#111827] text-xs truncate block">
-                {activeUser.treasury.stripeFinAccountId || 'Active Treasury'}
-              </span>
+              <a
+                href="https://dashboard.stripe.com/test/connect/accounts"
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-[#111827] text-xs hover:text-[#005FB8] hover:underline inline-flex items-center gap-1 max-w-full"
+                title="View Connected Accounts in Stripe Dashboard"
+              >
+                <span className="truncate">{activeUser.treasury.stripeFinAccountId || 'Active Treasury'}</span>
+                <ExternalLink className="w-3 h-3 text-gray-400 shrink-0" />
+              </a>
             </div>
 
             <div>

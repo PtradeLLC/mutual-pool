@@ -3,7 +3,7 @@ import { User } from '../types';
 import { Logo } from './Logo';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
-  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle
+  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -103,13 +103,21 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Verified Status Badge or KYC Verification Prompt */}
             {currentUser.kycStatus === 'VERIFIED' ? (
-              <div
-                className="px-3 py-1 rounded-full border border-green-200 bg-green-50 text-green-700 text-xs font-semibold flex items-center gap-1.5"
-                title="Identity Verified via Stripe Identity"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer');
+                  if (onOpenKycModal) onOpenKycModal();
+                }}
+                className="px-3 py-1 rounded-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Verified via Stripe Identity — Click to view in Stripe Dashboard & Verification Details"
               >
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">VERIFIED MEMBER</span>
-              </div>
+                <ExternalLink className="w-3 h-3 text-green-600 ml-0.5 shrink-0" />
+              </button>
             ) : (
               <button
                 type="button"
