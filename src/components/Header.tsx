@@ -24,6 +24,7 @@ interface HeaderProps {
   onOpenContact?: () => void;
   onLogout?: () => void;
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
+  onOpenKycModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -43,6 +44,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHowItWorks,
   onOpenContact,
   onLogout,
+  onOpenAuth,
+  onOpenKycModal,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com';
@@ -98,14 +101,26 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
-            {/* Verified Status Badge */}
-            <div
-              className="px-3 py-1 rounded-full border border-green-200 bg-green-50 text-green-700 text-xs font-semibold flex items-center gap-1.5"
-              title="Identity Verified"
-            >
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">VERIFIED MEMBER</span>
-            </div>
+            {/* Verified Status Badge or KYC Verification Prompt */}
+            {currentUser.kycStatus === 'VERIFIED' ? (
+              <div
+                className="px-3 py-1 rounded-full border border-green-200 bg-green-50 text-green-700 text-xs font-semibold flex items-center gap-1.5"
+                title="Identity Verified via Stripe Identity"
+              >
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">VERIFIED MEMBER</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenKycModal}
+                className="px-3 py-1 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Click to complete Stripe Identity KYC verification"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="hidden sm:inline font-extrabold text-[11px] uppercase tracking-wide">VERIFY IDENTITY (KYC)</span>
+              </button>
+            )}
 
             {/* User Switcher Dropdown */}
             <div className="relative">

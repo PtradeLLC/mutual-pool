@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy } from '../types';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
+import { KycVerificationModal } from './KycVerificationModal';
 import { 
   PlusCircle, 
   Lock, 
@@ -16,16 +17,20 @@ import {
   ArrowLeft, 
   Building2, 
   Shield, 
-  Check 
+  Check,
+  UserCheck
 } from 'lucide-react';
 
 interface CreatePodModalProps {
   user: User;
   onClose: () => void;
   onPodCreated: () => void;
+  onUserUpdated?: (updatedUser: User) => void;
 }
 
-export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, onPodCreated }) => {
+export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, onPodCreated, onUserUpdated }) => {
+  const [currentUserState, setCurrentUserState] = useState<User>(user);
+  const [showKycModal, setShowKycModal] = useState(false);
   const [step, setStep] = useState<'CONFIG' | 'STRIPE_CHECKOUT' | 'SUCCESS'>('CONFIG');
   
   // Pod configuration states
@@ -44,7 +49,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
 
   // Stripe Payment Checkout states
   const [paymentMethod, setPaymentMethod] = useState<'SAVED_CARD' | 'NEW_CARD' | 'APPLE_PAY'>('SAVED_CARD');
-  const [cardName, setCardName] = useState(user.displayName || 'Verified Member');
+  const [cardName, setCardName] = useState(currentUserState.displayName || 'Verified Member');
   const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242');
   const [cardExpiry, setCardExpiry] = useState('12/28');
   const [cardCvc, setCardCvc] = useState('321');
@@ -54,8 +59,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
   // Default invite code generator preview
   const [generatedInviteCode] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
 
-  const isSeasoned = user.accountAgeDays >= 90 || user.completedPodsCount >= 1;
-  const canCreateOpenPod = user.completedPodsCount >= 1 || isSeasoned;
+  const isSeasoned = currentUserState.accountAgeDays >= 90 || currentUserState.completedPodsCount >= 1;
+  const canCreateOpenPod = currentUserState.completedPodsCount >= 1 || isSeasoned;
 
   const baseDepositAmount = Number(depositTier) || 20;
   const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
@@ -78,6 +83,12 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
   const handleProceedToPayment = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (currentUserState.kycStatus !== 'VERIFIED') {
+      setError('You must complete Stripe Identity KYC verification before creating a mutual savings pod.');
+      setShowKycModal(true);
+      return;
+    }
+
     if (!name.trim()) {
       setError('Please enter a descriptive name for your Mutual Savings Pod before proceeding to payment.');
       return;
@@ -94,6 +105,12 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
 
   // Step 2 -> Step 3 transition: execute Stripe payment and server pod creation
   const handleExecuteStripePayment = async () => {
+    if (currentUserState.kycStatus !== 'VERIFIED') {
+      setError('You must complete Stripe Identity KYC verification before creating a mutual savings pod.');
+      setShowKycModal(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -102,14 +119,14 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user.id,
-          'x-user-name': user.displayName || 'Verified Member',
-          'x-user-email': user.email || `${user.id}@mutualpool.org`,
-          'x-user-kyc-status': user.kycStatus,
-          'x-user-account-age-days': String(user.accountAgeDays),
-          'x-user-completed-pods-count': String(user.completedPodsCount),
-          'x-user-platform': user.platform,
-          'x-user-role': user.role,
+          'x-user-id': currentUserState.id,
+          'x-user-name': currentUserState.displayName || 'Verified Member',
+          'x-user-email': currentUserState.email || `${currentUserState.id}@mutualpool.org`,
+          'x-user-kyc-status': currentUserState.kycStatus,
+          'x-user-account-age-days': String(currentUserState.accountAgeDays || 1),
+          'x-user-completed-pods-count': String(currentUserState.completedPodsCount || 0),
+          'x-user-platform': currentUserState.platform || 'DoorDash',
+          'x-user-role': currentUserState.role || 'RIDER',
         },
         body: JSON.stringify({
           name: name.trim(),
@@ -135,6 +152,9 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
       }
 
       if (!res.ok) {
+        if (data.error === 'KYC_REQUIRED' || (data.message && data.message.includes('KYC'))) {
+          setShowKycModal(true);
+        }
         throw new Error(data.message || data.error || 'Stripe payment authorization failed.');
       }
 
@@ -193,7 +213,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold text-emerald-700 pt-1 border-t border-emerald-200/60">
                   <span className="flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{user.kycStatus === 'VERIFIED' ? 'Verified KYC Account Qualified' : 'Requires Verified KYC Account'}</span>
+                    <span>{currentUserState.kycStatus === 'VERIFIED' ? 'Verified KYC Account Qualified' : 'Requires Verified KYC Account'}</span>
                   </span>
                   <span className="flex items-center gap-1">
                     <Lock className="w-3.5 h-3.5 text-emerald-600" />
@@ -208,6 +228,34 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                   <span>Lifetime Welcome Match Claimed (${user.welcomeMatchAmountUsd || 20}.00)</span>
                 </span>
                 <span className="text-[11px] text-gray-500 font-mono">1 match per account limit</span>
+              </div>
+            )}
+
+            {/* Unverified KYC Notice Banner */}
+            {currentUserState.kycStatus !== 'VERIFIED' && (
+              <div className="mb-5 p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
+                    <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
+                    <span>Stripe Identity Verification Required</span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-600 text-white uppercase tracking-wider shrink-0">
+                    KYC Required
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Federal banking regulations and Stripe Treasury rules require identity verification before creating or managing mutual savings pools.
+                </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowKycModal(true)}
+                    className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Complete Stripe Identity Verification Now</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -228,16 +276,28 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                 </span>
                 <span>
                   {isSeasoned
-                    ? `Account tenure of ${user.accountAgeDays} days unlocks all large pod member tiers (up to 10,000) and $50/$100 deposit tiers.`
+                    ? `Account tenure of ${currentUserState.accountAgeDays} days unlocks all large pod member tiers (up to 10,000) and $50/$100 deposit tiers.`
                     : `New accounts (<90 days tenure) can create 20 or 50 member pods at $5, $10, or $20 weekly tiers. Larger tiers unlock after 3 months of successful operation.`}
                 </span>
               </div>
             </div>
 
             {error && (
-              <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>{error}</span>
+              <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{error}</span>
+                </div>
+                {(error.includes('KYC') || error.includes('identity') || currentUserState.kycStatus !== 'VERIFIED') && (
+                  <button
+                    type="button"
+                    onClick={() => setShowKycModal(true)}
+                    className="px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer ml-6"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Verify Identity (KYC)</span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -905,6 +965,20 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
               </button>
             </div>
           </div>
+        )}
+
+        {/* KYC Verification Modal overlay */}
+        {showKycModal && (
+          <KycVerificationModal
+            user={currentUserState}
+            onClose={() => setShowKycModal(false)}
+            onSuccess={(updatedUser) => {
+              setCurrentUserState(updatedUser);
+              setShowKycModal(false);
+              setError(null);
+              onUserUpdated?.(updatedUser);
+            }}
+          />
         )}
 
       </div>

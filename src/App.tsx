@@ -11,6 +11,7 @@ const LandingPage = lazy(() => import('./components/LandingPage').then((module) 
 const PodDetailModal = lazy(() => import('./components/PodDetailModal').then((module) => ({ default: module.PodDetailModal })));
 const CreatePodModal = lazy(() => import('./components/CreatePodModal').then((module) => ({ default: module.CreatePodModal })));
 const StripeBankModal = lazy(() => import('./components/StripeBankModal').then((module) => ({ default: module.StripeBankModal })));
+const KycVerificationModal = lazy(() => import('./components/KycVerificationModal').then((module) => ({ default: module.KycVerificationModal })));
 const PodAgreementModal = lazy(() => import('./components/PodAgreementModal').then((module) => ({ default: module.PodAgreementModal })));
 const PerksMarketplace = lazy(() => import('./components/PerksMarketplace').then((module) => ({ default: module.PerksMarketplace })));
 const AuditLogViewer = lazy(() => import('./components/AuditLogViewer').then((module) => ({ default: module.AuditLogViewer })));
@@ -50,6 +51,7 @@ export default function App() {
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
+  const [showKycModal, setShowKycModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showHardshipModal, setShowHardshipModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -513,6 +515,7 @@ export default function App() {
         onOpenContact={() => setShowContactModal(true)}
         onLogout={handleLogout}
         onOpenAuth={handleOpenAuth}
+        onOpenKycModal={() => setShowKycModal(true)}
       />
 
       {/* Main Content Area */}
@@ -814,8 +817,23 @@ export default function App() {
           <CreatePodModal
             user={currentUser}
             onClose={() => setShowCreatePodModal(false)}
+            onUserUpdated={handleUserUpdated}
             onPodCreated={() => {
               setShowCreatePodModal(false);
+              fetchAppData();
+            }}
+          />
+        </Suspense>
+      )}
+
+      {showKycModal && currentUser && (
+        <Suspense fallback={null}>
+          <KycVerificationModal
+            user={currentUser}
+            onClose={() => setShowKycModal(false)}
+            onSuccess={(updatedUser) => {
+              handleUserUpdated(updatedUser);
+              setShowKycModal(false);
               fetchAppData();
             }}
           />
