@@ -150,7 +150,10 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
         if (res && res.ok) {
           const text = await res.text().catch(() => '');
           if (text) {
-            try { podData = JSON.parse(text); } catch { /* ignore */ }
+            try { 
+              const parsed = JSON.parse(text);
+              podData = (parsed && parsed.pod) ? parsed.pod : parsed;
+            } catch { /* ignore */ }
           }
         } else if (res && !res.ok) {
           const text = await res.text().catch(() => '');
@@ -215,13 +218,14 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
               podId: podId,
               userId: currentUserState.id,
               displayName: currentUserState.displayName || 'Verified Member',
+              email: currentUserState.email || `${currentUserState.id}@mutualpool.org`,
               avatarUrl: currentUserState.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserState.displayName || 'User')}&background=005FB8&color=fff`,
               platform: currentUserState.platform || 'DoorDash',
               rotationIndex: 0,
               hasReceivedPayout: false,
               delinquencyStatus: 'CLEAN',
               joinedAt: new Date().toISOString(),
-            }
+            } as any
           ],
         };
       }

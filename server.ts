@@ -821,13 +821,14 @@ app.use((req, res, next) => {
           podId: podId,
           userId: user.id,
           displayName: user.displayName,
+          email: user.email,
           avatarUrl: user.avatarUrl,
           platform: user.platform,
           rotationIndex: 0,
           hasReceivedPayout: false,
           delinquencyStatus: 'CLEAN',
           joinedAt: new Date().toISOString(),
-        }
+        } as any
       ],
     };
 

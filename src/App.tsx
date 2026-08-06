@@ -545,26 +545,60 @@ export default function App() {
     completedPodsCount: 0,
   };
 
-  // Filter Pods
-  const myPods = allPods.filter(p =>
-    p.createdBy === activeUser.id ||
-    (currentUser && p.createdBy === currentUser.id) ||
-    p.members.some(m =>
-      m.userId === activeUser.id ||
-      (currentUser && m.userId === currentUser.id) ||
-      (activeUser.email && (m as any).email === activeUser.email)
-    )
-  );
+  // Comprehensive Pod filtering to robustly match user by ID, Email, or Display Name across reloads
+  const myPods = allPods.filter(p => {
+    if (!p) return false;
+    // Unwrap if p was stored wrapped in Firestore as { pod: ... }
+    const pod: Pod = (p as any).pod && (p as any).pod.id ? (p as any).pod : p;
+
+    const activeId = activeUser?.id;
+    const currentId = currentUser?.id;
+    const activeEmail = activeUser?.email?.trim().toLowerCase();
+    const currentEmail = currentUser?.email?.trim().toLowerCase();
+    const activeName = activeUser?.displayName?.trim().toLowerCase();
+    const currentName = currentUser?.displayName?.trim().toLowerCase();
+
+    // 1. Match creator ID or creator Display Name
+    if (activeId && pod.createdBy === activeId) return true;
+    if (currentId && pod.createdBy === currentId) return true;
+    if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
+    if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
+
+    // 2. Match members list by userId, email, or displayName
+    if (Array.isArray(pod.members)) {
+      return pod.members.some(m => {
+        if (!m) return false;
+        if (activeId && m.userId === activeId) return true;
+        if (currentId && m.userId === currentId) return true;
+        if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
+        if (currentEmail && (m as any).email && (m as any).email.trim().toLowerCase() === currentEmail) return true;
+        if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
+        if (currentName && m.displayName && m.displayName.trim().toLowerCase() === currentName) return true;
+        return false;
+      });
+    }
+
+    return false;
+  });
+
+  // Debug logging for troubleshooting user pod state across refreshes
+  if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    console.log('[MutualPool Debug] Active User:', { id: activeUser.id, email: activeUser.email, name: activeUser.displayName });
+    console.log('[MutualPool Debug] Total Pods Loaded:', allPods.length, allPods);
+    console.log('[MutualPool Debug] My Matched Pods:', myPods.length, myPods);
+  }
 
   // User-created forming pods (excluding initial demo seed pods)
   const userCreatedFormingPods = allPods.filter(
     p => p.status === 'FORMING' && p.id !== 'pod_starter_50_5usd' && p.id !== 'pod_metro_riders_20'
   );
 
-  // If actual user-created forming pods exist, replace the demo seed pod with actual user-created pods
-  const explorePods = userCreatedFormingPods.length > 0
-    ? userCreatedFormingPods
-    : allPods.filter(p => p.status === 'FORMING' && !p.members.some(m => m.userId === activeUser.id));
+  // Explore pods: forming pods that the current user is not yet a member of
+  const explorePods = allPods.filter(p => {
+    if (p.status !== 'FORMING') return false;
+    const isMyPod = myPods.some(mp => mp.id === p.id);
+    return !isMyPod;
+  });
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">

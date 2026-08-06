@@ -142,15 +142,33 @@ export function subscribeToPods(
 ) {
   return onSnapshot(
     collection(db, 'pods'),
-    (snapshot) => callback(snapshot.docs.map((d) => d.data() as Pod)),
+    (snapshot) => {
+      const podsList: Pod[] = [];
+      for (const d of snapshot.docs) {
+        const raw: any = d.data();
+        if (!raw) continue;
+        const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
+          ? raw.pod
+          : (raw as Pod);
+        if (actualPod && actualPod.id) {
+          podsList.push(actualPod);
+        }
+      }
+      callback(podsList);
+    },
     (err) => onError?.(wrapError('subscribeToPods', err))
   );
 }
 
-export async function savePodToFirestore(pod: Pod): Promise<void> {
+export async function savePodToFirestore(podDataInput: any): Promise<void> {
+  if (!podDataInput) return;
+  const pod: Pod = (podDataInput.pod && typeof podDataInput.pod === 'object' && podDataInput.pod.id)
+    ? podDataInput.pod
+    : podDataInput;
   if (!pod || !pod.id || typeof pod.id !== 'string' || !pod.id.trim()) return;
   try {
     await setDoc(doc(db, 'pods', pod.id), sanitizeForFirestore(pod), { merge: true });
+    console.log('[firestoreService] Pod saved to Firestore:', pod.id, pod.name);
   } catch (err) {
     throw wrapError(`savePodToFirestore(${pod.id})`, err);
   }
