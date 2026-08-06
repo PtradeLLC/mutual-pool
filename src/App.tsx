@@ -1,21 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { User, Pod } from './types';
 import { Header } from './components/Header';
-import { LandingPage } from './components/LandingPage';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
 import { PodCard } from './components/PodCard';
-import { PodDetailModal } from './components/PodDetailModal';
-import { CreatePodModal } from './components/CreatePodModal';
-import { StripeBankModal } from './components/StripeBankModal';
-import { PodAgreementModal } from './components/PodAgreementModal';
-import { PerksMarketplace } from './components/PerksMarketplace';
-import { AuditLogViewer } from './components/AuditLogViewer';
-import { AdminOpsView } from './components/AdminOpsView';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
-import { EditProfileModal } from './components/EditProfileModal';
 import { HardshipRequestModal } from './components/HardshipRequestModal';
-import { AboutUsModal, HowItWorksModal, ContactUsModal } from './components/InfoModals';
+
+const LandingPage = lazy(() => import('./components/LandingPage').then((module) => ({ default: module.LandingPage })));
+const PodDetailModal = lazy(() => import('./components/PodDetailModal').then((module) => ({ default: module.PodDetailModal })));
+const CreatePodModal = lazy(() => import('./components/CreatePodModal').then((module) => ({ default: module.CreatePodModal })));
+const StripeBankModal = lazy(() => import('./components/StripeBankModal').then((module) => ({ default: module.StripeBankModal })));
+const PodAgreementModal = lazy(() => import('./components/PodAgreementModal').then((module) => ({ default: module.PodAgreementModal })));
+const PerksMarketplace = lazy(() => import('./components/PerksMarketplace').then((module) => ({ default: module.PerksMarketplace })));
+const AuditLogViewer = lazy(() => import('./components/AuditLogViewer').then((module) => ({ default: module.AuditLogViewer })));
+const AdminOpsView = lazy(() => import('./components/AdminOpsView').then((module) => ({ default: module.AdminOpsView })));
+const EditProfileModal = lazy(() => import('./components/EditProfileModal').then((module) => ({ default: module.EditProfileModal })));
+const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.AboutUsModal })));
+const HowItWorksModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
+const ContactUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { 
@@ -730,38 +733,46 @@ export default function App() {
 
         {/* 3. PERKS MARKETPLACE TAB */}
         {activeTab === 'perks' && (
-          <PerksMarketplace
-            currentUser={currentUser || {
-              id: 'usr_guest',
-              email: '',
-              displayName: 'Guest Partner',
-              avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-              platform: 'Partner Provider',
-              role: 'RIDER',
-              accountAgeDays: 0,
-              kycStatus: 'VERIFIED',
-              treasury: { stripeAccountId: '', stripeFinAccountId: '', balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'ACTIVE' },
-              externalBank: { bankName: '', last4: '', routingNumber: '', accountType: 'CHECKING', status: 'NOT_LINKED' },
-              completedPodsCount: 0,
-            }}
-            initialOpenSubmitModal={openSubmitPerkDirectly}
-            onClearInitialSubmitModal={() => setOpenSubmitPerkDirectly(false)}
-            onSelectUser={handleAuthSuccess}
-            onOpenAuth={handleOpenAuth}
-          />
+          <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading marketplace…</div>}>
+            <PerksMarketplace
+              currentUser={currentUser || {
+                id: 'usr_guest',
+                email: '',
+                displayName: 'Guest Partner',
+                avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+                platform: 'Partner Provider',
+                role: 'RIDER',
+                accountAgeDays: 0,
+                kycStatus: 'VERIFIED',
+                treasury: { stripeAccountId: '', stripeFinAccountId: '', balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'ACTIVE' },
+                externalBank: { bankName: '', last4: '', routingNumber: '', accountType: 'CHECKING', status: 'NOT_LINKED' },
+                completedPodsCount: 0,
+              }}
+              initialOpenSubmitModal={openSubmitPerkDirectly}
+              onClearInitialSubmitModal={() => setOpenSubmitPerkDirectly(false)}
+              onSelectUser={handleAuthSuccess}
+              onOpenAuth={handleOpenAuth}
+            />
+          </Suspense>
         )}
 
         {/* 4. AUDIT LOG LEDGER TAB */}
-        {activeTab === 'audit-log' && <AuditLogViewer />}
+        {activeTab === 'audit-log' && (
+          <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading audit log…</div>}>
+            <AuditLogViewer />
+          </Suspense>
+        )}
 
         {/* 5. OPERATIONS & WEBHOOKS TAB */}
-        {activeTab === 'admin-ops' && (
-          <AdminOpsView
-            currentUser={currentUser}
-            allUsers={allUsers}
-            allPods={allPods}
-            onRefreshData={fetchAppData}
-          />
+        {activeTab === 'admin-ops' && currentUser && (
+          <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading admin tools…</div>}>
+            <AdminOpsView
+              currentUser={currentUser}
+              allUsers={allUsers}
+              allPods={allPods}
+              onRefreshData={fetchAppData}
+            />
+          </Suspense>
         )}
 
       </main>
@@ -784,51 +795,59 @@ export default function App() {
         initialMode={authInitialMode}
       />
 
-      {showBankModal && (
-        <StripeBankModal
-          user={currentUser}
-          onClose={() => setShowBankModal(false)}
-          onBankLinked={(updatedUser) => {
-            setCurrentUser(updatedUser);
-            setShowBankModal(false);
-            fetchAppData();
-          }}
-        />
+      {showBankModal && currentUser && (
+        <Suspense fallback={null}>
+          <StripeBankModal
+            user={currentUser}
+            onClose={() => setShowBankModal(false)}
+            onBankLinked={(updatedUser) => {
+              setCurrentUser(updatedUser);
+              setShowBankModal(false);
+              fetchAppData();
+            }}
+          />
+        </Suspense>
       )}
 
-      {showCreatePodModal && (
-        <CreatePodModal
-          user={currentUser}
-          onClose={() => setShowCreatePodModal(false)}
-          onPodCreated={() => {
-            setShowCreatePodModal(false);
-            fetchAppData();
-          }}
-        />
+      {showCreatePodModal && currentUser && (
+        <Suspense fallback={null}>
+          <CreatePodModal
+            user={currentUser}
+            onClose={() => setShowCreatePodModal(false)}
+            onPodCreated={() => {
+              setShowCreatePodModal(false);
+              fetchAppData();
+            }}
+          />
+        </Suspense>
       )}
-      {selectedPodDetail && (
-        <PodDetailModal
-          pod={selectedPodDetail}
-          currentUser={currentUser}
-          allUsers={allUsers}
-          onClose={() => setSelectedPodDetail(null)}
-          onRefreshPod={fetchAppData}
-          onOpenAgreementModal={() => {
-            setAgreementPod(selectedPodDetail);
-          }}
-        />
+      {selectedPodDetail && currentUser && (
+        <Suspense fallback={null}>
+          <PodDetailModal
+            pod={selectedPodDetail}
+            currentUser={currentUser}
+            allUsers={allUsers}
+            onClose={() => setSelectedPodDetail(null)}
+            onRefreshPod={fetchAppData}
+            onOpenAgreementModal={() => {
+              setAgreementPod(selectedPodDetail);
+            }}
+          />
+        </Suspense>
       )}
 
-      {agreementPod && (
-        <PodAgreementModal
-          pod={agreementPod}
-          user={currentUser}
-          onClose={() => setAgreementPod(null)}
-          onSigned={() => {
-            setAgreementPod(null);
-            fetchAppData();
-          }}
-        />
+      {agreementPod && currentUser && (
+        <Suspense fallback={null}>
+          <PodAgreementModal
+            pod={agreementPod}
+            user={currentUser}
+            onClose={() => setAgreementPod(null)}
+            onSigned={() => {
+              setAgreementPod(null);
+              fetchAppData();
+            }}
+          />
+        </Suspense>
       )}
 
       <AboutUsModal
@@ -847,15 +866,17 @@ export default function App() {
       />
 
       {currentUser && (
-        <EditProfileModal
-          isOpen={showEditProfileModal}
-          onClose={() => setShowEditProfileModal(false)}
-          currentUser={currentUser}
-          onUpdateUser={async (updatedUser) => {
-            setCurrentUser(updatedUser);
-            await syncUserWithBackend(updatedUser);
-          }}
-        />
+        <Suspense fallback={null}>
+          <EditProfileModal
+            isOpen={showEditProfileModal}
+            onClose={() => setShowEditProfileModal(false)}
+            currentUser={currentUser}
+            onUpdateUser={async (updatedUser) => {
+              setCurrentUser(updatedUser);
+              await syncUserWithBackend(updatedUser);
+            }}
+          />
+        </Suspense>
       )}
 
       {currentUser && (
