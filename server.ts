@@ -329,13 +329,20 @@ app.use((req, res, next) => {
   if (res.headersSent) return next();
 
   try {
+    // If path query parameter was provided by Vercel rewrite rule: /api/(.*) -> /api/index.ts?path=$1
+    if (req.query && typeof req.query.path === 'string') {
+      const pathParam = req.query.path.startsWith('/') ? req.query.path : '/' + req.query.path;
+      req.url = '/api' + pathParam;
+      return next();
+    }
+
     // If req.url is already a specific API route like /api/pods or /api/users/current, leave it alone!
     if (req.url && req.url.startsWith('/api/') && !req.url.startsWith('/api/index')) {
       return next();
     }
 
-    // Check x-forwarded-uri (set by Vercel proxy for the original incoming client URL)
-    const rawForwarded = req.headers['x-forwarded-uri'];
+    // Check headers set by Vercel proxy for the original incoming client URL
+    const rawForwarded = req.headers['x-forwarded-uri'] || req.headers['x-now-route-matches'] || req.headers['x-invoke-path'];
     const forwardedStr = Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded;
 
     if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api/') && !forwardedStr.startsWith('/api/index')) {

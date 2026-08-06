@@ -9,35 +9,39 @@ let auth: Auth;
 let storage: Storage;
 
 export function initializeFirebase(): void {
-  if (getApps().length > 0) {
-    app = getApps()[0];
-  } else {
-    // Check for service account credentials
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
-      ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-      : undefined;
-    
-    if (serviceAccount) {
-      app = initializeApp({
-        credential: cert(serviceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      });
+  try {
+    if (getApps().length > 0) {
+      app = getApps()[0];
     } else {
-      // Use default credentials (works in Cloud Run, Cloud Functions, etc.)
-      app = initializeApp({
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      });
+      // Check for service account credentials
+      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
+        ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+        : undefined;
+      
+      if (serviceAccount) {
+        app = initializeApp({
+          credential: cert(serviceAccount),
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+        });
+      } else {
+        // Use default credentials if available
+        app = initializeApp({
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+        });
+      }
     }
+    
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+    
+    // Configure Firestore settings
+    db.settings({
+      ignoreUndefinedProperties: true,
+    });
+  } catch (err) {
+    console.warn('[Firebase Admin Init Warning] Unable to initialize Firebase Admin with default credentials:', err);
   }
-  
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-  
-  // Configure Firestore settings
-  db.settings({
-    ignoreUndefinedProperties: true,
-  });
 }
 
 export function getAuthAdmin(): Auth {
