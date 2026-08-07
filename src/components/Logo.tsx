@@ -1,5 +1,5 @@
 import React from 'react';
-import logoImg from '../assets/images/mutual_pool_logo_1785098560966.jpg';
+import logoImg from '../assets/images/logo.png';
 
 interface LogoProps {
   className?: string;
