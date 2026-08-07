@@ -54,10 +54,17 @@ export default function App() {
   });
   const [authLoading, setAuthLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [allPods, setAllPods] = useState<Pod[]>([]);
+  const [allPods, setAllPods] = useState<Pod[]>(() => {
+    try {
+      const saved = localStorage.getItem('mutualpool_cached_pods');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops'>('my-pods');
 
-  // Sync active user to localStorage for session persistence across refreshes
+  // Sync active user and cached pods to localStorage for session persistence across refreshes
   useEffect(() => {
     if (currentUser) {
       try {
@@ -75,6 +82,16 @@ export default function App() {
       }
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (allPods.length > 0) {
+      try {
+        localStorage.setItem('mutualpool_cached_pods', JSON.stringify(allPods));
+      } catch {
+        // quiet storage fail
+      }
+    }
+  }, [allPods]);
 
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
