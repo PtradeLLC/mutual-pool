@@ -19,9 +19,12 @@ export const Logo: React.FC<LogoProps> = ({
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <img 
-        src={logoImg} 
-        alt="MutualPool Logo - We Pool. We Grow. We Deliver." 
+        src={logoImg || '/logo.png'} 
+        alt="MutualPool Logo" 
         referrerPolicy="no-referrer"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).src = '/logo.png';
+        }}
         className={`${sizeClasses[size]} w-auto object-contain rounded-lg shadow-xs hover:scale-102 transition-transform bg-white p-0.5 border border-[#E2E8F0]`}
       />
     </div>
