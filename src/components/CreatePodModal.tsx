@@ -234,6 +234,38 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
       if (podData) {
         await savePodToFirestore(podData).catch((err) => console.warn('Firestore pod save warning:', err));
 
+        // Sync with backend Express server as well
+        fetch('/api/pods', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUserState.id,
+          },
+          body: JSON.stringify({
+            name: podData.name,
+            description: podData.description,
+            category: podData.category,
+            sizeTier: podData.sizeTier,
+            depositTier: podData.depositTier,
+            podType: podData.podType,
+            activationPolicy: podData.activationPolicy,
+            inviteWindowDays: podData.inviteWindowDays,
+            autoOpenOnExpire: podData.autoOpenOnExpire,
+            invitedContacts: podData.invitedContacts,
+          }),
+        }).catch((err) => console.warn('Backend pod sync warning:', err));
+
+        // Persist to local cache immediately
+        try {
+          const cachedRaw = localStorage.getItem('mutualpool_cached_pods');
+          const cachedPods: Pod[] = cachedRaw ? JSON.parse(cachedRaw) : [];
+          const exists = cachedPods.some((p: Pod) => p.id === podData.id);
+          const updatedCached = exists ? cachedPods.map((p: Pod) => p.id === podData.id ? podData : p) : [podData, ...cachedPods];
+          localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updatedCached));
+        } catch {
+          // quiet cache fail
+        }
+
         // Add audit log entry to Firestore
         addAuditLogToFirestore({
           id: `log_${Date.now()}`,

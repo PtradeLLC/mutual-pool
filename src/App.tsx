@@ -25,6 +25,7 @@ import { auth } from './lib/firebase';
 import { 
   seedInitialFirestoreData, 
   subscribeToPods, 
+  getPodsFromFirestore,
   getUserFromFirestore, 
   saveUserToFirestore,
   subscribeToUser
@@ -220,37 +221,49 @@ export default function App() {
         if (allUData) setAllUsers(allUData);
       }
 
-      // Fetch all pods
+      // Fetch all pods from Firestore directly
+      const firestorePods = await getPodsFromFirestore().catch(() => []);
+
+      // Fetch all pods from backend API
       const podsRes = await fetch('/api/pods').catch(() => null);
+      let apiPods: Pod[] = [];
       if (podsRes && podsRes.ok) {
         const pData = await podsRes.json().catch(() => null);
-        if (pData && Array.isArray(pData)) {
-          setAllPods((prev) => {
-            const map = new Map<string, Pod>();
-            for (const p of prev) map.set(p.id, p);
-            for (const p of pData) {
-              const existing = map.get(p.id);
-              if (!existing || (p.members && existing.members && p.members.length >= existing.members.length)) {
-                map.set(p.id, p);
-              }
-            }
-            return Array.from(map.values());
-          });
+        if (pData && Array.isArray(pData)) apiPods = pData;
+      }
 
-          // Keep selectedPodDetail updated if open
-          if (selectedPodDetail) {
-            const fresh = pData.find((p: Pod) => p.id === selectedPodDetail.id);
-            if (fresh) setSelectedPodDetail(fresh);
+      setAllPods((prev) => {
+        const map = new Map<string, Pod>();
+        // 1. Existing local state & cache
+        for (const p of prev) {
+          if (p && p.id) map.set(p.id, p);
+        }
+        // 2. Firestore pods
+        for (const p of firestorePods) {
+          if (p && p.id) map.set(p.id, p);
+        }
+        // 3. API pods
+        for (const p of apiPods) {
+          if (!p || !p.id) continue;
+          const existing = map.get(p.id);
+          if (!existing || (p.members && existing.members && p.members.length >= existing.members.length)) {
+            map.set(p.id, p);
           }
         }
-      }
+        const updated = Array.from(map.values());
+        if (selectedPodDetail) {
+          const fresh = updated.find((p) => p.id === selectedPodDetail.id);
+          if (fresh) setSelectedPodDetail(fresh);
+        }
+        return updated;
+      });
     } catch {
       // quiet fail-safe
     }
   };
 
   useEffect(() => {
-    // Initial fetch from backend API
+    // Initial fetch from backend API & Firestore
     fetchAppData();
 
     // 1. Seed initial Firestore collections if empty
@@ -258,12 +271,14 @@ export default function App() {
 
     // 2. Subscribe to real-time Pods in Firestore
     const unsubscribePods = subscribeToPods((firestorePods) => {
-      if (firestorePods && firestorePods.length > 0) {
+      if (firestorePods && Array.isArray(firestorePods)) {
         setAllPods((prevPods) => {
           const map = new Map<string, Pod>();
-          for (const p of firestorePods) map.set(p.id, p);
           for (const p of prevPods) {
-            if (!map.has(p.id)) map.set(p.id, p);
+            if (p && p.id) map.set(p.id, p);
+          }
+          for (const p of firestorePods) {
+            if (p && p.id) map.set(p.id, p);
           }
           return Array.from(map.values());
         });

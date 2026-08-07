@@ -136,6 +136,28 @@ export function subscribeToUser(
 }
 
 // --- PODS ---
+export async function getPodsFromFirestore(): Promise<Pod[]> {
+  try {
+    const snap = await getDocs(collection(db, 'pods'));
+    const podsList: Pod[] = [];
+    for (const d of snap.docs) {
+      const raw: any = d.data();
+      if (!raw) continue;
+      const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
+        ? raw.pod
+        : (raw as Pod);
+      if (actualPod) {
+        if (!actualPod.id) actualPod.id = d.id;
+        podsList.push(actualPod);
+      }
+    }
+    return podsList;
+  } catch (err) {
+    console.warn('getPodsFromFirestore error:', err);
+    return [];
+  }
+}
+
 export function subscribeToPods(
   callback: (pods: Pod[]) => void,
   onError?: (err: Error) => void
@@ -150,7 +172,8 @@ export function subscribeToPods(
         const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
           ? raw.pod
           : (raw as Pod);
-        if (actualPod && actualPod.id) {
+        if (actualPod) {
+          if (!actualPod.id) actualPod.id = d.id;
           podsList.push(actualPod);
         }
       }
