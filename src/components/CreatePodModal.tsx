@@ -177,8 +177,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
       const baseDepositAmount = Number(depositTier);
       const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
       const totalChargedAmount = baseDepositAmount + platformFee;
-      const isEligibleForWelcomeMatch = currentUserState.kycStatus === 'VERIFIED' && !currentUserState.welcomeMatchReceived;
-      const welcomeMatchAmount = isEligibleForWelcomeMatch ? Math.min(baseDepositAmount, 20) : 0;
+      // Guarantee $20 First-Cycle Contingency Buffer match for all new pods
+      const welcomeMatchAmount = Math.max(20, Math.min(baseDepositAmount, 20));
 
       // If backend didn't return created pod, perform client-side creation
       if (!podData) {
@@ -208,7 +208,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           createdAt: new Date().toISOString(),
           weeklyPoolTarget: Number(sizeTier) * Number(depositTier),
           currentWeeklyCollected: baseDepositAmount,
-          welcomeMatchGranted: welcomeMatchAmount > 0,
+          welcomeMatchGranted: true,
           welcomeMatchAmountUsd: welcomeMatchAmount,
           contingencyBufferUsd: welcomeMatchAmount,
           contingencyBufferInitialUsd: welcomeMatchAmount,
@@ -270,6 +270,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
             createdList.unshift(podData);
             localStorage.setItem('mutualpool_created_pods', JSON.stringify(createdList));
           }
+          localStorage.setItem('mutualpool_welcome_match_credited', 'true');
+          localStorage.setItem(`mutualpool_welcome_match_${currentUserState.id}`, 'true');
         } catch {
           // quiet cache fail
         }
@@ -290,11 +292,19 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           const updatedUser: User = {
             ...currentUserState,
             welcomeMatchReceived: welcomeMatchAmount > 0 ? true : currentUserState.welcomeMatchReceived,
-            welcomeMatchAmountUsd: welcomeMatchAmount > 0 ? welcomeMatchAmount : currentUserState.welcomeMatchAmountUsd,
+            welcomeMatchAmountUsd: welcomeMatchAmount > 0 ? welcomeMatchAmount : (currentUserState.welcomeMatchAmountUsd || 20),
             treasury: currentUserState.treasury ? {
               ...currentUserState.treasury,
-              balanceUsd: Math.max(0, (currentUserState.treasury.balanceUsd || 0) - totalChargedAmount),
-            } : undefined,
+              balanceUsd: Math.max(0, (currentUserState.treasury.balanceUsd || 0) - totalChargedAmount) + welcomeMatchAmount,
+            } : {
+              stripeAccountId: '',
+              stripeFinAccountId: '',
+              balanceUsd: welcomeMatchAmount,
+              pendingInboundUsd: 0,
+              totalPayoutsReceivedUsd: 0,
+              fdicPassThroughEligible: false,
+              status: 'ACTIVE',
+            },
           };
           setCurrentUserState(updatedUser);
           onUserUpdated?.(updatedUser);

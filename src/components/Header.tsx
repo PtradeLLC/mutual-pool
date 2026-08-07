@@ -25,6 +25,7 @@ interface HeaderProps {
   onLogout?: () => void;
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
   onOpenKycModal?: () => void;
+  hasWelcomeMatch?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -46,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onOpenAuth,
   onOpenKycModal,
+  hasWelcomeMatch,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com';
@@ -100,6 +102,14 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Welcome Match Credited Pill */}
+            {(hasWelcomeMatch || currentUser.welcomeMatchReceived) && (
+              <div className="hidden xl:flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1.5 rounded-lg text-xs font-extrabold shadow-2xs">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse shrink-0" />
+                <span>+$20.00 Welcome Match</span>
+              </div>
+            )}
 
             {/* Verified Status Badge or KYC Verification Prompt */}
             {currentUser.kycStatus === 'VERIFIED' ? (

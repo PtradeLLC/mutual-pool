@@ -826,7 +826,7 @@ app.use((req, res, next) => {
           status: 'UNINITIALIZED',
         };
       }
-      creatorUser.treasury.balanceUsd = Math.max(0, (creatorUser.treasury.balanceUsd || 0) - totalChargedAmount);
+      creatorUser.treasury.balanceUsd = Math.max(0, (creatorUser.treasury.balanceUsd || 0) - totalChargedAmount) + welcomeMatchAmount;
       if (welcomeMatchAmount > 0) {
         creatorUser.welcomeMatchReceived = true;
         creatorUser.welcomeMatchAmountUsd = welcomeMatchAmount;
