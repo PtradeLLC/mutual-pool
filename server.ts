@@ -14,9 +14,68 @@ import {
 
 const PORT = 3000;
 
-// State Store (In-Memory Database)
-let users: User[] = [...INITIAL_USERS];
-let pods: Pod[] = [...INITIAL_PODS];
+const PODS_FILE = path.join(process.cwd(), 'pods_data.json');
+const USERS_FILE = path.join(process.cwd(), 'users_data.json');
+
+function loadPodsFromDisk(): Pod[] {
+  try {
+    if (fs.existsSync(PODS_FILE)) {
+      const raw = fs.readFileSync(PODS_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const map = new Map<string, Pod>();
+        for (const p of INITIAL_PODS) map.set(p.id, p);
+        for (const p of parsed) {
+          if (p && p.id) map.set(p.id, p);
+        }
+        return Array.from(map.values());
+      }
+    }
+  } catch (err) {
+    console.error('Error loading pods_data.json:', err);
+  }
+  return [...INITIAL_PODS];
+}
+
+function savePodsToDisk() {
+  try {
+    fs.writeFileSync(PODS_FILE, JSON.stringify(pods, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving pods_data.json:', err);
+  }
+}
+
+function loadUsersFromDisk(): User[] {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const raw = fs.readFileSync(USERS_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const map = new Map<string, User>();
+        for (const u of INITIAL_USERS) map.set(u.id, u);
+        for (const u of parsed) {
+          if (u && u.id) map.set(u.id, u);
+        }
+        return Array.from(map.values());
+      }
+    }
+  } catch (err) {
+    console.error('Error loading users_data.json:', err);
+  }
+  return [...INITIAL_USERS];
+}
+
+function saveUsersToDisk() {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving users_data.json:', err);
+  }
+}
+
+// State Store
+let users: User[] = loadUsersFromDisk();
+let pods: Pod[] = loadPodsFromDisk();
 let perks: Perk[] = [...INITIAL_PERKS];
 let auditLogs: AuditLogEntry[] = [...INITIAL_AUDIT_LOGS];
 let hardshipRequests: HardshipFundRequest[] = [];
@@ -469,6 +528,7 @@ app.use((req, res, next) => {
     };
 
     users.push(newUser);
+    saveUsersToDisk();
 
     addAuditLog(
       undefined,
@@ -833,6 +893,8 @@ app.use((req, res, next) => {
     };
 
     pods.unshift(newPod);
+    savePodsToDisk();
+    saveUsersToDisk();
 
     const policyLabel = requestedActivationPolicy === 'WHEN_FULL' 
       ? 'Wait Until 100% Full Capacity' 
@@ -1070,6 +1132,7 @@ app.use((req, res, next) => {
     };
 
     pod.members.push(newMember);
+    savePodsToDisk();
 
     // Update invited contact status if matched
     if (contactMatch) {

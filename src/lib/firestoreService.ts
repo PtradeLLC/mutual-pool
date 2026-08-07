@@ -141,50 +141,24 @@ export function subscribeToPods(
   onError?: (err: Error) => void
 ) {
   return onSnapshot(
-    collection(db, "pods"),
+    collection(db, 'pods'),
     (snapshot) => {
-      const pods = snapshot.docs.map((docSnap) => {
-        const raw = docSnap.data() as any;
-
-        const pod =
-          raw.pod && typeof raw.pod === "object"
-            ? raw.pod
-            : raw;
-
-        return {
-          id: docSnap.id,
-          ...pod,
-        } as Pod;
-      });
-
-      callback(pods);
+      const podsList: Pod[] = [];
+      for (const d of snapshot.docs) {
+        const raw: any = d.data();
+        if (!raw) continue;
+        const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
+          ? raw.pod
+          : (raw as Pod);
+        if (actualPod && actualPod.id) {
+          podsList.push(actualPod);
+        }
+      }
+      callback(podsList);
     },
-    (err) => onError?.(wrapError("subscribeToPods", err))
+    (err) => onError?.(wrapError('subscribeToPods', err))
   );
 }
-// export function subscribeToPods(
-//   callback: (pods: Pod[]) => void,
-//   onError?: (err: Error) => void
-// ) {
-//   return onSnapshot(
-//     collection(db, 'pods'),
-//     (snapshot) => {
-//       const podsList: Pod[] = [];
-//       for (const d of snapshot.docs) {
-//         const raw: any = d.data();
-//         if (!raw) continue;
-//         const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
-//           ? raw.pod
-//           : (raw as Pod);
-//         if (actualPod && actualPod.id) {
-//           podsList.push(actualPod);
-//         }
-//       }
-//       callback(podsList);
-//     },
-//     (err) => onError?.(wrapError('subscribeToPods', err))
-//   );
-// }
 
 export async function savePodToFirestore(podDataInput: any): Promise<void> {
   if (!podDataInput) return;
