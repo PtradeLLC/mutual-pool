@@ -228,7 +228,12 @@ export default function App() {
           setAllPods((prev) => {
             const map = new Map<string, Pod>();
             for (const p of prev) map.set(p.id, p);
-            for (const p of pData) map.set(p.id, p);
+            for (const p of pData) {
+              const existing = map.get(p.id);
+              if (!existing || (p.members && existing.members && p.members.length >= existing.members.length)) {
+                map.set(p.id, p);
+              }
+            }
             return Array.from(map.values());
           });
 
