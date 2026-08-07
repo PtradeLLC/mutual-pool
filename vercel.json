@@ -4,6 +4,6 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.ts?path=$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api|assets|.*\\..*).*)", "destination": "/index.html" }
   ]
 }

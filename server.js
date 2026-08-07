@@ -532,6 +532,7 @@ var INITIAL_AUDIT_LOGS = [
 ];
 
 // server.ts
+process.noDeprecation = true;
 var PORT = 3e3;
 var PODS_FILE = path.join(process.env.VERCEL ? "/tmp" : process.cwd(), "pods_data.json");
 var USERS_FILE = path.join(process.env.VERCEL ? "/tmp" : process.cwd(), "users_data.json");
@@ -1219,7 +1220,7 @@ app.post(["/api/pods", "/pods"], (req, res) => {
           status: "UNINITIALIZED"
         };
       }
-      creatorUser.treasury.balanceUsd = Math.max(0, (creatorUser.treasury.balanceUsd || 0) - totalChargedAmount);
+      creatorUser.treasury.balanceUsd = Math.max(0, (creatorUser.treasury.balanceUsd || 0) - totalChargedAmount) + welcomeMatchAmount;
       if (welcomeMatchAmount > 0) {
         creatorUser.welcomeMatchReceived = true;
         creatorUser.welcomeMatchAmountUsd = welcomeMatchAmount;
