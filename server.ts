@@ -14,8 +14,8 @@ import {
 
 const PORT = 3000;
 
-const PODS_FILE = path.join(process.cwd(), 'pods_data.json');
-const USERS_FILE = path.join(process.cwd(), 'users_data.json');
+const PODS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'pods_data.json');
+const USERS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'users_data.json');
 
 function loadPodsFromDisk(): Pod[] {
   try {
