@@ -32,28 +32,28 @@ export const Logo: React.FC<LogoProps> = ({
     }
   };
 
-  // If all image attempts fail, render elegant vector SVG logo fallback
+  // If all image attempts fail, render clean off-white vector logo matching the user's authentic white badge aesthetic
   if (errorCount >= sources.length || !currentSrc) {
     return (
-      <div className={`flex items-center gap-2.5 ${sizeClasses[size]} ${className}`}>
-        <div className="h-full aspect-square bg-[#0F172A] rounded-xl flex items-center justify-center p-1.5 shadow-xs border border-[#E2E8F0]">
+      <div className={`flex items-center gap-2 ${sizeClasses[size]} ${className}`}>
+        <div className="h-full aspect-square bg-[#F8F6F0] rounded-xl flex items-center justify-center p-1 shadow-xs border border-[#E2E8F0]">
           <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Sage Green Leaves at Top */}
-            <path d="M50 35C45 20 35 15 32 10C42 12 48 22 50 35Z" fill="#3B7A57" />
-            <path d="M50 35C55 20 65 15 68 10C58 12 52 22 50 35Z" fill="#52796F" />
-            {/* Infinity Loop */}
-            <path d="M30 65C18 65 12 52 22 40C32 28 45 40 50 48C55 40 68 28 78 40C88 52 82 65 70 65C58 65 52 52 50 48C48 52 42 65 30 65Z" 
-                  stroke="#1E293B" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+            {/* Sage Green Leaves */}
+            <path d="M50 32C45 18 35 13 32 8C42 10 48 20 50 32Z" fill="#52796F" />
+            <path d="M50 32C55 18 65 13 68 8C58 10 52 20 50 32Z" fill="#52796F" />
+            {/* Navy Infinity Loop with speech bubble tails */}
+            <path d="M30 62C18 62 12 50 22 38C32 26 45 38 50 46C55 38 68 26 78 38C88 50 82 62 70 62C58 62 52 50 50 46C48 50 42 62 30 62Z" 
+                  stroke="#1E293B" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             {/* Handshake in center bottom */}
-            <circle cx="50" cy="58" r="4" fill="#3B7A57" />
+            <circle cx="50" cy="56" r="3.5" fill="#52796F" />
           </svg>
         </div>
         <div className="flex flex-col">
-          <span className="font-extrabold tracking-tight leading-none text-[#0F172A] text-lg">
-            Mutual<span className="text-[#3B7A57]">Pool</span>
+          <span className="font-extrabold tracking-tight leading-none text-[#1E293B] text-lg">
+            Mutual<span className="text-[#52796F]">Pool</span>
           </span>
-          <span className="text-[8px] font-bold text-[#64748B] tracking-widest uppercase mt-0.5">
-            We Pool. We Grow.
+          <span className="text-[7.5px] font-bold text-[#64748B] tracking-widest uppercase mt-0.5">
+            We Pool. We Grow. We Deliver.
           </span>
         </div>
       </div>
@@ -64,13 +64,14 @@ export const Logo: React.FC<LogoProps> = ({
     <div className={`flex items-center gap-2 ${className}`}>
       <img 
         src={currentSrc} 
-        alt="MutualPool Logo" 
+        alt="MutualPool Logo - We Pool. We Grow. We Deliver." 
         referrerPolicy="no-referrer"
         onError={handleImageError}
-        className={`${sizeClasses[size]} w-auto object-contain rounded-lg shadow-xs hover:scale-102 transition-transform bg-white p-0.5 border border-[#E2E8F0]`}
+        className={`${sizeClasses[size]} w-auto object-contain rounded-xl shadow-xs hover:scale-102 transition-transform bg-[#F8F6F0] p-0.5 border border-[#E2E8F0]`}
       />
     </div>
   );
 };
+
 
 
