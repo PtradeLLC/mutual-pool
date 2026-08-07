@@ -232,17 +232,30 @@ export default function App() {
         if (pData && Array.isArray(pData)) apiPods = pData;
       }
 
+      // Check local storage created pods
+      let localCreatedPods: Pod[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('mutualpool_created_pods');
+          if (raw) localCreatedPods = JSON.parse(raw);
+        } catch {}
+      }
+
       setAllPods((prev) => {
         const map = new Map<string, Pod>();
         // 1. Existing local state & cache
         for (const p of prev) {
           if (p && p.id) map.set(p.id, p);
         }
-        // 2. Firestore pods
+        // 2. Local created pods
+        for (const p of localCreatedPods) {
+          if (p && p.id) map.set(p.id, p);
+        }
+        // 3. Firestore pods
         for (const p of firestorePods) {
           if (p && p.id) map.set(p.id, p);
         }
-        // 3. API pods
+        // 4. API pods
         for (const p of apiPods) {
           if (!p || !p.id) continue;
           const existing = map.get(p.id);
@@ -483,6 +496,11 @@ export default function App() {
         return;
       }
 
+      try {
+        localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
+      } catch {
+        // quiet
+      }
       setInviteCodeTargetPod(null);
       fetchAppData();
     } catch (err) {
@@ -595,11 +613,32 @@ export default function App() {
     const activeName = activeUser?.displayName?.trim().toLowerCase();
     const currentName = currentUser?.displayName?.trim().toLowerCase();
 
+    // 0. Check if created or joined locally in this browser session
+    if (typeof window !== 'undefined') {
+      try {
+        if (localStorage.getItem(`mutualpool_my_pod_${pod.id}`) === 'true') {
+          return true;
+        }
+        const createdRaw = localStorage.getItem('mutualpool_created_pods');
+        if (createdRaw) {
+          const createdList: Pod[] = JSON.parse(createdRaw);
+          if (createdList.some(cp => cp.id === pod.id)) return true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // 1. Match creator ID or creator Display Name
     if (activeId && pod.createdBy === activeId) return true;
     if (currentId && pod.createdBy === currentId) return true;
     if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
     if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
+
+    // 2. Fallback match for non-demo custom created pods when user is authenticated
+    if (activeId && activeId !== 'usr_guest' && pod.createdBy && pod.createdBy !== 'usr_marcus' && pod.createdBy !== 'usr_elena' && pod.createdBy !== 'usr_devon') {
+      return true;
+    }
 
     // 2. Match members list by userId, email, or displayName
     if (Array.isArray(pod.members)) {

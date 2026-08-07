@@ -1,41 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ---------- Users ----------
-    match /users/{userId} {
-      allow read, write: if true;
-    }
-
-    // ---------- Pods ----------
-    match /pods/{podId} {
-      allow read, write: if true;
-    }
-
-    // ---------- Perks marketplace ----------
-    match /perks/{perkId} {
-      allow read, write: if true;
-    }
-
-    // ---------- Audit logs ----------
-    match /auditLogs/{logId} {
-      allow read, write: if true;
-    }
-
-    // ---------- Hardship requests ----------
-    match /hardshipRequests/{requestId} {
-      allow read, write: if true;
-    }
-
-    // ---------- Redemptions ----------
-    match /redemptions/{redemptionId} {
-      allow read, write: if true;
-    }
-
-    // ---------- Fallback deny for unknown collections ----------
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }
+
 

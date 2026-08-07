@@ -257,11 +257,19 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
 
         // Persist to local cache immediately
         try {
+          localStorage.setItem(`mutualpool_my_pod_${podData.id}`, 'true');
           const cachedRaw = localStorage.getItem('mutualpool_cached_pods');
           const cachedPods: Pod[] = cachedRaw ? JSON.parse(cachedRaw) : [];
           const exists = cachedPods.some((p: Pod) => p.id === podData.id);
           const updatedCached = exists ? cachedPods.map((p: Pod) => p.id === podData.id ? podData : p) : [podData, ...cachedPods];
           localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updatedCached));
+
+          const createdRaw = localStorage.getItem('mutualpool_created_pods');
+          const createdList: Pod[] = createdRaw ? JSON.parse(createdRaw) : [];
+          if (!createdList.some((p: Pod) => p.id === podData.id)) {
+            createdList.unshift(podData);
+            localStorage.setItem('mutualpool_created_pods', JSON.stringify(createdList));
+          }
         } catch {
           // quiet cache fail
         }
