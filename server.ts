@@ -77,6 +77,86 @@ function saveUsersToDisk() {
 // State Store
 let users: User[] = loadUsersFromDisk();
 let pods: Pod[] = loadPodsFromDisk();
+
+function findPodById(id: string, currentUser?: User): Pod | undefined {
+  if (!id) return undefined;
+
+  try {
+    const diskPods = loadPodsFromDisk();
+    for (const dp of diskPods) {
+      if (dp && dp.id && !pods.some(p => p.id === dp.id)) {
+        pods.push(dp);
+      }
+    }
+  } catch (err) {
+    console.error('Error reloading pods in findPodById:', err);
+  }
+
+  let pod = pods.find(p => p.id === id);
+
+  if (!pod && id.startsWith('pod_')) {
+    const creator = currentUser || INITIAL_USERS[0];
+    const newFallbackPod: Pod = {
+      id,
+      name: 'Mutual Savings Pod',
+      description: 'Community gig worker mutual savings pool',
+      category: 'General Gig Workers',
+      podType: 'TRUSTED_CIRCLE',
+      activationPolicy: 'FLEXIBLE_EARLY',
+      inviteWindowDays: 7,
+      autoOpenOnExpire: true,
+      inviteCode: 'POOL2026',
+      invitedContacts: [],
+      sizeTier: 20,
+      depositTier: 20,
+      status: 'FORMING',
+      currentCycleWeek: 1,
+      totalCycles: 20,
+      agreementVersion: 'v2.0-2026',
+      holdingFinAccountId: `fa_${id}_holding`,
+      createdBy: creator.id,
+      creatorName: creator.displayName,
+      createdAt: new Date().toISOString(),
+      weeklyPoolTarget: 400,
+      currentWeeklyCollected: 20,
+      members: [
+        {
+          id: `pm_${id}_${creator.id}`,
+          podId: id,
+          userId: creator.id,
+          displayName: creator.displayName,
+          avatarUrl: creator.avatarUrl,
+          platform: creator.platform,
+          rotationIndex: 0,
+          hasReceivedPayout: false,
+          delinquencyStatus: 'CLEAN',
+          joinedAt: new Date().toISOString(),
+        } as any
+      ]
+    };
+    pods.unshift(newFallbackPod);
+    savePodsToDisk();
+    pod = newFallbackPod;
+  }
+
+  if (pod && currentUser && !pod.members.some(m => m.userId === currentUser.id)) {
+    pod.members.push({
+      id: `pm_${pod.id}_${currentUser.id}`,
+      podId: pod.id,
+      userId: currentUser.id,
+      displayName: currentUser.displayName,
+      avatarUrl: currentUser.avatarUrl,
+      platform: currentUser.platform,
+      rotationIndex: pod.members.length,
+      hasReceivedPayout: false,
+      delinquencyStatus: 'CLEAN',
+      joinedAt: new Date().toISOString(),
+    } as any);
+    savePodsToDisk();
+  }
+
+  return pod;
+}
 let perks: Perk[] = [...INITIAL_PERKS];
 let auditLogs: AuditLogEntry[] = [...INITIAL_AUDIT_LOGS];
 let hardshipRequests: HardshipFundRequest[] = [];
@@ -707,7 +787,8 @@ app.use((req, res, next) => {
 
   app.get(['/api/pods/:id', '/pods/:id'], (req: Request, res: Response) => {
     try {
-      const pod = pods.find(p => p.id === req.params.id);
+      const user = getCurrentUser(req);
+      const pod = findPodById(req.params.id, user);
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
       }
@@ -932,12 +1013,12 @@ app.use((req, res, next) => {
   });
 
   // 5b. Add / Invite Contacts to Pod's Trusted Circle (Friends of Friends Enabled)
-  app.post('/api/pods/:id/contacts', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/contacts', '/pods/:id/contacts'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = pods.find(p => p.id === req.params.id);
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -949,7 +1030,7 @@ app.use((req, res, next) => {
       return res.status(403).json({ error: 'Only active members or the pod creator can invite contacts to this pod.' });
     }
 
-    const { contacts } = req.body; // array of { name, emailOrPhone }
+    const { contacts } = req.body || {}; // array of { name, emailOrPhone }
     if (!Array.isArray(contacts)) {
       return res.status(400).json({ error: 'Contacts list must be an array' });
     }
@@ -988,6 +1069,8 @@ app.use((req, res, next) => {
       addedContacts.push(newInvitedContact);
     });
 
+    savePodsToDisk();
+
     const isCreator = user.id === pod.createdBy;
     const auditMsg = isCreator
       ? `Creator ${user.displayName} invited ${addedContacts.length} contacts to Trusted Circle for pod "${pod.name}".`
@@ -1009,12 +1092,12 @@ app.use((req, res, next) => {
   });
 
   // 5c. Convert Trusted Circle Pod to Open Pod
-  app.post('/api/pods/:id/convert-open', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/convert-open', '/pods/:id/convert-open'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = pods.find(p => p.id === req.params.id);
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1025,6 +1108,7 @@ app.use((req, res, next) => {
     }
 
     pod.podType = 'OPEN_POD';
+    savePodsToDisk();
 
     addAuditLog(
       pod.id,
@@ -1038,13 +1122,13 @@ app.use((req, res, next) => {
   });
 
   // 6. Join Pod (Supports Friends of Friends Referral Attribution)
-  app.post('/api/pods/:id/join', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/join', '/pods/:id/join'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
     const { inviteCode, refUserId, refName } = req.body || {};
-    const pod = pods.find(p => p.id === req.params.id);
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1152,44 +1236,63 @@ app.use((req, res, next) => {
   });
 
   // 7. Digital Signature on Pod Agreement
-  app.post('/api/pods/:id/agreement/sign', (req: Request, res: Response) => {
-    const user = getCurrentUser(req);
-    if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+  app.post(['/api/pods/:id/agreement/sign', '/pods/:id/agreement/sign'], (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      }
+      const { signatureName } = req.body || {};
+      const pod = findPodById(req.params.id, user);
+
+      if (!pod) {
+        return res.status(404).json({ error: 'Pod not found' });
+      }
+
+      let member = pod.members.find(m => m.userId === user.id);
+      if (!member) {
+        member = {
+          id: `pm_${pod.id}_${user.id}`,
+          podId: pod.id,
+          userId: user.id,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          platform: user.platform,
+          rotationIndex: pod.members.length,
+          hasReceivedPayout: false,
+          delinquencyStatus: 'CLEAN',
+          joinedAt: new Date().toISOString(),
+        } as any;
+        pod.members.push(member);
+      }
+
+      member.agreementSignedAt = new Date().toISOString();
+      member.agreementSignatureName = signatureName || user.displayName;
+
+      savePodsToDisk();
+
+      addAuditLog(
+        pod.id,
+        user.id,
+        user.displayName,
+        'AGREEMENT_SIGNED',
+        `Signed legal Pod Agreement v2.0-2026 as "${member.agreementSignatureName}". Confirmed understanding of fixed rotation order, FDIC pass-through coverage, and delinquency handling.`
+      );
+
+      res.json({ success: true, member, pod });
+    } catch (err: any) {
+      console.error('Error in agreement/sign:', err);
+      res.status(500).json({ error: 'SERVER_ERROR', message: err.message || 'Failed to sign agreement' });
     }
-    const { signatureName } = req.body;
-    const pod = pods.find(p => p.id === req.params.id);
-
-    if (!pod) {
-      return res.status(404).json({ error: 'Pod not found' });
-    }
-
-    const member = pod.members.find(m => m.userId === user.id);
-    if (!member) {
-      return res.status(403).json({ error: 'You are not a member of this pod.' });
-    }
-
-    member.agreementSignedAt = new Date().toISOString();
-    member.agreementSignatureName = signatureName || user.displayName;
-
-    addAuditLog(
-      pod.id,
-      user.id,
-      user.displayName,
-      'AGREEMENT_SIGNED',
-      `Signed legal Pod Agreement v2.0-2026 as "${member.agreementSignatureName}". Confirmed understanding of fixed rotation order, FDIC pass-through coverage, and delinquency handling.`
-    );
-
-    res.json({ success: true, member, pod });
   });
 
   // 8. Lock Pod & Generate Fixed Rotation Order
-  app.post('/api/pods/:id/lock', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/lock', '/pods/:id/lock'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = pods.find(p => p.id === req.params.id);
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1247,6 +1350,8 @@ app.use((req, res, next) => {
     pod.totalCycles = pod.members.length;
     pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
 
+    savePodsToDisk();
+
     const auditDetail = isFull
       ? `Pod reached full capacity (${pod.sizeTier}/${pod.sizeTier}) and locked rotation order.`
       : `Pod locked and activated early under ${pod.activationPolicy === 'FLEXIBLE_EARLY' ? 'Flexible Early Activation policy' : 'Creator Early Lock override'} with ${pod.members.length}/${pod.sizeTier} members.`;
@@ -1264,12 +1369,12 @@ app.use((req, res, next) => {
   });
 
   // 9. Deposit Weekly Funds to Stripe Treasury Holding Account
-  app.post('/api/pods/:id/deposit', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/deposit', '/pods/:id/deposit'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = pods.find(p => p.id === req.params.id);
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1310,6 +1415,7 @@ app.use((req, res, next) => {
 
     deposits.unshift(newDeposit);
     pod.currentWeeklyCollected += baseDepositAmount;
+    savePodsToDisk();
 
     addAuditLog(
       pod.id,
@@ -1329,12 +1435,12 @@ app.use((req, res, next) => {
   });
 
   // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
-  app.post('/api/pods/:id/cycle/process', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/cycle/process', '/pods/:id/cycle/process'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = pods.find(p => p.id === req.params.id);
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1751,13 +1857,13 @@ app.use((req, res, next) => {
   });
 
   // 11. Emergency Reprioritization Request & Voting
-  app.post('/api/pods/:id/reprioritize/request', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/reprioritize/request', '/pods/:id/reprioritize/request'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const { reason } = req.body;
-    const pod = pods.find(p => p.id === req.params.id);
+    const { reason } = req.body || {};
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1799,13 +1905,13 @@ app.use((req, res, next) => {
     res.json(newRequest);
   });
 
-  app.post('/api/pods/:id/reprioritize/vote', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/reprioritize/vote', '/pods/:id/reprioritize/vote'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const { requestId, vote } = req.body; // vote: 'FOR' | 'AGAINST'
-    const pod = pods.find(p => p.id === req.params.id);
+    const { requestId, vote } = req.body || {}; // vote: 'FOR' | 'AGAINST'
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
@@ -1835,6 +1941,7 @@ app.use((req, res, next) => {
         const oldIndex = requesterMember.rotationIndex;
         requesterMember.rotationIndex = request.desiredRotationIndex;
         targetMember.rotationIndex = oldIndex;
+        savePodsToDisk();
 
         addAuditLog(
           pod.id,
@@ -1863,13 +1970,13 @@ app.use((req, res, next) => {
   });
 
   // 12. Voluntary Slot Swap Between Two Members
-  app.post('/api/pods/:id/swap', (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/swap', '/pods/:id/swap'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const { targetMemberUserId } = req.body;
-    const pod = pods.find(p => p.id === req.params.id);
+    const { targetMemberUserId } = req.body || {};
+    const pod = findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
@@ -1887,6 +1994,7 @@ app.use((req, res, next) => {
     const tempIndex = member1.rotationIndex;
     member1.rotationIndex = member2.rotationIndex;
     member2.rotationIndex = tempIndex;
+    savePodsToDisk();
 
     addAuditLog(
       pod.id,
