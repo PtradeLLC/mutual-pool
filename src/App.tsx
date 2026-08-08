@@ -497,6 +497,7 @@ export default function App() {
       }
 
       try {
+        localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
         localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
       } catch {
         // quiet
@@ -613,16 +614,16 @@ export default function App() {
     const activeName = activeUser?.displayName?.trim().toLowerCase();
     const currentName = currentUser?.displayName?.trim().toLowerCase();
 
-    // 0. Check if created or joined locally in this browser session
+    // 0. Check if created or joined locally in this browser session for this user
     if (typeof window !== 'undefined') {
       try {
-        if (localStorage.getItem(`mutualpool_my_pod_${pod.id}`) === 'true') {
+        if (localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') {
           return true;
         }
         const createdRaw = localStorage.getItem('mutualpool_created_pods');
         if (createdRaw) {
           const createdList: Pod[] = JSON.parse(createdRaw);
-          if (createdList.some(cp => cp.id === pod.id)) return true;
+          if (createdList.some(cp => cp.id === pod.id && (cp.createdBy === activeId || cp.createdBy === currentId))) return true;
         }
       } catch {
         // ignore
@@ -634,11 +635,6 @@ export default function App() {
     if (currentId && pod.createdBy === currentId) return true;
     if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
     if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
-
-    // 2. Fallback match for non-demo custom created pods when user is authenticated
-    if (activeId && activeId !== 'usr_guest' && pod.createdBy && pod.createdBy !== 'usr_marcus' && pod.createdBy !== 'usr_elena' && pod.createdBy !== 'usr_devon') {
-      return true;
-    }
 
     // 2. Match members list by userId, email, or displayName
     if (Array.isArray(pod.members)) {

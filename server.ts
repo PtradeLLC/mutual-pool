@@ -139,22 +139,6 @@ function findPodById(id: string, currentUser?: User): Pod | undefined {
     pod = newFallbackPod;
   }
 
-  if (pod && currentUser && !pod.members.some(m => m.userId === currentUser.id)) {
-    pod.members.push({
-      id: `pm_${pod.id}_${currentUser.id}`,
-      podId: pod.id,
-      userId: currentUser.id,
-      displayName: currentUser.displayName,
-      avatarUrl: currentUser.avatarUrl,
-      platform: currentUser.platform,
-      rotationIndex: pod.members.length,
-      hasReceivedPayout: false,
-      delinquencyStatus: 'CLEAN',
-      joinedAt: new Date().toISOString(),
-    } as any);
-    savePodsToDisk();
-  }
-
   return pod;
 }
 let perks: Perk[] = [...INITIAL_PERKS];
