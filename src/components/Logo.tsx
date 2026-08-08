@@ -67,7 +67,7 @@ export const Logo: React.FC<LogoProps> = ({
         alt="MutualPool Logo - We Pool. We Grow. We Deliver." 
         referrerPolicy="no-referrer"
         onError={handleImageError}
-        className={`${sizeClasses[size]} w-auto object-contain rounded-xl shadow-xs hover:scale-102 transition-transform bg-[#F8F6F0] p-0.5 border border-[#E2E8F0]`}
+        className={`${sizeClasses[size]} w-auto object-contain rounded-xl hover:scale-102 transition-transform`}
       />
     </div>
   );
