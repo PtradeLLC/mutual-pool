@@ -458,7 +458,7 @@ export default function App() {
       return;
     }
 
-    // Check if Trusted Circle and user is not already invited
+    // Check if Trusted Circle and user is not already invited and no inviteCode was passed
     if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== currentUser.id && !inviteCode) {
       const isInvited = pod.invitedContacts?.some(
         ic => ic.emailOrPhone.toLowerCase() === currentUser.email.toLowerCase() || ic.memberUserId === currentUser.id
@@ -492,20 +492,34 @@ export default function App() {
           setShowKycModal(true);
           return;
         }
-        alert(data.message || data.error || 'Failed to join pod');
+        setInviteCodeTargetPod(pod);
+        setInviteCodeError(data.message || data.error || 'Failed to join pod');
         return;
       }
 
+      // Successfully joined pod!
+      const updatedPod: Pod = data;
+      setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? updatedPod : p)));
+      if (selectedPodDetail && selectedPodDetail.id === updatedPod.id) {
+        setSelectedPodDetail(updatedPod);
+      }
+
       try {
-        localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
+        if (currentUser?.id) {
+          localStorage.setItem(`mutualpool_my_pod_${currentUser.id}_${pod.id}`, 'true');
+        }
         localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
       } catch {
         // quiet
       }
       setInviteCodeTargetPod(null);
+      setInviteCodeInput('');
+      setInviteCodeError(null);
       fetchAppData();
     } catch (err) {
       console.error('Failed to join pod:', err);
+      setInviteCodeTargetPod(pod);
+      setInviteCodeError('Network error joining pod. Please try again.');
     }
   };
 

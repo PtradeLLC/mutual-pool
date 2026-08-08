@@ -192,7 +192,7 @@ export const PodCard: React.FC<PodCardProps> = ({
         </span>
 
         <div className="flex items-center gap-2">
-          {!isMember && pod.status === 'FORMING' && !isFull && (
+          {!isMember && !isFull && pod.status !== 'COMPLETED' && (
             <button
               onClick={() => onJoinPod(pod)}
               className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
