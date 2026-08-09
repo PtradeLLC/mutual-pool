@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
+import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
   Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle
@@ -9,6 +10,7 @@ import {
 
 interface PodDetailModalProps {
   pod: Pod;
+  initialTab?: 'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship';
   currentUser: User;
   allUsers: User[];
   onClose: () => void;
@@ -18,13 +20,15 @@ interface PodDetailModalProps {
 
 export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   pod,
+  initialTab = 'rotation',
   currentUser,
   allUsers,
   onClose,
   onRefreshPod,
   onOpenAgreementModal,
 }) => {
-  const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>('rotation');
+  const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>(initialTab);
+  const [podLogs, setPodLogs] = useState<AuditLogEntry[]>([]);
   const [depositing, setDepositing] = useState(false);
   const [processingPayout, setProcessingPayout] = useState(false);
   const [reasonInput, setReasonInput] = useState('');
@@ -60,6 +64,25 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
   useEffect(() => {
     fetchHardshipRequests();
+
+    const fetchPodLogs = async () => {
+      try {
+        const res = await fetch('/api/audit-logs');
+        if (res.ok) {
+          const data: AuditLogEntry[] = await res.json();
+          setPodLogs(data.filter(l => l.podId === pod.id));
+        }
+      } catch (err) {
+        console.error('Failed to fetch pod audit logs:', err);
+      }
+    };
+    fetchPodLogs();
+    const unsubscribe = subscribeToAuditLogs((firestoreLogs) => {
+      if (firestoreLogs && firestoreLogs.length > 0) {
+        setPodLogs(firestoreLogs.filter(l => l.podId === pod.id));
+      }
+    });
+    return () => unsubscribe();
   }, [pod.id, currentUser.id]);
 
   const handleRequestHardship = async (e: React.FormEvent) => {
@@ -832,7 +855,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     <span className={`w-7 h-7 rounded font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
                       isCurrentTurn ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}>
-                      #{member.rotationIndex}
+                      #{member.rotationIndex + 1}
                     </span>
 
                     <img
@@ -1023,7 +1046,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <strong className="text-[#005FB8]">
                     {currentRecipientMember ? currentRecipientMember.displayName : 'N/A'}
                   </strong>
-                  <span> (Lump-Sum Payout #{currentRecipientIndex})</span>
+                  <span> (Lump-Sum Payout #{currentRecipientIndex + 1})</span>
                 </div>
                 <span className="font-mono text-emerald-600 font-bold">
                   Collected: ${pod.currentWeeklyCollected} / ${currentActivePool}
@@ -1069,6 +1092,49 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Pod Deposit & Payout Activity Ledger */}
+            <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-[#005FB8]" />
+                  <h4 className="font-bold text-[#111827] text-xs">Pod Deposit & Payout Ledger ({podLogs.length})</h4>
+                </div>
+                <span className="text-[10px] text-gray-500 font-mono">
+                  Pod ID: {pod.id}
+                </span>
+              </div>
+
+              {podLogs.length === 0 ? (
+                <div className="p-4 bg-white border border-gray-200 rounded-lg text-center text-xs text-gray-500">
+                  No transaction events recorded on this ledger yet. Deposits and weekly payout settlements will be recorded here in real time.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {podLogs.map((log) => (
+                    <div key={log.id} className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-blue-50 text-[#005FB8] border border-blue-200">
+                          {log.action}
+                        </span>
+                        <span className="text-[10px] font-mono text-gray-500">
+                          {new Date(log.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-[#111827] font-medium leading-relaxed">
+                        {log.detail}
+                      </p>
+                      <div className="text-[10px] text-gray-500 flex items-center justify-between pt-1 border-t border-gray-100">
+                        <span>Actor: <strong>{log.actorName}</strong></span>
+                        {Boolean(log.metadata?.stripeTransferId) && (
+                          <span className="font-mono text-[#005FB8]">Ref: {String(log.metadata?.stripeTransferId)}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1098,7 +1164,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       .filter(m => m.userId !== currentUser.id && !m.hasReceivedPayout)
                       .map(m => (
                         <option key={m.userId} value={m.userId}>
-                          {m.displayName} (Lump-Sum Payout #{m.rotationIndex})
+                          {m.displayName} (Lump-Sum Payout #{m.rotationIndex + 1})
                         </option>
                       ))}
                   </select>

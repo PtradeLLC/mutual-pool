@@ -5,7 +5,7 @@ import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Loc
 interface PodCardProps {
   pod: Pod;
   currentUser: User;
-  onSelectPod: (pod: Pod) => void;
+  onSelectPod: (pod: Pod, initialTab?: 'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship') => void;
   onJoinPod: (pod: Pod) => void;
   onLeavePod?: (pod: Pod) => void;
   onSignAgreement: (pod: Pod) => void;
@@ -214,7 +214,7 @@ export const PodCard: React.FC<PodCardProps> = ({
               <ShieldCheck className="w-4 h-4 text-[#005FB8] shrink-0" />
               <div>
                 <span className="font-bold block text-[#111827]">
-                  You are #{userMembership?.rotationIndex ?? 1} in line for Lump-Sum Payout for the current week
+                  You are #{userMembership ? userMembership.rotationIndex + 1 : 1} in line for Lump-Sum Payout for the current week
                 </span>
                 <span className="text-[10px] text-[#005FB8]">
                   {userMembership?.hasReceivedPayout 
@@ -276,7 +276,7 @@ export const PodCard: React.FC<PodCardProps> = ({
           )}
 
           <button
-            onClick={() => onSelectPod(pod)}
+            onClick={() => onSelectPod(pod, 'deposits')}
             className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] font-semibold text-xs transition-colors flex items-center gap-1 border border-[#DDE1E6] shadow-xs cursor-pointer"
           >
             <span>View Ledger</span>

@@ -108,6 +108,7 @@ export default function App() {
   const [showHardshipModal, setShowHardshipModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [selectedPodDetail, setSelectedPodDetail] = useState<Pod | null>(null);
+  const [selectedPodDetailTab, setSelectedPodDetailTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>('rotation');
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
   const [repayingHardship, setRepayingHardship] = useState(false);
   const [openSubmitPerkDirectly, setOpenSubmitPerkDirectly] = useState(false);
@@ -1142,7 +1143,10 @@ export default function App() {
                     key={pod.id}
                     pod={pod}
                     currentUser={activeUser}
-                    onSelectPod={(p) => setSelectedPodDetail(p)}
+                    onSelectPod={(p, initialTab) => {
+                      setSelectedPodDetail(p);
+                      setSelectedPodDetailTab(initialTab || 'rotation');
+                    }}
                     onJoinPod={handleJoinPod}
                     onLeavePod={handleLeavePod}
                     onSignAgreement={(p) => setAgreementPod(p)}
@@ -1182,7 +1186,10 @@ export default function App() {
                     key={pod.id}
                     pod={pod}
                     currentUser={activeUser}
-                    onSelectPod={(p) => setSelectedPodDetail(p)}
+                    onSelectPod={(p, initialTab) => {
+                      setSelectedPodDetail(p);
+                      setSelectedPodDetailTab(initialTab || 'rotation');
+                    }}
                     onJoinPod={handleJoinPod}
                     onLeavePod={handleLeavePod}
                     onSignAgreement={(p) => setAgreementPod(p)}
@@ -1311,6 +1318,7 @@ export default function App() {
         <Suspense fallback={null}>
           <PodDetailModal
             pod={selectedPodDetail}
+            initialTab={selectedPodDetailTab}
             currentUser={currentUser}
             allUsers={allUsers}
             onClose={() => setSelectedPodDetail(null)}
