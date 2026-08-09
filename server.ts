@@ -834,6 +834,63 @@ app.use((req, res, next) => {
     }
   });
 
+  // 3b. Stripe Treasury Account Test Deposit / Top-up Endpoint
+  app.post('/api/users/treasury/topup', (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      }
+
+      const { amount, sourceCardNumber } = req.body || {};
+      const depositAmount = Number(amount) || 100;
+
+      let targetUser = users.find(u => u && u.id === user.id);
+      if (!targetUser) {
+        targetUser = user;
+        users.push(targetUser);
+      }
+
+      if (!targetUser.treasury) {
+        targetUser.treasury = {
+          stripeAccountId: `acct_1xCustom_${Date.now()}`,
+          stripeFinAccountId: `fa_1xTreasury_${Date.now()}`,
+          balanceUsd: 0,
+          pendingInboundUsd: 0,
+          totalPayoutsReceivedUsd: 0,
+          fdicPassThroughEligible: true,
+          status: 'ACTIVE',
+        };
+      }
+
+      const cleanCard = (sourceCardNumber || '4242424242424242').replace(/\D/g, '');
+      const last4 = cleanCard.slice(-4) || '4242';
+      const inboundTransferId = `it_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+      targetUser.treasury.balanceUsd += depositAmount;
+
+      addAuditLog(
+        undefined,
+        targetUser.id,
+        targetUser.displayName || 'User',
+        'TREASURY_TOPUP' as any,
+        `Processed Stripe Treasury InboundTransfer (${inboundTransferId}) of $${depositAmount.toFixed(2)} USD from test card ending in ${last4} into Treasury Account ${targetUser.treasury.stripeFinAccountId || 'Active Treasury'}.`,
+        { amount: depositAmount, last4, inboundTransferId }
+      );
+
+      res.json({
+        success: true,
+        inboundTransferId,
+        addedAmount: depositAmount,
+        newBalance: targetUser.treasury.balanceUsd,
+        user: targetUser,
+      });
+    } catch (err) {
+      console.error('[/api/users/treasury/topup] error:', err);
+      res.status(500).json({ error: 'Failed to top up Treasury account.', message: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // 4. Pods List & Details
   app.get(['/api/pods', '/pods'], async (req: Request, res: Response) => {
     try {

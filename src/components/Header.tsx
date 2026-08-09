@@ -93,15 +93,20 @@ export const Header: React.FC<HeaderProps> = ({
             )}
 
             {/* Treasury Balance Pill */}
-            <div className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] px-3 py-1.5 rounded-lg border border-[#DDE1E6] text-xs">
-              <Wallet className="w-4 h-4 text-emerald-600" />
-              <div>
-                <span className="text-[#6B7280] text-[10px] uppercase font-bold block leading-none">Stripe Treasury Balance</span>
+            <button
+              type="button"
+              onClick={onOpenBankModal}
+              title="Click to view Stripe Treasury Account & Add Test Funds"
+              className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] hover:bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-emerald-300 text-xs transition-all cursor-pointer group"
+            >
+              <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+              <div className="text-left">
+                <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">Stripe Treasury Balance</span>
                 <span className="font-bold text-[#111827] font-mono">
                   ${currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
                 </span>
               </div>
-            </div>
+            </button>
 
             {/* Welcome Match Credited Pill */}
             {(hasWelcomeMatch || currentUser.welcomeMatchReceived) && (

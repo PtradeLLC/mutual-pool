@@ -51,9 +51,9 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
   // Stripe Payment Checkout states
   const [paymentMethod, setPaymentMethod] = useState<'SAVED_CARD' | 'NEW_CARD' | 'APPLE_PAY'>('SAVED_CARD');
   const [cardName, setCardName] = useState(currentUserState.displayName || 'Verified Member');
-  const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242');
+  const [cardNumber, setCardNumber] = useState('4242 4242 4242 4242');
   const [cardExpiry, setCardExpiry] = useState('12/28');
-  const [cardCvc, setCardCvc] = useState('321');
+  const [cardCvc, setCardCvc] = useState('424');
   const [cardZip, setCardZip] = useState('90210');
   const [createdPodResult, setCreatedPodResult] = useState<any>(null);
 
@@ -976,10 +976,29 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                     <input
                       type="text"
                       value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value)}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+                        const formatted = digits.replace(/(.{4})/g, '$1 ').trim();
+                        setCardNumber(formatted);
+                      }}
                       className="w-full bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs font-mono text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                      placeholder="4242 •••• •••• 4242"
+                      placeholder="4242 4242 4242 4242"
                     />
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCardNumber('4242 4242 4242 4242');
+                          setCardExpiry('12/28');
+                          setCardCvc('424');
+                          setCardZip('90210');
+                        }}
+                        className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md text-[#005FB8] text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <span>⚡ Use Official Stripe Test Card (4242 4242 4242 4242)</span>
+                      </button>
+                      <span className="text-[10px] text-gray-500 font-mono">Stripe Test Mode</span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
