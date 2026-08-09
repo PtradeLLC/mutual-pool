@@ -563,6 +563,7 @@ export default function App() {
             podId: pod.id,
             userId: currentUser.id,
             displayName: currentUser.displayName || 'Verified Member',
+            email: currentUser.email,
             avatarUrl: currentUser.avatarUrl || '',
             platform: currentUser.platform || 'DoorDash',
             rotationIndex: pod.members?.length || 0,
@@ -579,6 +580,7 @@ export default function App() {
           const updatedPod: Pod = {
             ...pod,
             members: updatedMembers,
+            memberCount: updatedMembers.length,
           };
 
           setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? updatedPod : p)));
@@ -591,6 +593,9 @@ export default function App() {
           try {
             if (currentUser?.id) {
               localStorage.setItem(`mutualpool_my_pod_${currentUser.id}_${pod.id}`, 'true');
+            }
+            if (activeUser?.id) {
+              localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
             }
             localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
           } catch {}
@@ -620,6 +625,9 @@ export default function App() {
         if (currentUser?.id) {
           localStorage.setItem(`mutualpool_my_pod_${currentUser.id}_${pod.id}`, 'true');
         }
+        if (activeUser?.id) {
+          localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
+        }
         localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
       } catch {
         // quiet
@@ -637,6 +645,7 @@ export default function App() {
           podId: pod.id,
           userId: currentUser.id,
           displayName: currentUser.displayName || 'Verified Member',
+          email: currentUser.email,
           avatarUrl: currentUser.avatarUrl || '',
           platform: currentUser.platform || 'DoorDash',
           rotationIndex: pod.members?.length || 0,
@@ -653,6 +662,7 @@ export default function App() {
         const updatedPod: Pod = {
           ...pod,
           members: updatedMembers,
+          memberCount: updatedMembers.length,
         };
 
         setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? updatedPod : p)));
@@ -665,6 +675,9 @@ export default function App() {
         try {
           if (currentUser?.id) {
             localStorage.setItem(`mutualpool_my_pod_${currentUser.id}_${pod.id}`, 'true');
+          }
+          if (activeUser?.id) {
+            localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
           }
           localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
         } catch {}

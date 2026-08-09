@@ -1447,6 +1447,7 @@ app.use((req, res, next) => {
         podId: pod.id,
         userId: user.id,
         displayName: user.displayName || 'Verified Member',
+        email: user.email,
         avatarUrl: user.avatarUrl || '',
         platform: user.platform || 'DoorDash',
         rotationIndex: pod.members.length,
@@ -1458,6 +1459,7 @@ app.use((req, res, next) => {
       };
 
       pod.members.push(newMember);
+      pod.memberCount = pod.members.length;
 
       try {
         savePodsToDisk();
