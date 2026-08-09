@@ -1020,7 +1020,7 @@ export default function App() {
                 className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Building2 className="w-4 h-4 text-[#005FB8]" />
-                <span>{activeUser.externalBank.status === 'LINKED' ? `Bank: ${activeUser.externalBank.bankName}` : 'Link Bank Account'}</span>
+                <span>{activeUser.externalBank.status === 'LINKED' ? `Bank: ${activeUser.externalBank.bankName}` : 'Deposit Funds in Treasury'}</span>
               </button>
 
               <button
