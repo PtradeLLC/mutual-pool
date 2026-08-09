@@ -653,6 +653,44 @@ export default function App() {
     }
   };
 
+  // Leave Pod action handler
+  const handleLeavePod = async (pod: Pod) => {
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/leave`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': activeUser.id,
+        },
+      });
+
+      const contentType = res.headers.get('content-type');
+      let data: any = {};
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      }
+
+      if (!res.ok) {
+        alert(data.message || data.error || 'You cannot leave this pod yet.');
+        return;
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`);
+          localStorage.removeItem(`mutualpool_my_pod_${pod.id}`);
+        } catch {
+          // ignore
+        }
+      }
+
+      fetchAppData();
+    } catch (err) {
+      console.error('Failed to leave pod:', err);
+      alert('Network error attempting to leave pod.');
+    }
+  };
+
   // If viewing Landing Page or user explicitly hasn't entered dashboard
   if (viewMode === 'LANDING') {
     return (
@@ -1067,6 +1105,7 @@ export default function App() {
                     currentUser={activeUser}
                     onSelectPod={(p) => setSelectedPodDetail(p)}
                     onJoinPod={handleJoinPod}
+                    onLeavePod={handleLeavePod}
                     onSignAgreement={(p) => setAgreementPod(p)}
                   />
                 ))}
@@ -1106,6 +1145,7 @@ export default function App() {
                     currentUser={activeUser}
                     onSelectPod={(p) => setSelectedPodDetail(p)}
                     onJoinPod={handleJoinPod}
+                    onLeavePod={handleLeavePod}
                     onSignAgreement={(p) => setAgreementPod(p)}
                   />
                 ))}

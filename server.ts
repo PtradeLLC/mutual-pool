@@ -891,6 +891,56 @@ app.use((req, res, next) => {
     }
   });
 
+  // 3c. Leave Pod Endpoint
+  app.post(['/api/pods/:id/leave', '/pods/:id/leave'], (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      }
+      const pod = findPodById(req.params.id, user);
+      if (!pod) {
+        return res.status(404).json({ error: 'Pod not found' });
+      }
+
+      const hasEveryMemberReceivedPayout = pod.members && pod.members.length > 0 && (pod.status === 'COMPLETED' || pod.members.every(m => m.hasReceivedPayout));
+
+      if (!hasEveryMemberReceivedPayout) {
+        return res.status(400).json({
+          error: 'LEAVE_LOCKED',
+          message: 'You cannot leave this pod until every member has taken a turn to get their rotation payout.'
+        });
+      }
+
+      // Remove user membership from pod
+      const cleanUserEmail = user.email?.trim().toLowerCase();
+      const cleanUserName = user.displayName?.trim().toLowerCase();
+
+      pod.members = pod.members.filter(m => {
+        if (!m) return false;
+        if (m.userId === user.id) return false;
+        if (cleanUserName && m.displayName && m.displayName.trim().toLowerCase() === cleanUserName) return false;
+        if (cleanUserEmail && (m as any).email && (m as any).email.trim().toLowerCase() === cleanUserEmail) return false;
+        return true;
+      });
+
+      savePodsToDisk();
+
+      addAuditLog(
+        pod.id,
+        user.id,
+        user.displayName || 'Verified Member',
+        'POD_COMPLETED' as any,
+        `Member "${user.displayName}" left pod "${pod.name}" after all members completed rotation payouts.`
+      );
+
+      return res.json({ success: true, pod });
+    } catch (err: any) {
+      console.error('[POST /api/pods/:id/leave] Error:', err);
+      return res.status(500).json({ error: 'LEAVE_FAILED', message: err?.message || 'Failed to leave pod.' });
+    }
+  });
+
   // 4. Pods List & Details
   app.get(['/api/pods', '/pods'], async (req: Request, res: Response) => {
     try {

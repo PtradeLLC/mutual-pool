@@ -1,12 +1,13 @@
 import React from 'react';
 import { Pod, User } from '../types';
-import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap } from 'lucide-react';
+import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut } from 'lucide-react';
 
 interface PodCardProps {
   pod: Pod;
   currentUser: User;
   onSelectPod: (pod: Pod) => void;
   onJoinPod: (pod: Pod) => void;
+  onLeavePod?: (pod: Pod) => void;
   onSignAgreement: (pod: Pod) => void;
 }
 
@@ -15,10 +16,38 @@ export const PodCard: React.FC<PodCardProps> = ({
   currentUser,
   onSelectPod,
   onJoinPod,
+  onLeavePod,
   onSignAgreement,
 }) => {
-  const userMembership = pod.members.find(m => m.userId === currentUser.id);
-  const isMember = !!userMembership;
+  const activeId = currentUser?.id;
+  const activeEmail = currentUser?.email?.trim().toLowerCase();
+  const activeName = currentUser?.displayName?.trim().toLowerCase();
+
+  const userMembership = pod.members?.find(m => {
+    if (!m) return false;
+    if (activeId && m.userId === activeId) return true;
+    if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
+    if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
+    return false;
+  });
+
+  const isCreator = Boolean(
+    (activeId && pod.createdBy === activeId) ||
+    (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName)
+  );
+
+  const isStoredInLocal = typeof window !== 'undefined' && Boolean(
+    localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true'
+  );
+
+  const isMember = Boolean(userMembership || isCreator || isStoredInLocal);
+
+  const hasEveryMemberReceivedPayout = Boolean(
+    pod.members &&
+    pod.members.length > 0 &&
+    (pod.status === 'COMPLETED' || pod.members.every(m => m.hasReceivedPayout))
+  );
+
   const isFull = pod.members.length >= pod.sizeTier;
   const progressPercent = Math.min(100, Math.round((pod.members.length / pod.sizeTier) * 100));
 
@@ -156,26 +185,28 @@ export const PodCard: React.FC<PodCardProps> = ({
         )}
 
         {/* User Membership Banner if in Pod */}
-        {isMember && userMembership && (
+        {isMember && (
           <div className="mb-3 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#005FB8] shrink-0" />
               <div>
-                <span className="font-bold block text-[#111827]">You are Member in Rotation #{userMembership.rotationIndex}</span>
+                <span className="font-bold block text-[#111827]">
+                  You are Member in Rotation #{userMembership?.rotationIndex ?? 1}
+                </span>
                 <span className="text-[10px] text-[#005FB8]">
-                  {userMembership.hasReceivedPayout 
+                  {userMembership?.hasReceivedPayout 
                     ? `Payout Received in Week ${userMembership.payoutCycleWeek}` 
                     : `Next Up in Queue`}
                 </span>
               </div>
             </div>
-            {!userMembership.agreementSignedAt && (
+            {userMembership && !userMembership.agreementSignedAt && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onSignAgreement(pod);
                 }}
-                className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shrink-0 transition-colors shadow-xs"
+                className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shrink-0 transition-colors shadow-xs cursor-pointer"
               >
                 Sign Agreement
               </button>
@@ -192,18 +223,38 @@ export const PodCard: React.FC<PodCardProps> = ({
         </span>
 
         <div className="flex items-center gap-2">
-          {!isMember && !isFull && pod.status !== 'COMPLETED' && (
+          {isMember ? (
             <button
-              onClick={() => onJoinPod(pod)}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
+              disabled={!hasEveryMemberReceivedPayout}
+              onClick={() => onLeavePod?.(pod)}
+              title={
+                !hasEveryMemberReceivedPayout
+                  ? "Leave Pod is disabled until every member in the pod has taken a turn to get their payout."
+                  : "Leave this completed pod"
+              }
+              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs border ${
+                !hasEveryMemberReceivedPayout
+                  ? 'bg-[#F1F5F9] text-[#94A3B8] border-[#CBD5E1] cursor-not-allowed opacity-80'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 cursor-pointer'
+              }`}
             >
-              <span>Join Pod</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Leave Pod</span>
             </button>
+          ) : (
+            !isFull && pod.status !== 'COMPLETED' && (
+              <button
+                onClick={() => onJoinPod(pod)}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+              >
+                <span>Join Pod</span>
+              </button>
+            )
           )}
 
           <button
             onClick={() => onSelectPod(pod)}
-            className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] font-semibold text-xs transition-colors flex items-center gap-1 border border-[#DDE1E6] shadow-xs"
+            className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] font-semibold text-xs transition-colors flex items-center gap-1 border border-[#DDE1E6] shadow-xs cursor-pointer"
           >
             <span>View Ledger</span>
             <ArrowRight className="w-3.5 h-3.5" />
