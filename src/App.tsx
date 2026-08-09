@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership } from './types';
+import { User, Pod, PodMembership, mergePodObjects } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -242,26 +242,31 @@ export default function App() {
         } catch {}
       }
 
-      setAllPods(() => {
+      setAllPods((prevPods) => {
         const map = new Map<string, Pod>();
-        // 1. Primary source of truth: Firestore pods
-        for (const p of firestorePods) {
+        // 1. Keep existing state in memory
+        for (const p of prevPods) {
           if (p && p.id) map.set(p.id, p);
         }
-        // 2. Server API pods
+        // 2. Primary source of truth: Firestore pods
+        for (const p of firestorePods) {
+          if (!p || !p.id) continue;
+          const existing = map.get(p.id);
+          map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+        }
+        // 3. Server API pods
         for (const p of apiPods) {
           if (!p || !p.id) continue;
           const existing = map.get(p.id);
-          if (!existing || (p.members && existing.members && p.members.length >= existing.members.length)) {
-            map.set(p.id, p);
-          }
+          map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
-        // 3. Local created pods (push missing to Firestore)
+        // 4. Local created pods (push missing to Firestore)
         for (const p of localCreatedPods) {
-          if (p && p.id && !map.has(p.id)) {
-            map.set(p.id, p);
-            savePodToFirestore(p).catch(() => {});
-          }
+          if (!p || !p.id) continue;
+          const existing = map.get(p.id);
+          const merged = existing ? mergePodObjects(existing, p) : p;
+          map.set(p.id, merged);
+          savePodToFirestore(merged).catch(() => {});
         }
         const updated = Array.from(map.values());
         if (selectedPodDetail) {
@@ -285,10 +290,15 @@ export default function App() {
     // 2. Subscribe to real-time Pods in Firestore
     const unsubscribePods = subscribeToPods((firestorePods) => {
       if (firestorePods && Array.isArray(firestorePods)) {
-        setAllPods(() => {
+        setAllPods((prevPods) => {
           const map = new Map<string, Pod>();
-          for (const p of firestorePods) {
+          for (const p of prevPods) {
             if (p && p.id) map.set(p.id, p);
+          }
+          for (const fp of firestorePods) {
+            if (!fp || !fp.id) continue;
+            const existing = map.get(fp.id);
+            map.set(fp.id, existing ? mergePodObjects(existing, fp) : fp);
           }
           const updated = Array.from(map.values());
           if (selectedPodDetail) {
@@ -582,9 +592,9 @@ export default function App() {
       // Successfully joined pod via API!
       const updatedPod: Pod = data;
       if (updatedPod && updatedPod.id) {
-        setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? updatedPod : p)));
+        setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? mergePodObjects(p, updatedPod) : p)));
         if (selectedPodDetail && selectedPodDetail.id === updatedPod.id) {
-          setSelectedPodDetail(updatedPod);
+          setSelectedPodDetail(prev => prev ? mergePodObjects(prev, updatedPod) : updatedPod);
         }
         savePodToFirestore(updatedPod).catch(() => {});
       }

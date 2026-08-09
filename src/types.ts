@@ -281,3 +281,58 @@ export interface Redemption {
   redeemedAt: string;
   codeOrLink: string;
 }
+
+export function mergeMembers(members1: PodMembership[] = [], members2: PodMembership[] = []): PodMembership[] {
+  const map = new Map<string, PodMembership>();
+
+  const getKey = (m: PodMembership) => {
+    if (m.userId) return `u_${m.userId}`;
+    if ((m as any).email) return `e_${(m as any).email.trim().toLowerCase()}`;
+    if (m.displayName) return `n_${m.displayName.trim().toLowerCase()}`;
+    return `i_${m.id}`;
+  };
+
+  for (const m of members1) {
+    if (m) {
+      map.set(getKey(m), m);
+    }
+  }
+
+  for (const m of members2) {
+    if (m) {
+      const key = getKey(m);
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, m);
+      } else {
+        map.set(key, {
+          ...existing,
+          ...m,
+          userId: m.userId || existing.userId,
+          displayName: m.displayName || existing.displayName,
+          agreementSignedAt: m.agreementSignedAt || existing.agreementSignedAt,
+          agreementSignatureName: m.agreementSignatureName || existing.agreementSignatureName,
+          hasReceivedPayout: m.hasReceivedPayout || existing.hasReceivedPayout,
+        });
+      }
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => (a.rotationIndex ?? 0) - (b.rotationIndex ?? 0));
+}
+
+export function mergePodObjects(p1: Pod, p2: Pod): Pod {
+  const mergedMembers = mergeMembers(p1.members || [], p2.members || []);
+  const highestCollected = Math.max(
+    p1.currentWeeklyCollected || 0,
+    p2.currentWeeklyCollected || 0,
+    mergedMembers.length * (p1.depositTier || p2.depositTier || 20)
+  );
+
+  return {
+    ...p1,
+    ...p2,
+    members: mergedMembers,
+    currentWeeklyCollected: highestCollected,
+  };
+}
