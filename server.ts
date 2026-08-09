@@ -100,7 +100,7 @@ function loadPodsFromDisk(): Pod[] {
   } catch (err) {
     console.error('Error loading pods_data.json:', err);
   }
-  return [];
+  return [...INITIAL_PODS];
 }
 
 function savePodsToDisk() {

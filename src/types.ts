@@ -69,6 +69,7 @@ export interface PodMembership {
   podId: string;
   userId: string;
   displayName: string;
+  email?: string;
   avatarUrl?: string;
   platform: GigPlatform;
   rotationIndex: number; // 0..N-1

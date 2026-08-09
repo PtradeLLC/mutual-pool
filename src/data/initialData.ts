@@ -174,7 +174,61 @@ export const INITIAL_USERS: User[] = [
 ];
 
 
-export const INITIAL_PODS: Pod[] = [];
+export const INITIAL_PODS: Pod[] = [
+  {
+    id: "pod_1786132889241",
+    name: "Moses Boxing Pod",
+    description: "This is a test pod. Do not join",
+    category: "General Gig Workers",
+    podType: "TRUSTED_CIRCLE",
+    activationPolicy: "FLEXIBLE_EARLY",
+    inviteWindowDays: 14,
+    autoOpenOnExpire: true,
+    inviteCode: "9Y2NPP",
+    invitedContacts: [
+      {
+        emailOrPhone: "4752214685",
+        id: "ic_1786132852775_92",
+        invitedAt: "2026-08-07T20:00:52.775Z",
+        isExistingMember: false,
+        name: "Jon Who",
+        status: "INVITED"
+      }
+    ],
+    sizeTier: 50,
+    depositTier: 20,
+    status: "FORMING",
+    currentCycleWeek: 1,
+    totalCycles: 50,
+    agreementVersion: "v2.0-2026",
+    holdingFinAccountId: "fa_pod_holding_1786132889241",
+    createdBy: "FRJ0l3WQn9MokXnTNyczXCfGdMg1",
+    creatorName: "Chris Bitoye",
+    createdAt: "2026-08-07T20:01:29.241Z",
+    weeklyPoolTarget: 1000,
+    currentWeeklyCollected: 20,
+    contingencyBufferInitialUsd: 0,
+    contingencyBufferUsd: 0,
+    welcomeMatchAmountUsd: 0,
+    welcomeMatchGranted: false,
+    memberCount: 1,
+    members: [
+      {
+        avatarUrl: "https://lh3.googleusercontent.com/a/ACg8ocIdv5hNdzdWHjK9QU8ASQULOkCSbbNhM1kaaS8tEIFvW7hFo32h=s96-c",
+        delinquencyStatus: "CLEAN",
+        displayName: "Chris Bitoye",
+        email: "chrisbitoy@gmail.com",
+        hasReceivedPayout: false,
+        id: "pm_1786132889241_1",
+        joinedAt: "2026-08-07T20:01:29.241Z",
+        platform: "DoorDash",
+        podId: "pod_1786132889241",
+        rotationIndex: 0,
+        userId: "FRJ0l3WQn9MokXnTNyczXCfGdMg1"
+      }
+    ]
+  }
+];
 
 export const INITIAL_PERKS: Perk[] = [
   {

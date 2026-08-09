@@ -66,6 +66,16 @@ export async function seedInitialFirestoreData(): Promise<void> {
       await batch.commit();
     }
 
+    const podsSnap = await getDocs(collection(db, 'pods'));
+    if (podsSnap.empty && INITIAL_PODS.length > 0) {
+      console.log('Seeding initial pods into Firestore...');
+      const batch = writeBatch(db);
+      for (const pod of INITIAL_PODS) {
+        batch.set(doc(db, 'pods', pod.id), sanitizeForFirestore(pod));
+      }
+      await batch.commit();
+    }
+
     const logsSnap = await getDocs(collection(db, 'auditLogs'));
     if (logsSnap.empty && INITIAL_AUDIT_LOGS.length > 0) {
       console.log('Seeding initial audit logs into Firestore...');
