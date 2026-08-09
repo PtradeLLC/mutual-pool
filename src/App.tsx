@@ -31,7 +31,7 @@ import {
   saveUserToFirestore,
   subscribeToUser
 } from './lib/firestoreService';
-import { INITIAL_PODS } from './data/initialData';
+import { SEED_POD_IDS } from './data/initialData';
 
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
@@ -61,19 +61,9 @@ export default function App() {
     try {
       const saved = localStorage.getItem('mutualpool_cached_pods');
       const parsed: Pod[] = saved ? JSON.parse(saved) : [];
-      const map = new Map<string, Pod>();
-      for (const p of INITIAL_PODS) {
-        if (p && p.id) map.set(p.id, p);
-      }
-      for (const p of parsed) {
-        if (p && p.id) {
-          const existing = map.get(p.id);
-          map.set(p.id, existing ? mergePodObjects(existing, p) : p);
-        }
-      }
-      return Array.from(map.values());
+      return parsed.filter(p => p && p.id && !SEED_POD_IDS.has(p.id));
     } catch {
-      return [...INITIAL_PODS];
+      return [];
     }
   });
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops'>('my-pods');
@@ -256,38 +246,38 @@ export default function App() {
 
       setAllPods((prevPods) => {
         const map = new Map<string, Pod>();
-        // 0. Base initial pods
-        for (const p of INITIAL_PODS) {
-          if (p && p.id) map.set(p.id, p);
-        }
-        // 1. Keep existing state in memory
+        // 1. Keep existing state in memory (filter out seed pods)
         for (const p of prevPods) {
-          if (p && p.id) {
-            const existing = map.get(p.id);
-            map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+          if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+            map.set(p.id, p);
           }
         }
         // 2. Primary source of truth: Firestore pods
         for (const p of firestorePods) {
-          if (!p || !p.id) continue;
+          if (!p || !p.id || SEED_POD_IDS.has(p.id)) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
         // 3. Server API pods
         for (const p of apiPods) {
-          if (!p || !p.id) continue;
+          if (!p || !p.id || SEED_POD_IDS.has(p.id)) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
         // 4. Local created pods (push missing to Firestore)
         for (const p of localCreatedPods) {
-          if (!p || !p.id) continue;
+          if (!p || !p.id || SEED_POD_IDS.has(p.id)) continue;
           const existing = map.get(p.id);
           const merged = existing ? mergePodObjects(existing, p) : p;
           map.set(p.id, merged);
           savePodToFirestore(merged).catch(() => {});
         }
         const updated = Array.from(map.values());
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updated));
+          } catch {}
+        }
         if (selectedPodDetail) {
           const fresh = updated.find((p) => p.id === selectedPodDetail.id);
           if (fresh) setSelectedPodDetail(fresh);
@@ -311,21 +301,22 @@ export default function App() {
       if (firestorePods && Array.isArray(firestorePods)) {
         setAllPods((prevPods) => {
           const map = new Map<string, Pod>();
-          for (const p of INITIAL_PODS) {
-            if (p && p.id) map.set(p.id, p);
-          }
           for (const p of prevPods) {
-            if (p && p.id) {
-              const existing = map.get(p.id);
-              map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+            if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+              map.set(p.id, p);
             }
           }
           for (const fp of firestorePods) {
-            if (!fp || !fp.id) continue;
+            if (!fp || !fp.id || SEED_POD_IDS.has(fp.id)) continue;
             const existing = map.get(fp.id);
             map.set(fp.id, existing ? mergePodObjects(existing, fp) : fp);
           }
           const updated = Array.from(map.values());
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updated));
+            } catch {}
+          }
           if (selectedPodDetail) {
             const fresh = updated.find((p) => p.id === selectedPodDetail.id);
             if (fresh) setSelectedPodDetail(fresh);
@@ -877,10 +868,8 @@ export default function App() {
     console.log('[MutualPool Debug] My Matched Pods:', myPods.length, myPods);
   }
 
-  // User-created forming pods (excluding initial demo seed pods)
-  const userCreatedFormingPods = allPods.filter(
-    p => p.status === 'FORMING' && p.id !== 'pod_starter_50_5usd' && p.id !== 'pod_metro_riders_20'
-  );
+  // User-created forming pods
+  const userCreatedFormingPods = allPods.filter(p => p.status === 'FORMING');
 
   // Explore pods: forming pods that the current user is not yet a member of
   const explorePods = allPods.filter(p => {

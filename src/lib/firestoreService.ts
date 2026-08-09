@@ -15,7 +15,7 @@ import {
 import { FirebaseError } from 'firebase/app';
 import { db } from './firebase';
 import { User, Pod, Perk, AuditLogEntry, Redemption } from '../types';
-import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS } from '../data/initialData';
+import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS, SEED_POD_IDS } from '../data/initialData';
 
 // Helper to strip undefined fields so Firestore setDoc never throws on undefined values
 function sanitizeForFirestore<T extends Record<string, any>>(data: T): T {
@@ -46,19 +46,6 @@ function wrapError(operation: string, err: unknown): Error {
 // --- SEED INITIAL DATA IF EMPTY ---
 export async function seedInitialFirestoreData(): Promise<void> {
   try {
-    const podsSnap = await getDocs(collection(db, 'pods'));
-    const existingIds = new Set(podsSnap.docs.map(d => d.id));
-    const missingPods = INITIAL_PODS.filter(p => !existingIds.has(p.id));
-
-    if (missingPods.length > 0) {
-      console.log(`Seeding ${missingPods.length} missing initial pods into Firestore...`);
-      const batch = writeBatch(db);
-      for (const pod of missingPods) {
-        batch.set(doc(db, 'pods', pod.id), sanitizeForFirestore(pod));
-      }
-      await batch.commit();
-    }
-
     const perksSnap = await getDocs(collection(db, 'perks'));
     if (perksSnap.empty && INITIAL_PERKS.length > 0) {
       console.log('Seeding initial perks into Firestore...');
@@ -144,6 +131,10 @@ export async function getPodsFromFirestore(): Promise<Pod[]> {
     const snap = await getDocs(collection(db, 'pods'));
     const podsList: Pod[] = [];
     for (const d of snap.docs) {
+      if (SEED_POD_IDS.has(d.id)) {
+        deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
+        continue;
+      }
       const raw: any = d.data();
       if (!raw) continue;
       const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
@@ -151,6 +142,10 @@ export async function getPodsFromFirestore(): Promise<Pod[]> {
         : (raw as Pod);
       if (actualPod) {
         if (!actualPod.id) actualPod.id = d.id;
+        if (SEED_POD_IDS.has(actualPod.id)) {
+          deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
+          continue;
+        }
         if (!actualPod.status) actualPod.status = 'FORMING';
         podsList.push(actualPod);
       }
@@ -171,6 +166,10 @@ export function subscribeToPods(
     (snapshot) => {
       const podsList: Pod[] = [];
       for (const d of snapshot.docs) {
+        if (SEED_POD_IDS.has(d.id)) {
+          deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
+          continue;
+        }
         const raw: any = d.data();
         if (!raw) continue;
         const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
@@ -178,6 +177,10 @@ export function subscribeToPods(
           : (raw as Pod);
         if (actualPod) {
           if (!actualPod.id) actualPod.id = d.id;
+          if (SEED_POD_IDS.has(actualPod.id)) {
+            deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
+            continue;
+          }
           if (!actualPod.status) actualPod.status = 'FORMING';
           podsList.push(actualPod);
         }
