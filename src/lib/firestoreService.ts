@@ -47,10 +47,13 @@ function wrapError(operation: string, err: unknown): Error {
 export async function seedInitialFirestoreData(): Promise<void> {
   try {
     const podsSnap = await getDocs(collection(db, 'pods'));
-    if (podsSnap.empty && INITIAL_PODS.length > 0) {
-      console.log('Seeding initial pods into Firestore...');
+    const existingIds = new Set(podsSnap.docs.map(d => d.id));
+    const missingPods = INITIAL_PODS.filter(p => !existingIds.has(p.id));
+
+    if (missingPods.length > 0) {
+      console.log(`Seeding ${missingPods.length} missing initial pods into Firestore...`);
       const batch = writeBatch(db);
-      for (const pod of INITIAL_PODS) {
+      for (const pod of missingPods) {
         batch.set(doc(db, 'pods', pod.id), sanitizeForFirestore(pod));
       }
       await batch.commit();
@@ -148,6 +151,7 @@ export async function getPodsFromFirestore(): Promise<Pod[]> {
         : (raw as Pod);
       if (actualPod) {
         if (!actualPod.id) actualPod.id = d.id;
+        if (!actualPod.status) actualPod.status = 'FORMING';
         podsList.push(actualPod);
       }
     }
@@ -174,6 +178,7 @@ export function subscribeToPods(
           : (raw as Pod);
         if (actualPod) {
           if (!actualPod.id) actualPod.id = d.id;
+          if (!actualPod.status) actualPod.status = 'FORMING';
           podsList.push(actualPod);
         }
       }

@@ -31,6 +31,7 @@ import {
   saveUserToFirestore,
   subscribeToUser
 } from './lib/firestoreService';
+import { INITIAL_PODS } from './data/initialData';
 
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
@@ -59,9 +60,20 @@ export default function App() {
   const [allPods, setAllPods] = useState<Pod[]>(() => {
     try {
       const saved = localStorage.getItem('mutualpool_cached_pods');
-      return saved ? JSON.parse(saved) : [];
+      const parsed: Pod[] = saved ? JSON.parse(saved) : [];
+      const map = new Map<string, Pod>();
+      for (const p of INITIAL_PODS) {
+        if (p && p.id) map.set(p.id, p);
+      }
+      for (const p of parsed) {
+        if (p && p.id) {
+          const existing = map.get(p.id);
+          map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+        }
+      }
+      return Array.from(map.values());
     } catch {
-      return [];
+      return [...INITIAL_PODS];
     }
   });
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops'>('my-pods');
@@ -244,9 +256,16 @@ export default function App() {
 
       setAllPods((prevPods) => {
         const map = new Map<string, Pod>();
+        // 0. Base initial pods
+        for (const p of INITIAL_PODS) {
+          if (p && p.id) map.set(p.id, p);
+        }
         // 1. Keep existing state in memory
         for (const p of prevPods) {
-          if (p && p.id) map.set(p.id, p);
+          if (p && p.id) {
+            const existing = map.get(p.id);
+            map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+          }
         }
         // 2. Primary source of truth: Firestore pods
         for (const p of firestorePods) {
@@ -292,8 +311,14 @@ export default function App() {
       if (firestorePods && Array.isArray(firestorePods)) {
         setAllPods((prevPods) => {
           const map = new Map<string, Pod>();
-          for (const p of prevPods) {
+          for (const p of INITIAL_PODS) {
             if (p && p.id) map.set(p.id, p);
+          }
+          for (const p of prevPods) {
+            if (p && p.id) {
+              const existing = map.get(p.id);
+              map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+            }
           }
           for (const fp of firestorePods) {
             if (!fp || !fp.id) continue;

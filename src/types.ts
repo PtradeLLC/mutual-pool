@@ -319,18 +319,31 @@ export function mergeMembers(members1: PodMembership[] = [], members2: PodMember
 }
 
 export function mergePodObjects(p1: Pod, p2: Pod): Pod {
+  const cleanP2: Partial<Pod> = {};
+  if (p2 && typeof p2 === 'object') {
+    for (const [key, val] of Object.entries(p2)) {
+      if (val !== undefined && val !== null) {
+        (cleanP2 as any)[key] = val;
+      }
+    }
+  }
+
   const mergedMembers = mergeMembers(p1.members || [], p2.members || []);
   const calculatedCount = mergedMembers.length;
-  const storedCount = Math.max(p1.memberCount || 0, p2.memberCount || 0, calculatedCount);
+  const storedCount = Math.max(p1.memberCount || 0, p2.memberCount || 0, cleanP2.memberCount || 0, calculatedCount);
   const highestCollected = Math.max(
     p1.currentWeeklyCollected || 0,
     p2.currentWeeklyCollected || 0,
-    storedCount * (p1.depositTier || p2.depositTier || 20)
+    cleanP2.currentWeeklyCollected || 0,
+    storedCount * (p1.depositTier || cleanP2.depositTier || 20)
   );
 
   return {
     ...p1,
-    ...p2,
+    ...cleanP2,
+    id: cleanP2.id || p1.id,
+    name: cleanP2.name || p1.name || 'Mutual Savings Pod',
+    status: cleanP2.status || p1.status || 'FORMING',
     members: mergedMembers,
     memberCount: Math.max(1, storedCount),
     currentWeeklyCollected: highestCollected,

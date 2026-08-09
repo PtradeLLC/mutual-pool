@@ -141,30 +141,46 @@ async function syncPodsFromFirestore(): Promise<Pod[]> {
     const db = getDb();
     if (!db) return pods;
     const snap = await db.collection('pods').get();
+    const firestorePods: Pod[] = [];
     if (!snap.empty) {
-      const firestorePods: Pod[] = [];
       snap.docs.forEach((doc) => {
         const raw = doc.data();
         if (!raw) return;
         const p: Pod = raw.pod && typeof raw.pod === 'object' ? raw.pod : (raw as Pod);
-        if (p && p.id) {
+        if (p) {
+          if (!p.id) p.id = doc.id;
+          if (!p.status) p.status = 'FORMING';
           firestorePods.push(p);
         }
       });
-      if (firestorePods.length > 0) {
-        const map = new Map<string, Pod>();
-        for (const p of INITIAL_PODS) map.set(p.id, p);
-        for (const p of pods) {
-          if (!p || !p.id) continue;
-          const existing = map.get(p.id);
-          map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+    }
+
+    const map = new Map<string, Pod>();
+    for (const p of INITIAL_PODS) {
+      if (p && p.id) map.set(p.id, p);
+    }
+    for (const p of pods) {
+      if (!p || !p.id) continue;
+      const existing = map.get(p.id);
+      map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+    }
+    for (const p of firestorePods) {
+      if (!p || !p.id) continue;
+      const existing = map.get(p.id);
+      map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+    }
+    pods = Array.from(map.values());
+
+    if (!snap.empty) {
+      const existingIds = new Set(snap.docs.map(d => d.id));
+      const missingInitial = INITIAL_PODS.filter(p => !existingIds.has(p.id));
+      if (missingInitial.length > 0) {
+        const batch = db.batch();
+        for (const p of missingInitial) {
+          const ref = db.collection('pods').doc(p.id);
+          batch.set(ref, sanitizeForServerFirestore(p), { merge: true });
         }
-        for (const p of firestorePods) {
-          if (!p || !p.id) continue;
-          const existing = map.get(p.id);
-          map.set(p.id, existing ? mergePodObjects(existing, p) : p);
-        }
-        pods = Array.from(map.values());
+        await batch.commit().catch(() => {});
       }
     } else {
       // Seed initial pods if empty in Firestore
