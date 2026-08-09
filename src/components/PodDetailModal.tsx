@@ -1023,7 +1023,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <strong className="text-[#005FB8]">
                     {currentRecipientMember ? currentRecipientMember.displayName : 'N/A'}
                   </strong>
-                  <span> (Rotation #{currentRecipientIndex})</span>
+                  <span> (Lump-Sum Payout #{currentRecipientIndex})</span>
                 </div>
                 <span className="font-mono text-emerald-600 font-bold">
                   Collected: ${pod.currentWeeklyCollected} / ${currentActivePool}
@@ -1098,7 +1098,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       .filter(m => m.userId !== currentUser.id && !m.hasReceivedPayout)
                       .map(m => (
                         <option key={m.userId} value={m.userId}>
-                          {m.displayName} (Rotation #{m.rotationIndex})
+                          {m.displayName} (Lump-Sum Payout #{m.rotationIndex})
                         </option>
                       ))}
                   </select>

@@ -482,7 +482,7 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorId: 'usr_marcus',
     actorName: 'Marcus Vance',
     action: 'PAYOUT_EXECUTED',
-    detail: 'Week 1 Payout of $400.00 executed via Stripe Treasury OutboundTransfer to Marcus Vance (Rotation #0).',
+    detail: 'Week 1 Payout of $400.00 executed via Stripe Treasury OutboundTransfer to Marcus Vance (Lump-Sum Payout #0).',
     metadata: {
       stripeTransferId: 'tr_1xM384210984120',
       recipientId: 'usr_marcus'
@@ -495,7 +495,7 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorId: 'usr_elena',
     actorName: 'Elena Rostova',
     action: 'PAYOUT_EXECUTED',
-    detail: 'Week 2 Payout of $400.00 executed via Stripe Treasury OutboundTransfer to Elena Rostova (Rotation #1).',
+    detail: 'Week 2 Payout of $400.00 executed via Stripe Treasury OutboundTransfer to Elena Rostova (Lump-Sum Payout #1).',
     metadata: {
       stripeTransferId: 'tr_1xE980129381203',
       recipientId: 'usr_elena'
