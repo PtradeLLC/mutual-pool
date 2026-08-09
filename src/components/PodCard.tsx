@@ -42,14 +42,37 @@ export const PodCard: React.FC<PodCardProps> = ({
 
   const isMember = Boolean(userMembership || isCreator || isStoredInLocal);
 
-  const hasEveryMemberReceivedPayout = Boolean(
-    pod.members &&
-    pod.members.length > 0 &&
-    (pod.status === 'COMPLETED' || pod.members.every(m => m.hasReceivedPayout))
+  let effectiveMembers = [...(pod.members || [])];
+  if (isMember && !userMembership) {
+    effectiveMembers.push({
+      id: `pm_synthetic_${activeId || 'active'}_${pod.id}`,
+      podId: pod.id,
+      userId: activeId || 'usr_active',
+      displayName: currentUser?.displayName || 'Verified Member',
+      avatarUrl: currentUser?.avatarUrl || '',
+      platform: currentUser?.platform || 'DoorDash',
+      rotationIndex: effectiveMembers.length,
+      hasReceivedPayout: false,
+      delinquencyStatus: 'CLEAN',
+      joinedAt: new Date().toISOString(),
+    });
+  }
+
+  const displayCount = Math.max(
+    1,
+    pod.memberCount || 0,
+    effectiveMembers.length,
+    pod.members ? pod.members.length : 0
   );
 
-  const isFull = pod.members.length >= pod.sizeTier;
-  const progressPercent = Math.min(100, Math.round((pod.members.length / pod.sizeTier) * 100));
+  const hasEveryMemberReceivedPayout = Boolean(
+    effectiveMembers &&
+    effectiveMembers.length > 0 &&
+    (pod.status === 'COMPLETED' || effectiveMembers.every(m => m.hasReceivedPayout))
+  );
+
+  const isFull = displayCount >= pod.sizeTier;
+  const progressPercent = Math.min(100, Math.round((displayCount / pod.sizeTier) * 100));
 
   const statusColors = {
     FORMING: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -58,7 +81,7 @@ export const PodCard: React.FC<PodCardProps> = ({
     COMPLETED: 'bg-blue-50 text-[#005FB8] border-blue-200',
   };
 
-  const currentActivePool = pod.members.length * pod.depositTier;
+  const currentActivePool = displayCount * pod.depositTier;
   const fullCapacityTarget = pod.sizeTier * pod.depositTier;
 
   return (
@@ -136,7 +159,7 @@ export const PodCard: React.FC<PodCardProps> = ({
               ${currentActivePool.toLocaleString()}
             </span>
             <span className="text-[10px] text-[#6B7280] block font-mono">
-              {pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk
+              {displayCount} member{displayCount === 1 ? '' : 's'} × ${pod.depositTier}/wk
             </span>
           </div>
           <div>
@@ -154,7 +177,7 @@ export const PodCard: React.FC<PodCardProps> = ({
         <div className="mb-3">
           <div className="flex items-center justify-between text-xs text-[#6B7280] mb-1">
             <span>Pod Capacity Fill</span>
-            <span className="font-mono text-[#111827] font-semibold">{pod.members.length} / {pod.sizeTier} Members</span>
+            <span className="font-mono text-[#111827] font-semibold">{displayCount} / {pod.sizeTier} Members</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
             <div
@@ -168,7 +191,7 @@ export const PodCard: React.FC<PodCardProps> = ({
         {pod.status === 'FORMING' && (
           <div className="mb-3 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-[10.5px] text-amber-900 leading-tight space-y-1">
             <div>
-              💡 <strong>Dynamic Payout Scaling:</strong> Weekly payout is currently <strong>${currentActivePool.toLocaleString()}</strong> ({pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk).
+              💡 <strong>Dynamic Payout Scaling:</strong> Weekly payout is currently <strong>${currentActivePool.toLocaleString()}</strong> ({displayCount} member{displayCount === 1 ? '' : 's'} × ${pod.depositTier}/wk).
             </div>
             {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
               <div className="text-[10px] text-amber-800 font-medium flex items-center gap-1 pt-0.5">

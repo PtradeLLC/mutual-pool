@@ -374,7 +374,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                 >
                   {myPods.map((pod) => (
                     <option key={pod.id} value={pod.id}>
-                      {pod.name} — Weekly Deposit Tier: ${pod.depositTier}.00 ({pod.members.length} members)
+                      {pod.name} — Weekly Deposit Tier: ${pod.depositTier}.00 ({Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} members)
                     </option>
                   ))}
                 </select>

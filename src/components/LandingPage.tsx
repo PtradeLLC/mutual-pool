@@ -710,7 +710,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
                 <div>
                   <span className="text-[#6B7280] text-[10px] block font-medium">Capacity</span>
-                  <span className="font-bold text-[#111827] font-mono">{pod.members.length} / {pod.sizeTier} Members</span>
+                  <span className="font-bold text-[#111827] font-mono">{Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} / {pod.sizeTier} Members</span>
                 </div>
               </div>
 

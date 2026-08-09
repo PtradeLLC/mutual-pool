@@ -189,6 +189,9 @@ export async function savePodToFirestore(podDataInput: any): Promise<void> {
     ? podDataInput.pod
     : podDataInput;
   if (!pod || !pod.id || typeof pod.id !== 'string' || !pod.id.trim()) return;
+  if (!pod.memberCount || pod.memberCount < (pod.members?.length || 0)) {
+    pod.memberCount = Math.max(1, pod.memberCount || 0, pod.members ? pod.members.length : 0);
+  }
   try {
     await setDoc(doc(db, 'pods', pod.id), sanitizeForFirestore(pod), { merge: true });
     console.log('[firestoreService] Pod saved to Firestore:', pod.id, pod.name);

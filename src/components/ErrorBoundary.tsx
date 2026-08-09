@@ -16,6 +16,10 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
+    const msg = error?.message || '';
+    if (msg.includes('MetaMask') || msg.includes('ethereum') || msg.includes('extension')) {
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 

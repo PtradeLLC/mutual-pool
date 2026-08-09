@@ -152,14 +152,57 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
     }
   };
 
-  const userMembership = pod.members.find(m => m.userId === currentUser.id);
-  const isMember = !!userMembership;
-  const isCreator = pod.createdBy === currentUser.id;
-  const isFull = pod.members.length >= pod.sizeTier;
-  const currentRecipientIndex = pod.currentCycleWeek - 1;
-  const currentRecipientMember = pod.members.find(m => m.rotationIndex === currentRecipientIndex);
+  const activeId = currentUser?.id;
+  const activeEmail = currentUser?.email?.trim().toLowerCase();
+  const activeName = currentUser?.displayName?.trim().toLowerCase();
 
-  const currentActivePool = pod.members.length * pod.depositTier;
+  const userMembership = pod.members?.find(m => {
+    if (!m) return false;
+    if (activeId && m.userId === activeId) return true;
+    if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
+    if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
+    return false;
+  });
+
+  const isCreator = Boolean(
+    (activeId && pod.createdBy === activeId) ||
+    (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName)
+  );
+
+  const isStoredInLocal = typeof window !== 'undefined' && Boolean(
+    (activeId && localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') ||
+    localStorage.getItem(`mutualpool_my_pod_${pod.id}`) === 'true'
+  );
+
+  const isMember = Boolean(userMembership || isCreator || isStoredInLocal);
+
+  let effectiveMembers = [...(pod.members || [])];
+  if (isMember && !userMembership) {
+    effectiveMembers.push({
+      id: `pm_synthetic_${activeId || 'active'}_${pod.id}`,
+      podId: pod.id,
+      userId: activeId || 'usr_active',
+      displayName: currentUser?.displayName || 'Verified Member',
+      avatarUrl: currentUser?.avatarUrl || '',
+      platform: currentUser?.platform || 'DoorDash',
+      rotationIndex: effectiveMembers.length,
+      hasReceivedPayout: false,
+      delinquencyStatus: 'CLEAN',
+      joinedAt: new Date().toISOString(),
+    });
+  }
+
+  const memberCount = Math.max(
+    1,
+    pod.memberCount || 0,
+    effectiveMembers.length,
+    pod.members ? pod.members.length : 0
+  );
+  const isFull = memberCount >= pod.sizeTier;
+  const currentRecipientIndex = pod.currentCycleWeek - 1;
+  const currentRecipientMember = effectiveMembers.find(m => m.rotationIndex === currentRecipientIndex);
+
+  const currentActivePool = memberCount * pod.depositTier;
   const fullCapacityTarget = pod.sizeTier * pod.depositTier;
 
   // Handle adding contacts to Trusted Circle
@@ -482,7 +525,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <span>Pod Agreement v2.0</span>
                 </button>
 
-                {pod.status === 'FORMING' && pod.members.length >= 2 && (
+                {pod.status === 'FORMING' && memberCount >= 2 && (
                   <button
                     onClick={() => handleLockPod()}
                     className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
@@ -511,7 +554,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Fixed Rotation ({pod.members.length}/{pod.sizeTier})</span>
+            <span>Fixed Rotation ({memberCount}/{pod.sizeTier})</span>
           </button>
 
           {pod.podType === 'TRUSTED_CIRCLE' && (
@@ -595,7 +638,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 ${currentActivePool.toLocaleString()}
               </span>
               <span className="text-[10px] text-[#6B7280] block font-mono">
-                {pod.members.length} member{pod.members.length === 1 ? '' : 's'} × ${pod.depositTier}/wk
+                {memberCount} member{memberCount === 1 ? '' : 's'} × ${pod.depositTier}/wk
               </span>
             </div>
 
@@ -677,13 +720,13 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   </span>
                   <span className="text-[11px] text-gray-700">
                     {pod.activationPolicy === 'FLEXIBLE_EARLY'
-                      ? `Pod creator (${pod.creatorName}) can lock rotation and start weekly cycles as soon as 2+ members join (${pod.members.length}/${pod.sizeTier} members current).`
-                      : `Configured to auto-lock when all ${pod.sizeTier} member spots fill (${pod.members.length}/${pod.sizeTier} joined). Creator can also manually lock early if needed.`}
+                      ? `Pod creator (${pod.creatorName}) can lock rotation and start weekly cycles as soon as 2+ members join (${memberCount}/${pod.sizeTier} members current).`
+                      : `Configured to auto-lock when all ${pod.sizeTier} member spots fill (${memberCount}/${pod.sizeTier} joined). Creator can also manually lock early if needed.`}
                   </span>
                 </div>
               </div>
 
-              {isCreator && pod.members.length >= 2 && (
+              {isCreator && memberCount >= 2 && (
                 <button
                   onClick={() => handleLockPod(pod.activationPolicy === 'WHEN_FULL')}
                   className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer ${
@@ -738,7 +781,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               <span>How Member Capacity & Dynamic Weekly Payouts Work</span>
             </div>
             <p className="text-[11.5px] leading-relaxed text-[#374151]">
-              Weekly payouts in Mutual Savings Pods are directly funded by active participating members. Currently, <strong>{pod.members.length} participating member{pod.members.length === 1 ? '' : 's'}</strong> contribute <strong>${pod.depositTier}/wk</strong> each, making the active weekly payout pool <strong>${currentActivePool.toLocaleString()}</strong> per rotation turn. As new members join, weekly payouts automatically scale up to the maximum capacity target of <strong>${fullCapacityTarget.toLocaleString()}</strong> ({pod.sizeTier} members).
+              Weekly payouts in Mutual Savings Pods are directly funded by active participating members. Currently, <strong>{memberCount} participating member{memberCount === 1 ? '' : 's'}</strong> contribute <strong>${pod.depositTier}/wk</strong> each, making the active weekly payout pool <strong>${currentActivePool.toLocaleString()}</strong> per rotation turn. As new members join, weekly payouts automatically scale up to the maximum capacity target of <strong>${fullCapacityTarget.toLocaleString()}</strong> ({pod.sizeTier} members).
             </p>
           </div>
 
@@ -961,7 +1004,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               {/* 10% Payout Fee Calculation Breakdown */}
               <div className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 font-mono">
                 <div className="flex justify-between text-gray-700">
-                  <span>Collective Pool Amount ({pod.members.length} Members × ${pod.depositTier}):</span>
+                  <span>Collective Pool Amount ({memberCount} Members × ${pod.depositTier}):</span>
                   <span>${currentActivePool}.00</span>
                 </div>
                 <div className="flex justify-between text-rose-600">
@@ -1079,7 +1122,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <span>Submit Emergency Reprioritization Request</span>
                 </div>
                 <p className="text-[#6B7280]">
-                  Experiencing hardship (e.g. vehicle repair)? Request early advancement. Requires a pod vote meeting 50%+1 quorum ({Math.floor(pod.members.length / 2) + 1} votes).
+                  Experiencing hardship (e.g. vehicle repair)? Request early advancement. Requires a pod vote meeting 50%+1 quorum ({Math.floor(memberCount / 2) + 1} votes).
                 </p>
 
                 <form onSubmit={handleSubmitReprioritize} className="space-y-3">
