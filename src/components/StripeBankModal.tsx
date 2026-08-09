@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { Building2, CheckCircle2, AlertCircle, X, CreditCard, ShieldCheck, Wallet, ArrowUpRight, Sparkles } from 'lucide-react';
+import { saveUserToFirestore } from '../lib/firestoreService';
 
 interface StripeBankModalProps {
   user: User;
