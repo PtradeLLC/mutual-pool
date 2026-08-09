@@ -31,7 +31,6 @@ import {
   saveUserToFirestore,
   subscribeToUser
 } from './lib/firestoreService';
-import { SEED_POD_IDS } from './data/initialData';
 
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
@@ -61,7 +60,7 @@ export default function App() {
     try {
       const saved = localStorage.getItem('mutualpool_cached_pods');
       const parsed: Pod[] = saved ? JSON.parse(saved) : [];
-      return parsed.filter(p => p && p.id && !SEED_POD_IDS.has(p.id));
+      return parsed.filter(p => p && p.id);
     } catch {
       return [];
     }
@@ -226,6 +225,7 @@ export default function App() {
 
       // Fetch all pods from Firestore directly
       const firestorePods = await getPodsFromFirestore().catch(() => []);
+      console.log('[App fetchAppData] Firestore pods returned:', firestorePods.length, firestorePods);
 
       // Fetch all pods from backend API
       const podsRes = await fetch('/api/pods').catch(() => null);
@@ -234,6 +234,7 @@ export default function App() {
         const pData = await podsRes.json().catch(() => null);
         if (pData && Array.isArray(pData)) apiPods = pData;
       }
+      console.log('[App fetchAppData] Server API pods returned:', apiPods.length, apiPods);
 
       // Check local storage created pods
       let localCreatedPods: Pod[] = [];
@@ -246,27 +247,27 @@ export default function App() {
 
       setAllPods((prevPods) => {
         const map = new Map<string, Pod>();
-        // 1. Keep existing state in memory (filter out seed pods)
+        // 1. Keep existing state in memory
         for (const p of prevPods) {
-          if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+          if (p && p.id) {
             map.set(p.id, p);
           }
         }
         // 2. Primary source of truth: Firestore pods
         for (const p of firestorePods) {
-          if (!p || !p.id || SEED_POD_IDS.has(p.id)) continue;
+          if (!p || !p.id) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
         // 3. Server API pods
         for (const p of apiPods) {
-          if (!p || !p.id || SEED_POD_IDS.has(p.id)) continue;
+          if (!p || !p.id) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
         // 4. Local created pods (push missing to Firestore)
         for (const p of localCreatedPods) {
-          if (!p || !p.id || SEED_POD_IDS.has(p.id)) continue;
+          if (!p || !p.id) continue;
           const existing = map.get(p.id);
           const merged = existing ? mergePodObjects(existing, p) : p;
           map.set(p.id, merged);
@@ -302,12 +303,12 @@ export default function App() {
         setAllPods((prevPods) => {
           const map = new Map<string, Pod>();
           for (const p of prevPods) {
-            if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+            if (p && p.id) {
               map.set(p.id, p);
             }
           }
           for (const fp of firestorePods) {
-            if (!fp || !fp.id || SEED_POD_IDS.has(fp.id)) continue;
+            if (!fp || !fp.id) continue;
             const existing = map.get(fp.id);
             map.set(fp.id, existing ? mergePodObjects(existing, fp) : fp);
           }
@@ -861,13 +862,6 @@ export default function App() {
     return false;
   });
 
-  // Debug logging for troubleshooting user pod state across refreshes
-  if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-    console.log('[MutualPool Debug] Active User:', { id: activeUser.id, email: activeUser.email, name: activeUser.displayName });
-    console.log('[MutualPool Debug] Total Pods Loaded:', allPods.length, allPods);
-    console.log('[MutualPool Debug] My Matched Pods:', myPods.length, myPods);
-  }
-
   // User-created forming pods
   const userCreatedFormingPods = allPods.filter(p => p.status === 'FORMING');
 
@@ -877,6 +871,14 @@ export default function App() {
     const isMyPod = myPods.some(mp => mp.id === p.id);
     return !isMyPod;
   });
+
+  // Always log debug info to browser console for verification
+  if (typeof window !== 'undefined') {
+    console.log('[MutualPool Debug] Active User:', { id: activeUser.id, email: activeUser.email, name: activeUser.displayName });
+    console.log('[MutualPool Debug] Total Pods Loaded in State:', allPods.length, allPods);
+    console.log('[MutualPool Debug] My Matched Pods:', myPods.length, myPods);
+    console.log('[MutualPool Debug] Explore Pods:', explorePods.length, explorePods);
+  }
 
   const hasWelcomeMatch = Boolean(
     activeUser.welcomeMatchReceived ||

@@ -10,7 +10,7 @@ import {
   HardshipFundRequest 
 } from './src/types';
 import { 
-  INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS, SEED_POD_IDS 
+  INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
 } from './src/data/initialData';
 import { getDb } from './src/config/firebase';
 
@@ -94,7 +94,7 @@ function loadPodsFromDisk(): Pod[] {
       const raw = fs.readFileSync(PODS_FILE, 'utf8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((p: Pod) => p && p.id && !SEED_POD_IDS.has(p.id));
+        return parsed.filter((p: Pod) => p && p.id);
       }
     }
   } catch (err) {
@@ -105,7 +105,7 @@ function loadPodsFromDisk(): Pod[] {
 
 function savePodsToDisk() {
   try {
-    const cleanPods = pods.filter(p => p && p.id && !SEED_POD_IDS.has(p.id));
+    const cleanPods = pods.filter(p => p && p.id);
     fs.writeFileSync(PODS_FILE, JSON.stringify(cleanPods, null, 2), 'utf8');
   } catch (err) {
     console.error('Error saving pods_data.json:', err);
@@ -117,7 +117,7 @@ function savePodsToDisk() {
     if (db) {
       const batch = db.batch();
       for (const p of pods) {
-        if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+        if (p && p.id) {
           const ref = db.collection('pods').doc(p.id);
           batch.set(ref, sanitizeForServerFirestore(p), { merge: true });
         }
@@ -132,48 +132,37 @@ function savePodsToDisk() {
 async function syncPodsFromFirestore(): Promise<Pod[]> {
   try {
     const db = getDb();
-    if (!db) return pods.filter(p => p && p.id && !SEED_POD_IDS.has(p.id));
+    if (!db) return pods.filter(p => p && p.id);
     const snap = await db.collection('pods').get();
     const firestorePods: Pod[] = [];
-    const seedDocsToDelete: string[] = [];
 
     if (!snap.empty) {
       snap.docs.forEach((doc) => {
-        if (SEED_POD_IDS.has(doc.id)) {
-          seedDocsToDelete.push(doc.id);
-          return;
-        }
         const raw = doc.data();
         if (!raw) return;
         const p: Pod = raw.pod && typeof raw.pod === 'object' ? raw.pod : (raw as Pod);
-        if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+        if (p) {
+          if (!p.id) p.id = doc.id;
           if (!p.status) p.status = 'FORMING';
           firestorePods.push(p);
         }
       });
     }
 
-    if (seedDocsToDelete.length > 0) {
-      const batch = db.batch();
-      for (const id of seedDocsToDelete) {
-        batch.delete(db.collection('pods').doc(id));
-      }
-      await batch.commit().catch(() => {});
-    }
-
     const map = new Map<string, Pod>();
     for (const p of pods) {
-      if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+      if (p && p.id) {
         map.set(p.id, p);
       }
     }
     for (const p of firestorePods) {
-      if (p && p.id && !SEED_POD_IDS.has(p.id)) {
+      if (p && p.id) {
         const existing = map.get(p.id);
         map.set(p.id, existing ? mergePodObjects(existing, p) : p);
       }
     }
     pods = Array.from(map.values());
+    console.log('[Server] syncPodsFromFirestore loaded total pods:', pods.length, pods.map(p => ({ id: p.id, name: p.name, status: p.status })));
   } catch (err: any) {
     if (err?.code === 5 || (typeof err?.message === 'string' && err.message.includes('NOT_FOUND'))) {
       // Quietly fallback

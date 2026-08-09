@@ -15,7 +15,7 @@ import {
 import { FirebaseError } from 'firebase/app';
 import { db } from './firebase';
 import { User, Pod, Perk, AuditLogEntry, Redemption } from '../types';
-import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS, SEED_POD_IDS } from '../data/initialData';
+import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS } from '../data/initialData';
 
 // Helper to strip undefined fields so Firestore setDoc never throws on undefined values
 function sanitizeForFirestore<T extends Record<string, any>>(data: T): T {
@@ -129,12 +129,9 @@ export function subscribeToUser(
 export async function getPodsFromFirestore(): Promise<Pod[]> {
   try {
     const snap = await getDocs(collection(db, 'pods'));
+    console.log('[Firestore Service] getPodsFromFirestore raw docs count:', snap.docs.length, snap.docs.map(d => ({ id: d.id, data: d.data() })));
     const podsList: Pod[] = [];
     for (const d of snap.docs) {
-      if (SEED_POD_IDS.has(d.id)) {
-        deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
-        continue;
-      }
       const raw: any = d.data();
       if (!raw) continue;
       const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
@@ -142,17 +139,14 @@ export async function getPodsFromFirestore(): Promise<Pod[]> {
         : (raw as Pod);
       if (actualPod) {
         if (!actualPod.id) actualPod.id = d.id;
-        if (SEED_POD_IDS.has(actualPod.id)) {
-          deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
-          continue;
-        }
         if (!actualPod.status) actualPod.status = 'FORMING';
         podsList.push(actualPod);
       }
     }
+    console.log('[Firestore Service] getPodsFromFirestore parsed podsList:', podsList.length, podsList);
     return podsList;
   } catch (err) {
-    console.warn('getPodsFromFirestore error:', err);
+    console.warn('[Firestore Service] getPodsFromFirestore error:', err);
     return [];
   }
 }
@@ -164,12 +158,9 @@ export function subscribeToPods(
   return onSnapshot(
     collection(db, 'pods'),
     (snapshot) => {
+      console.log('[Firestore Service] subscribeToPods snapshot docs count:', snapshot.docs.length, snapshot.docs.map(d => ({ id: d.id, data: d.data() })));
       const podsList: Pod[] = [];
       for (const d of snapshot.docs) {
-        if (SEED_POD_IDS.has(d.id)) {
-          deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
-          continue;
-        }
         const raw: any = d.data();
         if (!raw) continue;
         const actualPod: Pod = (raw.pod && typeof raw.pod === 'object' && (raw.pod.id || raw.pod.name))
@@ -177,14 +168,11 @@ export function subscribeToPods(
           : (raw as Pod);
         if (actualPod) {
           if (!actualPod.id) actualPod.id = d.id;
-          if (SEED_POD_IDS.has(actualPod.id)) {
-            deleteDoc(doc(db, 'pods', d.id)).catch(() => {});
-            continue;
-          }
           if (!actualPod.status) actualPod.status = 'FORMING';
           podsList.push(actualPod);
         }
       }
+      console.log('[Firestore Service] subscribeToPods parsed podsList:', podsList.length, podsList);
       callback(podsList);
     },
     (err) => onError?.(wrapError('subscribeToPods', err))

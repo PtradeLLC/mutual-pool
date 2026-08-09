@@ -173,13 +173,6 @@ export const INITIAL_USERS: User[] = [
   },
 ];
 
-export const SEED_POD_IDS = new Set([
-  'pod_metro_riders_20',
-  'pod_starter_50_5usd',
-  'pod_veteran_100_50usd',
-  'pod_doordash_fleet_10',
-  'pod_1786132889241',
-]);
 
 export const INITIAL_PODS: Pod[] = [];
 
