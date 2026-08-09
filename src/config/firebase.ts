@@ -2,6 +2,7 @@ import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { getStorage, Storage } from 'firebase-admin/storage';
+import firebaseConfigJson from '../../firebase-applet-config.json';
 
 let app: App;
 let db: Firestore;
@@ -18,15 +19,20 @@ export function initializeFirebase(): void {
         ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
         : undefined;
       
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || firebaseConfigJson.projectId;
+      const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket;
+
       if (serviceAccount) {
         app = initializeApp({
           credential: cert(serviceAccount),
-          storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+          projectId,
+          storageBucket,
         });
       } else {
         // Use default credentials if available
         app = initializeApp({
-          storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+          projectId,
+          storageBucket,
         });
       }
     }

@@ -26,6 +26,7 @@ import {
   seedInitialFirestoreData, 
   subscribeToPods, 
   getPodsFromFirestore,
+  savePodToFirestore,
   getUserFromFirestore, 
   saveUserToFirestore,
   subscribeToUser
@@ -241,26 +242,25 @@ export default function App() {
         } catch {}
       }
 
-      setAllPods((prev) => {
+      setAllPods(() => {
         const map = new Map<string, Pod>();
-        // 1. Existing local state & cache
-        for (const p of prev) {
-          if (p && p.id) map.set(p.id, p);
-        }
-        // 2. Local created pods
-        for (const p of localCreatedPods) {
-          if (p && p.id) map.set(p.id, p);
-        }
-        // 3. Firestore pods
+        // 1. Primary source of truth: Firestore pods
         for (const p of firestorePods) {
           if (p && p.id) map.set(p.id, p);
         }
-        // 4. API pods
+        // 2. Server API pods
         for (const p of apiPods) {
           if (!p || !p.id) continue;
           const existing = map.get(p.id);
           if (!existing || (p.members && existing.members && p.members.length >= existing.members.length)) {
             map.set(p.id, p);
+          }
+        }
+        // 3. Local created pods (push missing to Firestore)
+        for (const p of localCreatedPods) {
+          if (p && p.id && !map.has(p.id)) {
+            map.set(p.id, p);
+            savePodToFirestore(p).catch(() => {});
           }
         }
         const updated = Array.from(map.values());
@@ -285,15 +285,17 @@ export default function App() {
     // 2. Subscribe to real-time Pods in Firestore
     const unsubscribePods = subscribeToPods((firestorePods) => {
       if (firestorePods && Array.isArray(firestorePods)) {
-        setAllPods((prevPods) => {
+        setAllPods(() => {
           const map = new Map<string, Pod>();
-          for (const p of prevPods) {
-            if (p && p.id) map.set(p.id, p);
-          }
           for (const p of firestorePods) {
             if (p && p.id) map.set(p.id, p);
           }
-          return Array.from(map.values());
+          const updated = Array.from(map.values());
+          if (selectedPodDetail) {
+            const fresh = updated.find((p) => p.id === selectedPodDetail.id);
+            if (fresh) setSelectedPodDetail(fresh);
+          }
+          return updated;
         });
       }
     });

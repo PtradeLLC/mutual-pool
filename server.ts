@@ -12,11 +12,27 @@ import {
 import { 
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
 } from './src/data/initialData';
+import { getDb } from './src/config/firebase';
 
 const PORT = 3000;
 
 const PODS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'pods_data.json');
 const USERS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'users_data.json');
+
+function sanitizeForServerFirestore(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  const clean: any = Array.isArray(obj) ? [] : {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      if (v !== null && typeof v === 'object' && !(v instanceof Date)) {
+        clean[k] = sanitizeForServerFirestore(v);
+      } else {
+        clean[k] = v;
+      }
+    }
+  }
+  return clean;
+}
 
 function loadPodsFromDisk(): Pod[] {
   try {
@@ -44,6 +60,61 @@ function savePodsToDisk() {
   } catch (err) {
     console.error('Error saving pods_data.json:', err);
   }
+
+  // Asynchronously sync all pods to Firestore
+  try {
+    const db = getDb();
+    if (db) {
+      const batch = db.batch();
+      for (const p of pods) {
+        if (p && p.id) {
+          const ref = db.collection('pods').doc(p.id);
+          batch.set(ref, sanitizeForServerFirestore(p), { merge: true });
+        }
+      }
+      batch.commit().catch((err) => console.warn('[Server] Firestore batch sync error:', err));
+    }
+  } catch (err) {
+    // quiet catch if admin DB not configured
+  }
+}
+
+async function syncPodsFromFirestore(): Promise<Pod[]> {
+  try {
+    const db = getDb();
+    if (!db) return pods;
+    const snap = await db.collection('pods').get();
+    if (!snap.empty) {
+      const firestorePods: Pod[] = [];
+      snap.docs.forEach((doc) => {
+        const raw = doc.data();
+        if (!raw) return;
+        const p: Pod = raw.pod && typeof raw.pod === 'object' ? raw.pod : (raw as Pod);
+        if (p && p.id) {
+          firestorePods.push(p);
+        }
+      });
+      if (firestorePods.length > 0) {
+        const map = new Map<string, Pod>();
+        for (const p of INITIAL_PODS) map.set(p.id, p);
+        for (const p of pods) map.set(p.id, p);
+        for (const p of firestorePods) map.set(p.id, p);
+        pods = Array.from(map.values());
+      }
+    } else {
+      // Seed initial pods if empty in Firestore
+      console.log('[Server] Seeding INITIAL_PODS into Firestore...');
+      const batch = db.batch();
+      for (const p of INITIAL_PODS) {
+        const ref = db.collection('pods').doc(p.id);
+        batch.set(ref, sanitizeForServerFirestore(p), { merge: true });
+      }
+      await batch.commit().catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[Server] syncPodsFromFirestore warning:', err);
+  }
+  return pods;
 }
 
 function loadUsersFromDisk(): User[] {
@@ -760,12 +831,13 @@ app.use((req, res, next) => {
   });
 
   // 4. Pods List & Details
-  app.get(['/api/pods', '/pods'], (req: Request, res: Response) => {
+  app.get(['/api/pods', '/pods'], async (req: Request, res: Response) => {
     try {
+      await syncPodsFromFirestore();
       res.json(pods);
     } catch (err) {
       console.error('[/api/pods] error:', err);
-      res.status(500).json({ error: 'Failed to fetch pods.' });
+      res.json(pods);
     }
   });
 
