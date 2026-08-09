@@ -2,7 +2,17 @@ import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { getStorage, Storage } from 'firebase-admin/storage';
-import firebaseConfigJson from '../../firebase-applet-config.json';
+
+function loadOptionalLocalConfig(): { projectId?: string; storageBucket?: string } {
+  if (process.env.VERCEL) return {};
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const local = require('../../firebase-applet-config.json');
+    return { projectId: local?.projectId, storageBucket: local?.storageBucket };
+  } catch {
+    return {};
+  }
+}
 
 let app: App;
 let db: Firestore;
@@ -18,9 +28,15 @@ export function initializeFirebase(): void {
       const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
         ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
         : undefined;
-      
-      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || firebaseConfigJson.projectId;
-      const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket;
+
+      const localConfig = loadOptionalLocalConfig();
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || localConfig.projectId;
+      const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || localConfig.storageBucket;
+
+      if (!projectId) {
+        console.warn('[Firebase Admin Init Warning] No FIREBASE_PROJECT_ID set — server Firestore/Auth/Storage admin features will be disabled.');
+        return;
+      }
 
       if (serviceAccount) {
         app = initializeApp({
@@ -87,7 +103,12 @@ export function isoToTimestamp(isoString: string): any {
 
 // Batch write helper
 export async function batchWrite(operations: Array<{ ref: any; data: any; type: 'set' | 'update' | 'delete' }>): Promise<void> {
-  const batch = db.batch();
+  const activeDb = getDb();
+  if (!activeDb) {
+    console.warn('[Firebase Admin] batchWrite skipped — Admin DB not initialized.');
+    return;
+  }
+  const batch = activeDb.batch();
   
   for (const op of operations) {
     switch (op.type) {
@@ -111,11 +132,15 @@ export async function runTransaction<T>(
   updateFn: (transaction: any) => Promise<T>,
   maxAttempts = 3
 ): Promise<T> {
+  const activeDb = getDb();
+  if (!activeDb) {
+    throw new Error('Firebase Admin DB not initialized — cannot run transaction.');
+  }
   let attempt = 0;
   
   while (true) {
     try {
-      return await db.runTransaction(updateFn);
+      return await activeDb.runTransaction(updateFn);
     } catch (error: any) {
       attempt++;
       if (attempt >= maxAttempts || !error.message?.includes('ABORTED')) {
