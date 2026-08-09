@@ -111,8 +111,12 @@ async function syncPodsFromFirestore(): Promise<Pod[]> {
       }
       await batch.commit().catch(() => {});
     }
-  } catch (err) {
-    console.warn('[Server] syncPodsFromFirestore warning:', err);
+  } catch (err: any) {
+    if (err?.code === 5 || (typeof err?.message === 'string' && err.message.includes('NOT_FOUND'))) {
+      // Quietly fallback to in-memory/disk pods when server Firestore Admin DB is not initialized
+    } else {
+      console.warn('[Server] syncPodsFromFirestore note:', err?.message || err);
+    }
   }
   return pods;
 }
@@ -1179,126 +1183,148 @@ app.use((req, res, next) => {
 
   // 6. Join Pod (Supports Friends of Friends Referral Attribution)
   app.post(['/api/pods/:id/join', '/pods/:id/join'], (req: Request, res: Response) => {
-    const user = getCurrentUser(req);
-    if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
-    }
-    const { inviteCode, refUserId, refName } = req.body || {};
-    const pod = findPodById(req.params.id, user);
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      }
+      const { inviteCode, refUserId, refName } = req.body || {};
+      const pod = findPodById(req.params.id, user);
 
-    if (!pod) {
-      return res.status(404).json({ error: 'Pod not found' });
-    }
+      if (!pod) {
+        return res.status(404).json({ error: 'Pod not found' });
+      }
 
-    if (user.kycStatus !== 'VERIFIED') {
-      return res.status(403).json({
-        error: 'KYC_REQUIRED',
-        message: 'You must complete Stripe Identity KYC verification before joining a mutual savings pod.'
-      });
-    }
+      if (!pod.members) pod.members = [];
+      if (!pod.invitedContacts) pod.invitedContacts = [];
 
-    if (user.isHardshipInactive) {
-      return res.status(403).json({
-        error: 'HARDSHIP_HOLD',
-        message: `Your account is currently on hold due to a Financial Hardship Fund disbursed on your behalf ($${user.hardshipOwedUsd?.toFixed(2) || '0.00'} owed). Please pay off your hardship balance (deposit + 7% service fee) to reactivate your account and participate in pools.`
-      });
-    }
-
-    if (pod.members.length >= pod.sizeTier) {
-      return res.status(400).json({ error: 'Pod has reached its maximum size tier capacity.' });
-    }
-
-    if (pod.status === 'COMPLETED' || (pod.status === 'LOCKED' && pod.members.length >= pod.sizeTier)) {
-      return res.status(400).json({ error: 'This pod is completed or locked and cannot accept new members.' });
-    }
-
-    const existing = pod.members.find(m => m.userId === user.id);
-    if (existing) {
-      return res.status(400).json({ error: 'You are already a member of this pod.' });
-    }
-
-    // Check matching contact in invitedContacts
-    const contactMatch = pod.invitedContacts?.find(
-      ic => ic.emailOrPhone.toLowerCase() === user.email.toLowerCase() || ic.memberUserId === user.id
-    );
-
-    // Check Trusted Circle restrictions if pod is TRUSTED_CIRCLE and user is not creator
-    if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== user.id) {
-      const isInvited = !!contactMatch;
-      const expectedCode = (pod.inviteCode || 'BAY2026').trim().toUpperCase();
-      const providedCode = (inviteCode || '').trim().toUpperCase();
-      const isCodeValid = providedCode.length > 0 && (
-        providedCode === expectedCode || 
-        providedCode === 'BAY2026' || 
-        providedCode === 'START50' || 
-        providedCode === 'VET100' || 
-        providedCode === 'POOL2026'
-      );
-
-      if (!isInvited && !isCodeValid) {
+      if (user.kycStatus !== 'VERIFIED') {
         return res.status(403).json({
-          error: 'INVITE_REQUIRED',
-          message: providedCode.length > 0
-            ? `Invalid invite code "${providedCode}". Please verify the code provided by the pod creator and try again.`
-            : 'This is a private Trusted Circle pod. Enter a valid invite code or request an invite from a pod member.'
+          error: 'KYC_REQUIRED',
+          message: 'You must complete Stripe Identity KYC verification before joining a mutual savings pod.'
         });
       }
-    }
 
-    // Determine inviter attribution
-    let inviterId = contactMatch?.invitedByUserId;
-    let inviterDisplayName = contactMatch?.invitedByName;
-
-    if (!inviterId && refUserId) {
-      const refMember = pod.members.find(m => m.userId === refUserId);
-      if (refMember) {
-        inviterId = refMember.userId;
-        inviterDisplayName = refMember.displayName;
+      if (user.isHardshipInactive) {
+        return res.status(403).json({
+          error: 'HARDSHIP_HOLD',
+          message: `Your account is currently on hold due to a Financial Hardship Fund disbursed on your behalf ($${user.hardshipOwedUsd?.toFixed(2) || '0.00'} owed). Please pay off your hardship balance (deposit + 7% service fee) to reactivate your account and participate in pools.`
+        });
       }
+
+      const sizeTier = pod.sizeTier || 20;
+
+      if (pod.members.length >= sizeTier) {
+        return res.status(400).json({ error: 'Pod has reached its maximum size tier capacity.' });
+      }
+
+      if (pod.status === 'COMPLETED' || (pod.status === 'LOCKED' && pod.members.length >= sizeTier)) {
+        return res.status(400).json({ error: 'This pod is completed or locked and cannot accept new members.' });
+      }
+
+      const existing = pod.members.find(m => m && m.userId === user.id);
+      if (existing) {
+        return res.status(400).json({ error: 'You are already a member of this pod.' });
+      }
+
+      // Check matching contact in invitedContacts safely
+      const userEmailClean = (user.email || '').trim().toLowerCase();
+      const contactMatch = pod.invitedContacts.find(ic => {
+        if (!ic) return false;
+        const icEmail = (ic.emailOrPhone || '').trim().toLowerCase();
+        return (userEmailClean && icEmail === userEmailClean) || (ic.memberUserId && ic.memberUserId === user.id);
+      });
+
+      // Check Trusted Circle restrictions if pod is TRUSTED_CIRCLE and user is not creator
+      if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== user.id) {
+        const isInvited = !!contactMatch;
+        const expectedCode = String(pod.inviteCode || 'BAY2026').trim().toUpperCase();
+        const providedCode = String(inviteCode || '').trim().toUpperCase();
+        const isCodeValid = providedCode.length > 0 && (
+          providedCode === expectedCode || 
+          providedCode === 'BAY2026' || 
+          providedCode === 'START50' || 
+          providedCode === 'VET100' || 
+          providedCode === 'POOL2026'
+        );
+
+        if (!isInvited && !isCodeValid) {
+          return res.status(403).json({
+            error: 'INVITE_REQUIRED',
+            message: providedCode.length > 0
+              ? `Invalid invite code "${providedCode}". Please verify the code provided by the pod creator and try again.`
+              : 'This is a private Trusted Circle pod. Enter a valid invite code or request an invite from a pod member.'
+          });
+        }
+      }
+
+      // Determine inviter attribution
+      let inviterId = contactMatch?.invitedByUserId;
+      let inviterDisplayName = contactMatch?.invitedByName;
+
+      if (!inviterId && refUserId) {
+        const refMember = pod.members.find(m => m && m.userId === refUserId);
+        if (refMember) {
+          inviterId = refMember.userId;
+          inviterDisplayName = refMember.displayName;
+        }
+      }
+
+      if (!inviterId && refName) {
+        inviterDisplayName = refName;
+      }
+
+      if (!inviterId && !inviterDisplayName) {
+        // Default to pod creator
+        inviterId = pod.createdBy;
+        inviterDisplayName = pod.creatorName;
+      }
+
+      const newMember: PodMembership = {
+        id: `pm_${Date.now()}_${pod.members.length + 1}`,
+        podId: pod.id,
+        userId: user.id,
+        displayName: user.displayName || 'Verified Member',
+        avatarUrl: user.avatarUrl || '',
+        platform: user.platform || 'DoorDash',
+        rotationIndex: pod.members.length,
+        hasReceivedPayout: false,
+        delinquencyStatus: 'CLEAN',
+        joinedAt: new Date().toISOString(),
+        invitedByUserId: inviterId,
+        invitedByName: inviterDisplayName,
+      };
+
+      pod.members.push(newMember);
+
+      try {
+        savePodsToDisk();
+      } catch (saveErr) {
+        console.warn('[Join Pod] savePodsToDisk error:', saveErr);
+      }
+
+      // Update invited contact status if matched
+      if (contactMatch) {
+        contactMatch.status = 'JOINED';
+      }
+
+      try {
+        addAuditLog(
+          pod.id,
+          user.id,
+          user.displayName || 'Verified Member',
+          'POD_CREATED',
+          `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''}. Position in queue pending final rotation lock when full.`
+        );
+      } catch (auditErr) {
+        console.warn('[Join Pod] addAuditLog error:', auditErr);
+      }
+
+      return res.json(pod);
+    } catch (err: any) {
+      console.error('[POST /api/pods/:id/join] Error:', err);
+      return res.status(500).json({ error: 'JOIN_FAILED', message: err?.message || 'Server error joining pod.' });
     }
-
-    if (!inviterId && refName) {
-      inviterDisplayName = refName;
-    }
-
-    if (!inviterId && !inviterDisplayName) {
-      // Default to pod creator
-      inviterId = pod.createdBy;
-      inviterDisplayName = pod.creatorName;
-    }
-
-    const newMember: PodMembership = {
-      id: `pm_${Date.now()}_${pod.members.length + 1}`,
-      podId: pod.id,
-      userId: user.id,
-      displayName: user.displayName,
-      avatarUrl: user.avatarUrl,
-      platform: user.platform,
-      rotationIndex: pod.members.length,
-      hasReceivedPayout: false,
-      delinquencyStatus: 'CLEAN',
-      joinedAt: new Date().toISOString(),
-      invitedByUserId: inviterId,
-      invitedByName: inviterDisplayName,
-    };
-
-    pod.members.push(newMember);
-    savePodsToDisk();
-
-    // Update invited contact status if matched
-    if (contactMatch) {
-      contactMatch.status = 'JOINED';
-    }
-
-    addAuditLog(
-      pod.id,
-      user.id,
-      user.displayName,
-      'POD_CREATED',
-      `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''}. Position in queue pending final rotation lock when full.`
-    );
-
-    res.json(pod);
   });
 
   // 7. Digital Signature on Pod Agreement
