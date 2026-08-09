@@ -3,8 +3,17 @@ import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { getStorage, Storage } from 'firebase-admin/storage';
 
+// NOTE: We intentionally do NOT statically import a JSON config file here.
+// A top-level `import x from './some.json'` runs at module-load time, outside
+// any try/catch in this file — if that file is missing from the deployed
+// bundle (e.g. gitignored, or outside the traced serverless function tree),
+// the whole module fails to load and takes every route in server.ts down
+// with it. Environment variables are the correct source of truth for a
+// serverless deployment; this optional, guarded fallback below is only for
+// local development convenience and can be deleted once env vars are set
+// in Vercel.
 function loadOptionalLocalConfig(): { projectId?: string; storageBucket?: string } {
-  if (process.env.VERCEL) return {};
+  if (process.env.VERCEL) return {}; // never attempt this in production/serverless
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const local = require('../../firebase-applet-config.json');
