@@ -214,7 +214,7 @@ export const PodCard: React.FC<PodCardProps> = ({
               <ShieldCheck className="w-4 h-4 text-[#005FB8] shrink-0" />
               <div>
                 <span className="font-bold block text-[#111827]">
-                  You are in line for Lump-Sum Payout #{userMembership?.rotationIndex ?? 1}
+                  You are #{userMembership?.rotationIndex ?? 1} in line for Lump-Sum Payout for the current week
                 </span>
                 <span className="text-[10px] text-[#005FB8]">
                   {userMembership?.hasReceivedPayout 
