@@ -149,19 +149,22 @@ async function syncPodsFromFirestore(): Promise<Pod[]> {
       });
     }
 
-    const map = new Map<string, Pod>();
-    for (const p of pods) {
-      if (p && p.id) {
-        map.set(p.id, p);
+    if (firestorePods.length > 0) {
+      pods = firestorePods;
+      try {
+        fs.writeFileSync(PODS_FILE, JSON.stringify(pods, null, 2), 'utf8');
+      } catch (e) {
+        // quiet catch
       }
-    }
-    for (const p of firestorePods) {
-      if (p && p.id) {
-        const existing = map.get(p.id);
-        map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+    } else {
+      const map = new Map<string, Pod>();
+      for (const p of pods) {
+        if (p && p.id) {
+          map.set(p.id, p);
+        }
       }
+      pods = Array.from(map.values());
     }
-    pods = Array.from(map.values());
     console.log('[Server] syncPodsFromFirestore loaded total pods:', pods.length, pods.map(p => ({ id: p.id, name: p.name, status: p.status })));
   } catch (err: any) {
     if (err?.code === 5 || (typeof err?.message === 'string' && err.message.includes('NOT_FOUND'))) {
