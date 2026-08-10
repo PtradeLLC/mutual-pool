@@ -679,7 +679,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             onClick={() => onOpenAuth('DEMO')}
             className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-[#DDE1E6] font-bold text-xs flex items-center gap-1.5 shadow-xs"
           >
-            <span>Browse All Savings Circles</span>
+            <span>Browse All Pool Circles</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

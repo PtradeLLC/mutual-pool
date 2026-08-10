@@ -89,18 +89,25 @@ function mergePodObjects(p1: Pod, p2: Pod): Pod {
 }
 
 function loadPodsFromDisk(): Pod[] {
+  const map = new Map<string, Pod>();
+  const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100']);
   try {
     if (fs.existsSync(PODS_FILE)) {
       const raw = fs.readFileSync(PODS_FILE, 'utf8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((p: Pod) => p && p.id);
+        for (const p of parsed) {
+          if (p && p.id && !FAKE_POD_IDS.has(p.id)) {
+            const existing = map.get(p.id);
+            map.set(p.id, existing ? mergePodObjects(existing, p) : p);
+          }
+        }
       }
     }
   } catch (err) {
     console.error('Error loading pods_data.json:', err);
   }
-  return [...INITIAL_PODS];
+  return Array.from(map.values());
 }
 
 function savePodsToDisk() {

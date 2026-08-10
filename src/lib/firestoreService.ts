@@ -66,16 +66,6 @@ export async function seedInitialFirestoreData(): Promise<void> {
       await batch.commit();
     }
 
-    const podsSnap = await getDocs(collection(db, 'pods'));
-    if (podsSnap.empty && INITIAL_PODS.length > 0) {
-      console.log('Seeding initial pods into Firestore...');
-      const batch = writeBatch(db);
-      for (const pod of INITIAL_PODS) {
-        batch.set(doc(db, 'pods', pod.id), sanitizeForFirestore(pod));
-      }
-      await batch.commit();
-    }
-
     const logsSnap = await getDocs(collection(db, 'auditLogs'));
     if (logsSnap.empty && INITIAL_AUDIT_LOGS.length > 0) {
       console.log('Seeding initial audit logs into Firestore...');
@@ -135,6 +125,8 @@ export function subscribeToUser(
   );
 }
 
+const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100']);
+
 // --- PODS ---
 export async function getPodsFromFirestore(): Promise<Pod[]> {
   try {
@@ -149,6 +141,7 @@ export async function getPodsFromFirestore(): Promise<Pod[]> {
         : (raw as Pod);
       if (actualPod) {
         if (!actualPod.id) actualPod.id = d.id;
+        if (FAKE_POD_IDS.has(actualPod.id)) continue;
         if (!actualPod.status) actualPod.status = 'FORMING';
         podsList.push(actualPod);
       }
@@ -178,6 +171,7 @@ export function subscribeToPods(
           : (raw as Pod);
         if (actualPod) {
           if (!actualPod.id) actualPod.id = d.id;
+          if (FAKE_POD_IDS.has(actualPod.id)) continue;
           if (!actualPod.status) actualPod.status = 'FORMING';
           podsList.push(actualPod);
         }
