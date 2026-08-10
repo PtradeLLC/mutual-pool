@@ -36,6 +36,7 @@ export const Logo: React.FC<LogoProps> = ({
   if (errorCount >= sources.length || !currentSrc) {
     return (
       <div className={`flex items-center gap-2 ${sizeClasses[size]} ${className}`}>
+      
         <div className="h-full aspect-square bg-[#F8F6F0] rounded-xl flex items-center justify-center p-1 shadow-xs border border-[#E2E8F0]">
           <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             {/* Sage Green Leaves */}

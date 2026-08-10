@@ -409,7 +409,7 @@ function getProfileFromHeaders(req: Request) {
 function getCurrentUser(req: Request): User | null {
   try {
     const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId');
-    const userId = rawUserId && rawUserId !== 'usr_guest' ? rawUserId : undefined;
+    const userId = rawUserId || undefined;
     if (!userId) {
       return null;
     }

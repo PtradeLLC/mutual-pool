@@ -1269,10 +1269,14 @@ export default function App() {
           <StripeBankModal
             user={currentUser}
             onClose={() => setShowBankModal(false)}
-            onBankLinked={(updatedUser) => {
-              setCurrentUser(updatedUser);
+            onBankLinked={async (updatedUser) => {
+              if (updatedUser) {
+                setCurrentUser(updatedUser);
+                await saveUserToFirestore(updatedUser).catch(console.error);
+                await syncUserWithBackend(updatedUser);
+              }
               setShowBankModal(false);
-              fetchAppData();
+              fetchAppData(updatedUser?.id);
             }}
           />
         </Suspense>
