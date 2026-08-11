@@ -209,11 +209,11 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-[#DDE1E6] my-8 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[88vh] sm:max-h-[85vh] flex flex-col overflow-hidden border border-[#DDE1E6] my-auto animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 via-[#005FB8] to-blue-800 text-white p-6 relative">
+        <div className="bg-gradient-to-r from-blue-900 via-[#005FB8] to-blue-800 text-white p-5 sm:p-6 relative shrink-0">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
@@ -276,7 +276,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
           </div>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-6 overflow-y-auto flex-1">
           
           {/* TAB 1: FINANCIAL HARDSHIP FUND */}
           {activeTab === 'hardship' && (
