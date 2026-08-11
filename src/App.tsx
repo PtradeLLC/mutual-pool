@@ -1084,16 +1084,28 @@ export default function App() {
 
             <div>
               <span className="text-[#6B7280] text-[10px] block font-medium">Member Status</span>
-              <a
-                href="https://dashboard.stripe.com/test/identity"
-                target="_blank"
-                rel="noreferrer"
-                className="font-extrabold font-mono text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
-                title="View Stripe Identity Verification in Stripe Dashboard"
-              >
-                <span>VERIFIED MEMBER</span>
-                <ExternalLink className="w-3 h-3 text-emerald-600 shrink-0" />
-              </a>
+              {activeUser.kycStatus === 'VERIFIED' ? (
+                <a
+                  href="https://dashboard.stripe.com/test/identity"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-extrabold font-mono text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
+                  title="Verified via Stripe Identity — Click to view in Stripe Dashboard"
+                >
+                  <span>VERIFIED MEMBER</span>
+                  <ExternalLink className="w-3 h-3 text-emerald-600 shrink-0" />
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowKycModal(true)}
+                  className="font-extrabold font-mono text-xs text-amber-700 hover:text-amber-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  title="Verification Pending — Click to complete Stripe Identity KYC"
+                >
+                  <span>{activeUser.kycStatus === 'PENDING' ? 'KYC PENDING' : 'VERIFY IDENTITY'}</span>
+                  <ExternalLink className="w-3 h-3 text-amber-600 shrink-0" />
+                </button>
+              )}
             </div>
 
             <div>
