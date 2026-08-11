@@ -41,31 +41,23 @@ export const Logo: React.FC<LogoProps> = ({
     '/logo.jpg',
   ].filter(Boolean);
 
-  const currentSrc = sources[errorCount];
+  const currentSrc = sources[errorCount] || '/logo.png';
 
   const handleImageError = () => {
-    if (errorCount < sources.length) {
+    if (errorCount < sources.length - 1) {
       setErrorCount(prev => prev + 1);
     }
   };
 
-  const hasImage = currentSrc && errorCount < sources.length;
-
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`}>
-      {hasImage ? (
-        <img 
-          src={currentSrc} 
-          alt="MutualPool Logo Icon" 
-          referrerPolicy="no-referrer"
-          onError={handleImageError}
-          className={`${imgSizeClasses[size]} object-cover rounded-xl shadow-xs border border-slate-200/80 hover:scale-102 transition-transform shrink-0`}
-        />
-      ) : (
-        <div className={`${imgSizeClasses[size]} rounded-xl bg-gradient-to-br from-[#1B2838] to-[#2D3E50] text-[#4D6E58] font-black flex items-center justify-center text-lg shadow-xs shrink-0 border border-slate-200`}>
-          MP
-        </div>
-      )}
+      <img 
+        src={currentSrc} 
+        alt="MutualPool Logo Icon" 
+        referrerPolicy="no-referrer"
+        onError={handleImageError}
+        className={`${imgSizeClasses[size]} object-contain rounded-xl shadow-xs border border-slate-200/80 hover:scale-102 transition-transform shrink-0`}
+      />
       <div className="flex flex-col justify-center">
         <span className={`font-black tracking-tight leading-none text-[#1B2838] ${textSizeClasses[size]}`}>
           Mutual<span className="text-[#4D6E58]">Pool</span>
