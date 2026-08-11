@@ -628,7 +628,13 @@ export default function App() {
       }
 
       // Successfully joined pod via API!
-      const updatedPod: Pod = data;
+      const updatedPod: Pod = data.pod || data;
+      if (data.user) {
+        setAllUsers(prev => prev.map(u => u.id === data.user.id ? data.user : u));
+        if (currentUser && currentUser.id === data.user.id) {
+          setCurrentUser(data.user);
+        }
+      }
       if (updatedPod && updatedPod.id) {
         setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? mergePodObjects(p, updatedPod) : p)));
         if (selectedPodDetail && selectedPodDetail.id === updatedPod.id) {

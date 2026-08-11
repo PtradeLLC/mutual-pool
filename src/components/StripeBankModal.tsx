@@ -130,6 +130,8 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
     setSuccessMessage(null);
 
     const depositAmount = Number(topUpAmount) || 100;
+    const feeAmount = Math.round(depositAmount * 0.05 * 100) / 100;
+    const totalCharged = depositAmount + feeAmount;
     const currentBal = user.treasury?.balanceUsd || 0;
     const newBal = currentBal + depositAmount;
 
@@ -180,17 +182,17 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
           },
         };
         await saveUserToFirestore(mergedUser).catch(() => {});
-        setSuccessMessage(`Successfully processed +$${depositAmount}.00 Stripe Treasury Deposit! Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
+        setSuccessMessage(`Successfully processed +$${depositAmount}.00 Treasury Deposit! Total charged: $${totalCharged.toFixed(2)} ($${depositAmount}.00 deposit + $${feeAmount.toFixed(2)} 5% platform fee). Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
         onBankLinked(mergedUser);
       } else {
         await saveUserToFirestore(updatedUser).catch(() => {});
-        setSuccessMessage(`Successfully processed +$${depositAmount}.00 Stripe Treasury Deposit! Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
+        setSuccessMessage(`Successfully processed +$${depositAmount}.00 Treasury Deposit! Total charged: $${totalCharged.toFixed(2)} ($${depositAmount}.00 deposit + $${feeAmount.toFixed(2)} 5% platform fee). Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
         onBankLinked(updatedUser);
       }
     } catch (err: unknown) {
       console.warn('[StripeBankModal] Treasury topup backend sync failed, applying demo fallback:', err);
       await saveUserToFirestore(updatedUser).catch(() => {});
-      setSuccessMessage(`Successfully processed +$${depositAmount}.00 Stripe Treasury Deposit! Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
+      setSuccessMessage(`Successfully processed +$${depositAmount}.00 Treasury Deposit! Total charged: $${totalCharged.toFixed(2)} ($${depositAmount}.00 deposit + $${feeAmount.toFixed(2)} 5% platform fee). Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
       onBankLinked(updatedUser);
     } finally {
       setLoading(false);
@@ -238,7 +240,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
             }`}
           >
             <Wallet className="w-4 h-4 text-emerald-600" />
-            <span>Treasury Balance & Test Deposit</span>
+            <span>Treasury Balance & Deposit</span>
           </button>
           <button
             type="button"
@@ -297,10 +299,10 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                   <CreditCard className="w-4 h-4 text-emerald-600" />
-                  <span>Deposit Test Funds to Stripe Treasury</span>
+                  <span>Deposit Funds to Stripe Treasury</span>
                 </h4>
                 <span className="text-[10px] font-mono bg-blue-100 text-[#005FB8] px-2 py-0.5 rounded-full font-bold">
-                  Stripe API Test Mode
+                  Stripe API
                 </span>
               </div>
 
@@ -349,6 +351,25 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
                 >
                   ⚡ Use Official Stripe Test Card (4242 4242 4242 4242)
                 </button>
+              </div>
+
+              {/* 5% Initial Deposit / Platform Fee Breakdown */}
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 font-mono">
+                <div className="flex justify-between text-slate-700">
+                  <span>Base Treasury Deposit:</span>
+                  <span>${topUpAmount}.00</span>
+                </div>
+                <div className="flex justify-between text-[#005FB8]">
+                  <span>Initial Deposit Fee (5% Platform Fee):</span>
+                  <span>+${(topUpAmount * 0.05).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-200">
+                  <span>Total Payment Processed:</span>
+                  <span>${(topUpAmount * 1.05).toFixed(2)}</span>
+                </div>
+                <div className="text-[10.5px] text-emerald-700 font-sans pt-0.5">
+                  ✓ Net ${topUpAmount}.00 is credited directly to your Stripe Treasury Balance (5% platform fee is processed separately).
+                </div>
               </div>
 
               <button

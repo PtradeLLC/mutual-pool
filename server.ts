@@ -906,6 +906,8 @@ app.use((req, res, next) => {
 
       const { amount, sourceCardNumber } = req.body || {};
       const depositAmount = Number(amount) || 100;
+      const platformFee = Math.round(depositAmount * 0.05 * 100) / 100;
+      const totalChargedAmount = depositAmount + platformFee;
 
       let targetUser = users.find(u => u && u.id === user.id);
       if (!targetUser) {
@@ -936,14 +938,16 @@ app.use((req, res, next) => {
         targetUser.id,
         targetUser.displayName || 'User',
         'TREASURY_TOPUP' as any,
-        `Processed Stripe Treasury InboundTransfer (${inboundTransferId}) of $${depositAmount.toFixed(2)} USD from test card ending in ${last4} into Treasury Account ${targetUser.treasury.stripeFinAccountId || 'Active Treasury'}.`,
-        { amount: depositAmount, last4, inboundTransferId }
+        `Processed Stripe Treasury InboundTransfer (${inboundTransferId}) of $${depositAmount.toFixed(2)} USD base deposit ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged) from test card ending in ${last4} into Treasury Account ${targetUser.treasury.stripeFinAccountId || 'Active Treasury'}. Net credited to Treasury Balance: $${depositAmount.toFixed(2)}.`,
+        { amount: depositAmount, platformFee, totalChargedAmount, last4, inboundTransferId }
       );
 
       res.json({
         success: true,
         inboundTransferId,
         addedAmount: depositAmount,
+        platformFee,
+        totalChargedAmount,
         newBalance: targetUser.treasury.balanceUsd,
         user: targetUser,
       });
@@ -1468,6 +1472,50 @@ app.use((req, res, next) => {
       pod.members.push(newMember);
       pod.memberCount = pod.members.length;
 
+      // Deduct initial deposit + 5% platform fee from user Treasury balance
+      const baseDepositAmount = pod.depositTier || 20;
+      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+      const totalChargedAmount = baseDepositAmount + platformFee;
+
+      const targetUser = users.find(u => u && u.id === user.id);
+      if (targetUser) {
+        if (!targetUser.treasury) {
+          targetUser.treasury = {
+            stripeAccountId: `acct_test_${Date.now()}`,
+            stripeFinAccountId: `fa_test_${Date.now()}`,
+            balanceUsd: 0,
+            pendingInboundUsd: 0,
+            totalPayoutsReceivedUsd: 0,
+            fdicPassThroughEligible: true,
+            status: 'ACTIVE'
+          };
+        }
+        targetUser.treasury.balanceUsd = Math.max(0, (targetUser.treasury.balanceUsd || 0) - totalChargedAmount);
+        try {
+          saveUsersToDisk();
+        } catch (uErr) {
+          console.warn('[Join Pod] saveUsersToDisk error:', uErr);
+        }
+      }
+
+      // Record completed deposit for joining member
+      const joinDeposit: Deposit = {
+        id: `dep_join_${Date.now()}`,
+        membershipId: newMember.id,
+        podId: pod.id,
+        cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
+        userId: user.id,
+        userName: user.displayName || 'Verified Member',
+        amount: baseDepositAmount,
+        stripePaymentId: `pi_join_pod_${Date.now()}`,
+        status: 'COMPLETE',
+        createdAt: new Date().toISOString(),
+      };
+
+      if (!deposits) deposits = [];
+      deposits.unshift(joinDeposit);
+      pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + baseDepositAmount;
+
       try {
         savePodsToDisk();
       } catch (saveErr) {
@@ -1484,14 +1532,24 @@ app.use((req, res, next) => {
           pod.id,
           user.id,
           user.displayName || 'Verified Member',
-          'POD_CREATED',
-          `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''}. Position in queue pending final rotation lock when full.`
+          'DEPOSIT_COMPLETED',
+          `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''} and deposited $${baseDepositAmount.toFixed(2)} into Treasury holding account ${pod.holdingFinAccountId} for Week ${pod.currentCycleWeek || 1} cycle ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged).`,
+          { baseDepositAmount, platformFee, totalChargedAmount, cycleWeek: pod.currentCycleWeek || 1 }
         );
       } catch (auditErr) {
         console.warn('[Join Pod] addAuditLog error:', auditErr);
       }
 
-      return res.json(pod);
+      return res.json({
+        ...pod,
+        pod,
+        user: targetUser,
+        charged: {
+          baseDepositAmount,
+          platformFee,
+          totalChargedAmount
+        }
+      });
     } catch (err: any) {
       console.error('[POST /api/pods/:id/join] Error:', err);
       return res.status(500).json({ error: 'JOIN_FAILED', message: err?.message || 'Server error joining pod.' });
