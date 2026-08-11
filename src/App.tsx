@@ -117,6 +117,7 @@ export default function App() {
   const [showKycModal, setShowKycModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showHardshipModal, setShowHardshipModal] = useState(false);
+  const [hardshipModalTab, setHardshipModalTab] = useState<'hardship' | 'trade'>('hardship');
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [selectedPodDetail, setSelectedPodDetail] = useState<Pod | null>(null);
   const [selectedPodDetailTab, setSelectedPodDetailTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>('rotation');
@@ -930,6 +931,7 @@ export default function App() {
       <Header
         currentUser={activeUser}
         allUsers={allUsers}
+        myPods={myPods}
         onSwitchUser={handleSwitchUser}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -958,6 +960,16 @@ export default function App() {
         onOpenAuth={handleOpenAuth}
         onOpenKycModal={() => setShowKycModal(true)}
         hasWelcomeMatch={hasWelcomeMatch}
+        onOpenHardshipModal={(tab = 'hardship') => {
+          setHardshipModalTab(tab);
+          setShowHardshipModal(true);
+        }}
+        onOpenPodDetail={(podId) => {
+          const pod = myPods.find(p => p.id === podId) || allPods.find(p => p.id === podId);
+          if (pod) {
+            setSelectedPodDetail(pod);
+          }
+        }}
       />
 
       {/* Main Content Area */}
@@ -1404,6 +1416,7 @@ export default function App() {
           onClose={() => setShowHardshipModal(false)}
           currentUser={currentUser}
           myPods={myPods}
+          initialTab={hardshipModalTab}
           onRequestSubmitted={() => fetchAppData(currentUser.id)}
         />
       )}

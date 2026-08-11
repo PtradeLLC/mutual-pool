@@ -192,6 +192,33 @@ export interface ReprioritizationRequest {
   decidedAt?: string;
 }
 
+export type NotificationType = 
+  | 'SWAP_EXECUTED' 
+  | 'SWAP_REQUESTED' 
+  | 'HARDSHIP_REQUESTED' 
+  | 'HARDSHIP_APPROVED' 
+  | 'HARDSHIP_REJECTED' 
+  | 'POD_JOINED' 
+  | 'PAYOUT_READY' 
+  | 'DEPOSIT_REMINDER' 
+  | 'GENERAL';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  senderUserId?: string;
+  senderName?: string;
+  podId?: string;
+  podName?: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  actionUrl?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface AuditLogEntry {
   id: string;
   podId?: string;

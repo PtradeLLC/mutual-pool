@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, Pod } from '../types';
 import { Logo } from './Logo';
+import { NotificationCenter } from './NotificationCenter';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink
@@ -9,6 +10,7 @@ import {
 interface HeaderProps {
   currentUser: User;
   allUsers: User[];
+  myPods?: Pod[];
   onSwitchUser: (userId: string) => void;
   activeTab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops';
   setActiveTab: (tab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops') => void;
@@ -26,11 +28,14 @@ interface HeaderProps {
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
   onOpenKycModal?: () => void;
   hasWelcomeMatch?: boolean;
+  onOpenHardshipModal?: (initialTab?: 'hardship' | 'trade') => void;
+  onOpenPodDetail?: (podId: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
   allUsers,
+  myPods = [],
   onSwitchUser,
   activeTab,
   setActiveTab,
@@ -48,6 +53,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   onOpenKycModal,
   hasWelcomeMatch,
+  onOpenHardshipModal,
+  onOpenPodDetail,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com';
@@ -144,6 +151,14 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden sm:inline font-extrabold text-[11px] uppercase tracking-wide">VERIFY IDENTITY (KYC)</span>
               </button>
             )}
+
+            {/* In-App Notifications Center */}
+            <NotificationCenter
+              currentUser={currentUser}
+              myPods={myPods}
+              onOpenHardshipModal={onOpenHardshipModal}
+              onOpenPodDetail={onOpenPodDetail}
+            />
 
             {/* User Switcher Dropdown */}
             <div className="relative">

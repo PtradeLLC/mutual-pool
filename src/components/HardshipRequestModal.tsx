@@ -15,7 +15,8 @@ import {
   ArrowLeftRight,
   Users,
   UserCheck,
-  Repeat
+  Repeat,
+  Send
 } from 'lucide-react';
 import { User, Pod, HardshipFundRequest, PodMembership } from '../types';
 
@@ -25,6 +26,7 @@ interface HardshipRequestModalProps {
   currentUser: User;
   myPods: Pod[];
   onRequestSubmitted: () => void;
+  initialTab?: 'hardship' | 'trade';
 }
 
 export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
@@ -33,8 +35,15 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   currentUser,
   myPods,
   onRequestSubmitted,
+  initialTab = 'hardship',
 }) => {
-  const [activeTab, setActiveTab] = useState<'hardship' | 'trade'>('hardship');
+  const [activeTab, setActiveTab] = useState<'hardship' | 'trade'>(initialTab);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   const [selectedPodId, setSelectedPodId] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -669,26 +678,57 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Swap Action Button */}
+                          {/* Swap & Notify Action Buttons */}
                           {!isSelf && (
-                            <div>
+                            <div className="flex items-center gap-2">
                               {hasReceived || currentMemberHasReceived ? (
                                 <span className="text-[11px] text-gray-400 italic bg-gray-100 px-2.5 py-1 rounded-lg">
                                   Payout Processed
                                 </span>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetMemberForSwap(member);
-                                    setSwapErrorMsg(null);
-                                    setSwapSuccessMsg(null);
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-700" />
-                                  <span>Trade Spot</span>
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (!selectedPod) return;
+                                      try {
+                                        const res = await fetch(`/api/pods/${selectedPod.id}/notify-swap-intent`, {
+                                          method: 'POST',
+                                          headers: {
+                                            'Content-Type': 'application/json',
+                                            'x-user-id': currentUser.id,
+                                          },
+                                          body: JSON.stringify({
+                                            targetMemberUserId: member.userId,
+                                          }),
+                                        });
+                                        if (res.ok) {
+                                          setSwapSuccessMsg(`In-app swap intent notice sent to ${member.displayName}!`);
+                                        }
+                                      } catch (err) {
+                                        console.error(err);
+                                      }
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#005FB8] font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                    title={`Send in-app swap intent notification to ${member.displayName}`}
+                                  >
+                                    <Send className="w-3 h-3" />
+                                    <span>Notify</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTargetMemberForSwap(member);
+                                      setSwapErrorMsg(null);
+                                      setSwapSuccessMsg(null);
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                                  >
+                                    <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-700" />
+                                    <span>Trade Spot</span>
+                                  </button>
+                                </>
                               )}
                             </div>
                           )}

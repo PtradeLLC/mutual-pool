@@ -7,7 +7,7 @@ import fs from 'fs';
 import { 
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
-  HardshipFundRequest 
+  HardshipFundRequest, AppNotification, NotificationType 
 } from './src/types';
 import { 
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
@@ -214,6 +214,79 @@ function saveUsersToDisk() {
 // State Store
 let users: User[] = loadUsersFromDisk();
 let pods: Pod[] = loadPodsFromDisk();
+
+const NOTIFICATIONS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'notifications_data.json');
+
+function loadNotificationsFromDisk(): AppNotification[] {
+  try {
+    if (fs.existsSync(NOTIFICATIONS_FILE)) {
+      const raw = fs.readFileSync(NOTIFICATIONS_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.error('Error loading notifications_data.json:', err);
+  }
+  return [
+    {
+      id: 'notif_seed_1',
+      userId: 'usr_verified_101',
+      senderUserId: 'usr_uber_102',
+      senderName: 'Sarah Jenkins',
+      podId: 'pod_metro_riders_20',
+      podName: 'Metro Delivery Riders Pod',
+      type: 'SWAP_EXECUTED',
+      title: 'Spot Swap Executed',
+      message: 'Sarah Jenkins executed a spot swap with you in "Metro Delivery Riders Pod". You are now scheduled for Slot #1 (Week 1)!',
+      isRead: false,
+      createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    },
+    {
+      id: 'notif_seed_2',
+      userId: 'usr_verified_101',
+      senderUserId: 'usr_door_103',
+      senderName: 'Marcus Vance',
+      podId: 'pod_metro_riders_20',
+      podName: 'Metro Delivery Riders Pod',
+      type: 'SWAP_REQUESTED',
+      title: 'Spot Swap Intent Notice',
+      message: 'Marcus Vance expressed intent to swap payout spots with you for Week 2 in "Metro Delivery Riders Pod".',
+      isRead: false,
+      createdAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+    },
+    {
+      id: 'notif_seed_3',
+      userId: 'usr_verified_101',
+      type: 'PAYOUT_READY',
+      title: 'Weekly Pool Disbursed',
+      message: 'Your Stripe Treasury account received $400.00 from "Moses Boxing Pod" weekly cycle payout.',
+      isRead: true,
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    }
+  ];
+}
+
+function saveNotificationsToDisk() {
+  try {
+    fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving notifications_data.json:', err);
+  }
+}
+
+let notifications: AppNotification[] = loadNotificationsFromDisk();
+
+function createNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): AppNotification {
+  const newNotif: AppNotification = {
+    ...notif,
+    id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  };
+  notifications.unshift(newNotif);
+  saveNotificationsToDisk();
+  return newNotif;
+}
 
 function findPodById(id: string, currentUser?: User): Pod | undefined {
   if (!id) return undefined;
@@ -2010,6 +2083,20 @@ app.use((req, res, next) => {
       { depositAmount, feeAmount, totalPayoffAmount }
     );
 
+    // Notify Pool Creator if creator is not the requester
+    if (pod.createdBy && pod.createdBy !== user.id) {
+      createNotification({
+        userId: pod.createdBy,
+        senderUserId: user.id,
+        senderName: user.displayName,
+        podId: pod.id,
+        podName: pod.name,
+        type: 'HARDSHIP_REQUESTED',
+        title: 'Emergency Hardship Fund Request',
+        message: `${user.displayName} submitted an emergency hardship request ($${depositAmount}.00) for "${pod.name}".`,
+      });
+    }
+
     res.json(newRequest);
   });
 
@@ -2326,7 +2413,138 @@ app.use((req, res, next) => {
       { member1Id: member1.userId, member2Id: member2.userId }
     );
 
+    // Notify target member
+    createNotification({
+      userId: member2.userId,
+      senderUserId: user.id,
+      senderName: user.displayName,
+      podId: pod.id,
+      podName: pod.name,
+      type: 'SWAP_EXECUTED',
+      title: 'Spot Swap Executed!',
+      message: `${user.displayName} executed a mutual spot swap with you in "${pod.name}". You are now assigned to Slot #${member2.rotationIndex + 1} (Week ${member2.rotationIndex + 1}).`,
+    });
+
+    // Notify initiator
+    createNotification({
+      userId: member1.userId,
+      senderUserId: member2.userId,
+      senderName: member2.displayName,
+      podId: pod.id,
+      podName: pod.name,
+      type: 'SWAP_EXECUTED',
+      title: 'Spot Swap Completed',
+      message: `You successfully swapped payout order spots with ${member2.displayName} in "${pod.name}". You are now assigned to Slot #${member1.rotationIndex + 1} (Week ${member1.rotationIndex + 1}).`,
+    });
+
     res.json({ success: true, pod });
+  });
+
+  // 12.1 Send Swap Intent Notification
+  app.post(['/api/pods/:id/notify-swap-intent', '/pods/:id/notify-swap-intent'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
+    const { targetMemberUserId, note } = req.body || {};
+    const pod = findPodById(req.params.id, user);
+
+    if (!pod) return res.status(404).json({ error: 'Pod not found' });
+
+    const targetMember = pod.members.find(m => m.userId === targetMemberUserId);
+    if (!targetMember) return res.status(400).json({ error: 'Target member is not in this pod.' });
+
+    const senderMember = pod.members.find(m => m.userId === user.id);
+
+    const notification = createNotification({
+      userId: targetMember.userId,
+      senderUserId: user.id,
+      senderName: user.displayName,
+      podId: pod.id,
+      podName: pod.name,
+      type: 'SWAP_REQUESTED',
+      title: 'Spot Swap Intent Notice',
+      message: `${user.displayName} (Slot #${(senderMember?.rotationIndex ?? 0) + 1}) expressed intent to trade payout spots with you (Slot #${(targetMember.rotationIndex ?? 0) + 1}) in "${pod.name}". ${note ? `Note: "${note}"` : 'Open Spot Trading in the app to respond or trade.'}`,
+    });
+
+    res.json({ success: true, notification });
+  });
+
+  // 12.2 Notification System Endpoints
+  app.get(['/api/notifications', '/notifications'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+
+    const userNotifs = notifications.filter(n => n.userId === user.id);
+    const unreadCount = userNotifs.filter(n => !n.isRead).length;
+
+    res.json({
+      notifications: userNotifs,
+      unreadCount,
+    });
+  });
+
+  app.post(['/api/notifications/:id/read', '/notifications/:id/read'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+
+    const { id } = req.params;
+    const notif = notifications.find(n => n.id === id && n.userId === user.id);
+    if (notif) {
+      notif.isRead = true;
+      saveNotificationsToDisk();
+    }
+
+    const userNotifs = notifications.filter(n => n.userId === user.id);
+    const unreadCount = userNotifs.filter(n => !n.isRead).length;
+
+    res.json({ success: true, notification: notif, unreadCount });
+  });
+
+  app.post(['/api/notifications/read-all', '/notifications/read-all'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+
+    for (const n of notifications) {
+      if (n.userId === user.id) {
+        n.isRead = true;
+      }
+    }
+    saveNotificationsToDisk();
+
+    res.json({ success: true, unreadCount: 0 });
+  });
+
+  app.delete(['/api/notifications/:id', '/notifications/:id'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+
+    const { id } = req.params;
+    notifications = notifications.filter(n => !(n.id === id && n.userId === user.id));
+    saveNotificationsToDisk();
+
+    res.json({ success: true });
+  });
+
+  app.post(['/api/notifications/:id/delete', '/notifications/:id/delete'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+
+    const { id } = req.params;
+    notifications = notifications.filter(n => !(n.id === id && n.userId === user.id));
+    saveNotificationsToDisk();
+
+    res.json({ success: true });
   });
 
   // 13. Perks Marketplace
