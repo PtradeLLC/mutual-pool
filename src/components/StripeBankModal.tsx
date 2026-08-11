@@ -361,7 +361,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Process +${topUpAmount}.00 Test Treasury Deposit</span>
+                    <span>Process +${topUpAmount}.00 Treasury Deposit</span>
                   </>
                 )}
               </button>
