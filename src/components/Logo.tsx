@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MUTUAL_POOL_LOGO_DATA_URI } from '../assets/images/logoDataUri';
 import logoImg from '../assets/images/logo.png';
 
 interface LogoProps {
@@ -36,12 +37,13 @@ export const Logo: React.FC<LogoProps> = ({
   };
 
   const sources = [
+    MUTUAL_POOL_LOGO_DATA_URI,
     logoImg,
     '/logo.png',
     '/logo.jpg',
   ].filter(Boolean);
 
-  const currentSrc = sources[errorCount] || '/logo.png';
+  const currentSrc = sources[errorCount] || MUTUAL_POOL_LOGO_DATA_URI;
 
   const handleImageError = () => {
     if (errorCount < sources.length - 1) {
@@ -54,7 +56,6 @@ export const Logo: React.FC<LogoProps> = ({
       <img 
         src={currentSrc} 
         alt="MutualPool Logo Icon" 
-        referrerPolicy="no-referrer"
         onError={handleImageError}
         className={`${imgSizeClasses[size]} object-contain rounded-xl shadow-xs border border-slate-200/80 hover:scale-102 transition-transform shrink-0`}
       />
@@ -71,6 +72,7 @@ export const Logo: React.FC<LogoProps> = ({
     </div>
   );
 };
+
 
 
 
