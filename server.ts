@@ -7,7 +7,7 @@ import fs from 'fs';
 import { 
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
-  HardshipFundRequest, AppNotification, NotificationType 
+  HardshipFundRequest, AppNotification, NotificationType, SwapRequest 
 } from './src/types';
 import { 
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
@@ -275,6 +275,31 @@ function saveNotificationsToDisk() {
 }
 
 let notifications: AppNotification[] = loadNotificationsFromDisk();
+
+const SWAP_REQUESTS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'swap_requests_data.json');
+
+function loadSwapRequestsFromDisk(): SwapRequest[] {
+  try {
+    if (fs.existsSync(SWAP_REQUESTS_FILE)) {
+      const raw = fs.readFileSync(SWAP_REQUESTS_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error('Error loading swap_requests_data.json:', err);
+  }
+  return [];
+}
+
+function saveSwapRequestsToDisk() {
+  try {
+    fs.writeFileSync(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving swap_requests_data.json:', err);
+  }
+}
+
+let swapRequests: SwapRequest[] = loadSwapRequestsFromDisk();
 
 function createNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): AppNotification {
   const newNotif: AppNotification = {
@@ -2485,72 +2510,19 @@ app.use((req, res, next) => {
     res.json({ request, pod });
   });
 
-  // 12. Voluntary Slot Swap Between Two Members
-  app.post(['/api/pods/:id/swap', '/pods/:id/swap'], (req: Request, res: Response) => {
+  // 12. GET Active Swap Requests for a Pod
+  app.get(['/api/pods/:id/swap-requests', '/pods/:id/swap-requests'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
-    const { targetMemberUserId, targetUserId, memberId } = req.body || {};
-    const targetId = targetMemberUserId || targetUserId || memberId;
-    const pod = findPodById(req.params.id, user);
-
-    if (!pod) return res.status(404).json({ error: 'Pod not found' });
-
-    const member1 = findOrEnsureMember(pod, user.id, user);
-    const member2 = findOrEnsureMember(pod, targetId, user);
-
-    if (!member1 || !member2) {
-      return res.status(400).json({ error: 'Both members must be in the pod.' });
-    }
-
-    if (member1.hasReceivedPayout || member2.hasReceivedPayout) {
-      return res.status(400).json({ error: 'Cannot swap slots if either member has already received a payout.' });
-    }
-
-    const tempIndex = member1.rotationIndex;
-    member1.rotationIndex = member2.rotationIndex;
-    member2.rotationIndex = tempIndex;
-    savePodsToDisk();
-
-    addAuditLog(
-      pod.id,
-      user.id,
-      user.displayName,
-      'SLOT_SWAP_EXECUTED',
-      `Voluntary rotation slot swap executed between ${member1.displayName} (now #${member1.rotationIndex}) and ${member2.displayName} (now #${member2.rotationIndex}). Mutually agreed.`,
-      { member1Id: member1.userId || member1.id, member2Id: member2.userId || member2.id }
-    );
-
-    // Notify target member
-    createNotification({
-      userId: member2.userId || member2.id,
-      senderUserId: user.id,
-      senderName: user.displayName,
-      podId: pod.id,
-      podName: pod.name,
-      type: 'SWAP_EXECUTED',
-      title: 'Spot Swap Executed!',
-      message: `${user.displayName} executed a mutual spot swap with you in "${pod.name}". You are now assigned to Slot #${member2.rotationIndex + 1} (Week ${member2.rotationIndex + 1}).`,
-    });
-
-    // Notify initiator
-    createNotification({
-      userId: member1.userId || member1.id,
-      senderUserId: member2.userId || member2.id,
-      senderName: member2.displayName,
-      podId: pod.id,
-      podName: pod.name,
-      type: 'SWAP_EXECUTED',
-      title: 'Spot Swap Completed',
-      message: `You successfully swapped payout order spots with ${member2.displayName} in "${pod.name}". You are now assigned to Slot #${member1.rotationIndex + 1} (Week ${member1.rotationIndex + 1}).`,
-    });
-
-    res.json({ success: true, pod });
+    const podId = req.params.id;
+    const requests = swapRequests.filter(sr => sr.podId === podId && (sr.requesterUserId === user.id || sr.targetUserId === user.id || sr.requesterUserId.toLowerCase() === user.id.toLowerCase() || sr.targetUserId.toLowerCase() === user.id.toLowerCase()));
+    res.json({ swapRequests: requests });
   });
 
-  // 12.1 Send Swap Intent Notification
-  app.post(['/api/pods/:id/notify-swap-intent', '/pods/:id/notify-swap-intent'], (req: Request, res: Response) => {
+  // 12.1 Send or Create Swap Trade Request
+  const handleSwapRequest = (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
@@ -2570,6 +2542,48 @@ app.use((req, res, next) => {
 
     const targetUserIdToNotify = targetMember.userId || targetMember.id || user.id;
 
+    // Check if existing pending or accepted request between these members in this pod
+    let swapReq = swapRequests.find(sr => 
+      sr.podId === pod.id &&
+      (
+        (sr.requesterUserId === user.id && sr.targetUserId === targetUserIdToNotify) ||
+        (sr.requesterUserId === targetUserIdToNotify && sr.targetUserId === user.id)
+      ) &&
+      (sr.status === 'PENDING' || sr.status === 'ACCEPTED')
+    );
+
+    const nowIso = new Date().toISOString();
+
+    if (!swapReq) {
+      swapReq = {
+        id: `sr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        podId: pod.id,
+        podName: pod.name,
+        requesterUserId: user.id,
+        requesterName: user.displayName,
+        requesterSlot: (senderMember?.rotationIndex ?? 0) + 1,
+        targetUserId: targetUserIdToNotify,
+        targetName: targetMember.displayName,
+        targetSlot: (targetMember.rotationIndex ?? 0) + 1,
+        status: 'PENDING',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        note: note || '',
+      };
+      swapRequests.unshift(swapReq);
+    } else {
+      swapReq.status = 'PENDING';
+      swapReq.requesterUserId = user.id;
+      swapReq.requesterName = user.displayName;
+      swapReq.requesterSlot = (senderMember?.rotationIndex ?? 0) + 1;
+      swapReq.targetUserId = targetUserIdToNotify;
+      swapReq.targetName = targetMember.displayName;
+      swapReq.targetSlot = (targetMember.rotationIndex ?? 0) + 1;
+      swapReq.updatedAt = nowIso;
+      if (note) swapReq.note = note;
+    }
+    saveSwapRequestsToDisk();
+
     const notification = createNotification({
       userId: targetUserIdToNotify,
       senderUserId: user.id,
@@ -2577,11 +2591,176 @@ app.use((req, res, next) => {
       podId: pod.id,
       podName: pod.name,
       type: 'SWAP_REQUESTED',
-      title: 'Spot Swap Intent Notice',
-      message: `${user.displayName} (Slot #${(senderMember?.rotationIndex ?? 0) + 1}) expressed intent to trade payout spots with you (Slot #${(targetMember.rotationIndex ?? 0) + 1}) in "${pod.name}". ${note ? `Note: "${note}"` : 'Open Spot Trading in the app to respond or trade.'}`,
+      title: 'Spot Trade Request Received',
+      message: `${user.displayName} (Slot #${(senderMember?.rotationIndex ?? 0) + 1}) sent you a spot trade request for Slot #${(targetMember.rotationIndex ?? 0) + 1} in "${pod.name}". Please accept or decline to confirm.`,
+      metadata: {
+        requestId: swapReq.id,
+        swapRequestId: swapReq.id,
+        podId: pod.id,
+        requesterUserId: user.id,
+        targetUserId: targetUserIdToNotify,
+      }
     });
 
-    res.json({ success: true, notification });
+    res.json({ success: true, swapRequest: swapReq, notification });
+  };
+
+  app.post(['/api/pods/:id/notify-swap-intent', '/pods/:id/notify-swap-intent'], handleSwapRequest);
+  app.post(['/api/pods/:id/swap-request', '/pods/:id/swap-request'], handleSwapRequest);
+
+  // 12.2 Respond to Swap Trade Request (Accept / Decline)
+  app.post(['/api/pods/:id/swap-request/:requestId/respond', '/pods/:id/swap-request/:requestId/respond'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+    const { action } = req.body || {}; // 'ACCEPT' | 'DECLINE'
+    const requestId = req.params.requestId;
+
+    const swapReq = swapRequests.find(sr => sr.id === requestId);
+    if (!swapReq) {
+      return res.status(404).json({ error: 'Swap request not found.' });
+    }
+
+    const nowIso = new Date().toISOString();
+
+    if (action === 'ACCEPT') {
+      swapReq.status = 'ACCEPTED';
+      swapReq.updatedAt = nowIso;
+      saveSwapRequestsToDisk();
+
+      // Notify requester that request was accepted
+      createNotification({
+        userId: swapReq.requesterUserId,
+        senderUserId: user.id,
+        senderName: user.displayName,
+        podId: swapReq.podId,
+        podName: swapReq.podName,
+        type: 'SWAP_ACCEPTED',
+        title: 'Spot Trade Accepted! Ready to Swap',
+        message: `${user.displayName} ACCEPTED your spot trade request in "${swapReq.podName}". You can now click "Execute Mutual Spot Swap" to finalize the trade!`,
+        metadata: {
+          requestId: swapReq.id,
+          swapRequestId: swapReq.id,
+          podId: swapReq.podId,
+        }
+      });
+
+      return res.json({ success: true, swapRequest: swapReq, message: 'Swap request accepted! The spot swap can now be executed.' });
+    } else if (action === 'DECLINE') {
+      swapReq.status = 'DECLINED';
+      swapReq.updatedAt = nowIso;
+      saveSwapRequestsToDisk();
+
+      createNotification({
+        userId: swapReq.requesterUserId,
+        senderUserId: user.id,
+        senderName: user.displayName,
+        podId: swapReq.podId,
+        podName: swapReq.podName,
+        type: 'SWAP_DECLINED',
+        title: 'Spot Trade Request Declined',
+        message: `${user.displayName} declined your spot trade request in "${swapReq.podName}".`,
+        metadata: {
+          requestId: swapReq.id,
+          swapRequestId: swapReq.id,
+          podId: swapReq.podId,
+        }
+      });
+
+      return res.json({ success: true, swapRequest: swapReq, message: 'Swap request declined.' });
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Must be ACCEPT or DECLINE.' });
+    }
+  });
+
+  // 12.3 Execute Voluntary Slot Swap (Requires Prior Acceptance)
+  app.post(['/api/pods/:id/swap', '/pods/:id/swap'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    }
+    const { targetMemberUserId, targetUserId, memberId, swapRequestId } = req.body || {};
+    const targetId = targetMemberUserId || targetUserId || memberId;
+    const pod = findPodById(req.params.id, user);
+
+    if (!pod) return res.status(404).json({ error: 'Pod not found' });
+
+    const member1 = findOrEnsureMember(pod, user.id, user);
+    const member2 = findOrEnsureMember(pod, targetId, user);
+
+    if (!member1 || !member2) {
+      return res.status(400).json({ error: 'Both members must be in the pod.' });
+    }
+
+    if (member1.hasReceivedPayout || member2.hasReceivedPayout) {
+      return res.status(400).json({ error: 'Cannot swap slots if either member has already received a payout.' });
+    }
+
+    const targetUserIdToMatch = member2.userId || member2.id;
+    // Verify mutual consent: Check for an ACCEPTED swap request
+    let validRequest = swapRequests.find(sr =>
+      sr.podId === pod.id &&
+      sr.status === 'ACCEPTED' &&
+      (
+        (swapRequestId && sr.id === swapRequestId) ||
+        (sr.requesterUserId === user.id && sr.targetUserId === targetUserIdToMatch) ||
+        (sr.targetUserId === user.id && sr.requesterUserId === targetUserIdToMatch) ||
+        (sr.requesterUserId.toLowerCase() === user.id.toLowerCase() && sr.targetUserId.toLowerCase() === targetUserIdToMatch.toLowerCase()) ||
+        (sr.targetUserId.toLowerCase() === user.id.toLowerCase() && sr.requesterUserId.toLowerCase() === targetUserIdToMatch.toLowerCase())
+      )
+    );
+
+    if (!validRequest) {
+      return res.status(400).json({
+        error: 'SWAP_NOT_ACCEPTED',
+        message: `Mutual consent required! ${member2.displayName} must accept your trade request first before you can execute the spot swap.`
+      });
+    }
+
+    const tempIndex = member1.rotationIndex;
+    member1.rotationIndex = member2.rotationIndex;
+    member2.rotationIndex = tempIndex;
+    savePodsToDisk();
+
+    validRequest.status = 'EXECUTED';
+    validRequest.updatedAt = new Date().toISOString();
+    saveSwapRequestsToDisk();
+
+    addAuditLog(
+      pod.id,
+      user.id,
+      user.displayName,
+      'SLOT_SWAP_EXECUTED',
+      `Voluntary rotation slot swap executed between ${member1.displayName} (now #${member1.rotationIndex + 1}) and ${member2.displayName} (now #${member2.rotationIndex + 1}) following mutual confirmation.`,
+      { member1Id: member1.userId || member1.id, member2Id: member2.userId || member2.id }
+    );
+
+    // Notify target member
+    createNotification({
+      userId: member2.userId || member2.id,
+      senderUserId: user.id,
+      senderName: user.displayName,
+      podId: pod.id,
+      podName: pod.name,
+      type: 'SWAP_EXECUTED',
+      title: 'Spot Swap Executed!',
+      message: `${user.displayName} executed the mutual spot swap with you in "${pod.name}". You are now assigned to Slot #${member2.rotationIndex + 1} (Week ${member2.rotationIndex + 1}).`,
+    });
+
+    // Notify initiator
+    createNotification({
+      userId: member1.userId || member1.id,
+      senderUserId: member2.userId || member2.id,
+      senderName: member2.displayName,
+      podId: pod.id,
+      podName: pod.name,
+      type: 'SWAP_EXECUTED',
+      title: 'Spot Swap Completed',
+      message: `You successfully completed the spot swap with ${member2.displayName} in "${pod.name}". You are now assigned to Slot #${member1.rotationIndex + 1} (Week ${member1.rotationIndex + 1}).`,
+    });
+
+    res.json({ success: true, pod, swapRequest: validRequest });
   });
 
   // 12.2 Notification System Endpoints

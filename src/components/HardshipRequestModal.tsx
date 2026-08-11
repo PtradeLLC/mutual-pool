@@ -18,7 +18,7 @@ import {
   Repeat,
   Send
 } from 'lucide-react';
-import { User, Pod, HardshipFundRequest, PodMembership } from '../types';
+import { User, Pod, HardshipFundRequest, PodMembership, SwapRequest } from '../types';
 
 interface HardshipRequestModalProps {
   isOpen: boolean;
@@ -61,6 +61,21 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   const [swapSuccessMsg, setSwapSuccessMsg] = useState<string | null>(null);
   const [notifyingUserId, setNotifyingUserId] = useState<string | null>(null);
   const [notifiedUserIds, setNotifiedUserIds] = useState<Record<string, boolean>>({});
+  const [podSwapRequests, setPodSwapRequests] = useState<SwapRequest[]>([]);
+
+  const fetchPodSwapRequests = async (podId: string) => {
+    try {
+      const res = await fetch(`/api/pods/${podId}/swap-requests`, {
+        headers: { 'x-user-id': currentUser.id },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPodSwapRequests(data.swapRequests || []);
+      }
+    } catch (err) {
+      console.error('Error fetching pod swap requests:', err);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && myPods.length > 0 && !selectedPodId) {
@@ -73,6 +88,14 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
       setTargetMemberForSwap(null);
     }
   }, [isOpen, myPods]);
+
+  useEffect(() => {
+    if (isOpen && selectedPodId) {
+      fetchPodSwapRequests(selectedPodId);
+      const interval = setInterval(() => fetchPodSwapRequests(selectedPodId), 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, selectedPodId]);
 
   const fetchUserRequests = async () => {
     try {
@@ -181,6 +204,12 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
 
     try {
       const targetId = targetMemberForSwap.userId || targetMemberForSwap.id || targetMemberForSwap.displayName;
+      const activeSwapReq = podSwapRequests.find(
+        (sr) =>
+          (sr.requesterUserId === currentUser.id && (sr.targetUserId === targetId || sr.targetUserId === targetMemberForSwap.userId)) ||
+          (sr.targetUserId === currentUser.id && (sr.requesterUserId === targetId || sr.requesterUserId === targetMemberForSwap.userId))
+      );
+
       const res = await fetch(`/api/pods/${selectedPod.id}/swap`, {
         method: 'POST',
         headers: {
@@ -189,6 +218,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
         },
         body: JSON.stringify({
           targetMemberUserId: targetId,
+          swapRequestId: activeSwapReq?.id,
         }),
       });
 
@@ -199,13 +229,13 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
 
       const currentUserMember = selectedPod.members.find(m => m.userId === currentUser.id);
       const newIndex1 = targetMemberForSwap.rotationIndex;
-      const newIndex2 = currentUserMember ? currentUserMember.rotationIndex : '?';
 
       setSwapSuccessMsg(
         `Mutual spot swap successfully executed with ${targetMemberForSwap.displayName}! You are now in Slot #${newIndex1 + 1} (Week ${newIndex1 + 1}).`
       );
       setTargetMemberForSwap(null);
       onRequestSubmitted();
+      fetchPodSwapRequests(selectedPod.id);
     } catch (err: unknown) {
       setSwapErrorMsg(err instanceof Error ? err.message : 'Failed to execute spot swap.');
     } finally {
@@ -653,7 +683,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
 
                       const isKycVerified = realUser 
                         ? realUser.kycStatus === 'VERIFIED' 
-                        : (isSelf ? currentUser.kycStatus === 'VERIFIED' : Boolean(member.isKycVerified));
+                        : (isSelf ? currentUser.kycStatus === 'VERIFIED' : Boolean((member as any).isKycVerified));
 
                       const isSelectedForTrade = targetMemberForSwap?.userId === member.userId;
                       const isNotifying = notifyingUserId === member.userId;
@@ -701,6 +731,39 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                       <CheckCircle2 className="w-3 h-3" /> Payout Received
                                     </span>
                                   )}
+
+                                  {/* Swap Request Status Badge */}
+                                  {!isSelf && (() => {
+                                    const memberUserId = member.userId || member.id || member.displayName;
+                                    const activeSwapReq = podSwapRequests.find(
+                                      (sr) =>
+                                        (sr.requesterUserId === currentUser.id && (sr.targetUserId === memberUserId || sr.targetUserId === member.userId)) ||
+                                        (sr.targetUserId === currentUser.id && (sr.requesterUserId === memberUserId || sr.requesterUserId === member.userId))
+                                    );
+
+                                    if (activeSwapReq?.status === 'ACCEPTED') {
+                                      return (
+                                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Trade Accepted
+                                        </span>
+                                      );
+                                    }
+                                    if (activeSwapReq?.status === 'PENDING') {
+                                      return (
+                                        <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                          <Clock className="w-3 h-3 text-amber-600" /> Awaiting Acceptance
+                                        </span>
+                                      );
+                                    }
+                                    if (activeSwapReq?.status === 'DECLINED') {
+                                      return (
+                                        <span className="text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                          <AlertCircle className="w-3 h-3 text-rose-600" /> Request Declined
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
                                 <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
                                   <span>Platform: {member.platform || realUser?.platform || 'Gig Provider'}</span>
@@ -719,65 +782,6 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   </span>
                                 ) : (
                                   <>
-                                    <button
-                                      type="button"
-                                      disabled={isNotifying}
-                                      onClick={async () => {
-                                        if (!selectedPod) return;
-                                        const targetMemberId = member.userId || member.id || member.displayName;
-                                        setNotifyingUserId(targetMemberId);
-                                        setSwapErrorMsg(null);
-                                        setSwapSuccessMsg(null);
-                                        try {
-                                          const res = await fetch(`/api/pods/${selectedPod.id}/notify-swap-intent`, {
-                                            method: 'POST',
-                                            headers: {
-                                              'Content-Type': 'application/json',
-                                              'x-user-id': currentUser.id,
-                                            },
-                                            body: JSON.stringify({
-                                              targetMemberUserId: targetMemberId,
-                                            }),
-                                          });
-                                          if (res.ok) {
-                                            setNotifiedUserIds(prev => ({ ...prev, [targetMemberId]: true }));
-                                            setSwapSuccessMsg(`In-app swap intent notice sent to ${memberName}!`);
-                                          } else {
-                                            const errData = await res.json();
-                                            setSwapErrorMsg(errData.message || errData.error || 'Failed to send notification.');
-                                          }
-                                        } catch (err) {
-                                          console.error(err);
-                                          setSwapErrorMsg('Network error sending notice.');
-                                        } finally {
-                                          setNotifyingUserId(null);
-                                        }
-                                      }}
-                                      className={`px-2.5 py-1.5 rounded-lg border font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
-                                        isNotified
-                                          ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                                          : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-[#005FB8]'
-                                      }`}
-                                      title={`Send in-app swap intent notification to ${memberName}`}
-                                    >
-                                      {isNotifying ? (
-                                        <>
-                                          <div className="w-3 h-3 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin"></div>
-                                          <span>Sending...</span>
-                                        </>
-                                      ) : isNotified ? (
-                                        <>
-                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                          <span>Notified ✓</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Send className="w-3 h-3" />
-                                          <span>Notify</span>
-                                        </>
-                                      )}
-                                    </button>
-
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -805,67 +809,137 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                           </div>
 
                           {/* INLINE CONFIRMATION CARD DIRECTLY BELOW TARGET MEMBER */}
-                          {isSelectedForTrade && currentMember && (
-                            <div className="p-4 bg-gradient-to-br from-emerald-50 to-blue-50 border-y-2 border-emerald-500/80 space-y-3.5 animate-in fade-in zoom-in-95 duration-150">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0">
-                                  <Repeat className="w-5 h-5" />
+                          {isSelectedForTrade && currentMember && (() => {
+                            const memberUserId = member.userId || member.id || member.displayName;
+                            const activeSwapReq = podSwapRequests.find(
+                              (sr) =>
+                                (sr.requesterUserId === currentUser.id && (sr.targetUserId === memberUserId || sr.targetUserId === member.userId)) ||
+                                (sr.targetUserId === currentUser.id && (sr.requesterUserId === memberUserId || sr.requesterUserId === member.userId))
+                            );
+
+                            const isAccepted = activeSwapReq?.status === 'ACCEPTED';
+                            const isPending = activeSwapReq?.status === 'PENDING';
+
+                            const handleSendTradeProposal = async () => {
+                              if (!selectedPod) return;
+                              setNotifyingUserId(memberUserId);
+                              setSwapErrorMsg(null);
+                              setSwapSuccessMsg(null);
+                              try {
+                                const res = await fetch(`/api/pods/${selectedPod.id}/swap-request`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'x-user-id': currentUser.id,
+                                  },
+                                  body: JSON.stringify({
+                                    targetMemberUserId: memberUserId,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  setSwapSuccessMsg(`Trade request sent to ${memberName}! They must accept the request in their notification center before the swap can be executed.`);
+                                  fetchPodSwapRequests(selectedPod.id);
+                                } else {
+                                  const errData = await res.json();
+                                  setSwapErrorMsg(errData.message || errData.error || 'Failed to send trade request.');
+                                }
+                              } catch (err) {
+                                console.error(err);
+                                setSwapErrorMsg('Network error sending request.');
+                              } finally {
+                                setNotifyingUserId(null);
+                              }
+                            };
+
+                            return (
+                              <div className="p-4 bg-gradient-to-br from-emerald-50 via-blue-50 to-white border-y-2 border-emerald-500/80 space-y-3.5 animate-in fade-in zoom-in-95 duration-150 rounded-xl my-2">
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 text-white rounded-xl shrink-0 ${isAccepted ? 'bg-emerald-600' : isPending ? 'bg-amber-600' : 'bg-[#005FB8]'}`}>
+                                    <Repeat className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-extrabold text-xs text-[#111827]">
+                                      {isAccepted
+                                        ? `✓ Trade Request Accepted by ${memberName}`
+                                        : isPending
+                                        ? `⏳ Awaiting Trade Acceptance from ${memberName}`
+                                        : `Step 1: Send Spot Trade Request to ${memberName}`}
+                                    </h4>
+                                    <p className="text-[11px] text-gray-600">
+                                      {isAccepted
+                                        ? `${memberName} has confirmed and accepted your trade request. Click Execute Mutual Spot Swap below to finalize the trade!`
+                                        : isPending
+                                        ? `A trade notification has been sent to ${memberName}. They must click "Accept Trade Request" in their notification center before you can execute.`
+                                        : `Send a formal trade request to ${memberName}. Once accepted by ${memberName}, the Execute Mutual Spot Swap button will unlock.`}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <h4 className="font-extrabold text-xs text-[#111827]">
-                                    Confirm Mutual Spot Trade with {memberName}
-                                  </h4>
-                                  <p className="text-[11px] text-gray-600">
-                                    This will immediately trade your payout rotation position with {memberName}.
-                                  </p>
+
+                                <div className="grid grid-cols-2 gap-3 text-xs font-mono bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">Your Current Slot</span>
+                                    <strong className="text-xs text-[#005FB8] block">Slot #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</strong>
+                                    <span className="text-[10px] text-emerald-700 block font-sans font-semibold">➔ New Slot: #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</span>
+                                  </div>
+
+                                  <div className="space-y-1 border-l border-gray-200 pl-3">
+                                    <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{memberName}'s Current Slot</span>
+                                    <strong className="text-xs text-gray-800 block">Slot #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</strong>
+                                    <span className="text-[10px] text-[#005FB8] block font-sans font-semibold">➔ New Slot: #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</span>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTargetMemberForSwap(null)}
+                                    disabled={swapLoading}
+                                    className="px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+
+                                  <div className="flex items-center gap-2">
+                                    {!isAccepted && (
+                                      <button
+                                        type="button"
+                                        disabled={notifyingUserId === memberUserId}
+                                        onClick={handleSendTradeProposal}
+                                        className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                      >
+                                        <Send className="w-3.5 h-3.5" />
+                                        <span>{notifyingUserId === memberUserId ? 'Sending...' : isPending ? 'Resend Trade Request' : `Send Trade Request to ${memberName}`}</span>
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={handleExecuteSwap}
+                                      disabled={swapLoading || !isAccepted}
+                                      className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer ${
+                                        isAccepted
+                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                          : 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300'
+                                      }`}
+                                      title={!isAccepted ? `${memberName} must accept your trade request first.` : 'Execute spot swap now'}
+                                    >
+                                      {swapLoading ? (
+                                        <>
+                                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                          <span>Trading Spots...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ArrowLeftRight className="w-3.5 h-3.5" />
+                                          <span>Execute Mutual Spot Swap</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-
-                              <div className="grid grid-cols-2 gap-3 text-xs font-mono bg-white p-3 rounded-xl border border-emerald-200">
-                                <div className="space-y-1">
-                                  <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">Your Current Slot</span>
-                                  <strong className="text-xs text-[#005FB8] block">Slot #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</strong>
-                                  <span className="text-[10px] text-emerald-700 block font-sans font-semibold">➔ New Slot: #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</span>
-                                </div>
-
-                                <div className="space-y-1 border-l border-gray-200 pl-3">
-                                  <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{memberName}'s Current Slot</span>
-                                  <strong className="text-xs text-gray-800 block">Slot #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</strong>
-                                  <span className="text-[10px] text-[#005FB8] block font-sans font-semibold">➔ New Slot: #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-end gap-2.5 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={() => setTargetMemberForSwap(null)}
-                                  disabled={swapLoading}
-                                  className="px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={handleExecuteSwap}
-                                  disabled={swapLoading}
-                                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
-                                >
-                                  {swapLoading ? (
-                                    <>
-                                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                      <span>Trading Spots...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ArrowLeftRight className="w-3.5 h-3.5" />
-                                      <span>Execute Mutual Spot Swap</span>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </React.Fragment>
                       );
                     })}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Bell, CheckCircle2, Trash2, ArrowLeftRight, HeartHandshake, 
+  Bell, CheckCircle2, XCircle, Trash2, ArrowLeftRight, HeartHandshake, 
   DollarSign, Users, AlertCircle, Send, X, MessageSquare
 } from 'lucide-react';
 import { User, Pod, AppNotification } from '../types';
@@ -23,6 +23,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread'>('all');
   const [loading, setLoading] = useState(false);
+  const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
+  const [respondedStatus, setRespondedStatus] = useState<Record<string, 'ACCEPTED' | 'DECLINED'>>({});
 
   // Send Intent Modal state inside Notification Center
   const [showSendIntentModal, setShowSendIntentModal] = useState(false);
@@ -126,6 +128,32 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       }
     } catch (err) {
       console.error('Failed to delete notification:', err);
+    }
+  };
+
+  const handleRespondSwapRequest = async (podId: string, requestId: string, action: 'ACCEPT' | 'DECLINE', e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRespondingRequestId(requestId);
+    try {
+      const res = await fetch(`/api/pods/${podId}/swap-request/${requestId}/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        setRespondedStatus(prev => ({ ...prev, [requestId]: action === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED' }));
+        fetchNotifications();
+      } else {
+        const err = await res.json();
+        alert(err.message || err.error || 'Failed to respond to spot trade request');
+      }
+    } catch (err) {
+      console.error('Error responding to swap request:', err);
+    } finally {
+      setRespondingRequestId(null);
     }
   };
 
@@ -377,6 +405,56 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         <span className="text-[10px] font-bold text-[#005FB8] bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-md truncate max-w-[200px]">
                           {notif.podName}
                         </span>
+                      </div>
+                    )}
+
+                    {/* Trade Request Accept / Decline Actions */}
+                    {notif.type === 'SWAP_REQUESTED' && notif.podId && (
+                      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const reqId = (notif.metadata?.requestId || notif.metadata?.swapRequestId) as string;
+                          const currentStatus = reqId ? respondedStatus[reqId] : undefined;
+
+                          if (currentStatus === 'ACCEPTED') {
+                            return (
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Confirmed & Accepted
+                              </span>
+                            );
+                          }
+                          if (currentStatus === 'DECLINED') {
+                            return (
+                              <span className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" /> Declined
+                              </span>
+                            );
+                          }
+
+                          if (!reqId) return null;
+
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                disabled={respondingRequestId === reqId}
+                                onClick={(e) => handleRespondSwapRequest(notif.podId!, reqId, 'ACCEPT', e)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                {respondingRequestId === reqId ? 'Saving...' : 'Accept Trade Request'}
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={respondingRequestId === reqId}
+                                onClick={(e) => handleRespondSwapRequest(notif.podId!, reqId, 'DECLINE', e)}
+                                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 font-bold text-[11px] rounded-lg transition-colors cursor-pointer"
+                              >
+                                Decline
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

@@ -192,9 +192,29 @@ export interface ReprioritizationRequest {
   decidedAt?: string;
 }
 
+export type SwapRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXECUTED';
+
+export interface SwapRequest {
+  id: string;
+  podId: string;
+  podName: string;
+  requesterUserId: string;
+  requesterName: string;
+  requesterSlot: number;
+  targetUserId: string;
+  targetName: string;
+  targetSlot: number;
+  status: SwapRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  note?: string;
+}
+
 export type NotificationType = 
   | 'SWAP_EXECUTED' 
   | 'SWAP_REQUESTED' 
+  | 'SWAP_ACCEPTED' 
+  | 'SWAP_DECLINED' 
   | 'HARDSHIP_REQUESTED' 
   | 'HARDSHIP_APPROVED' 
   | 'HARDSHIP_REJECTED' 
