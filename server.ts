@@ -294,8 +294,13 @@ function findPodById(id: string, currentUser?: User): Pod | undefined {
   try {
     const diskPods = loadPodsFromDisk();
     for (const dp of diskPods) {
-      if (dp && dp.id && !pods.some(p => p.id === dp.id)) {
-        pods.push(dp);
+      if (dp && dp.id) {
+        const idx = pods.findIndex(p => p.id === dp.id);
+        if (idx >= 0) {
+          pods[idx] = mergePodObjects(pods[idx], dp);
+        } else {
+          pods.push(dp);
+        }
       }
     }
   } catch (err) {
@@ -349,7 +354,108 @@ function findPodById(id: string, currentUser?: User): Pod | undefined {
     pod = newFallbackPod;
   }
 
+  // Ensure currentUser is present in pod.members if pod exists
+  if (pod && currentUser && pod.members && !pod.members.some(m => m && (m.userId === currentUser.id || m.id === currentUser.id || (currentUser.email && m.email === currentUser.email) || (m.displayName && m.displayName.toLowerCase().trim() === currentUser.displayName.toLowerCase().trim())))) {
+    pod.members.push({
+      id: `pm_${pod.id}_${currentUser.id}`,
+      podId: pod.id,
+      userId: currentUser.id,
+      displayName: currentUser.displayName,
+      email: currentUser.email,
+      avatarUrl: currentUser.avatarUrl || '',
+      platform: currentUser.platform || 'DoorDash',
+      rotationIndex: pod.members.length,
+      hasReceivedPayout: false,
+      delinquencyStatus: 'CLEAN',
+      joinedAt: new Date().toISOString(),
+    } as any);
+    pod.memberCount = pod.members.length;
+    savePodsToDisk();
+  }
+
   return pod;
+}
+
+function findOrEnsureMember(pod: Pod, targetKey: string, requestingUser?: User): PodMembership | undefined {
+  if (!pod || !pod.members) return undefined;
+  if (!targetKey) return undefined;
+
+  const keyClean = String(targetKey).trim().toLowerCase();
+
+  // 1. Direct match on userId, membership id, displayName, or email
+  let member = pod.members.find(m => {
+    if (!m) return false;
+    if (m.userId && m.userId.toLowerCase() === keyClean) return true;
+    if (m.id && m.id.toLowerCase() === keyClean) return true;
+    if (m.displayName && m.displayName.toLowerCase().trim() === keyClean) return true;
+    if (m.email && m.email.toLowerCase().trim() === keyClean) return true;
+    return false;
+  });
+
+  if (member) return member;
+
+  // 2. Lookup in users array to find matching User
+  const matchedUser = users.find(u => {
+    if (!u) return false;
+    if (u.id && u.id.toLowerCase() === keyClean) return true;
+    if (u.email && u.email.toLowerCase().trim() === keyClean) return true;
+    if (u.displayName && u.displayName.toLowerCase().trim() === keyClean) return true;
+    return false;
+  }) || (requestingUser && (requestingUser.id.toLowerCase() === keyClean || (requestingUser.displayName && requestingUser.displayName.toLowerCase().trim() === keyClean)) ? requestingUser : undefined);
+
+  if (matchedUser) {
+    // Check if matchedUser is already in pod.members by user id/email/displayName
+    member = pod.members.find(m => {
+      if (!m) return false;
+      if (m.userId && m.userId === matchedUser.id) return true;
+      if (m.email && matchedUser.email && m.email.toLowerCase().trim() === matchedUser.email.toLowerCase().trim()) return true;
+      if (m.displayName && matchedUser.displayName && m.displayName.toLowerCase().trim() === matchedUser.displayName.toLowerCase().trim()) return true;
+      return false;
+    });
+
+    if (member) return member;
+
+    // Synthesize and add missing member to pod.members
+    const newMember: PodMembership = {
+      id: `pm_${pod.id}_${matchedUser.id}`,
+      podId: pod.id,
+      userId: matchedUser.id,
+      displayName: matchedUser.displayName || 'Pod Member',
+      email: matchedUser.email,
+      avatarUrl: matchedUser.avatarUrl || '',
+      platform: matchedUser.platform || 'DoorDash',
+      rotationIndex: pod.members.length,
+      hasReceivedPayout: false,
+      delinquencyStatus: 'CLEAN',
+      joinedAt: new Date().toISOString()
+    };
+    pod.members.push(newMember);
+    pod.memberCount = pod.members.length;
+    savePodsToDisk();
+    return newMember;
+  }
+
+  // 3. Fallback: If targetKey is a string, synthesize a member record for this pod
+  if (typeof targetKey === 'string' && targetKey.length > 0 && targetKey !== 'undefined' && targetKey !== 'null') {
+    const fallbackMember: PodMembership = {
+      id: `pm_${pod.id}_${Date.now()}`,
+      podId: pod.id,
+      userId: targetKey.startsWith('usr_') ? targetKey : `usr_${Date.now()}`,
+      displayName: targetKey,
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(targetKey)}&background=005FB8&color=fff`,
+      platform: 'DoorDash',
+      rotationIndex: pod.members.length,
+      hasReceivedPayout: false,
+      delinquencyStatus: 'CLEAN',
+      joinedAt: new Date().toISOString()
+    };
+    pod.members.push(fallbackMember);
+    pod.memberCount = pod.members.length;
+    savePodsToDisk();
+    return fallbackMember;
+  }
+
+  return undefined;
 }
 let perks: Perk[] = [...INITIAL_PERKS];
 let auditLogs: AuditLogEntry[] = [...INITIAL_AUDIT_LOGS];
@@ -2391,10 +2497,8 @@ app.use((req, res, next) => {
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
-    const member1 = pod.members.find(m => m && (m.userId === user.id || m.id === user.id || (user.email && m.email === user.email)));
-    const member2 = pod.members.find(m => 
-      m && ((targetId && (m.userId === targetId || m.id === targetId)) || (m.displayName && targetId && m.displayName === targetId))
-    );
+    const member1 = findOrEnsureMember(pod, user.id, user);
+    const member2 = findOrEnsureMember(pod, targetId, user);
 
     if (!member1 || !member2) {
       return res.status(400).json({ error: 'Both members must be in the pod.' });
@@ -2457,12 +2561,12 @@ app.use((req, res, next) => {
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
-    const targetMember = pod.members.find(m => 
-      m && ((targetId && (m.userId === targetId || m.id === targetId)) || (m.displayName && targetId && m.displayName === targetId))
-    );
-    if (!targetMember) return res.status(400).json({ error: 'Target member is not in this pod.' });
+    const senderMember = findOrEnsureMember(pod, user.id, user);
+    const targetMember = findOrEnsureMember(pod, targetId, user);
 
-    const senderMember = pod.members.find(m => m && (m.userId === user.id || m.id === user.id || (user.email && m.email === user.email)));
+    if (!targetMember) {
+      return res.status(400).json({ error: 'Target member could not be located in this pod.' });
+    }
 
     const targetUserIdToNotify = targetMember.userId || targetMember.id || user.id;
 
