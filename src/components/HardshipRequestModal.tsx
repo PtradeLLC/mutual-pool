@@ -180,6 +180,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
     setSwapSuccessMsg(null);
 
     try {
+      const targetId = targetMemberForSwap.userId || targetMemberForSwap.id || targetMemberForSwap.displayName;
       const res = await fetch(`/api/pods/${selectedPod.id}/swap`, {
         method: 'POST',
         headers: {
@@ -187,7 +188,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
           'x-user-id': currentUser.id,
         },
         body: JSON.stringify({
-          targetMemberUserId: targetMemberForSwap.userId,
+          targetMemberUserId: targetId,
         }),
       });
 
@@ -723,7 +724,8 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                       disabled={isNotifying}
                                       onClick={async () => {
                                         if (!selectedPod) return;
-                                        setNotifyingUserId(member.userId);
+                                        const targetMemberId = member.userId || member.id || member.displayName;
+                                        setNotifyingUserId(targetMemberId);
                                         setSwapErrorMsg(null);
                                         setSwapSuccessMsg(null);
                                         try {
@@ -734,15 +736,15 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                               'x-user-id': currentUser.id,
                                             },
                                             body: JSON.stringify({
-                                              targetMemberUserId: member.userId,
+                                              targetMemberUserId: targetMemberId,
                                             }),
                                           });
                                           if (res.ok) {
-                                            setNotifiedUserIds(prev => ({ ...prev, [member.userId]: true }));
+                                            setNotifiedUserIds(prev => ({ ...prev, [targetMemberId]: true }));
                                             setSwapSuccessMsg(`In-app swap intent notice sent to ${memberName}!`);
                                           } else {
                                             const errData = await res.json();
-                                            setSwapErrorMsg(errData.message || 'Failed to send notification.');
+                                            setSwapErrorMsg(errData.message || errData.error || 'Failed to send notification.');
                                           }
                                         } catch (err) {
                                           console.error(err);

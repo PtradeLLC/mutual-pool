@@ -2385,13 +2385,16 @@ app.use((req, res, next) => {
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const { targetMemberUserId } = req.body || {};
+    const { targetMemberUserId, targetUserId, memberId } = req.body || {};
+    const targetId = targetMemberUserId || targetUserId || memberId;
     const pod = findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
-    const member1 = pod.members.find(m => m.userId === user.id);
-    const member2 = pod.members.find(m => m.userId === targetMemberUserId);
+    const member1 = pod.members.find(m => m && (m.userId === user.id || m.id === user.id || (user.email && m.email === user.email)));
+    const member2 = pod.members.find(m => 
+      m && ((targetId && (m.userId === targetId || m.id === targetId)) || (m.displayName && targetId && m.displayName === targetId))
+    );
 
     if (!member1 || !member2) {
       return res.status(400).json({ error: 'Both members must be in the pod.' });
@@ -2412,12 +2415,12 @@ app.use((req, res, next) => {
       user.displayName,
       'SLOT_SWAP_EXECUTED',
       `Voluntary rotation slot swap executed between ${member1.displayName} (now #${member1.rotationIndex}) and ${member2.displayName} (now #${member2.rotationIndex}). Mutually agreed.`,
-      { member1Id: member1.userId, member2Id: member2.userId }
+      { member1Id: member1.userId || member1.id, member2Id: member2.userId || member2.id }
     );
 
     // Notify target member
     createNotification({
-      userId: member2.userId,
+      userId: member2.userId || member2.id,
       senderUserId: user.id,
       senderName: user.displayName,
       podId: pod.id,
@@ -2429,8 +2432,8 @@ app.use((req, res, next) => {
 
     // Notify initiator
     createNotification({
-      userId: member1.userId,
-      senderUserId: member2.userId,
+      userId: member1.userId || member1.id,
+      senderUserId: member2.userId || member2.id,
       senderName: member2.displayName,
       podId: pod.id,
       podName: pod.name,
@@ -2448,18 +2451,23 @@ app.use((req, res, next) => {
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const { targetMemberUserId, note } = req.body || {};
+    const { targetMemberUserId, targetUserId, memberId, note } = req.body || {};
+    const targetId = targetMemberUserId || targetUserId || memberId;
     const pod = findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
-    const targetMember = pod.members.find(m => m.userId === targetMemberUserId);
+    const targetMember = pod.members.find(m => 
+      m && ((targetId && (m.userId === targetId || m.id === targetId)) || (m.displayName && targetId && m.displayName === targetId))
+    );
     if (!targetMember) return res.status(400).json({ error: 'Target member is not in this pod.' });
 
-    const senderMember = pod.members.find(m => m.userId === user.id);
+    const senderMember = pod.members.find(m => m && (m.userId === user.id || m.id === user.id || (user.email && m.email === user.email)));
+
+    const targetUserIdToNotify = targetMember.userId || targetMember.id || user.id;
 
     const notification = createNotification({
-      userId: targetMember.userId,
+      userId: targetUserIdToNotify,
       senderUserId: user.id,
       senderName: user.displayName,
       podId: pod.id,
