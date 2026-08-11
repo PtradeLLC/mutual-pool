@@ -496,14 +496,15 @@ function getCurrentUser(req: Request): User | null {
 
     let found: User | undefined = users.find(u => u && u.id === userId);
     if (!found) {
-      const userName = getHeaderValue(req, 'x-user-name') || 'Verified Member';
       const userEmail = getHeaderValue(req, 'x-user-email') || `${userId.substring(0, 8)}@mutualpool.org`;
+      const userNameHeader = getHeaderValue(req, 'x-user-name');
+      const fallbackName = userNameHeader && userNameHeader !== 'Verified Member' ? userNameHeader : (userEmail.split('@')[0] || 'Mutual Member');
       const profile = getProfileFromHeaders(req);
       found = {
         id: userId,
         email: userEmail,
-        displayName: userName,
-        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005FB8&color=fff&size=200`,
+        displayName: fallbackName,
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=005FB8&color=fff&size=200`,
         platform: profile.platform as any,
         role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : (profile.role === 'Admin' ? 'Admin' : profile.role),
         accountAgeDays: profile.accountAgeDays,
@@ -1526,11 +1527,12 @@ app.use((req, res, next) => {
         inviterDisplayName = pod.creatorName;
       }
 
+      const memberDisplayName = user.displayName && user.displayName !== 'Verified Member' ? user.displayName : (user.email ? user.email.split('@')[0] : 'Member');
       const newMember: PodMembership = {
         id: `pm_${Date.now()}_${pod.members.length + 1}`,
         podId: pod.id,
         userId: user.id,
-        displayName: user.displayName || 'Verified Member',
+        displayName: memberDisplayName,
         email: user.email,
         avatarUrl: user.avatarUrl || '',
         platform: user.platform || 'DoorDash',

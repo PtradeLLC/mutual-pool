@@ -1415,6 +1415,7 @@ export default function App() {
           isOpen={showHardshipModal}
           onClose={() => setShowHardshipModal(false)}
           currentUser={currentUser}
+          allUsers={allUsers}
           myPods={myPods}
           initialTab={hardshipModalTab}
           onRequestSubmitted={() => fetchAppData(currentUser.id)}

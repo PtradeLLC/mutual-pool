@@ -24,6 +24,7 @@ interface HardshipRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User;
+  allUsers?: User[];
   myPods: Pod[];
   onRequestSubmitted: () => void;
   initialTab?: 'hardship' | 'trade';
@@ -33,6 +34,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   isOpen,
   onClose,
   currentUser,
+  allUsers = [],
   myPods,
   onRequestSubmitted,
   initialTab = 'hardship',
@@ -57,6 +59,8 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   const [swapLoading, setSwapLoading] = useState<boolean>(false);
   const [swapErrorMsg, setSwapErrorMsg] = useState<string | null>(null);
   const [swapSuccessMsg, setSwapSuccessMsg] = useState<string | null>(null);
+  const [notifyingUserId, setNotifyingUserId] = useState<string | null>(null);
+  const [notifiedUserIds, setNotifiedUserIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (isOpen && myPods.length > 0 && !selectedPodId) {
@@ -638,157 +642,231 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                       const isSelf = member.userId === currentUser.id;
                       const hasReceived = member.hasReceivedPayout;
                       const currentMemberHasReceived = currentMember?.hasReceivedPayout;
-                      const isSwapDisabled = isSelf || hasReceived || currentMemberHasReceived;
+
+                      // Single Source of Truth for Member Name and KYC Verification
+                      const realUser = allUsers.find(u => u.id === member.userId) || (isSelf ? currentUser : null);
+                      const rawName = isSelf ? currentUser.displayName : (realUser?.displayName || member.displayName);
+                      const memberName = (rawName && rawName !== 'Verified Member' && rawName.trim() !== '') 
+                        ? rawName 
+                        : (realUser?.displayName || currentUser.displayName || 'Pod Member');
+
+                      const isKycVerified = realUser 
+                        ? realUser.kycStatus === 'VERIFIED' 
+                        : (isSelf ? currentUser.kycStatus === 'VERIFIED' : Boolean(member.isKycVerified));
+
+                      const isSelectedForTrade = targetMemberForSwap?.userId === member.userId;
+                      const isNotifying = notifyingUserId === member.userId;
+                      const isNotified = notifiedUserIds[member.userId];
 
                       return (
-                        <div 
-                          key={member.id || member.userId}
-                          className={`p-3.5 flex items-center justify-between gap-3 transition-colors ${
-                            isSelf ? 'bg-blue-50/70' : 'hover:bg-gray-50/80'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
-                              isSelf ? 'bg-[#005FB8] text-white' : 'bg-gray-100 text-gray-700 border border-gray-300'
-                            }`}>
-                              #{idx + 1}
+                        <React.Fragment key={member.id || member.userId || idx}>
+                          <div 
+                            className={`p-3.5 flex items-center justify-between gap-3 transition-colors ${
+                              isSelf ? 'bg-blue-50/70' : isSelectedForTrade ? 'bg-emerald-50/80 border-l-4 border-l-emerald-600' : 'hover:bg-gray-50/80'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                                isSelf ? 'bg-[#005FB8] text-white' : 'bg-gray-100 text-gray-700 border border-gray-300'
+                              }`}>
+                                #{idx + 1}
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-xs text-[#111827]">
+                                    {memberName}
+                                  </span>
+
+                                  {isSelf && (
+                                    <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-md">
+                                      You
+                                    </span>
+                                  )}
+
+                                  {/* Single Source of Truth KYC Badge */}
+                                  {isKycVerified ? (
+                                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md flex items-center gap-0.5" title="Identity Verified via Stripe Identity">
+                                      <UserCheck className="w-3 h-3 text-emerald-600" /> KYC Verified
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded-md flex items-center gap-0.5" title="Identity Verification Pending">
+                                      <ShieldAlert className="w-3 h-3 text-amber-600" /> KYC Pending
+                                    </span>
+                                  )}
+
+                                  {hasReceived && (
+                                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                      <CheckCircle2 className="w-3 h-3" /> Payout Received
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
+                                  <span>Platform: {member.platform || realUser?.platform || 'Gig Provider'}</span>
+                                  <span>•</span>
+                                  <span>Scheduled Payout: Week {idx + 1}</span>
+                                </div>
+                              </div>
                             </div>
 
-                            <div>
+                            {/* Swap & Notify Action Buttons */}
+                            {!isSelf && (
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-xs text-[#111827]">
-                                  {member.displayName}
-                                </span>
-                                {isSelf && (
-                                  <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-md">
-                                    You
+                                {hasReceived || currentMemberHasReceived ? (
+                                  <span className="text-[11px] text-gray-400 italic bg-gray-100 px-2.5 py-1 rounded-lg">
+                                    Payout Processed
                                   </span>
-                                )}
-                                {hasReceived && (
-                                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                                    <CheckCircle2 className="w-3 h-3" /> Payout Received
-                                  </span>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={isNotifying}
+                                      onClick={async () => {
+                                        if (!selectedPod) return;
+                                        setNotifyingUserId(member.userId);
+                                        setSwapErrorMsg(null);
+                                        setSwapSuccessMsg(null);
+                                        try {
+                                          const res = await fetch(`/api/pods/${selectedPod.id}/notify-swap-intent`, {
+                                            method: 'POST',
+                                            headers: {
+                                              'Content-Type': 'application/json',
+                                              'x-user-id': currentUser.id,
+                                            },
+                                            body: JSON.stringify({
+                                              targetMemberUserId: member.userId,
+                                            }),
+                                          });
+                                          if (res.ok) {
+                                            setNotifiedUserIds(prev => ({ ...prev, [member.userId]: true }));
+                                            setSwapSuccessMsg(`In-app swap intent notice sent to ${memberName}!`);
+                                          } else {
+                                            const errData = await res.json();
+                                            setSwapErrorMsg(errData.message || 'Failed to send notification.');
+                                          }
+                                        } catch (err) {
+                                          console.error(err);
+                                          setSwapErrorMsg('Network error sending notice.');
+                                        } finally {
+                                          setNotifyingUserId(null);
+                                        }
+                                      }}
+                                      className={`px-2.5 py-1.5 rounded-lg border font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                        isNotified
+                                          ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                                          : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-[#005FB8]'
+                                      }`}
+                                      title={`Send in-app swap intent notification to ${memberName}`}
+                                    >
+                                      {isNotifying ? (
+                                        <>
+                                          <div className="w-3 h-3 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin"></div>
+                                          <span>Sending...</span>
+                                        </>
+                                      ) : isNotified ? (
+                                        <>
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span>Notified ✓</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Send className="w-3 h-3" />
+                                          <span>Notify</span>
+                                        </>
+                                      )}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (isSelectedForTrade) {
+                                          setTargetMemberForSwap(null);
+                                        } else {
+                                          setTargetMemberForSwap(member);
+                                          setSwapErrorMsg(null);
+                                          setSwapSuccessMsg(null);
+                                        }
+                                      }}
+                                      className={`px-3 py-1.5 rounded-lg border font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+                                        isSelectedForTrade
+                                          ? 'bg-emerald-600 text-white border-emerald-700'
+                                          : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800'
+                                      }`}
+                                    >
+                                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                                      <span>{isSelectedForTrade ? 'Selected' : 'Trade Spot'}</span>
+                                    </button>
+                                  </>
                                 )}
                               </div>
-                              <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
-                                <span>Platform: {member.platform || 'Gig Provider'}</span>
-                                <span>•</span>
-                                <span>Scheduled Payout: Week {idx + 1}</span>
-                              </div>
-                            </div>
+                            )}
                           </div>
 
-                          {/* Swap & Notify Action Buttons */}
-                          {!isSelf && (
-                            <div className="flex items-center gap-2">
-                              {hasReceived || currentMemberHasReceived ? (
-                                <span className="text-[11px] text-gray-400 italic bg-gray-100 px-2.5 py-1 rounded-lg">
-                                  Payout Processed
-                                </span>
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      if (!selectedPod) return;
-                                      try {
-                                        const res = await fetch(`/api/pods/${selectedPod.id}/notify-swap-intent`, {
-                                          method: 'POST',
-                                          headers: {
-                                            'Content-Type': 'application/json',
-                                            'x-user-id': currentUser.id,
-                                          },
-                                          body: JSON.stringify({
-                                            targetMemberUserId: member.userId,
-                                          }),
-                                        });
-                                        if (res.ok) {
-                                          setSwapSuccessMsg(`In-app swap intent notice sent to ${member.displayName}!`);
-                                        }
-                                      } catch (err) {
-                                        console.error(err);
-                                      }
-                                    }}
-                                    className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#005FB8] font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                                    title={`Send in-app swap intent notification to ${member.displayName}`}
-                                  >
-                                    <Send className="w-3 h-3" />
-                                    <span>Notify</span>
-                                  </button>
+                          {/* INLINE CONFIRMATION CARD DIRECTLY BELOW TARGET MEMBER */}
+                          {isSelectedForTrade && currentMember && (
+                            <div className="p-4 bg-gradient-to-br from-emerald-50 to-blue-50 border-y-2 border-emerald-500/80 space-y-3.5 animate-in fade-in zoom-in-95 duration-150">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0">
+                                  <Repeat className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <h4 className="font-extrabold text-xs text-[#111827]">
+                                    Confirm Mutual Spot Trade with {memberName}
+                                  </h4>
+                                  <p className="text-[11px] text-gray-600">
+                                    This will immediately trade your payout rotation position with {memberName}.
+                                  </p>
+                                </div>
+                              </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setTargetMemberForSwap(member);
-                                      setSwapErrorMsg(null);
-                                      setSwapSuccessMsg(null);
-                                    }}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                                  >
-                                    <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-700" />
-                                    <span>Trade Spot</span>
-                                  </button>
-                                </>
-                              )}
+                              <div className="grid grid-cols-2 gap-3 text-xs font-mono bg-white p-3 rounded-xl border border-emerald-200">
+                                <div className="space-y-1">
+                                  <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">Your Current Slot</span>
+                                  <strong className="text-xs text-[#005FB8] block">Slot #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</strong>
+                                  <span className="text-[10px] text-emerald-700 block font-sans font-semibold">➔ New Slot: #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</span>
+                                </div>
+
+                                <div className="space-y-1 border-l border-gray-200 pl-3">
+                                  <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{memberName}'s Current Slot</span>
+                                  <strong className="text-xs text-gray-800 block">Slot #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</strong>
+                                  <span className="text-[10px] text-[#005FB8] block font-sans font-semibold">➔ New Slot: #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-end gap-2.5 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setTargetMemberForSwap(null)}
+                                  disabled={swapLoading}
+                                  className="px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={handleExecuteSwap}
+                                  disabled={swapLoading}
+                                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                                >
+                                  {swapLoading ? (
+                                    <>
+                                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                      <span>Trading Spots...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                                      <span>Execute Mutual Spot Swap</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           )}
-                        </div>
+                        </React.Fragment>
                       );
                     })}
-                  </div>
-                </div>
-              )}
-
-              {/* Confirmation Dialog overlay when target member is selected */}
-              {targetMemberForSwap && currentMember && (
-                <div className="bg-gradient-to-br from-emerald-50 to-blue-50 border-2 border-emerald-500/50 rounded-2xl p-5 space-y-4 shadow-md animate-in fade-in zoom-in-95 duration-150">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-emerald-600 text-white rounded-xl">
-                      <Repeat className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-sm text-[#111827]">
-                        Confirm Spot Trade with {targetMemberForSwap.displayName}
-                      </h4>
-                      <p className="text-xs text-gray-600">
-                        Mutual position swap — execution takes effect immediately upon confirmation.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-xs font-mono bg-white p-3.5 rounded-xl border border-emerald-200">
-                    <div className="space-y-1">
-                      <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">Your Current Position</span>
-                      <strong className="text-sm text-[#005FB8] block">Slot #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</strong>
-                      <span className="text-[11px] text-gray-500 block font-sans">New Slot after trade: #{ (targetMemberForSwap.rotationIndex ?? 0) + 1 }</span>
-                    </div>
-
-                    <div className="space-y-1 border-l border-gray-200 pl-3">
-                      <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{targetMemberForSwap.displayName}'s Position</span>
-                      <strong className="text-sm text-emerald-700 block">Slot #{ (targetMemberForSwap.rotationIndex ?? 0) + 1 } (Week { (targetMemberForSwap.rotationIndex ?? 0) + 1 })</strong>
-                      <span className="text-[11px] text-gray-500 block font-sans">New Slot after trade: #{ (currentMember.rotationIndex ?? 0) + 1 }</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setTargetMemberForSwap(null)}
-                      disabled={swapLoading}
-                      className="px-4 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleExecuteSwap}
-                      disabled={swapLoading}
-                      className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
-                    >
-                      <ArrowLeftRight className="w-4 h-4" />
-                      <span>{swapLoading ? 'Executing Trade...' : 'Execute Mutual Spot Swap'}</span>
-                    </button>
                   </div>
                 </div>
               )}
