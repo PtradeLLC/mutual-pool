@@ -59,12 +59,12 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allPods, setAllPods] = useState<Pod[]>(() => {
     try {
-      const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100']);
+      const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100', 'pod_1786132889241']);
       const saved = localStorage.getItem('mutualpool_cached_pods');
       const parsed: Pod[] = saved ? JSON.parse(saved) : [];
       const map = new Map<string, Pod>();
       for (const p of parsed) {
-        if (p && p.id && !FAKE_POD_IDS.has(p.id)) {
+        if (p && p.id && !FAKE_POD_IDS.has(p.id) && p.name !== 'Mutual Savings Pod' && p.createdBy !== 'JTnLblih') {
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
@@ -258,32 +258,33 @@ export default function App() {
         } catch {}
       }
 
-      const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100']);
+      const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100', 'pod_1786132889241']);
+      const isDemoPod = (p: Pod | null | undefined) => !p || !p.id || FAKE_POD_IDS.has(p.id) || p.name === 'Mutual Savings Pod' || p.createdBy === 'JTnLblih' || p.creatorName === 'JTnLblih';
 
       setAllPods((prevPods) => {
         const map = new Map<string, Pod>();
         // 1. Keep existing state in memory
         for (const p of prevPods) {
-          if (p && p.id && !FAKE_POD_IDS.has(p.id)) {
+          if (!isDemoPod(p)) {
             const existing = map.get(p.id);
             map.set(p.id, existing ? mergePodObjects(existing, p) : p);
           }
         }
         // 2. Primary source of truth: Firestore pods
         for (const p of firestorePods) {
-          if (!p || !p.id || FAKE_POD_IDS.has(p.id)) continue;
+          if (isDemoPod(p)) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
         // 3. Server API pods
         for (const p of apiPods) {
-          if (!p || !p.id || FAKE_POD_IDS.has(p.id)) continue;
+          if (isDemoPod(p)) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
         // 4. Local created pods (push missing to Firestore)
         for (const p of localCreatedPods) {
-          if (!p || !p.id || FAKE_POD_IDS.has(p.id)) continue;
+          if (isDemoPod(p)) continue;
           const existing = map.get(p.id);
           const merged = existing ? mergePodObjects(existing, p) : p;
           map.set(p.id, merged);
@@ -316,16 +317,17 @@ export default function App() {
     // 2. Subscribe to real-time Pods in Firestore
     const unsubscribePods = subscribeToPods((firestorePods) => {
       if (firestorePods && Array.isArray(firestorePods)) {
-        const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100']);
+        const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100', 'pod_1786132889241']);
+        const isDemoPod = (p: Pod | null | undefined) => !p || !p.id || FAKE_POD_IDS.has(p.id) || p.name === 'Mutual Savings Pod' || p.createdBy === 'JTnLblih' || p.creatorName === 'JTnLblih';
         setAllPods((prevPods) => {
           const map = new Map<string, Pod>();
           for (const p of prevPods) {
-            if (p && p.id && !FAKE_POD_IDS.has(p.id)) {
+            if (!isDemoPod(p)) {
               map.set(p.id, p);
             }
           }
           for (const fp of firestorePods) {
-            if (!fp || !fp.id || FAKE_POD_IDS.has(fp.id)) continue;
+            if (isDemoPod(fp)) continue;
             const existing = map.get(fp.id);
             map.set(fp.id, existing ? mergePodObjects(existing, fp) : fp);
           }

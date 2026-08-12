@@ -334,51 +334,6 @@ function findPodById(id: string, currentUser?: User): Pod | undefined {
 
   let pod = pods.find(p => p.id === id);
 
-  if (!pod && id.startsWith('pod_')) {
-    const creator = currentUser || INITIAL_USERS[0];
-    const newFallbackPod: Pod = {
-      id,
-      name: 'Mutual Savings Pod',
-      description: 'Community gig worker mutual savings pool',
-      category: 'General Gig Workers',
-      podType: 'TRUSTED_CIRCLE',
-      activationPolicy: 'FLEXIBLE_EARLY',
-      inviteWindowDays: 7,
-      autoOpenOnExpire: true,
-      inviteCode: 'POOL2026',
-      invitedContacts: [],
-      sizeTier: 20,
-      depositTier: 20,
-      status: 'FORMING',
-      currentCycleWeek: 1,
-      totalCycles: 20,
-      agreementVersion: 'v2.0-2026',
-      holdingFinAccountId: `fa_${id}_holding`,
-      createdBy: creator.id,
-      creatorName: creator.displayName,
-      createdAt: new Date().toISOString(),
-      weeklyPoolTarget: 400,
-      currentWeeklyCollected: 20,
-      members: [
-        {
-          id: `pm_${id}_${creator.id}`,
-          podId: id,
-          userId: creator.id,
-          displayName: creator.displayName,
-          avatarUrl: creator.avatarUrl,
-          platform: creator.platform,
-          rotationIndex: 0,
-          hasReceivedPayout: false,
-          delinquencyStatus: 'CLEAN',
-          joinedAt: new Date().toISOString(),
-        } as any
-      ]
-    };
-    pods.unshift(newFallbackPod);
-    savePodsToDisk();
-    pod = newFallbackPod;
-  }
-
   // Ensure currentUser is present in pod.members if pod exists
   if (pod && currentUser && pod.members && !pod.members.some(m => m && (m.userId === currentUser.id || m.id === currentUser.id || (currentUser.email && m.email === currentUser.email) || (m.displayName && m.displayName.toLowerCase().trim() === currentUser.displayName.toLowerCase().trim())))) {
     pod.members.push({
