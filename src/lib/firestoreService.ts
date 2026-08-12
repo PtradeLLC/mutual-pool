@@ -17,17 +17,23 @@ import { db } from './firebase';
 import { User, Pod, Perk, AuditLogEntry, Redemption, isDemoPod } from '../types';
 import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS } from '../data/initialData';
 
-// Helper to strip undefined fields so Firestore setDoc never throws on undefined values
-function sanitizeForFirestore<T extends Record<string, any>>(data: T): T {
-  if (!data || typeof data !== 'object') return data;
-  const clean: any = {};
-  for (const [key, value] of Object.entries(data)) {
+// Helper to strip undefined fields recursively from objects and arrays so Firestore setDoc never throws on undefined values
+function sanitizeForFirestore<T>(data: T): T {
+  if (data === undefined) return null as unknown as T;
+  if (data === null || typeof data !== 'object') return data;
+  if (data instanceof Date) return data;
+  if (typeof (data as any).toMillis === 'function') return data;
+
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => sanitizeForFirestore(item)) as unknown as T;
+  }
+
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data as Record<string, any>)) {
     if (value !== undefined) {
-      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
-        clean[key] = sanitizeForFirestore(value);
-      } else {
-        clean[key] = value;
-      }
+      clean[key] = sanitizeForFirestore(value);
     }
   }
   return clean as T;
