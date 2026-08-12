@@ -4,7 +4,7 @@ import { Logo } from './Logo';
 import { 
   UserCheck, PlusCircle, LogIn, X, ShieldCheck, 
   Sparkles, AlertCircle, Building2, Wallet, ArrowRight, Check,
-  Phone, Mail, Smartphone
+  Phone, Mail, Smartphone, Users, Zap
 } from 'lucide-react';
 import { 
   signInWithEmailAndPassword, 
@@ -17,6 +17,7 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { getUserFromFirestore, saveUserToFirestore } from '../lib/firestoreService';
+import { INITIAL_USERS } from '../data/initialData';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -24,13 +25,13 @@ interface AuthModalProps {
   allUsers: User[];
   onSelectUser: (user: User) => void;
   onRegistered: (user: User) => void;
-  initialMode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE';
+  initialMode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE';
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
-  allUsers: _allUsers,
+  allUsers,
   onSelectUser,
   onRegistered,
   initialMode = 'LOGIN',
@@ -38,6 +39,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [activeTab, setActiveTab] = useState<'LOGIN' | 'REGISTER' | 'PHONE'>(
     initialMode === 'REGISTER' ? 'REGISTER' : (initialMode === 'PHONE' ? 'PHONE' : 'LOGIN')
   );
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialMode === 'REGISTER') setActiveTab('REGISTER');
+      else if (initialMode === 'PHONE') setActiveTab('PHONE');
+      else setActiveTab('LOGIN');
+    }
+  }, [isOpen, initialMode]);
 
   // Email Register Form State
   const [regName, setRegName] = useState('');
@@ -221,11 +230,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         ).then(appUser => {
           onSelectUser(appUser);
         }).catch(console.error);
+        return;
       }
     } catch (err: unknown) {
-      console.error('Firebase Login Error:', err);
+      console.warn('Firebase Login error:', err);
       if (err instanceof Error) {
-        setLoginError(err.message.replace('Firebase: ', ''));
+        const msg = err.message.replace('Firebase: ', '');
+        if (msg.includes('user-not-found') || msg.includes('invalid-credential') || msg.includes('invalid-email')) {
+          setLoginError(`No account found matching "${loginEmail}". Please check your email and password, or click "Sign Up" to register.`);
+        } else {
+          setLoginError(msg);
+        }
       } else {
         setLoginError('Failed to sign in with Firebase Auth.');
       }
@@ -451,39 +466,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Tab Switcher */}
         <div className="grid grid-cols-3 gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-[#E2E8F0] mb-5 text-[11px] font-semibold">
           <button
+            type="button"
             onClick={() => setActiveTab('LOGIN')}
-            className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
+            className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
               activeTab === 'LOGIN'
                 ? 'bg-white text-[#005FB8] shadow-2xs font-bold border border-[#DDE1E6]'
                 : 'text-[#6B7280] hover:text-[#111827]'
             }`}
           >
             <Mail className="w-3.5 h-3.5" />
-            <span>Email</span>
+            <span>Email Sign In</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('PHONE')}
-            className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
-              activeTab === 'PHONE'
-                ? 'bg-white text-[#005FB8] shadow-2xs font-bold border border-[#DDE1E6]'
-                : 'text-[#6B7280] hover:text-[#111827]'
-            }`}
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>Phone</span>
-          </button>
-
-          <button
+            type="button"
             onClick={() => setActiveTab('REGISTER')}
-            className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
+            className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
               activeTab === 'REGISTER'
                 ? 'bg-white text-[#005FB8] shadow-2xs font-bold border border-[#DDE1E6]'
                 : 'text-[#6B7280] hover:text-[#111827]'
             }`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>Sign Up</span>
+            <span>Create Account</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('PHONE')}
+            className={`py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+              activeTab === 'PHONE'
+                ? 'bg-white text-[#005FB8] shadow-2xs font-bold border border-[#DDE1E6]'
+                : 'text-[#6B7280] hover:text-[#111827]'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>Phone SMS</span>
           </button>
         </div>
 

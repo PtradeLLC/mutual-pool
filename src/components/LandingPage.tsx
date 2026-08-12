@@ -40,7 +40,7 @@ const PERK_CATEGORIES = [
 interface LandingPageProps {
   allPods: Pod[];
   currentUser?: User | null;
-  onOpenAuth: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO') => void;
+  onOpenAuth: (mode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE') => void;
   onSelectUser: (user: User) => void;
   onGoToDashboard?: () => void;
   onLogout?: () => void;
@@ -676,7 +676,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <button
-            onClick={() => onOpenAuth('DEMO')}
+            onClick={() => onOpenAuth('LOGIN')}
             className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-[#DDE1E6] font-bold text-xs flex items-center gap-1.5 shadow-xs"
           >
             <span>Browse All Pool Circles</span>

@@ -14,7 +14,7 @@ interface PerksMarketplaceProps {
   initialOpenSubmitModal?: boolean;
   onClearInitialSubmitModal?: () => void;
   onSelectUser?: (user: User) => void;
-  onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
+  onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE') => void;
 }
 
 const CATEGORIES: (PerkCategory | 'All')[] = [

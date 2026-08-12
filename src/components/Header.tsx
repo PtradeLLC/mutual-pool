@@ -4,7 +4,7 @@ import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
-  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink
+  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -25,7 +25,7 @@ interface HeaderProps {
   onOpenHowItWorks?: () => void;
   onOpenContact?: () => void;
   onLogout?: () => void;
-  onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE') => void;
+  onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE') => void;
   onOpenKycModal?: () => void;
   hasWelcomeMatch?: boolean;
   onOpenHardshipModal?: (initialTab?: 'hardship' | 'trade') => void;
@@ -204,6 +204,22 @@ export const Header: React.FC<HeaderProps> = ({
                           <span>Edit Profile, Fleet & Role</span>
                         </div>
                         <Sparkles className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {onOpenAuth && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenAuth('LOGIN');
+                        }}
+                        className="w-full text-left p-2 mt-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] font-bold text-xs flex items-center justify-between transition-colors border border-blue-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-[#005FB8]" />
+                          <span>Sign In to Another Account</span>
+                        </div>
                       </button>
                     )}
                   </div>

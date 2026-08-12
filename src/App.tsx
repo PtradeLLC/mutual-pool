@@ -109,7 +109,7 @@ export default function App() {
 
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE'>('LOGIN');
+  const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE'>('LOGIN');
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -455,7 +455,7 @@ export default function App() {
     };
   }, [currentUser?.id]);
 
-  const handleOpenAuth = (mode: 'LOGIN' | 'REGISTER' | 'DEMO' | 'PHONE' | 'GOOGLE' = 'DEMO') => {
+  const handleOpenAuth = (mode: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE' = 'LOGIN') => {
     setAuthInitialMode(mode);
     setShowAuthModal(true);
   };
