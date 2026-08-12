@@ -66,7 +66,11 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   const fetchPodSwapRequests = async (podId: string) => {
     try {
       const res = await fetch(`/api/pods/${podId}/swap-requests`, {
-        headers: { 'x-user-id': currentUser.id },
+        headers: {
+          'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
+        },
       });
       if (res.ok) {
         const data = await res.json();
@@ -205,9 +209,13 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
     try {
       const targetId = targetMemberForSwap.userId || targetMemberForSwap.id || targetMemberForSwap.displayName;
       const activeSwapReq = podSwapRequests.find(
-        (sr) =>
-          (sr.requesterUserId === currentUser.id && (sr.targetUserId === targetId || sr.targetUserId === targetMemberForSwap.userId)) ||
-          (sr.targetUserId === currentUser.id && (sr.requesterUserId === targetId || sr.requesterUserId === targetMemberForSwap.userId))
+        (sr) => {
+          const isReqCurrent = sr.requesterUserId === currentUser.id || sr.requesterUserId === currentUser.email || sr.requesterName === currentUser.displayName;
+          const isTgtMember = sr.targetUserId === targetId || sr.targetUserId === targetMemberForSwap.userId || sr.targetUserId === targetMemberForSwap.id || sr.targetName === targetMemberForSwap.displayName;
+          const isReqMember = sr.requesterUserId === targetId || sr.requesterUserId === targetMemberForSwap.userId || sr.requesterUserId === targetMemberForSwap.id || sr.requesterName === targetMemberForSwap.displayName;
+          const isTgtCurrent = sr.targetUserId === currentUser.id || sr.targetUserId === currentUser.email || sr.targetName === currentUser.displayName;
+          return (isReqCurrent && isTgtMember) || (isReqMember && isTgtCurrent);
+        }
       );
 
       const res = await fetch(`/api/pods/${selectedPod.id}/swap`, {
@@ -215,6 +223,8 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
         },
         body: JSON.stringify({
           targetMemberUserId: targetId,
@@ -812,9 +822,13 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                           {isSelectedForTrade && currentMember && (() => {
                             const memberUserId = member.userId || member.id || member.displayName;
                             const activeSwapReq = podSwapRequests.find(
-                              (sr) =>
-                                (sr.requesterUserId === currentUser.id && (sr.targetUserId === memberUserId || sr.targetUserId === member.userId)) ||
-                                (sr.targetUserId === currentUser.id && (sr.requesterUserId === memberUserId || sr.requesterUserId === member.userId))
+                              (sr) => {
+                                const isReqCurrent = sr.requesterUserId === currentUser.id || sr.requesterUserId === currentUser.email || sr.requesterName === currentUser.displayName;
+                                const isTgtMember = sr.targetUserId === memberUserId || sr.targetUserId === member.userId || sr.targetUserId === member.id || sr.targetName === member.displayName;
+                                const isReqMember = sr.requesterUserId === memberUserId || sr.requesterUserId === member.userId || sr.requesterUserId === member.id || sr.requesterName === member.displayName;
+                                const isTgtCurrent = sr.targetUserId === currentUser.id || sr.targetUserId === currentUser.email || sr.targetName === currentUser.displayName;
+                                return (isReqCurrent && isTgtMember) || (isReqMember && isTgtCurrent);
+                              }
                             );
 
                             const isAccepted = activeSwapReq?.status === 'ACCEPTED';
@@ -831,6 +845,8 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   headers: {
                                     'Content-Type': 'application/json',
                                     'x-user-id': currentUser.id,
+                                    'x-user-email': currentUser.email || '',
+                                    'x-user-name': currentUser.displayName || '',
                                   },
                                   body: JSON.stringify({
                                     targetMemberUserId: memberUserId,

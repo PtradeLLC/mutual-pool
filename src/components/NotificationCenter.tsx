@@ -42,6 +42,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       const res = await fetch('/api/notifications', {
         headers: {
           'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
         },
       });
       if (res.ok) {
@@ -80,6 +82,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         method: 'POST',
         headers: {
           'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
         },
       });
       if (res.ok) {
@@ -99,6 +103,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         method: 'POST',
         headers: {
           'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
         },
       });
       if (res.ok) {
@@ -117,6 +123,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         method: 'DELETE',
         headers: {
           'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
         },
       });
       if (res.ok) {
@@ -140,6 +148,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
         },
         body: JSON.stringify({ action }),
       });
@@ -186,6 +196,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
+          'x-user-email': currentUser.email || '',
+          'x-user-name': currentUser.displayName || '',
         },
         body: JSON.stringify({
           targetMemberUserId,
@@ -256,7 +268,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   });
 
   const selectedPod = myPods.find((p) => p.id === selectedPodId);
-  const eligibleSwapTargetMembers = selectedPod?.members?.filter((m) => m.userId !== currentUser.id) || [];
+  const eligibleSwapTargetMembers = selectedPod?.members?.filter((m) => {
+    if (!m) return false;
+    if (m.userId && m.userId === currentUser.id) return false;
+    if (m.id && m.id === currentUser.id) return false;
+    if (m.email && currentUser.email && m.email.toLowerCase() === currentUser.email.toLowerCase()) return false;
+    if (m.displayName && currentUser.displayName && m.displayName.toLowerCase().trim() === currentUser.displayName.toLowerCase().trim()) return false;
+    return true;
+  }) || [];
 
   return (
     <div className="relative" ref={popoverRef}>
@@ -574,7 +593,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   >
                     <option value="">-- Choose Member to Notify --</option>
                     {eligibleSwapTargetMembers.map((member) => (
-                      <option key={member.userId} value={member.userId}>
+                      <option key={member.id || member.userId || member.displayName} value={member.userId || member.id || member.displayName}>
                         {member.displayName} (Slot #{ (member.rotationIndex ?? 0) + 1 } - Week { (member.rotationIndex ?? 0) + 1 })
                       </option>
                     ))}

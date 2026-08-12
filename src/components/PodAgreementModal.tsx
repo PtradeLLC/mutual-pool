@@ -31,6 +31,8 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': user.id,
+          'x-user-email': user.email || '',
+          'x-user-name': user.displayName || '',
         },
         body: JSON.stringify({
           signatureName,

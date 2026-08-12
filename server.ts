@@ -291,6 +291,44 @@ function saveNotificationsToDisk() {
   } catch (err) {
     console.error('Error saving notifications_data.json:', err);
   }
+  try {
+    const db = getDb();
+    if (db) {
+      const batch = db.batch();
+      for (const n of notifications.slice(0, 50)) {
+        if (n && n.id) {
+          const ref = db.collection('notifications').doc(n.id);
+          batch.set(ref, sanitizeForServerFirestore(n), { merge: true });
+        }
+      }
+      batch.commit().catch(() => {});
+    }
+  } catch (e) {}
+}
+
+async function syncNotificationsFromFirestore(): Promise<AppNotification[]> {
+  try {
+    const db = getDb();
+    if (!db) return notifications;
+    const snap = await db.collection('notifications').get();
+    if (!snap.empty) {
+      const map = new Map<string, AppNotification>();
+      for (const n of notifications) {
+        if (n && n.id) map.set(n.id, n);
+      }
+      snap.docs.forEach(doc => {
+        const raw = doc.data();
+        if (raw && raw.id) {
+          map.set(raw.id, raw as AppNotification);
+        }
+      });
+      notifications = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      try {
+        fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2), 'utf8');
+      } catch (e) {}
+    }
+  } catch (err) {}
+  return notifications;
 }
 
 let notifications: AppNotification[] = loadNotificationsFromDisk();
@@ -316,9 +354,100 @@ function saveSwapRequestsToDisk() {
   } catch (err) {
     console.error('Error saving swap_requests_data.json:', err);
   }
+  try {
+    const db = getDb();
+    if (db) {
+      const batch = db.batch();
+      for (const sr of swapRequests.slice(0, 50)) {
+        if (sr && sr.id) {
+          const ref = db.collection('swap_requests').doc(sr.id);
+          batch.set(ref, sanitizeForServerFirestore(sr), { merge: true });
+        }
+      }
+      batch.commit().catch(() => {});
+    }
+  } catch (e) {}
+}
+
+async function syncSwapRequestsFromFirestore(): Promise<SwapRequest[]> {
+  try {
+    const db = getDb();
+    if (!db) return swapRequests;
+    const snap = await db.collection('swap_requests').get();
+    if (!snap.empty) {
+      const map = new Map<string, SwapRequest>();
+      for (const sr of swapRequests) {
+        if (sr && sr.id) map.set(sr.id, sr);
+      }
+      snap.docs.forEach(doc => {
+        const raw = doc.data();
+        if (raw && raw.id) {
+          map.set(raw.id, raw as SwapRequest);
+        }
+      });
+      swapRequests = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      try {
+        fs.writeFileSync(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2), 'utf8');
+      } catch (e) {}
+    }
+  } catch (err) {}
+  return swapRequests;
 }
 
 let swapRequests: SwapRequest[] = loadSwapRequestsFromDisk();
+
+function isUserTargetMatch(targetKey: string | undefined, user: User): boolean {
+  if (!targetKey || !user) return false;
+  const targetClean = String(targetKey).trim().toLowerCase();
+  if (!targetClean) return false;
+
+  const uId = String(user.id || '').trim().toLowerCase();
+  const uEmail = String(user.email || '').trim().toLowerCase();
+  const uName = String(user.displayName || '').trim().toLowerCase();
+
+  if (targetClean === uId) return true;
+  if (uEmail && targetClean === uEmail) return true;
+  if (uName && targetClean === uName) return true;
+
+  if (targetClean.startsWith('pm_')) {
+    if (uId && targetClean.includes(uId)) return true;
+    if (uEmail && targetClean.includes(uEmail)) return true;
+    if (uName && targetClean.includes(uName)) return true;
+  }
+
+  return false;
+}
+
+function isNotificationForUser(n: AppNotification, user: User): boolean {
+  if (!n || !user) return false;
+  if (isUserTargetMatch(n.userId, user)) return true;
+
+  // Check across all pod memberships
+  for (const p of pods) {
+    if (!p || !p.members) continue;
+    for (const m of p.members) {
+      if (!m) continue;
+      const mId = String(m.id || '').trim().toLowerCase();
+      const mUserId = String(m.userId || '').trim().toLowerCase();
+      const mEmail = String(m.email || '').trim().toLowerCase();
+      const mName = String(m.displayName || '').trim().toLowerCase();
+
+      const uId = String(user.id || '').trim().toLowerCase();
+      const uEmail = String(user.email || '').trim().toLowerCase();
+      const uName = String(user.displayName || '').trim().toLowerCase();
+
+      const isUserMember = (mUserId && mUserId === uId) || (mEmail && uEmail && mEmail === uEmail) || (mName && uName && mName === uName) || (mId && mId.includes(uId));
+      if (isUserMember) {
+        const targetClean = String(n.userId || '').trim().toLowerCase();
+        if (targetClean === mId || targetClean === mUserId || targetClean === mEmail || targetClean === mName) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
 
 function createNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): AppNotification {
   const newNotif: AppNotification = {
@@ -332,26 +461,67 @@ function createNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'i
   return newNotif;
 }
 
-function findPodById(id: string, currentUser?: User): Pod | undefined {
+async function findPodById(id: string, currentUser?: User): Promise<Pod | undefined> {
   if (!id) return undefined;
 
-  try {
-    const diskPods = loadPodsFromDisk();
-    for (const dp of diskPods) {
-      if (dp && dp.id) {
-        const idx = pods.findIndex(p => p.id === dp.id);
-        if (idx >= 0) {
-          pods[idx] = mergePodObjects(pods[idx], dp);
-        } else {
-          pods.push(dp);
+  let pod = pods.find(p => p && p.id === id);
+
+  if (!pod) {
+    try {
+      const diskPods = loadPodsFromDisk();
+      for (const dp of diskPods) {
+        if (dp && dp.id) {
+          const idx = pods.findIndex(p => p.id === dp.id);
+          if (idx >= 0) {
+            pods[idx] = mergePodObjects(pods[idx], dp);
+          } else {
+            pods.push(dp);
+          }
         }
       }
+    } catch (err) {
+      console.error('Error reloading pods in findPodById:', err);
     }
-  } catch (err) {
-    console.error('Error reloading pods in findPodById:', err);
+    pod = pods.find(p => p && p.id === id);
   }
 
-  let pod = pods.find(p => p.id === id);
+  if (!pod) {
+    try {
+      await syncPodsFromFirestore();
+      pod = pods.find(p => p && p.id === id);
+    } catch (err) {
+      console.error('Error syncing pods in findPodById:', err);
+    }
+  }
+
+  if (!pod) {
+    try {
+      const db = getDb();
+      if (db) {
+        const docSnap = await db.collection('pods').doc(id).get();
+        if (docSnap.exists) {
+          const raw = docSnap.data();
+          if (raw) {
+            const p: Pod = raw.pod && typeof raw.pod === 'object' ? raw.pod : (raw as Pod);
+            if (p) {
+              if (!p.id) p.id = docSnap.id;
+              if (!p.status) p.status = 'FORMING';
+              const idx = pods.findIndex(exist => exist.id === p.id);
+              if (idx >= 0) {
+                pods[idx] = mergePodObjects(pods[idx], p);
+                pod = pods[idx];
+              } else {
+                pods.push(p);
+                pod = p;
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Direct Firestore pod lookup error:', err);
+    }
+  }
 
   // Ensure currentUser is present in pod.members if pod exists
   if (pod && currentUser && pod.members && !pod.members.some(m => m && (m.userId === currentUser.id || m.id === currentUser.id || (currentUser.email && m.email === currentUser.email) || (m.displayName && m.displayName.toLowerCase().trim() === currentUser.displayName.toLowerCase().trim())))) {
@@ -1137,13 +1307,13 @@ app.use((req, res, next) => {
   });
 
   // 3c. Leave Pod Endpoint
-  app.post(['/api/pods/:id/leave', '/pods/:id/leave'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/leave', '/pods/:id/leave'], async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
         return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
       }
-      const pod = findPodById(req.params.id, user);
+      const pod = await findPodById(req.params.id, user);
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
       }
@@ -1197,10 +1367,10 @@ app.use((req, res, next) => {
     }
   });
 
-  app.get(['/api/pods/:id', '/pods/:id'], (req: Request, res: Response) => {
+  app.get(['/api/pods/:id', '/pods/:id'], async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
-      const pod = findPodById(req.params.id, user);
+      const pod = await findPodById(req.params.id, user);
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
       }
@@ -1425,12 +1595,12 @@ app.use((req, res, next) => {
   });
 
   // 5b. Add / Invite Contacts to Pod's Trusted Circle (Friends of Friends Enabled)
-  app.post(['/api/pods/:id/contacts', '/pods/:id/contacts'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/contacts', '/pods/:id/contacts'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1504,12 +1674,12 @@ app.use((req, res, next) => {
   });
 
   // 5c. Convert Trusted Circle Pod to Open Pod
-  app.post(['/api/pods/:id/convert-open', '/pods/:id/convert-open'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/convert-open', '/pods/:id/convert-open'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1534,14 +1704,14 @@ app.use((req, res, next) => {
   });
 
   // 6. Join Pod (Supports Friends of Friends Referral Attribution)
-  app.post(['/api/pods/:id/join', '/pods/:id/join'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/join', '/pods/:id/join'], async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
         return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
       }
       const { inviteCode, refUserId, refName } = req.body || {};
-      const pod = findPodById(req.params.id, user);
+      const pod = await findPodById(req.params.id, user);
 
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
@@ -1737,14 +1907,14 @@ app.use((req, res, next) => {
   });
 
   // 7. Digital Signature on Pod Agreement
-  app.post(['/api/pods/:id/agreement/sign', '/pods/:id/agreement/sign'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/agreement/sign', '/pods/:id/agreement/sign'], async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
         return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
       }
       const { signatureName } = req.body || {};
-      const pod = findPodById(req.params.id, user);
+      const pod = await findPodById(req.params.id, user);
 
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
@@ -1788,12 +1958,12 @@ app.use((req, res, next) => {
   });
 
   // 8. Lock Pod & Generate Fixed Rotation Order
-  app.post(['/api/pods/:id/lock', '/pods/:id/lock'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/lock', '/pods/:id/lock'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1870,12 +2040,12 @@ app.use((req, res, next) => {
   });
 
   // 9. Deposit Weekly Funds to Stripe Treasury Holding Account
-  app.post(['/api/pods/:id/deposit', '/pods/:id/deposit'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/deposit', '/pods/:id/deposit'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -1936,12 +2106,12 @@ app.use((req, res, next) => {
   });
 
   // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
-  app.post(['/api/pods/:id/cycle/process', '/pods/:id/cycle/process'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/cycle/process', '/pods/:id/cycle/process'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -2372,13 +2542,13 @@ app.use((req, res, next) => {
   });
 
   // 11. Emergency Reprioritization Request & Voting
-  app.post(['/api/pods/:id/reprioritize/request', '/pods/:id/reprioritize/request'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/reprioritize/request', '/pods/:id/reprioritize/request'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
     const { reason } = req.body || {};
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
@@ -2420,13 +2590,13 @@ app.use((req, res, next) => {
     res.json(newRequest);
   });
 
-  app.post(['/api/pods/:id/reprioritize/vote', '/pods/:id/reprioritize/vote'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/reprioritize/vote', '/pods/:id/reprioritize/vote'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
     const { requestId, vote } = req.body || {}; // vote: 'FOR' | 'AGAINST'
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
@@ -2485,25 +2655,32 @@ app.use((req, res, next) => {
   });
 
   // 12. GET Active Swap Requests for a Pod
-  app.get(['/api/pods/:id/swap-requests', '/pods/:id/swap-requests'], (req: Request, res: Response) => {
+  app.get(['/api/pods/:id/swap-requests', '/pods/:id/swap-requests'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
+    await syncSwapRequestsFromFirestore();
+
     const podId = req.params.id;
-    const requests = swapRequests.filter(sr => sr.podId === podId && (sr.requesterUserId === user.id || sr.targetUserId === user.id || sr.requesterUserId.toLowerCase() === user.id.toLowerCase() || sr.targetUserId.toLowerCase() === user.id.toLowerCase()));
+    const requests = swapRequests.filter(sr => {
+      if (sr.podId !== podId) return false;
+      const isReq = isUserTargetMatch(sr.requesterUserId, user) || (user.displayName && sr.requesterName && sr.requesterName.toLowerCase() === user.displayName.toLowerCase());
+      const isTgt = isUserTargetMatch(sr.targetUserId, user) || (user.displayName && sr.targetName && sr.targetName.toLowerCase() === user.displayName.toLowerCase());
+      return isReq || isTgt;
+    });
     res.json({ swapRequests: requests });
   });
 
   // 12.1 Send or Create Swap Trade Request
-  const handleSwapRequest = (req: Request, res: Response) => {
+  const handleSwapRequest = async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
     const { targetMemberUserId, targetUserId, memberId, note } = req.body || {};
     const targetId = targetMemberUserId || targetUserId || memberId;
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
@@ -2514,14 +2691,24 @@ app.use((req, res, next) => {
       return res.status(400).json({ error: 'Target member could not be located in this pod.' });
     }
 
-    const targetUserIdToNotify = targetMember.userId || targetMember.id || user.id;
+    // Match exact canonical user if possible
+    const matchedTargetUser = users.find(u =>
+      (u.id && targetMember.userId && u.id === targetMember.userId) ||
+      (u.id && targetMember.id && u.id === targetMember.id) ||
+      (u.email && targetMember.email && u.email.toLowerCase() === targetMember.email.toLowerCase()) ||
+      (u.displayName && targetMember.displayName && u.displayName.toLowerCase().trim() === targetMember.displayName.toLowerCase().trim())
+    );
+
+    const targetUserIdToNotify = matchedTargetUser?.id || targetMember.userId || targetMember.id || user.id;
 
     // Check if existing pending or accepted request between these members in this pod
     let swapReq = swapRequests.find(sr => 
       sr.podId === pod.id &&
       (
         (sr.requesterUserId === user.id && sr.targetUserId === targetUserIdToNotify) ||
-        (sr.requesterUserId === targetUserIdToNotify && sr.targetUserId === user.id)
+        (sr.requesterUserId === targetUserIdToNotify && sr.targetUserId === user.id) ||
+        (isUserTargetMatch(sr.requesterUserId, user) && isUserTargetMatch(sr.targetUserId, matchedTargetUser || user)) ||
+        (isUserTargetMatch(sr.targetUserId, user) && isUserTargetMatch(sr.requesterUserId, matchedTargetUser || user))
       ) &&
       (sr.status === 'PENDING' || sr.status === 'ACCEPTED')
     );
@@ -2649,14 +2836,14 @@ app.use((req, res, next) => {
   });
 
   // 12.3 Execute Voluntary Slot Swap (Requires Prior Acceptance)
-  app.post(['/api/pods/:id/swap', '/pods/:id/swap'], (req: Request, res: Response) => {
+  app.post(['/api/pods/:id/swap', '/pods/:id/swap'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
     const { targetMemberUserId, targetUserId, memberId, swapRequestId } = req.body || {};
     const targetId = targetMemberUserId || targetUserId || memberId;
-    const pod = findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
@@ -2680,8 +2867,8 @@ app.use((req, res, next) => {
         (swapRequestId && sr.id === swapRequestId) ||
         (sr.requesterUserId === user.id && sr.targetUserId === targetUserIdToMatch) ||
         (sr.targetUserId === user.id && sr.requesterUserId === targetUserIdToMatch) ||
-        (sr.requesterUserId.toLowerCase() === user.id.toLowerCase() && sr.targetUserId.toLowerCase() === targetUserIdToMatch.toLowerCase()) ||
-        (sr.targetUserId.toLowerCase() === user.id.toLowerCase() && sr.requesterUserId.toLowerCase() === targetUserIdToMatch.toLowerCase())
+        (isUserTargetMatch(sr.requesterUserId, user) && isUserTargetMatch(sr.targetUserId, user)) ||
+        (isUserTargetMatch(sr.targetUserId, user) && isUserTargetMatch(sr.requesterUserId, user))
       )
     );
 
@@ -2738,13 +2925,15 @@ app.use((req, res, next) => {
   });
 
   // 12.2 Notification System Endpoints
-  app.get(['/api/notifications', '/notifications'], (req: Request, res: Response) => {
+  app.get(['/api/notifications', '/notifications'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
 
-    const userNotifs = notifications.filter(n => n.userId === user.id);
+    await syncNotificationsFromFirestore();
+
+    const userNotifs = notifications.filter(n => isNotificationForUser(n, user));
     const unreadCount = userNotifs.filter(n => !n.isRead).length;
 
     res.json({
@@ -2760,13 +2949,13 @@ app.use((req, res, next) => {
     }
 
     const { id } = req.params;
-    const notif = notifications.find(n => n.id === id && n.userId === user.id);
+    const notif = notifications.find(n => n.id === id && isNotificationForUser(n, user));
     if (notif) {
       notif.isRead = true;
       saveNotificationsToDisk();
     }
 
-    const userNotifs = notifications.filter(n => n.userId === user.id);
+    const userNotifs = notifications.filter(n => isNotificationForUser(n, user));
     const unreadCount = userNotifs.filter(n => !n.isRead).length;
 
     res.json({ success: true, notification: notif, unreadCount });
@@ -2779,7 +2968,7 @@ app.use((req, res, next) => {
     }
 
     for (const n of notifications) {
-      if (n.userId === user.id) {
+      if (isNotificationForUser(n, user)) {
         n.isRead = true;
       }
     }
@@ -2795,7 +2984,7 @@ app.use((req, res, next) => {
     }
 
     const { id } = req.params;
-    notifications = notifications.filter(n => !(n.id === id && n.userId === user.id));
+    notifications = notifications.filter(n => !(n.id === id && isNotificationForUser(n, user)));
     saveNotificationsToDisk();
 
     res.json({ success: true });
@@ -2808,7 +2997,7 @@ app.use((req, res, next) => {
     }
 
     const { id } = req.params;
-    notifications = notifications.filter(n => !(n.id === id && n.userId === user.id));
+    notifications = notifications.filter(n => !(n.id === id && isNotificationForUser(n, user)));
     saveNotificationsToDisk();
 
     res.json({ success: true });
