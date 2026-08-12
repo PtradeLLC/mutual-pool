@@ -175,21 +175,23 @@ async function syncPodsFromFirestore(): Promise<Pod[]> {
       });
     }
 
-    if (firestorePods.length > 0) {
-      pods = firestorePods;
-      try {
-        fs.writeFileSync(PODS_FILE, JSON.stringify(pods, null, 2), 'utf8');
-      } catch (e) {
-        // quiet catch
+    const map = new Map<string, Pod>();
+    for (const p of pods) {
+      if (p && p.id) {
+        map.set(p.id, p);
       }
-    } else {
-      const map = new Map<string, Pod>();
-      for (const p of pods) {
-        if (p && p.id) {
-          map.set(p.id, p);
-        }
+    }
+    for (const fp of firestorePods) {
+      if (fp && fp.id) {
+        const existing = map.get(fp.id);
+        map.set(fp.id, existing ? mergePodObjects(existing, fp) : fp);
       }
-      pods = Array.from(map.values());
+    }
+    pods = Array.from(map.values());
+    try {
+      fs.writeFileSync(PODS_FILE, JSON.stringify(pods, null, 2), 'utf8');
+    } catch (e) {
+      // quiet catch
     }
     console.log('[Server] syncPodsFromFirestore loaded total pods:', pods.length, pods.map(p => ({ id: p.id, name: p.name, status: p.status })));
   } catch (err: any) {
@@ -3483,6 +3485,20 @@ if (!process.env.VERCEL) {
 }
 
 export default function handler(req: express.Request, res: express.Response, next?: express.NextFunction) {
+  if (req.url && req.url.includes('/api/index.ts')) {
+    try {
+      const parsed = new URL(req.url, 'http://localhost');
+      const pathQuery = parsed.searchParams.get('path');
+      if (pathQuery) {
+        req.url = pathQuery.startsWith('/') ? `/api${pathQuery}` : `/api/${pathQuery}`;
+      } else {
+        req.url = req.url.replace('/api/index.ts', '/api');
+      }
+    } catch (e) {
+      req.url = req.url.replace('/api/index.ts', '/api');
+    }
+  }
+
   if (typeof next === 'function') {
     return app(req, res, next);
   }
