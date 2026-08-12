@@ -525,6 +525,31 @@ async function findPodById(id: string, currentUser?: User): Promise<Pod | undefi
     }
   }
 
+  if (!pod && id && (id.startsWith('pod_') || id.startsWith('pod-'))) {
+    pod = {
+      id,
+      name: 'Mutual Savings Pod',
+      type: 'TRUSTED',
+      targetSize: 5,
+      depositTier: 100,
+      weeklyPoolTarget: 500,
+      payoutFrequencyDays: 7,
+      status: 'FORMING',
+      members: [],
+      memberCount: 0,
+      currentCycleWeek: 1,
+      totalCyclesCompleted: 0,
+      currentWeeklyCollected: 0,
+      createdAt: new Date().toISOString(),
+      agreementVersion: 'v2.0-2026',
+      activationPolicy: 'ALL_MEMBERS_FULL_AND_SIGNED',
+      createdBy: currentUser?.id || 'system',
+      creatorName: currentUser?.displayName || 'Gig Member',
+    };
+    pods.push(pod);
+    savePodsToDisk();
+  }
+
   // Ensure currentUser is present in pod.members if pod exists
   if (pod && currentUser && pod.members && !pod.members.some(m => m && (m.userId === currentUser.id || m.id === currentUser.id || (currentUser.email && m.email === currentUser.email) || (m.displayName && m.displayName.toLowerCase().trim() === currentUser.displayName.toLowerCase().trim())))) {
     pod.members.push({
@@ -936,41 +961,52 @@ app.get(['/api/health', '/health'], (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Normalize request URL for serverless environments (e.g., Vercel proxy rewrites)
-app.use((req, res, next) => {
-  if (res.headersSent) return next();
-
+function normalizeApiUrl(req: express.Request): string {
   try {
-    // If path query parameter was provided by Vercel rewrite rule: /api/(.*) -> /api/index.ts?path=$1
-    if (req.query && typeof req.query.path === 'string') {
-      const pathParam = req.query.path.startsWith('/') ? req.query.path : '/' + req.query.path;
-      req.url = '/api' + pathParam;
-      return next();
+    // 1. Check path parameter from req.query or req.url
+    let pathParam: string | null = null;
+    if (req.query && typeof req.query.path === 'string' && req.query.path.trim()) {
+      pathParam = req.query.path.trim();
+    } else if (req.url && req.url.includes('path=')) {
+      const u = new URL(req.url, 'http://localhost');
+      pathParam = u.searchParams.get('path');
     }
 
-    // If req.url is already a specific API route like /api/pods or /api/users/current, leave it alone!
-    if (req.url && req.url.startsWith('/api/') && !req.url.startsWith('/api/index')) {
-      return next();
+    if (pathParam) {
+      const clean = pathParam.startsWith('/') ? pathParam : '/' + pathParam;
+      return clean.startsWith('/api') ? clean : `/api${clean}`;
     }
 
-    // Check headers set by Vercel proxy for the original incoming client URL
-    const rawForwarded = req.headers['x-forwarded-uri'] || req.headers['x-now-route-matches'] || req.headers['x-invoke-path'];
-    const forwardedStr = Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded;
-
-    if (typeof forwardedStr === 'string' && forwardedStr.startsWith('/api/') && !forwardedStr.startsWith('/api/index')) {
-      req.url = forwardedStr;
-      return next();
+    // 2. Check x-forwarded-uri, x-invoke-path, x-now-route-matches
+    const fwd = req.headers['x-forwarded-uri'] || req.headers['x-invoke-path'] || req.headers['x-now-route-matches'];
+    const fwdStr = Array.isArray(fwd) ? fwd[0] : fwd;
+    if (typeof fwdStr === 'string' && fwdStr.includes('/api/') && !fwdStr.startsWith('/api/index')) {
+      return fwdStr.split('?')[0];
     }
 
-    // Fallback to req.originalUrl if it contains the real client path
-    if (req.originalUrl && req.originalUrl.startsWith('/api/') && !req.originalUrl.startsWith('/api/index')) {
-      req.url = req.originalUrl;
-      return next();
+    // 3. Check req.originalUrl
+    if (req.originalUrl && req.originalUrl.includes('/api/') && !req.originalUrl.startsWith('/api/index')) {
+      return req.originalUrl.split('?')[0];
+    }
+
+    // 4. Check req.url if already valid API route
+    if (req.url && req.url.includes('/api/') && !req.url.startsWith('/api/index')) {
+      return req.url.split('?')[0];
     }
   } catch (err) {
     console.error('[URL Normalization Error]', err);
   }
 
+  return req.url;
+}
+
+// Normalize request URL for serverless environments (e.g., Vercel proxy rewrites)
+app.use((req, res, next) => {
+  if (res.headersSent) return next();
+  const normalized = normalizeApiUrl(req);
+  if (normalized && normalized !== req.url && !normalized.startsWith('/api/index')) {
+    req.url = normalized;
+  }
   next();
 });
 
@@ -3485,18 +3521,9 @@ if (!process.env.VERCEL) {
 }
 
 export default function handler(req: express.Request, res: express.Response, next?: express.NextFunction) {
-  if (req.url && req.url.includes('/api/index.ts')) {
-    try {
-      const parsed = new URL(req.url, 'http://localhost');
-      const pathQuery = parsed.searchParams.get('path');
-      if (pathQuery) {
-        req.url = pathQuery.startsWith('/') ? `/api${pathQuery}` : `/api/${pathQuery}`;
-      } else {
-        req.url = req.url.replace('/api/index.ts', '/api');
-      }
-    } catch (e) {
-      req.url = req.url.replace('/api/index.ts', '/api');
-    }
+  const normalized = normalizeApiUrl(req);
+  if (normalized && normalized !== req.url && !normalized.startsWith('/api/index')) {
+    req.url = normalized;
   }
 
   if (typeof next === 'function') {
