@@ -88,16 +88,34 @@ function mergePodObjects(p1: Pod, p2: Pod): Pod {
   } as Pod;
 }
 
+function isDemoPodServer(p: any): boolean {
+  if (!p) return true;
+  const pod = (p.pod && p.pod.id) ? p.pod : p;
+  if (!pod || !pod.id) return true;
+  const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100', 'pod_1786132889241']);
+  if (FAKE_POD_IDS.has(pod.id)) return true;
+  if (pod.name === 'Mutual Savings Pod') return true;
+  if (pod.createdBy === 'JTnLblih' || pod.creatorName === 'JTnLblih') return true;
+  if (pod.createdBy && (
+    pod.createdBy.startsWith('usr_marcus') ||
+    pod.createdBy.startsWith('usr_elena') ||
+    pod.createdBy.startsWith('usr_devon') ||
+    pod.createdBy.startsWith('usr_aisha') ||
+    pod.createdBy.startsWith('usr_admin') ||
+    pod.createdBy.startsWith('usr_chris_admin')
+  )) return true;
+  return false;
+}
+
 function loadPodsFromDisk(): Pod[] {
   const map = new Map<string, Pod>();
-  const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100']);
   try {
     if (fs.existsSync(PODS_FILE)) {
       const raw = fs.readFileSync(PODS_FILE, 'utf8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         for (const p of parsed) {
-          if (p && p.id && !FAKE_POD_IDS.has(p.id)) {
+          if (p && p.id && !isDemoPodServer(p)) {
             const existing = map.get(p.id);
             map.set(p.id, existing ? mergePodObjects(existing, p) : p);
           }
@@ -150,6 +168,7 @@ async function syncPodsFromFirestore(): Promise<Pod[]> {
         const p: Pod = raw.pod && typeof raw.pod === 'object' ? raw.pod : (raw as Pod);
         if (p) {
           if (!p.id) p.id = doc.id;
+          if (isDemoPodServer(p)) return;
           if (!p.status) p.status = 'FORMING';
           firestorePods.push(p);
         }
@@ -1171,10 +1190,10 @@ app.use((req, res, next) => {
   app.get(['/api/pods', '/pods'], async (req: Request, res: Response) => {
     try {
       await syncPodsFromFirestore();
-      res.json(pods);
+      res.json(pods.filter(p => !isDemoPodServer(p)));
     } catch (err) {
       console.error('[/api/pods] error:', err);
-      res.json(pods);
+      res.json(pods.filter(p => !isDemoPodServer(p)));
     }
   });
 

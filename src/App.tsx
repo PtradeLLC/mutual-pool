@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects } from './types';
+import { User, Pod, PodMembership, mergePodObjects, isDemoPod } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -853,6 +853,7 @@ export default function App() {
     if (!p) return false;
     // Unwrap if p was stored wrapped in Firestore as { pod: ... }
     const pod: Pod = (p as any).pod && (p as any).pod.id ? (p as any).pod : p;
+    if (isDemoPod(pod)) return false;
 
     const activeId = activeUser?.id;
     const currentId = currentUser?.id;
@@ -901,11 +902,11 @@ export default function App() {
   });
 
   // User-created forming pods
-  const userCreatedFormingPods = allPods.filter(p => p.status === 'FORMING');
+  const userCreatedFormingPods = allPods.filter(p => !isDemoPod(p) && p.status === 'FORMING');
 
   // Explore pods: forming pods that the current user is not yet a member of
   const explorePods = allPods.filter(p => {
-    if (p.status !== 'FORMING') return false;
+    if (!p || isDemoPod(p) || p.status !== 'FORMING') return false;
     const isMyPod = myPods.some(mp => mp.id === p.id);
     return !isMyPod;
   });

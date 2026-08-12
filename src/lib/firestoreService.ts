@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
 import { db } from './firebase';
-import { User, Pod, Perk, AuditLogEntry, Redemption } from '../types';
+import { User, Pod, Perk, AuditLogEntry, Redemption, isDemoPod } from '../types';
 import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS } from '../data/initialData';
 
 // Helper to strip undefined fields so Firestore setDoc never throws on undefined values
@@ -167,7 +167,7 @@ export async function getPodsFromFirestore(): Promise<Pod[]> {
         : (raw as Pod);
       if (actualPod) {
         if (!actualPod.id) actualPod.id = d.id;
-        if (FAKE_POD_IDS.has(actualPod.id)) continue;
+        if (isDemoPod(actualPod)) continue;
         if (!actualPod.status) actualPod.status = 'FORMING';
         podsList.push(actualPod);
       }
@@ -197,7 +197,7 @@ export function subscribeToPods(
           : (raw as Pod);
         if (actualPod) {
           if (!actualPod.id) actualPod.id = d.id;
-          if (FAKE_POD_IDS.has(actualPod.id)) continue;
+          if (isDemoPod(actualPod)) continue;
           if (!actualPod.status) actualPod.status = 'FORMING';
           podsList.push(actualPod);
         }
