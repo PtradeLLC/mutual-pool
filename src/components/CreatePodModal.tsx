@@ -27,9 +27,18 @@ interface CreatePodModalProps {
   onClose: () => void;
   onPodCreated: (newPod?: Pod) => void;
   onUserUpdated?: (updatedUser: User) => void;
+  existingPods?: Pod[];
+  userCreatedPodsCount?: number;
 }
 
-export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, onPodCreated, onUserUpdated }) => {
+export const CreatePodModal: React.FC<CreatePodModalProps> = ({ 
+  user, 
+  onClose, 
+  onPodCreated, 
+  onUserUpdated,
+  existingPods = [],
+  userCreatedPodsCount
+}) => {
   const [currentUserState, setCurrentUserState] = useState<User>(user);
   const [showKycModal, setShowKycModal] = useState(false);
   const [step, setStep] = useState<'CONFIG' | 'STRIPE_CHECKOUT' | 'SUCCESS'>('CONFIG');
@@ -59,6 +68,17 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
 
   // Default invite code generator preview
   const [generatedInviteCode] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
+
+  // 3-Pod Creation Limit Guard (Anti-Fraud & Community Solvency Protection)
+  const activeCreatedCount = userCreatedPodsCount !== undefined ? userCreatedPodsCount : (
+    (existingPods || []).filter(p => {
+      if (!p || !p.id) return false;
+      const isCreator = (currentUserState?.id && p.createdBy === currentUserState?.id) ||
+        (currentUserState?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === currentUserState.displayName.trim().toLowerCase());
+      return isCreator && p.status !== 'COMPLETED';
+    }).length
+  );
+  const isCreationLimitReached = activeCreatedCount >= 3;
 
   const isSeasoned = currentUserState.accountAgeDays >= 90 || currentUserState.completedPodsCount >= 1;
   const canCreateOpenPod = currentUserState.completedPodsCount >= 1 || isSeasoned;
@@ -90,6 +110,11 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
       return;
     }
 
+    if (isCreationLimitReached) {
+      setError(`Pod creation limit reached: You currently maintain ${activeCreatedCount} active/forming created Pods (maximum limit: 3). To prevent fraud and maintain fund safety, please wait for an existing Pod to complete its cycle before creating another.`);
+      return;
+    }
+
     if (!name.trim()) {
       setError('Please enter a descriptive name for your Mutual Savings Pod before proceeding to payment.');
       return;
@@ -109,6 +134,12 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
     if (currentUserState.kycStatus !== 'VERIFIED') {
       setError('You must complete Stripe Identity KYC verification before creating a mutual savings pod.');
       setShowKycModal(true);
+      return;
+    }
+
+    if (isCreationLimitReached) {
+      setError('Pod creation limit reached: You have reached the maximum allowed limit of 3 concurrent created Pods.');
+      setLoading(false);
       return;
     }
 
@@ -168,8 +199,20 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
           }
         }
       } catch (networkOrServerError: any) {
-        if (networkOrServerError.message && (networkOrServerError.message.includes('KYC') || networkOrServerError.message.includes('Validation') || networkOrServerError.message.includes('name is required') || networkOrServerError.message.includes('tier'))) {
+        if (networkOrServerError.message && (
+          networkOrServerError.message.includes('KYC') || 
+          networkOrServerError.message.includes('Validation') || 
+          networkOrServerError.message.includes('name is required') || 
+          networkOrServerError.message.includes('tier') ||
+          networkOrServerError.message.includes('limit') ||
+          networkOrServerError.message.includes('POD_CREATION_LIMIT') ||
+          networkOrServerError.message.includes('3 concurrent') ||
+          networkOrServerError.message.includes('maximum limit')
+        )) {
           throw networkOrServerError;
+        }
+        if (isCreationLimitReached) {
+          throw new Error('Pod creation limit reached: You cannot maintain more than 3 active or forming created Pods at one time.');
         }
         // Fail-safe fallback to client-side creation for 500 or offline backend
       }
@@ -413,6 +456,62 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                 </div>
               </div>
             )}
+
+            {/* 3-Pod Creation Limit & Fraud Prevention Policy Banner */}
+            <div className={`mb-5 p-3.5 rounded-xl border text-xs flex items-start justify-between gap-3 ${
+              isCreationLimitReached
+                ? 'bg-rose-50 border-rose-200 text-rose-950'
+                : activeCreatedCount === 2
+                  ? 'bg-amber-50 border-amber-200 text-amber-950'
+                  : 'bg-slate-50 border-slate-200 text-slate-900'
+            }`}>
+              <div className="flex items-start gap-2.5">
+                <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                  isCreationLimitReached 
+                    ? 'bg-rose-100 text-rose-700' 
+                    : activeCreatedCount === 2
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-slate-200 text-slate-700'
+                }`}>
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold">
+                      {isCreationLimitReached ? 'Pod Creation Limit Reached' : '3-Pod Creation Limit (Anti-Fraud Policy)'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                      isCreationLimitReached
+                        ? 'bg-rose-600 text-white'
+                        : activeCreatedCount === 2
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-blue-600 text-white'
+                    }`}>
+                      {activeCreatedCount} / 3 Active Pods
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] leading-relaxed text-slate-600">
+                    {isCreationLimitReached
+                      ? 'You have reached the maximum allowed limit of 3 concurrent created Pods (3/3). To prevent fraud and maintain collective solvency, complete an existing pod rotation before starting another.'
+                      : 'To protect collective funds and curb fraudulent activity, members are limited to 3 active or forming created Pods at any one time.'}
+                  </p>
+                </div>
+              </div>
+              {/* Visual 3-slot Indicator */}
+              <div className="flex items-center gap-1 shrink-0 mt-1" title={`${activeCreatedCount} of 3 creation slots active`}>
+                {[0, 1, 2].map((slotIdx) => (
+                  <div
+                    key={slotIdx}
+                    title={`Slot ${slotIdx + 1}: ${slotIdx < activeCreatedCount ? 'In Use' : 'Available'}`}
+                    className={`w-3 h-3 rounded-full border transition-all ${
+                      slotIdx < activeCreatedCount
+                        ? isCreationLimitReached ? 'bg-rose-600 border-rose-700' : 'bg-blue-600 border-blue-700'
+                        : 'bg-white border-slate-300'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
 
             {/* Tenure Rule Notice Banner */}
             <div className={`mb-5 p-3.5 rounded-lg border text-xs flex items-start gap-2.5 ${
@@ -818,10 +917,19 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({ user, onClose, o
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                  disabled={isCreationLimitReached}
+                  className={`px-5 py-2.5 rounded-lg text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs ${
+                    isCreationLimitReached
+                      ? 'bg-gray-400 cursor-not-allowed opacity-75'
+                      : 'bg-[#005FB8] hover:bg-[#004C93] cursor-pointer'
+                  }`}
                 >
                   <CreditCard className="w-4 h-4" />
-                  <span>Pay ${totalChargedAmount.toFixed(2)} & Create {podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open'} Pod</span>
+                  <span>
+                    {isCreationLimitReached
+                      ? 'Pod Creation Limit Reached (3/3)'
+                      : `Pay $${totalChargedAmount.toFixed(2)} & Create ${podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open'} Pod`}
+                  </span>
                 </button>
               </div>
             </form>

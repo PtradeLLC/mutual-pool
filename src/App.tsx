@@ -905,6 +905,16 @@ export default function App() {
     return !isMyPod;
   });
 
+  // Active / forming pods created by current user (3 Pod Limit)
+  const userCreatedActivePods = allPods.filter(p => {
+    if (!p || !p.id) return false;
+    const isCreator = (activeUser?.id && p.createdBy === activeUser.id) ||
+      (activeUser?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === activeUser.displayName.trim().toLowerCase());
+    return isCreator && p.status !== 'COMPLETED';
+  });
+  const createdPodsCount = userCreatedActivePods.length;
+  const isPodCreationLimitReached = createdPodsCount >= 3;
+
   // Always log debug info to browser console for verification
   if (typeof window !== 'undefined') {
     console.log('[MutualPool Debug] Active User:', { id: activeUser.id, email: activeUser.email, name: activeUser.displayName });
@@ -1063,20 +1073,44 @@ export default function App() {
 
               <button
                 onClick={() => setShowCreatePodModal(true)}
-                className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
+                className={`px-4 py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer ${
+                  isPodCreationLimitReached
+                    ? 'bg-slate-700 hover:bg-slate-800'
+                    : 'bg-[#005FB8] hover:bg-[#004C93]'
+                }`}
+                title={isPodCreationLimitReached ? 'Maximum created pod limit reached (3/3)' : 'Create a new mutual savings pod'}
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>Create New Pod</span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold ${
+                  isPodCreationLimitReached ? 'bg-rose-500 text-white' : 'bg-blue-700 text-blue-100'
+                }`}>
+                  {createdPodsCount}/3
+                </span>
               </button>
             </div>
 
           </div>
 
           {/* Metrics summary row */}
-          <div className="mt-5 pt-4 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+          <div className="mt-5 pt-4 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
             <div>
               <span className="text-[#6B7280] text-[10px] block font-medium">Active Pods</span>
               <span className="font-extrabold text-[#111827] font-mono text-sm">{myPods.length} Pods</span>
+            </div>
+
+            <div>
+              <span className="text-[#6B7280] text-[10px] block font-medium">Pods Created (Limit)</span>
+              <span className={`font-extrabold font-mono text-sm inline-flex items-center gap-1 ${
+                isPodCreationLimitReached ? 'text-rose-600' : 'text-[#111827]'
+              }`}>
+                {createdPodsCount} / 3 Max
+                {isPodCreationLimitReached && (
+                  <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                    Max
+                  </span>
+                )}
+              </span>
             </div>
 
             <div>
@@ -1328,6 +1362,8 @@ export default function App() {
         <Suspense fallback={null}>
           <CreatePodModal
             user={currentUser}
+            existingPods={allPods}
+            userCreatedPodsCount={createdPodsCount}
             onClose={() => setShowCreatePodModal(false)}
             onUserUpdated={handleUserUpdated}
             onPodCreated={(newPod) => {

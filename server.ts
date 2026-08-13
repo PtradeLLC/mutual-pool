@@ -1468,6 +1468,21 @@ app.use((req, res, next) => {
       });
     }
 
+    // Hard Gate: Maximum 3 Created Pods per User Limit (Anti-Fraud & Financial Integrity Policy)
+    const userActiveCreatedPodsCount = pods.filter(p => {
+      if (!p || !p.id) return false;
+      const isCreator = p.createdBy === user.id || 
+        (p.creatorName && user.displayName && p.creatorName.trim().toLowerCase() === user.displayName.trim().toLowerCase());
+      return isCreator && p.status !== 'COMPLETED';
+    }).length;
+
+    if (userActiveCreatedPodsCount >= 3) {
+      return res.status(403).json({
+        error: 'POD_CREATION_LIMIT_EXCEEDED',
+        message: `Pod creation limit reached: You currently have ${userActiveCreatedPodsCount} active/forming Pods created (limit: 3). To prevent fraudulent activities and protect community funds, users are restricted to a maximum of 3 concurrent created Pods. You may create another Pod once an existing one completes its full cycle.`
+      });
+    }
+
     // Tenure Rule Enforcement:
     const isSeasoned = user.accountAgeDays >= 90 || user.completedPodsCount >= 1;
     if (!isSeasoned) {
