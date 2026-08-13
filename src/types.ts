@@ -338,6 +338,7 @@ export function mergeMembers(members1: PodMembership[] = [], members2: PodMember
     return result.findIndex(existing => {
       if (m.id && existing.id && m.id.trim() === existing.id.trim()) return true;
       if (m.userId && existing.userId && m.userId.trim() === existing.userId.trim()) return true;
+      if (m.displayName && existing.displayName && m.displayName.trim().toLowerCase() === existing.displayName.trim().toLowerCase()) return true;
       if ((m as any).email && (existing as any).email && (m as any).email.trim().toLowerCase() === (existing as any).email.trim().toLowerCase()) return true;
       return false;
     });

@@ -1388,8 +1388,28 @@ export default function App() {
             pod={agreementPod}
             user={currentUser}
             onClose={() => setAgreementPod(null)}
-            onSigned={() => {
+            onSigned={(updatedPod) => {
               setAgreementPod(null);
+              if (updatedPod && updatedPod.id) {
+                setAllPods(prev => prev.map(p => p.id === updatedPod.id ? mergePodObjects(p, updatedPod) : p));
+                if (selectedPodDetail && selectedPodDetail.id === updatedPod.id) {
+                  setSelectedPodDetail(prev => prev ? mergePodObjects(prev, updatedPod) : updatedPod);
+                }
+                savePodToFirestore(updatedPod).catch((err) => console.warn('Firestore pod agreement save warning:', err));
+                if (typeof window !== 'undefined') {
+                  try {
+                    const raw = localStorage.getItem('mutualpool_created_pods');
+                    if (raw) {
+                      const list = JSON.parse(raw);
+                      const idx = list.findIndex((p: any) => p.id === updatedPod.id);
+                      if (idx !== -1) {
+                        list[idx] = mergePodObjects(list[idx], updatedPod);
+                        localStorage.setItem('mutualpool_created_pods', JSON.stringify(list));
+                      }
+                    }
+                  } catch {}
+                }
+              }
               fetchAppData();
             }}
           />

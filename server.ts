@@ -94,16 +94,7 @@ function isDemoPodServer(p: any): boolean {
   if (!pod || !pod.id) return true;
   const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100', 'pod_1786132889241']);
   if (FAKE_POD_IDS.has(pod.id)) return true;
-  if (pod.name === 'Mutual Savings Pod') return true;
   if (pod.createdBy === 'JTnLblih' || pod.creatorName === 'JTnLblih') return true;
-  if (pod.createdBy && (
-    pod.createdBy.startsWith('usr_marcus') ||
-    pod.createdBy.startsWith('usr_elena') ||
-    pod.createdBy.startsWith('usr_devon') ||
-    pod.createdBy.startsWith('usr_aisha') ||
-    pod.createdBy.startsWith('usr_admin') ||
-    pod.createdBy.startsWith('usr_chris_admin')
-  )) return true;
   return false;
 }
 

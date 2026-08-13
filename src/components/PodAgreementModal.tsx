@@ -6,7 +6,7 @@ interface PodAgreementModalProps {
   pod: Pod;
   user: User;
   onClose: () => void;
-  onSigned: () => void;
+  onSigned: (updatedPod?: Pod) => void;
 }
 
 export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user, onClose, onSigned }) => {
@@ -44,7 +44,44 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
         throw new Error(data.message || 'Signing failed');
       }
 
-      onSigned();
+      // Construct guaranteed updated pod object
+      const nowIso = new Date().toISOString();
+      const updatedMembers = pod.members ? [...pod.members] : [];
+      const userIdx = updatedMembers.findIndex(m => 
+        (m && m.userId && user.id && m.userId === user.id) ||
+        (m && m.displayName && user.displayName && m.displayName.trim().toLowerCase() === user.displayName.trim().toLowerCase())
+      );
+
+      if (userIdx !== -1) {
+        updatedMembers[userIdx] = {
+          ...updatedMembers[userIdx],
+          agreementSignedAt: nowIso,
+          agreementSignatureName: signatureName || user.displayName,
+        };
+      } else {
+        updatedMembers.push({
+          id: `pm_${pod.id}_${user.id}`,
+          podId: pod.id,
+          userId: user.id,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          platform: user.platform,
+          rotationIndex: updatedMembers.length,
+          hasReceivedPayout: false,
+          delinquencyStatus: 'CLEAN',
+          joinedAt: nowIso,
+          agreementSignedAt: nowIso,
+          agreementSignatureName: signatureName || user.displayName,
+        });
+      }
+
+      const returnedPod: Pod = (data && data.pod) ? data.pod : {
+        ...pod,
+        members: updatedMembers,
+        agreementVersion: 'v2.0-2026',
+      };
+
+      onSigned(returnedPod);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Agreement signature failed');
     } finally {
