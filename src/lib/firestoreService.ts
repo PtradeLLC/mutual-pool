@@ -50,33 +50,7 @@ function wrapError(operation: string, err: unknown): Error {
 }
 
 // --- SEED INITIAL DATA IF EMPTY ---
-export async function purgeDemoPodsFromFirestore(): Promise<void> {
-  try {
-    const podsSnap = await getDocs(collection(db, 'pods'));
-    if (!podsSnap.empty) {
-      const batch = writeBatch(db);
-      let count = 0;
-      podsSnap.docs.forEach((docSnap) => {
-        const data: any = docSnap.data();
-        const p: Pod = (data?.pod && typeof data.pod === 'object') ? data.pod : data;
-        // Delete any pod created during seed/demo or with names matching demo pods
-        if (p && (p.name === 'Mutual Savings Pod' || FAKE_POD_IDS.has(p.id) || p.id === 'pod_1786132889241' || p.createdBy === 'JTnLblih' || p.creatorName === 'JTnLblih')) {
-          batch.delete(docSnap.ref);
-          count++;
-        }
-      });
-      if (count > 0) {
-        await batch.commit();
-        console.log(`[Firestore Service] Purged ${count} demo pod(s) from Firestore.`);
-      }
-    }
-  } catch (err) {
-    console.debug('purgeDemoPodsFromFirestore notice:', err);
-  }
-}
-
 export async function seedInitialFirestoreData(): Promise<void> {
-  await purgeDemoPodsFromFirestore();
   try {
     const perksSnap = await getDocs(collection(db, 'perks'));
     if (perksSnap.empty && INITIAL_PERKS.length > 0) {

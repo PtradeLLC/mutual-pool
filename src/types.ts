@@ -403,7 +403,6 @@ export const DEMO_POD_IDS = new Set([
   'pod_metro_riders_20',
   'pod_national_starter_50',
   'pod_veteran_fleet_100',
-  'pod_1786132889241',
 ]);
 
 export function isDemoPod(p: any): boolean {
@@ -411,15 +410,6 @@ export function isDemoPod(p: any): boolean {
   const pod = (p.pod && p.pod.id) ? p.pod : p;
   if (!pod || !pod.id) return true;
   if (DEMO_POD_IDS.has(pod.id)) return true;
-  if (pod.name === 'Mutual Savings Pod') return true;
-  if (pod.createdBy === 'JTnLblih' || pod.creatorName === 'JTnLblih') return true;
-  if (pod.createdBy && (
-    pod.createdBy.startsWith('usr_marcus') ||
-    pod.createdBy.startsWith('usr_elena') ||
-    pod.createdBy.startsWith('usr_devon') ||
-    pod.createdBy.startsWith('usr_aisha') ||
-    pod.createdBy.startsWith('usr_admin') ||
-    pod.createdBy.startsWith('usr_chris_admin')
-  )) return true;
+  if (pod.isDemoSeed === true) return true;
   return false;
 }
