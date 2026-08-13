@@ -92,9 +92,6 @@ function isDemoPodServer(p: any): boolean {
   if (!p) return true;
   const pod = (p.pod && p.pod.id) ? p.pod : p;
   if (!pod || !pod.id) return true;
-  const FAKE_POD_IDS = new Set(['pod_metro_riders_20', 'pod_national_starter_50', 'pod_veteran_fleet_100', 'pod_1786132889241']);
-  if (FAKE_POD_IDS.has(pod.id)) return true;
-  if (pod.createdBy === 'JTnLblih' || pod.creatorName === 'JTnLblih') return true;
   return false;
 }
 

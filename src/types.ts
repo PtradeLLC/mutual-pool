@@ -399,17 +399,11 @@ export function mergePodObjects(p1: Pod, p2: Pod): Pod {
   };
 }
 
-export const DEMO_POD_IDS = new Set([
-  'pod_metro_riders_20',
-  'pod_national_starter_50',
-  'pod_veteran_fleet_100',
-]);
+export const DEMO_POD_IDS = new Set<string>([]);
 
 export function isDemoPod(p: any): boolean {
   if (!p) return true;
   const pod = (p.pod && p.pod.id) ? p.pod : p;
   if (!pod || !pod.id) return true;
-  if (DEMO_POD_IDS.has(pod.id)) return true;
-  if (pod.isDemoSeed === true) return true;
   return false;
 }
