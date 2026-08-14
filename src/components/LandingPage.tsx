@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pod, User, Perk, isDemoPod } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
 import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
+import bikerAdImg from '../assets/images/bikerad.png';
 import { Logo } from './Logo';
 import { WatchVideoModal } from './WatchVideoModal';
 import { AppStoreModal } from './AppStoreModal';
@@ -615,6 +616,144 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <span>{isAuthUser ? `Go to Dashboard (${calcMembers}-Member Pod)` : `Join or Create ${calcMembers}-Member Circle`}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* 3.5 GUEST COURIER / GIG DRIVER CTA ADVERTISEMENT BANNER */}
+      <section className="py-8 px-4 sm:px-6 max-w-7xl mx-auto w-full">
+        <div className="bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white rounded-3xl overflow-hidden border border-slate-700/60 shadow-xl relative">
+          {/* Subtle Ambient Decorative Glows */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-[#005FB8]/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center p-6 sm:p-10 lg:p-12 relative z-10">
+            
+            {/* Left Content Column */}
+            <div className="lg:col-span-7 space-y-6 text-left">
+              
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <span>Zero Subscription • Community-Powered Financial Security</span>
+              </div>
+
+              {/* Heading */}
+              <div className="space-y-2">
+                <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+                  Powering Every Mile: Join the Courier & Gig Driver Safety Net
+                </h2>
+                <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+                  Turn unpredictable delivery shifts into reliable, lump-sum savings. Pool weekly deposits with fellow couriers, swap payout weeks during bike or vehicle breakdowns, and unlock exclusive fleet discounts.
+                </p>
+              </div>
+
+              {/* Value Props Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    <span>FDIC Pass-Through</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-normal">
+                    $250k protection on pooled funds via Stripe Treasury holding accounts.
+                  </p>
+                </div>
+
+                <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-blue-400 font-bold text-xs">
+                    <RefreshCw className="w-4 h-4 shrink-0" />
+                    <span>0% Spot Swaps</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-normal">
+                    Trade rotation spots or request emergency pool relief with peer voting.
+                  </p>
+                </div>
+
+                <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                    <Gift className="w-4 h-4 shrink-0" />
+                    <span>Rider Discounts</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-normal">
+                    Save on e-bike parts, gear, fuel, phone plans, and health services.
+                  </p>
+                </div>
+              </div>
+
+              {/* CTA Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
+                  className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-lg hover:shadow-blue-500/25 flex items-center gap-2 cursor-pointer"
+                >
+                  <span>{isAuthUser ? 'Go to Active Pods Dashboard' : 'Join a Pod for Free'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenHowItWorks) onOpenHowItWorks();
+                    else handleActionOrAuth('LOGIN', 'explore-pods');
+                  }}
+                  className="px-5 py-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600 font-semibold text-sm transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <span>How It Works</span>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Micro-trust indicators */}
+              <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 pt-1">
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  No credit check required
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  Stripe Identity Verified
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  Available across 50 US States
+                </span>
+              </div>
+
+            </div>
+
+            {/* Right Image / Ad Column */}
+            <div className="lg:col-span-5 relative">
+              <div className="relative rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-800 group">
+                <img
+                  src={bikerAdImg}
+                  alt="Gig and courier delivery riders on the road"
+                  className="w-full h-[360px] sm:h-[420px] lg:h-[440px] object-cover object-center group-hover:scale-102 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
+                
+                {/* Gradient Overlays for aesthetic integration */}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-black/20 pointer-events-none" />
+
+                {/* Floating Bottom Card Banner on Image */}
+                <div className="absolute bottom-3 left-3 right-3 p-3.5 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700/80 text-white shadow-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Active Courier Community
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/80 font-semibold">
+                      Live ROSCA Pods
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Trusted by delivery couriers and independent gig drivers across DoorDash, Uber Eats, Grubhub & Instacart.
+                  </p>
+                </div>
+              </div>
             </div>
 
           </div>
