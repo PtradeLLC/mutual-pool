@@ -747,7 +747,10 @@ export default function App() {
           currentUser={currentUser}
           onOpenAuth={handleOpenAuth}
           onSelectUser={handleAuthSuccess}
-          onGoToDashboard={() => setViewMode('DASHBOARD')}
+          onGoToDashboard={(tab) => {
+            if (tab) setActiveTab(tab);
+            setViewMode('DASHBOARD');
+          }}
           onLogout={handleLogout}
           onOpenAbout={() => setShowAboutModal(true)}
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}

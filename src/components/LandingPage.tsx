@@ -42,7 +42,7 @@ interface LandingPageProps {
   currentUser?: User | null;
   onOpenAuth: (mode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE') => void;
   onSelectUser: (user: User) => void;
-  onGoToDashboard?: () => void;
+  onGoToDashboard?: (tab?: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops') => void;
   onLogout?: () => void;
   onOpenAbout?: () => void;
   onOpenHowItWorks?: () => void;
@@ -62,6 +62,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenContact,
   onOpenSubmitPerk,
 }) => {
+  const isAuthUser = Boolean(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
+
+  const handleActionOrAuth = (
+    mode: 'LOGIN' | 'REGISTER' = 'LOGIN',
+    destinationTab?: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops'
+  ) => {
+    if (isAuthUser && onGoToDashboard) {
+      onGoToDashboard(destinationTab || 'explore-pods');
+    } else {
+      onOpenAuth(mode);
+    }
+  };
+
   // Simulator state
   const [calcMembers, setCalcMembers] = useState<number>(20);
   const [calcDeposit, setCalcDeposit] = useState<number>(20);
@@ -282,7 +295,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {currentUser ? (
               <>
                 <button
-                  onClick={onGoToDashboard}
+                  onClick={() => onGoToDashboard && onGoToDashboard('my-pods')}
                   className="px-3.5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                 >
                   <img
@@ -394,16 +407,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Hero CTAs */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
-                  onClick={() => onOpenAuth('REGISTER')}
-                  className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-xs flex items-center gap-2"
+                  onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
+                  className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                 >
-                  <span>Join a Pod Free</span>
+                  <span>{isAuthUser ? 'Go to Dashboard' : 'Join a Pod Free'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
                 <button
                   onClick={() => setShowWatchVideoModal(true)}
-                  className="px-6 py-3.5 rounded-xl bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-sm transition-all shadow-xs flex items-center gap-2 group"
+                  className="px-6 py-3.5 rounded-xl bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-sm transition-all shadow-xs flex items-center gap-2 group cursor-pointer"
                 >
                   <div className="w-6 h-6 rounded-full bg-blue-50 text-[#005FB8] flex items-center justify-center group-hover:bg-[#005FB8] group-hover:text-white transition-colors">
                     <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
@@ -596,10 +609,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <button
-                onClick={() => onOpenAuth('REGISTER')}
-                className="w-full py-3 rounded-lg bg-white hover:bg-blue-50 text-[#005FB8] font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-2"
+                onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
+                className="w-full py-3 rounded-lg bg-white hover:bg-blue-50 text-[#005FB8] font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Join or Create {calcMembers}-Member Circle</span>
+                <span>{isAuthUser ? `Go to Dashboard (${calcMembers}-Member Pod)` : `Join or Create ${calcMembers}-Member Circle`}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -679,7 +692,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <button
-                onClick={() => onOpenAuth('LOGIN')}
+                onClick={() => handleActionOrAuth('LOGIN', 'explore-pods')}
                 className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-[#DDE1E6] font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <span>Browse All Pool Circles</span>
@@ -698,10 +711,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
                 <div className="pt-2">
                   <button
-                    onClick={() => onOpenAuth('REGISTER')}
+                    onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
                     className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs inline-flex items-center gap-2 shadow-xs cursor-pointer"
                   >
-                    <span>Get Started & Create a Pod</span>
+                    <span>{isAuthUser ? 'Go to Dashboard & Create a Pod' : 'Get Started & Create a Pod'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -738,10 +751,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
 
                     <button
-                      onClick={() => onOpenAuth('LOGIN')}
+                      onClick={() => handleActionOrAuth('LOGIN', 'explore-pods')}
                       className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                     >
-                      <span>View & Join Pod</span>
+                      <span>{isAuthUser ? 'View Pod in Dashboard' : 'View & Join Pod'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -770,19 +783,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* Primary Action Buttons */}
           <div className="flex flex-wrap justify-center gap-3">
-            <button
-              onClick={() => onOpenAuth('REGISTER')}
-              className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2"
-            >
-              <span>Create Account Free</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onOpenAuth('LOGIN')}
-              className="px-6 py-3.5 rounded-xl bg-[#F8FAFC] hover:bg-gray-100 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs"
-            >
-              Sign In to Your Account
-            </button>
+            {isAuthUser ? (
+              <button
+                onClick={() => onGoToDashboard && onGoToDashboard('my-pods')}
+                className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Return to Dashboard</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => onOpenAuth('REGISTER')}
+                  className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <span>Create Account Free</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => onOpenAuth('LOGIN')}
+                  className="px-6 py-3.5 rounded-xl bg-[#F8FAFC] hover:bg-gray-100 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs cursor-pointer"
+                >
+                  Sign In to Your Account
+                </button>
+              </>
+            )}
           </div>
 
           {/* App Store CTA Badges Block */}
@@ -832,7 +858,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <WatchVideoModal
         isOpen={showWatchVideoModal}
         onClose={() => setShowWatchVideoModal(false)}
-        onOpenRegister={() => onOpenAuth('REGISTER')}
+        onOpenRegister={() => handleActionOrAuth('REGISTER', 'explore-pods')}
         onOpenHowItWorks={onOpenHowItWorks}
       />
 
@@ -841,7 +867,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         isOpen={showAppStoreModal}
         onClose={() => setShowAppStoreModal(false)}
         defaultPlatform={appStorePlatform}
-        onOpenRegister={() => onOpenAuth('REGISTER')}
+        onOpenRegister={() => handleActionOrAuth('REGISTER', 'explore-pods')}
       />
 
       {/* PUBLIC PARTNER SUBMIT BENEFIT OFFER MODAL */}
