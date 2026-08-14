@@ -463,11 +463,6 @@ export default function App() {
     fetchAppData(user.id);
   };
 
-  const handleSwitchUser = (userId: string) => {
-    fetchAppData(userId);
-    setViewMode('DASHBOARD');
-  };
-
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -930,7 +925,6 @@ export default function App() {
         currentUser={activeUser}
         allUsers={allUsers}
         myPods={myPods}
-        onSwitchUser={handleSwitchUser}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogoClick={() => {
@@ -955,7 +949,6 @@ export default function App() {
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
         onOpenContact={() => setShowContactModal(true)}
         onLogout={handleLogout}
-        onOpenAuth={handleOpenAuth}
         onOpenKycModal={() => setShowKycModal(true)}
         hasWelcomeMatch={hasWelcomeMatch}
         onOpenHardshipModal={(tab = 'hardship') => {
