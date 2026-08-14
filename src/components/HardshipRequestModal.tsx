@@ -892,17 +892,36 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3 text-xs font-mono bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
-                                  <div className="space-y-1">
-                                    <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">Your Current Slot</span>
-                                    <strong className="text-xs text-[#005FB8] block">Slot #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</strong>
-                                    <span className="text-[10px] text-emerald-700 block font-sans font-semibold">➔ New Slot: #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</span>
-                                  </div>
+                                  {(() => {
+                                    const currentMemberSlot = (currentMember.rotationIndex !== undefined && currentMember.rotationIndex !== null)
+                                      ? currentMember.rotationIndex + 1
+                                      : (sortedMembers.findIndex(m => m.userId === currentUser.id || m.id === currentMember.id) + 1 || 1);
+                                    
+                                    let targetMemberSlot = (member.rotationIndex !== undefined && member.rotationIndex !== null)
+                                      ? member.rotationIndex + 1
+                                      : (sortedMembers.findIndex(m => (m.userId && m.userId === member.userId) || (m.id && m.id === member.id) || (m.displayName && m.displayName === member.displayName)) + 1 || 2);
 
-                                  <div className="space-y-1 border-l border-gray-200 pl-3">
-                                    <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{memberName}'s Current Slot</span>
-                                    <strong className="text-xs text-gray-800 block">Slot #{ (member.rotationIndex ?? 0) + 1 } (Week { (member.rotationIndex ?? 0) + 1 })</strong>
-                                    <span className="text-[10px] text-[#005FB8] block font-sans font-semibold">➔ New Slot: #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })</span>
-                                  </div>
+                                    if (targetMemberSlot === currentMemberSlot) {
+                                      const foundIdx = sortedMembers.findIndex(m => (m.userId && m.userId === member.userId) || (m.id && m.id === member.id) || (m.displayName && m.displayName === member.displayName));
+                                      if (foundIdx >= 0) targetMemberSlot = foundIdx + 1;
+                                    }
+
+                                    return (
+                                      <>
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">Your Current Slot</span>
+                                          <strong className="text-xs text-[#005FB8] block">Slot #{ currentMemberSlot } (Week { currentMemberSlot })</strong>
+                                          <span className="text-[10px] text-emerald-700 block font-sans font-semibold">➔ New Slot: #{ targetMemberSlot } (Week { targetMemberSlot })</span>
+                                        </div>
+
+                                        <div className="space-y-1 border-l border-gray-200 pl-3">
+                                          <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{memberName}'s Current Slot</span>
+                                          <strong className="text-xs text-gray-800 block">Slot #{ targetMemberSlot } (Week { targetMemberSlot })</strong>
+                                          <span className="text-[10px] text-[#005FB8] block font-sans font-semibold">➔ New Slot: #{ currentMemberSlot } (Week { currentMemberSlot })</span>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
 
                                 <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">

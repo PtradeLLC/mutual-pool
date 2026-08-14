@@ -413,6 +413,9 @@ function isUserTargetMatch(targetKey: string | undefined, user: User): boolean {
   if (uEmail && targetClean === uEmail) return true;
   if (uName && targetClean === uName) return true;
 
+  if (uEmail && (targetClean.includes(uEmail) || uEmail.includes(targetClean))) return true;
+  if (uName && (targetClean.includes(uName) || uName.includes(targetClean))) return true;
+
   if (targetClean.startsWith('pm_')) {
     if (uId && targetClean.includes(uId)) return true;
     if (uEmail && targetClean.includes(uEmail)) return true;
@@ -424,7 +427,47 @@ function isUserTargetMatch(targetKey: string | undefined, user: User): boolean {
 
 function isNotificationForUser(n: AppNotification, user: User): boolean {
   if (!n || !user) return false;
+
+  // Direct target match on userId
   if (isUserTargetMatch(n.userId, user)) return true;
+
+  const uId = String(user.id || '').trim().toLowerCase();
+  const uEmail = String(user.email || '').trim().toLowerCase();
+  const uName = String(user.displayName || '').trim().toLowerCase();
+
+  // Check direct recipient fields if present
+  if ((n as any).targetEmail && uEmail && String((n as any).targetEmail).trim().toLowerCase() === uEmail) return true;
+  if ((n as any).targetName && uName && String((n as any).targetName).trim().toLowerCase() === uName) return true;
+
+  // Check metadata target indicators
+  if (n.metadata) {
+    const meta = n.metadata as Record<string, any>;
+    if (meta.targetUserId && isUserTargetMatch(meta.targetUserId, user)) return true;
+    if (meta.targetMemberUserId && isUserTargetMatch(meta.targetMemberUserId, user)) return true;
+    if (meta.targetMemberId && isUserTargetMatch(meta.targetMemberId, user)) return true;
+    if (meta.targetEmail && uEmail && String(meta.targetEmail).trim().toLowerCase() === uEmail) return true;
+    if (meta.targetName && uName && String(meta.targetName).trim().toLowerCase() === uName) return true;
+    if (meta.targetUserName && uName && String(meta.targetUserName).trim().toLowerCase() === uName) return true;
+
+    // If this notification references a swap request
+    const swapReqId = (meta.requestId || meta.swapRequestId) as string | undefined;
+    if (swapReqId) {
+      const sr = swapRequests.find(s => s && s.id === swapReqId);
+      if (sr) {
+        if (n.type === 'SWAP_REQUESTED') {
+          // Intended for target of swap request
+          if (isUserTargetMatch(sr.targetUserId, user)) return true;
+          if (sr.targetName && uName && sr.targetName.trim().toLowerCase() === uName) return true;
+          if (uEmail && sr.targetUserId && sr.targetUserId.trim().toLowerCase() === uEmail) return true;
+        } else if (n.type === 'SWAP_ACCEPTED' || n.type === 'SWAP_DECLINED') {
+          // Intended for requester of swap request
+          if (isUserTargetMatch(sr.requesterUserId, user)) return true;
+          if (sr.requesterName && uName && sr.requesterName.trim().toLowerCase() === uName) return true;
+          if (uEmail && sr.requesterUserId && sr.requesterUserId.trim().toLowerCase() === uEmail) return true;
+        }
+      }
+    }
+  }
 
   // Check across all pod memberships
   for (const p of pods) {
@@ -436,15 +479,17 @@ function isNotificationForUser(n: AppNotification, user: User): boolean {
       const mEmail = String(m.email || '').trim().toLowerCase();
       const mName = String(m.displayName || '').trim().toLowerCase();
 
-      const uId = String(user.id || '').trim().toLowerCase();
-      const uEmail = String(user.email || '').trim().toLowerCase();
-      const uName = String(user.displayName || '').trim().toLowerCase();
-
-      const isUserMember = (mUserId && mUserId === uId) || (mEmail && uEmail && mEmail === uEmail) || (mName && uName && mName === uName) || (mId && mId.includes(uId));
+      const isUserMember = (mUserId && mUserId === uId) || (mEmail && uEmail && mEmail === uEmail) || (mName && uName && mName === uName) || (mId && uId && mId.includes(uId));
       if (isUserMember) {
         const targetClean = String(n.userId || '').trim().toLowerCase();
-        if (targetClean === mId || targetClean === mUserId || targetClean === mEmail || targetClean === mName) {
+        if (targetClean === mId || targetClean === mUserId || (mEmail && targetClean === mEmail) || (mName && targetClean === mName)) {
           return true;
+        }
+        if (n.metadata) {
+          const meta = n.metadata as Record<string, any>;
+          if (meta.targetUserId && (meta.targetUserId === mId || meta.targetUserId === mUserId || meta.targetUserId === mEmail || meta.targetUserId === mName)) {
+            return true;
+          }
         }
       }
     }
@@ -2819,8 +2864,14 @@ app.use((req, res, next) => {
         requestId: swapReq.id,
         swapRequestId: swapReq.id,
         podId: pod.id,
+        podName: pod.name,
         requesterUserId: user.id,
+        requesterName: user.displayName,
         targetUserId: targetUserIdToNotify,
+        targetMemberId: targetMember.id,
+        targetMemberUserId: targetMember.userId,
+        targetName: targetMember.displayName,
+        targetEmail: targetMember.email || (matchedTargetUser ? matchedTargetUser.email : undefined),
       }
     });
 
@@ -2865,6 +2916,9 @@ app.use((req, res, next) => {
           requestId: swapReq.id,
           swapRequestId: swapReq.id,
           podId: swapReq.podId,
+          podName: swapReq.podName,
+          targetUserId: swapReq.requesterUserId,
+          targetName: swapReq.requesterName,
         }
       });
 
@@ -2887,6 +2941,9 @@ app.use((req, res, next) => {
           requestId: swapReq.id,
           swapRequestId: swapReq.id,
           podId: swapReq.podId,
+          podName: swapReq.podName,
+          targetUserId: swapReq.requesterUserId,
+          targetName: swapReq.requesterName,
         }
       });
 
@@ -2968,6 +3025,13 @@ app.use((req, res, next) => {
       type: 'SWAP_EXECUTED',
       title: 'Spot Swap Executed!',
       message: `${user.displayName} executed the mutual spot swap with you in "${pod.name}". You are now assigned to Slot #${member2.rotationIndex + 1} (Week ${member2.rotationIndex + 1}).`,
+      metadata: {
+        podId: pod.id,
+        podName: pod.name,
+        targetUserId: member2.userId || member2.id,
+        targetName: member2.displayName,
+        targetEmail: member2.email,
+      }
     });
 
     // Notify initiator
@@ -2980,6 +3044,13 @@ app.use((req, res, next) => {
       type: 'SWAP_EXECUTED',
       title: 'Spot Swap Completed',
       message: `You successfully completed the spot swap with ${member2.displayName} in "${pod.name}". You are now assigned to Slot #${member1.rotationIndex + 1} (Week ${member1.rotationIndex + 1}).`,
+      metadata: {
+        podId: pod.id,
+        podName: pod.name,
+        targetUserId: member1.userId || member1.id,
+        targetName: member1.displayName,
+        targetEmail: member1.email,
+      }
     });
 
     res.json({ success: true, pod, swapRequest: validRequest });
@@ -2992,7 +3063,15 @@ app.use((req, res, next) => {
       return res.status(401).json({ error: 'UNAUTHORIZED' });
     }
 
-    await syncNotificationsFromFirestore();
+    try {
+      await syncPodsFromFirestore();
+    } catch (e) {}
+    try {
+      await syncSwapRequestsFromFirestore();
+    } catch (e) {}
+    try {
+      await syncNotificationsFromFirestore();
+    } catch (e) {}
 
     const userNotifs = notifications.filter(n => isNotificationForUser(n, user));
     const unreadCount = userNotifs.filter(n => !n.isRead).length;

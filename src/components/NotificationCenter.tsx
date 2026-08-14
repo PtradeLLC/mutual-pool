@@ -58,9 +58,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 10000); // poll every 10 sec
+    const interval = setInterval(fetchNotifications, 8000); // poll every 8 sec
     return () => clearInterval(interval);
-  }, [currentUser.id]);
+  }, [currentUser.id, currentUser.email, currentUser.displayName]);
 
   // Click outside to close dropdown
   useEffect(() => {
