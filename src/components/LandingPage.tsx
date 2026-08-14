@@ -629,10 +629,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="absolute top-0 right-0 w-96 h-96 bg-[#005FB8]/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
           <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center p-6 sm:p-10 lg:p-12 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center p-6 sm:p-10 lg:p-12 relative z-10">
             
             {/* Left Content Column */}
-            <div className="lg:col-span-7 space-y-6 text-left">
+            <div className="lg:col-span-6 space-y-6 text-left">
               
               {/* Badge */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold">
@@ -726,33 +726,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             {/* Right Image / Ad Column */}
-            <div className="lg:col-span-5 relative">
-              <div className="relative rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-800 group">
+            <div className="lg:col-span-6 flex flex-col justify-center">
+              <div className="relative rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-900/80 p-1 group">
                 <img
                   src={bikerAdImg}
-                  alt="Gig and courier delivery riders on the road"
-                  className="w-full h-[360px] sm:h-[420px] lg:h-[440px] object-cover object-center group-hover:scale-102 transition-transform duration-500"
+                  alt="Turn Your Hoodie Into a Billboard - Courier & Gig Driver Ad"
+                  className="w-full h-auto object-contain rounded-xl block transition-transform duration-300 group-hover:scale-[1.01]"
                   referrerPolicy="no-referrer"
                 />
-                
-                {/* Gradient Overlays for aesthetic integration */}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-black/20 pointer-events-none" />
-
-                {/* Floating Bottom Card Banner on Image */}
-                <div className="absolute bottom-3 left-3 right-3 p-3.5 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700/80 text-white shadow-lg space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      Active Courier Community
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/80 font-semibold">
-                      Live ROSCA Pods
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-300">
-                    Trusted by delivery couriers and independent gig drivers across DoorDash, Uber Eats, Grubhub & Instacart.
-                  </p>
-                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between px-2 text-[11px] text-slate-400">
+                <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Active Courier & Gig Network
+                </span>
+                <span className="font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60 text-[10px] font-semibold">
+                  Zero Interest Payouts
+                </span>
               </div>
             </div>
 
