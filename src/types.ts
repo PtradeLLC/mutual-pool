@@ -399,11 +399,23 @@ export function mergePodObjects(p1: Pod, p2: Pod): Pod {
   };
 }
 
-export const DEMO_POD_IDS = new Set<string>([]);
+export const DEMO_POD_IDS = new Set<string>([
+  'pod_metro_riders_20',
+  'pod_national_starter_50',
+  'pod_veteran_fleet_100',
+]);
 
 export function isDemoPod(p: any): boolean {
   if (!p) return true;
   const pod = (p.pod && p.pod.id) ? p.pod : p;
   if (!pod || !pod.id) return true;
+  if (DEMO_POD_IDS.has(pod.id)) return true;
+  if (pod.name && typeof pod.name === 'string' && (
+    pod.name.includes('National Gig Starter Pod') ||
+    pod.name.includes('Veteran Fleet Mutual Pool') ||
+    pod.name.includes('Metro Delivery Riders Pod')
+  )) {
+    return true;
+  }
   return false;
 }

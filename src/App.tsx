@@ -63,7 +63,7 @@ export default function App() {
       const parsed: Pod[] = saved ? JSON.parse(saved) : [];
       const map = new Map<string, Pod>();
       for (const p of parsed) {
-        if (p && p.id) {
+        if (p && p.id && !isDemoPod(p)) {
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
@@ -244,7 +244,9 @@ export default function App() {
       let apiPods: Pod[] = [];
       if (podsRes && podsRes.ok) {
         const pData = await podsRes.json().catch(() => null);
-        if (pData && Array.isArray(pData)) apiPods = pData;
+        if (pData && Array.isArray(pData)) {
+          apiPods = pData.filter(p => p && p.id && !isDemoPod(p));
+        }
       }
       console.log('[App fetchAppData] Server API pods returned:', apiPods.length, apiPods);
 
@@ -253,34 +255,33 @@ export default function App() {
       if (typeof window !== 'undefined') {
         try {
           const raw = localStorage.getItem('mutualpool_created_pods');
-          if (raw) localCreatedPods = JSON.parse(raw);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              localCreatedPods = parsed.filter(p => p && p.id && !isDemoPod(p));
+              localStorage.setItem('mutualpool_created_pods', JSON.stringify(localCreatedPods));
+            }
+          }
         } catch {}
       }
 
-      setAllPods((prevPods) => {
+      setAllPods(() => {
         const map = new Map<string, Pod>();
-        // 1. Keep existing state in memory
-        for (const p of prevPods) {
-          if (p && p.id) {
-            const existing = map.get(p.id);
-            map.set(p.id, existing ? mergePodObjects(existing, p) : p);
-          }
-        }
-        // 2. Primary source of truth: Firestore pods
+        // 1. Primary source of truth: Live Firestore pods
         for (const p of firestorePods) {
-          if (!p || !p.id) continue;
+          if (!p || !p.id || isDemoPod(p)) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
-        // 3. Server API pods
+        // 2. Server API pods (if any not yet indexed in firestore snapshot)
         for (const p of apiPods) {
-          if (!p || !p.id) continue;
+          if (!p || !p.id || isDemoPod(p)) continue;
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
-        // 4. Local created pods (push missing to Firestore)
+        // 3. Local created pods (push missing to Firestore)
         for (const p of localCreatedPods) {
-          if (!p || !p.id) continue;
+          if (!p || !p.id || isDemoPod(p)) continue;
           const existing = map.get(p.id);
           const merged = existing ? mergePodObjects(existing, p) : p;
           map.set(p.id, merged);
@@ -313,30 +314,17 @@ export default function App() {
     // 2. Subscribe to real-time Pods in Firestore
     const unsubscribePods = subscribeToPods((firestorePods) => {
       if (firestorePods && Array.isArray(firestorePods)) {
-        setAllPods((prevPods) => {
-          const map = new Map<string, Pod>();
-          for (const p of prevPods) {
-            if (p && p.id) {
-              map.set(p.id, p);
-            }
-          }
-          for (const fp of firestorePods) {
-            if (!fp || !fp.id) continue;
-            const existing = map.get(fp.id);
-            map.set(fp.id, existing ? mergePodObjects(existing, fp) : fp);
-          }
-          const updated = Array.from(map.values());
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updated));
-            } catch {}
-          }
-          if (selectedPodDetail) {
-            const fresh = updated.find((p) => p.id === selectedPodDetail.id);
-            if (fresh) setSelectedPodDetail(fresh);
-          }
-          return updated;
-        });
+        const cleanPods = firestorePods.filter(p => p && p.id && !isDemoPod(p));
+        setAllPods(cleanPods);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('mutualpool_cached_pods', JSON.stringify(cleanPods));
+          } catch {}
+        }
+        if (selectedPodDetail) {
+          const fresh = cleanPods.find((p) => p.id === selectedPodDetail.id);
+          if (fresh) setSelectedPodDetail(fresh);
+        }
       }
     });
 

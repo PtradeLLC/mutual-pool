@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pod, User, Perk } from '../types';
+import { Pod, User, Perk, isDemoPod } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
 import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
 import { Logo } from './Logo';
@@ -666,65 +666,91 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* 5. CURRENT FORMING PODS PREVIEW */}
-      <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div>
-            <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block mb-0.5">Live Marketplace</span>
-            <h2 className="text-2xl font-extrabold text-[#111827]">
-              Open Forming Pods ({allPods.length})
-            </h2>
-          </div>
-
-          <button
-            onClick={() => onOpenAuth('LOGIN')}
-            className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-[#DDE1E6] font-bold text-xs flex items-center gap-1.5 shadow-xs"
-          >
-            <span>Browse All Pool Circles</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {allPods.slice(0, 3).map((pod) => (
-            <div key={pod.id} className="bg-white border border-[#DDE1E6] rounded-xl p-5 space-y-4 shadow-xs">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
-                    {pod.category}
-                  </span>
-                  <h3 className="font-bold text-base text-[#111827] mt-1">{pod.name}</h3>
-                </div>
-                <span className="text-xs font-mono font-bold text-emerald-700 bg-green-50 px-2 py-1 rounded border border-green-200">
-                  ${pod.weeklyPoolTarget}/wk Pool
-                </span>
-              </div>
-
-              <p className="text-xs text-[#6B7280] line-clamp-2">
-                {pod.description}
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
-                <div>
-                  <span className="text-[#6B7280] text-[10px] block font-medium">Weekly Deposit</span>
-                  <span className="font-bold text-[#111827] font-mono">${pod.depositTier}/wk</span>
-                </div>
-                <div>
-                  <span className="text-[#6B7280] text-[10px] block font-medium">Capacity</span>
-                  <span className="font-bold text-[#111827] font-mono">{Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} / {pod.sizeTier} Members</span>
-                </div>
+      {(() => {
+        const formingPods = allPods.filter((p) => p && p.id && !isDemoPod(p) && p.status !== 'COMPLETED');
+        return (
+          <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div>
+                <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block mb-0.5">Live Marketplace</span>
+                <h2 className="text-2xl font-extrabold text-[#111827]">
+                  Open Forming Pods ({formingPods.length})
+                </h2>
               </div>
 
               <button
                 onClick={() => onOpenAuth('LOGIN')}
-                className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-[#DDE1E6] font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
-                <span>View & Join Pod</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>Browse All Pool Circles</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-          ))}
-        </div>
-      </section>
+
+            {formingPods.length === 0 ? (
+              <div className="bg-white border border-[#DDE1E6] rounded-xl p-8 text-center space-y-3 shadow-xs">
+                <div className="w-12 h-12 rounded-full bg-blue-50 text-[#005FB8] flex items-center justify-center mx-auto">
+                  <Users className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-base text-[#111827]">No Open Forming Pods At This Moment</h3>
+                <p className="text-xs text-[#6B7280] max-w-md mx-auto">
+                  Be the first to create a mutual savings pool for your fleet or join an existing circle by signing in.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={() => onOpenAuth('REGISTER')}
+                    className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs inline-flex items-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <span>Get Started & Create a Pod</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {formingPods.slice(0, 6).map((pod) => (
+                  <div key={pod.id} className="bg-white border border-[#DDE1E6] rounded-xl p-5 space-y-4 shadow-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
+                          {pod.category}
+                        </span>
+                        <h3 className="font-bold text-base text-[#111827] mt-1">{pod.name}</h3>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-emerald-700 bg-green-50 px-2 py-1 rounded border border-green-200">
+                        ${pod.weeklyPoolTarget}/wk Pool
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[#6B7280] line-clamp-2">
+                      {pod.description}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
+                      <div>
+                        <span className="text-[#6B7280] text-[10px] block font-medium">Weekly Deposit</span>
+                        <span className="font-bold text-[#111827] font-mono">${pod.depositTier}/wk</span>
+                      </div>
+                      <div>
+                        <span className="text-[#6B7280] text-[10px] block font-medium">Capacity</span>
+                        <span className="font-bold text-[#111827] font-mono">{Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} / {pod.sizeTier} Members</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => onOpenAuth('LOGIN')}
+                      className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <span>View & Join Pod</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* 6. CALL TO ACTION FOOTER BANNER & APP STORE DOWNLOAD */}
       <section className="bg-white border-t border-[#DDE1E6] py-12 px-4 sm:px-6 mt-12 text-center">
