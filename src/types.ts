@@ -90,6 +90,21 @@ export interface PodMembership {
 
 export type ActivationPolicy = 'WHEN_FULL' | 'FLEXIBLE_EARLY';
 
+export type CampaignAgreementStatus = 'PENDING_SIGNATURE' | 'OPTED_IN' | 'OPTED_OUT';
+
+export interface PodCampaignAgreement {
+  optedIn: boolean;
+  status: CampaignAgreementStatus;
+  signerUserId: string;
+  signerFirstName: string;
+  signerLastName: string;
+  signerFullName: string;
+  signedAt: string;
+  acknowledgedTerms: boolean;
+  contractVersion: string;
+  termsTitle: string;
+}
+
 export interface Pod {
   id: string;
   name: string;
@@ -122,6 +137,7 @@ export interface Pod {
   contingencyBufferInitialUsd?: number;
   isPrioritizedForReplacement?: boolean;
   replacementVacanciesCount?: number;
+  campaignAgreement?: PodCampaignAgreement;
 }
 
 export type HardshipRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID_OFF';
@@ -268,7 +284,8 @@ export interface AuditLogEntry {
     | 'HARDSHIP_REQUESTED'
     | 'HARDSHIP_APPROVED'
     | 'HARDSHIP_REPAID'
-    | 'HARDSHIP_REJECTED';
+    | 'HARDSHIP_REJECTED'
+    | 'CAMPAIGN_AGREEMENT_RECORDED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

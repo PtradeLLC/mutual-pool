@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
+import { CampaignAdAgreementModal } from './CampaignAdAgreementModal';
 import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
-  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle
+  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -47,6 +48,10 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [submittingHardship, setSubmittingHardship] = useState(false);
   const [approvingHardship, setApprovingHardship] = useState(false);
   const [repayingHardship, setRepayingHardship] = useState(false);
+
+  // Partner Ad Campaign Agreement Modal States (For Pod Creator right before Active status)
+  const [showCampaignAgreementModal, setShowCampaignAgreementModal] = useState(false);
+  const [submittingAgreement, setSubmittingAgreement] = useState(false);
 
   const fetchHardshipRequests = async () => {
     try {
@@ -278,8 +283,27 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
     }
   };
 
-  // Lock Pod Action (if all agreements signed and pod is full or ready)
-  const handleLockPod = async (forceEarly = false) => {
+  // Initiate Lock / Activate Pod
+  const handleLockPod = (forceEarly = false) => {
+    // If the user is the creator and the partner campaign agreement hasn't been submitted/decided yet,
+    // open the Partner Campaign Agreement modal first for First & Last Name signature and Opt-in / Opt-out!
+    if (isCreator && (!pod.campaignAgreement || pod.campaignAgreement.status === 'PENDING_SIGNATURE')) {
+      setShowCampaignAgreementModal(true);
+      return;
+    }
+    handleExecuteLockPod(forceEarly);
+  };
+
+  // Lock Pod Action Execution
+  const handleExecuteLockPod = async (
+    forceEarly = false,
+    campaignAgreementData?: {
+      optedIn: boolean;
+      firstName: string;
+      lastName: string;
+      acknowledgedTerms?: boolean;
+    }
+  ) => {
     setActionError(null);
     setActionSuccess(null);
     try {
@@ -289,24 +313,66 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id,
         },
-        body: JSON.stringify({ forceEarly }),
+        body: JSON.stringify({ 
+          forceEarly,
+          campaignAgreement: campaignAgreementData ? {
+            optedIn: campaignAgreementData.optedIn,
+            signerFirstName: campaignAgreementData.firstName,
+            signerLastName: campaignAgreementData.lastName,
+            acknowledgedTerms: campaignAgreementData.acknowledgedTerms,
+          } : undefined,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) {
         if (data.requiresConfirmation) {
           if (window.confirm(`${data.message}\n\nDo you want to lock rotation order and activate early with ${pod.members.length} members now?`)) {
-            handleLockPod(true);
+            handleExecuteLockPod(true, campaignAgreementData);
             return;
           }
         }
         throw new Error(data.message || 'Failed to lock rotation order');
       }
 
-      setActionSuccess('Pod successfully locked! Fixed rotation order generated via crypto-secure shuffle.');
+      if (campaignAgreementData?.optedIn) {
+        setActionSuccess('Pod successfully activated! Partner Campaign Drip enrolled & daily route pay tracking enabled.');
+      } else {
+        setActionSuccess('Pod successfully locked! Fixed rotation order generated via crypto-secure shuffle.');
+      }
       onRefreshPod();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Locking failed');
+    }
+  };
+
+  const handleConfirmCampaignOptIn = async (agr: { firstName: string; lastName: string; acknowledgedTerms: boolean }) => {
+    setSubmittingAgreement(true);
+    try {
+      await handleExecuteLockPod(pod.activationPolicy === 'WHEN_FULL' && memberCount < pod.sizeTier, {
+        optedIn: true,
+        firstName: agr.firstName,
+        lastName: agr.lastName,
+        acknowledgedTerms: agr.acknowledgedTerms,
+      });
+      setShowCampaignAgreementModal(false);
+    } finally {
+      setSubmittingAgreement(false);
+    }
+  };
+
+  const handleConfirmCampaignOptOut = async (agr: { firstName: string; lastName: string }) => {
+    setSubmittingAgreement(true);
+    try {
+      await handleExecuteLockPod(pod.activationPolicy === 'WHEN_FULL' && memberCount < pod.sizeTier, {
+        optedIn: false,
+        firstName: agr.firstName,
+        lastName: agr.lastName,
+        acknowledgedTerms: false,
+      });
+      setShowCampaignAgreementModal(false);
+    } finally {
+      setSubmittingAgreement(false);
     }
   };
 
@@ -794,6 +860,52 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               <div className="text-[10px] font-semibold text-emerald-800 shrink-0 bg-white/80 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-emerald-200">
                 Non-Withdrawable Pod Reserve
               </div>
+            </div>
+          )}
+
+          {/* Partner Ad Campaign Status Banner */}
+          {pod.campaignAgreement && (
+            <div className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs ${
+              pod.campaignAgreement.optedIn
+                ? 'bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border-blue-200 text-blue-950'
+                : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
+              <div className="flex items-start sm:items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold shrink-0 ${
+                  pod.campaignAgreement.optedIn ? 'bg-[#005FB8] text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  <Shirt className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 font-bold text-slate-900 text-xs sm:text-sm flex-wrap">
+                    <span>
+                      {pod.campaignAgreement.optedIn 
+                        ? '🎯 Partner Brand Advertising Campaign: Active' 
+                        : 'Standard Pod Savings (Partner Ad Campaign: Opted Out)'}
+                    </span>
+                    {pod.campaignAgreement.optedIn && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider">
+                        Free Drip & Daily Pay
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                    {pod.campaignAgreement.optedIn
+                      ? `Signed by Pod Creator ${pod.campaignAgreement.signerFullName} on ${new Date(pod.campaignAgreement.signedAt).toLocaleDateString()}. Campaign shirts & gear dispatched to members for daily route earnings.`
+                      : `Pod Creator opted out of brand partner campaign. Operating strictly as mutual savings circle.`}
+                  </p>
+                </div>
+              </div>
+
+              {isCreator && (
+                <button
+                  type="button"
+                  onClick={() => setShowCampaignAgreementModal(true)}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 text-[11px] font-bold shrink-0 cursor-pointer shadow-2xs self-start sm:self-auto"
+                >
+                  View Agreement Details
+                </button>
+              )}
             </div>
           )}
 
@@ -1426,6 +1538,19 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
         </div>
       </div>
+
+      {/* Partner Ad Campaign Agreement Modal for Creator */}
+      {showCampaignAgreementModal && (
+        <CampaignAdAgreementModal
+          isOpen={showCampaignAgreementModal}
+          onClose={() => setShowCampaignAgreementModal(false)}
+          pod={pod}
+          currentUser={currentUser}
+          onConfirmOptIn={handleConfirmCampaignOptIn}
+          onConfirmOptOut={handleConfirmCampaignOptOut}
+          isSubmitting={submittingAgreement}
+        />
+      )}
     </div>
   );
 };

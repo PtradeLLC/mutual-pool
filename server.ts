@@ -2127,6 +2127,37 @@ app.use((req, res, next) => {
     pod.totalCycles = pod.members.length;
     pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
 
+    // Record Partner Campaign Agreement contract if submitted by creator
+    if (req.body.campaignAgreement || req.body.campaignOptIn !== undefined || req.body.optedIn !== undefined) {
+      const agr = req.body.campaignAgreement || {};
+      const isOptIn = agr.optedIn !== undefined
+        ? Boolean(agr.optedIn)
+        : req.body.optedIn !== undefined
+          ? Boolean(req.body.optedIn)
+          : Boolean(req.body.campaignOptIn);
+
+      const nameParts = (user.displayName || '').trim().split(' ');
+      const defaultFirst = nameParts[0] || '';
+      const defaultLast = nameParts.slice(1).join(' ') || '';
+
+      const firstName = (agr.signerFirstName || req.body.signerFirstName || req.body.firstName || defaultFirst).trim();
+      const lastName = (agr.signerLastName || req.body.signerLastName || req.body.lastName || defaultLast).trim();
+      const fullName = (agr.signerFullName || `${firstName} ${lastName}`.trim() || user.displayName || 'Pod Creator');
+
+      pod.campaignAgreement = {
+        optedIn: isOptIn,
+        status: isOptIn ? 'OPTED_IN' : 'OPTED_OUT',
+        signerUserId: user.id,
+        signerFirstName: firstName,
+        signerLastName: lastName,
+        signerFullName: fullName,
+        signedAt: new Date().toISOString(),
+        acknowledgedTerms: Boolean(agr.acknowledgedTerms ?? req.body.acknowledgedTerms ?? isOptIn),
+        contractVersion: 'v1.0-courier-ad-partner',
+        termsTitle: 'Partner Brand Ambassador & Campaign Gear Agreement',
+      };
+    }
+
     savePodsToDisk();
 
     const auditDetail = isFull
@@ -2138,11 +2169,80 @@ app.use((req, res, next) => {
       user.id,
       user.displayName,
       'ROTATION_LOCKED',
-      `${auditDetail} 1-time cryptographically secure random shuffle set rotation order 0 to ${pod.members.length - 1}.`,
-      { totalMembers: pod.members.length, agreementVersion: pod.agreementVersion, activationPolicy: pod.activationPolicy }
+      `${auditDetail} 1-time cryptographically secure random shuffle set rotation order 0 to ${pod.members.length - 1}.${
+        pod.campaignAgreement
+          ? pod.campaignAgreement.optedIn
+            ? ` Creator executed Partner Brand Ad Agreement as "${pod.campaignAgreement.signerFullName}" (Opted In: Free gear delivery & daily route pay enabled).`
+            : ` Creator opted out of Partner Brand Ad program as "${pod.campaignAgreement.signerFullName}".`
+          : ''
+      }`,
+      { 
+        totalMembers: pod.members.length, 
+        agreementVersion: pod.agreementVersion, 
+        activationPolicy: pod.activationPolicy,
+        campaignAgreement: pod.campaignAgreement || null
+      }
     );
 
     res.json(pod);
+  });
+
+  // 8b. Dedicated Campaign Agreement Endpoint
+  app.post(['/api/pods/:id/campaign-agreement', '/pods/:id/campaign-agreement'], async (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      }
+      const pod = await findPodById(req.params.id, user);
+      if (!pod) {
+        return res.status(404).json({ error: 'Pod not found' });
+      }
+
+      const isCreator = pod.createdBy === user.id || user.role === 'POD_ADMIN';
+      if (!isCreator) {
+        return res.status(403).json({ error: 'Only the Pod creator can sign or submit the partner campaign agreement.' });
+      }
+
+      const { optedIn, firstName, lastName, acknowledgedTerms } = req.body || {};
+      const isOptIn = Boolean(optedIn);
+
+      const nameParts = (user.displayName || '').trim().split(' ');
+      const sFirst = (firstName || nameParts[0] || '').trim();
+      const sLast = (lastName || nameParts.slice(1).join(' ') || '').trim();
+      const sFull = `${sFirst} ${sLast}`.trim() || user.displayName || 'Pod Creator';
+
+      pod.campaignAgreement = {
+        optedIn: isOptIn,
+        status: isOptIn ? 'OPTED_IN' : 'OPTED_OUT',
+        signerUserId: user.id,
+        signerFirstName: sFirst,
+        signerLastName: sLast,
+        signerFullName: sFull,
+        signedAt: new Date().toISOString(),
+        acknowledgedTerms: Boolean(acknowledgedTerms),
+        contractVersion: 'v1.0-courier-ad-partner',
+        termsTitle: 'Partner Brand Ambassador & Campaign Gear Agreement',
+      };
+
+      savePodsToDisk();
+
+      addAuditLog(
+        pod.id,
+        user.id,
+        user.displayName,
+        'CAMPAIGN_AGREEMENT_RECORDED',
+        isOptIn
+          ? `Pod Creator executed Partner Brand Ad Agreement as "${sFull}" (Opted In: Free gear delivery & daily route pay enabled).`
+          : `Pod Creator opted out of Partner Brand Ad program as "${sFull}".`,
+        { campaignAgreement: pod.campaignAgreement }
+      );
+
+      return res.json({ success: true, pod, campaignAgreement: pod.campaignAgreement });
+    } catch (err: any) {
+      console.error('[POST /api/pods/:id/campaign-agreement] Error:', err);
+      return res.status(500).json({ error: 'SERVER_ERROR', message: err?.message || 'Failed to record campaign agreement' });
+    }
   });
 
   // 9. Deposit Weekly Funds to Stripe Treasury Holding Account
