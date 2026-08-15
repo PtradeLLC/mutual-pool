@@ -658,7 +658,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span>Activate a Pod</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    $250k protection on pooled funds via Stripe Treasury holding accounts.
+                    Start a Pod for free, and invite friends, crew members, and families to participate.
                   </p>
                 </div>
 
