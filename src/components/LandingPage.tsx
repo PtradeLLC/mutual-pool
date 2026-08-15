@@ -643,10 +643,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Heading */}
               <div className="space-y-2">
                 <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  Get Paid to Rep, Not Just Deliver: Join us today and give Your outfit a Job
+                  Get Paid to Rep, Not Just Deliver: Join today and give Your t-shirt a Job
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  Turn unpredictable delivery shifts into reliable, lump-sum savings. Pool weekly deposits with fellow couriers, swap payout weeks during bike or vehicle breakdowns, and unlock exclusive fleet discounts.
+                  We send the drip. You wear it on your deliveries. You get paid daily.
                 </p>
               </div>
 
