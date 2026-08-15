@@ -80,7 +80,7 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
           </h3>
 
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-            Getting started is simple. Build your Pod, get equipped with campaign gear from our brand partners, and earn by wearing it while you make the deliveries you already make.
+            Getting started is simple. Build your Pod to activate this service, get equipped with campaign gear from our brand partners, and earn by wearing it while you make the deliveries you already make.
           </p>
         </div>
 
