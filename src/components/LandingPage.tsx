@@ -658,7 +658,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span>Activate a Pod</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    Start a Pod for free, and invite friends, crew members, and families to participate.
+                    Start a Pod for free, invite friends, crew members, and families to participate.
                   </p>
                 </div>
 
@@ -668,7 +668,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span>We provide Merch</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    Trade rotation spots or request emergency pool relief with peer voting.
+                    After Pod is full and activated we will send you campaign ad gears from partners. 
                   </p>
                 </div>
 
@@ -678,7 +678,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span>Get Paid everyday</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    Save on e-bike parts, gear, fuel, phone plans, and health services.
+                    Wear the clothing as you go on your delivery routes and get paid per day.
                   </p>
                 </div>
               </div>
