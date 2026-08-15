@@ -6,6 +6,7 @@ import bikerAdImg from '../assets/images/bikerad.png';
 import { Logo } from './Logo';
 import { WatchVideoModal } from './WatchVideoModal';
 import { AppStoreModal } from './AppStoreModal';
+import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
@@ -86,6 +87,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   // App Store Modal State
   const [showAppStoreModal, setShowAppStoreModal] = useState(false);
   const [appStorePlatform, setAppStorePlatform] = useState<'ios' | 'android'>('ios');
+
+  // Campaign How It Works Modal State
+  const [showCampaignHowItWorksModal, setShowCampaignHowItWorksModal] = useState(false);
 
   // Public Partner Perk Submission Modal State
   const [showSubmitPerkModal, setShowSubmitPerkModal] = useState(false);
@@ -696,10 +700,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (onOpenHowItWorks) onOpenHowItWorks();
-                    else handleActionOrAuth('LOGIN', 'explore-pods');
-                  }}
+                  id="campaign-ad-how-it-works-btn"
+                  onClick={() => setShowCampaignHowItWorksModal(true)}
                   className="px-5 py-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600 font-semibold text-sm transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <span>How It Works</span>
@@ -1190,6 +1192,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Campaign Ad How It Works Modal */}
+      <CampaignHowItWorksModal
+        isOpen={showCampaignHowItWorksModal}
+        onClose={() => setShowCampaignHowItWorksModal(false)}
+        onStartPod={() => handleActionOrAuth('REGISTER', 'explore-pods')}
+        isAuthUser={isAuthUser}
+      />
 
     </div>
   );
