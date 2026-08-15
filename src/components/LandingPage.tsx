@@ -646,7 +646,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   Get Paid to Rep, Not Just Deliver: Join now & give Your t-shirt a Job
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  We send the drip. You wear it on your deliveries. You get paid daily.
+                  After starting a Pod we send the drip. You wear it on your deliveries. You get paid daily.
                 </p>
               </div>
 
@@ -665,7 +665,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
                   <div className="flex items-center gap-1.5 text-blue-400 font-bold text-xs">
                     <RefreshCw className="w-4 h-4 shrink-0" />
-                    <span>We provide the Merch</span>
+                    <span>We provide Merch</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
                     Trade rotation spots or request emergency pool relief with peer voting.
