@@ -668,7 +668,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span>We provide Merch</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    After Pod is full and activated we will send you campaign ad gears from partners. 
+                    After Pod is full & activated we'll send you campaign ad gears from our partners. 
                   </p>
                 </div>
 
