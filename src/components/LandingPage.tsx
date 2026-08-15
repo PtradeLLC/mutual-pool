@@ -647,7 +647,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Heading */}
               <div className="space-y-2">
                 <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  Get Paid to Rep, Not Just Deliver: Join now & give Your t-shirt a Job
+                  Get Paid to Rep, Not Just Deliver: Start now & give Your t-shirt a Job
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
                   After starting a Pod we send the drip. You wear it on your deliveries. You get paid daily.
