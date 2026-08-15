@@ -655,7 +655,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
                   <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
                     <ShieldCheck className="w-4 h-4 shrink-0" />
-                    <span>FDIC Pass-Through</span>
+                    <span>Activate a Pod</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
                     $250k protection on pooled funds via Stripe Treasury holding accounts.
@@ -665,7 +665,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
                   <div className="flex items-center gap-1.5 text-blue-400 font-bold text-xs">
                     <RefreshCw className="w-4 h-4 shrink-0" />
-                    <span>0% Spot Swaps</span>
+                    <span>We provide the Merch</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
                     Trade rotation spots or request emergency pool relief with peer voting.
@@ -675,7 +675,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
                   <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
                     <Gift className="w-4 h-4 shrink-0" />
-                    <span>Rider Discounts</span>
+                    <span>Get Paid everyday</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
                     Save on e-bike parts, gear, fuel, phone plans, and health services.
