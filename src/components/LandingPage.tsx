@@ -637,13 +637,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Badge */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold">
                 <Sparkles className="w-4 h-4 text-blue-400" />
-                <span>Zero Subscription • Community-Powered Financial Security</span>
+                <span>Feature Service • Community-Powered Financial Security</span>
               </div>
 
               {/* Heading */}
               <div className="space-y-2">
                 <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  Powering Every Mile: Join the Courier & Gig Driver Safety Net
+                  Get Paid to Rep, Not Just Deliver: Join us today and give Your outfit a Job
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
                   Turn unpredictable delivery shifts into reliable, lump-sum savings. Pool weekly deposits with fellow couriers, swap payout weeks during bike or vehicle breakdowns, and unlock exclusive fleet discounts.
