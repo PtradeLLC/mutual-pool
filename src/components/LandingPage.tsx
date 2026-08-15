@@ -690,7 +690,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
                   className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-lg hover:shadow-blue-500/25 flex items-center gap-2 cursor-pointer"
                 >
-                  <span>{isAuthUser ? 'Go to Active Pods Dashboard' : 'Join a Pod for Free'}</span>
+                  <span>{isAuthUser ? 'Go to Active Pods Dashboard' : 'Start a Pod for Free'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
