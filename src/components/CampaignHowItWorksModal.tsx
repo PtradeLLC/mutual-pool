@@ -105,7 +105,7 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
           </p>
 
           <p className="text-sm text-slate-600 leading-relaxed">
-            Create a Pod at no cost and invite your friends, family, and fellow couriers to join. Once your Pod reaches its required size and is activated, you're ready for the next step.
+            Create a Pod at no cost and invite your friends, family, and fellow couriers to join. Once your Pod reaches its required maximum size and is activated, you're ready for the next step.
           </p>
 
           <div className="pt-1">
