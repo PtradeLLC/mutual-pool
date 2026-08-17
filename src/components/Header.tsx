@@ -349,19 +349,6 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick Info Modal Links */}
           <div className="flex items-center gap-2 sm:gap-3 text-xs text-[#4B5563] shrink-0 font-medium">
-            {onOpenAdvertiser && (
-              <>
-                <button
-                  type="button"
-                  onClick={onOpenAdvertiser}
-                  className="text-amber-700 hover:text-amber-800 font-extrabold hover:underline transition-colors py-1 px-1.5 rounded flex items-center gap-1"
-                >
-                  <Megaphone className="w-3 h-3 text-amber-600 inline" />
-                  <span>Advertise with Us</span>
-                </button>
-                <span className="text-gray-300">•</span>
-              </>
-            )}
             <button
               onClick={onOpenAbout}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"

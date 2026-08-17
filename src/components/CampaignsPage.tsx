@@ -100,28 +100,28 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
     <div className="space-y-8 animate-in fade-in duration-200">
       
       {/* Hero Banner for Couriers */}
-      <div className="bg-gradient-to-br from-slate-950 via-[#00264D] to-slate-900 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-800 relative overflow-hidden">
+      <div className="bg-[#F8FAFC] text-slate-900 rounded-3xl p-6 sm:p-10 shadow-xs border border-slate-200 relative overflow-hidden">
         
-        {/* Subtle decorative glow */}
-        <div className="absolute -right-20 -top-20 w-96 h-96 bg-[#005FB8]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Subtle decorative accents */}
+        <div className="absolute -right-20 -top-20 w-80 h-80 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute -left-20 -bottom-20 w-72 h-72 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400 text-slate-950 flex items-center gap-1.5 shadow-sm">
-              <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
+            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5 fill-amber-600 text-amber-600" />
               <span>Earn $55 – $75 / Day Extra</span>
             </span>
-            <span className="text-xs text-blue-200 font-semibold">
+            <span className="text-xs text-slate-500 font-semibold">
               Free Turnkey Apparel & Gear Included
             </span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight leading-tight">
             Brand Ambassador Ad Campaigns
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl">
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
             Get paid guaranteed daily wage supplements simply by wearing partner brand apparel and carrying insulated gear while completing your normal DoorDash, UberEats, or Instacart shifts.
           </p>
 
@@ -129,16 +129,16 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
             <button
               type="button"
               onClick={() => setShowHowItWorks(true)}
-              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors border border-white/20 flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors border border-slate-200 shadow-2xs flex items-center gap-2 cursor-pointer"
             >
-              <HelpCircle className="w-4 h-4 text-amber-400" />
+              <HelpCircle className="w-4 h-4 text-amber-500" />
               <span>How Courier Payouts Work</span>
             </button>
 
             <button
               type="button"
               onClick={onOpenAdvertiser}
-              className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
             >
               <Building2 className="w-4 h-4" />
               <span>Are You a Brand? Sponsor a Fleet</span>
@@ -148,7 +148,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               <button
                 type="button"
                 onClick={onOpenCreateCampaign}
-                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Create Campaign (Admin)</span>
@@ -158,22 +158,22 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
         </div>
 
         {/* Quick Highlights Grid */}
-        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-white/10 text-xs">
-          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-            <div className="text-blue-300 font-medium">Daily Net Earnings</div>
-            <div className="text-base sm:text-lg font-black text-amber-400 font-mono mt-0.5">$55 – $75 / day</div>
+        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-slate-200 text-xs">
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Daily Net Earnings</div>
+            <div className="text-base sm:text-lg font-black text-amber-700 font-mono mt-0.5">$55 – $75 / day</div>
           </div>
-          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-            <div className="text-blue-300 font-medium">Payment Channel</div>
-            <div className="text-base sm:text-lg font-black text-white mt-0.5">Stripe Treasury</div>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Payment Channel</div>
+            <div className="text-base sm:text-lg font-black text-slate-950 mt-0.5">Stripe Treasury</div>
           </div>
-          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-            <div className="text-blue-300 font-medium">Verification Method</div>
-            <div className="text-base sm:text-lg font-black text-white mt-0.5">GPS + Photo Check-in</div>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Verification Method</div>
+            <div className="text-base sm:text-lg font-black text-slate-950 mt-0.5">GPS + Shift Check-in</div>
           </div>
-          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-            <div className="text-blue-300 font-medium">Gear Shipped To</div>
-            <div className="text-base sm:text-lg font-black text-emerald-400 mt-0.5">Your Doorstep 100% Free</div>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Gear Shipped To</div>
+            <div className="text-base sm:text-lg font-black text-emerald-700 mt-0.5">Your Doorstep 100% Free</div>
           </div>
         </div>
 
