@@ -11,7 +11,7 @@ import {
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
   AlertCircle, DollarSign, Clock, RefreshCw, Zap, Play, Smartphone, LogOut, LayoutDashboard,
-  PlusCircle, X
+  PlusCircle, X, Megaphone
 } from 'lucide-react';
 
 const PERK_CATEGORIES = [
@@ -50,6 +50,7 @@ interface LandingPageProps {
   onOpenHowItWorks?: () => void;
   onOpenContact?: () => void;
   onOpenSubmitPerk?: () => void;
+  onOpenAdvertiser?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
@@ -63,6 +64,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenHowItWorks,
   onOpenContact,
   onOpenSubmitPerk,
+  onOpenAdvertiser,
 }) => {
   const isAuthUser = Boolean(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
 
@@ -244,7 +246,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="hidden sm:block">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
-                  Stripe Treasury
+                  Treasury
                 </span>
                 {currentUser && (
                   <span className="text-[10px] font-semibold text-[#005FB8] bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors">
@@ -262,20 +264,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onClick={onOpenAbout}
               className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
             >
-              About Us
+              About
             </button>
             <button
               onClick={onOpenHowItWorks}
               className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
             >
-              How It Works & Rules
+              Rules
             </button>
             <button
               onClick={onOpenContact}
               className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
             >
-              Contact Us
+              Contact
             </button>
+            {onOpenAdvertiser && (
+              <button
+                type="button"
+                id="landing-advertise-btn"
+                onClick={onOpenAdvertiser}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+                title="Launch a brand campaign or sponsor courier promo apparel"
+              >
+                <Megaphone className="w-3.5 h-3.5 text-slate-950" />
+                <span>Advertise with Us</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 if (onOpenSubmitPerk) {
@@ -650,7 +664,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   Get Paid to Rep, Not Just Deliver: Start now & give Your t-shirt a Job
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  After starting a Pod we send the drip. You wear it on your deliveries. You get paid daily.
+                  After your Pod activates, select brand campaigns, get equipped with turnkey partner gear, and earn guaranteed daily wages on your deliveries.
                 </p>
               </div>
 
@@ -982,6 +996,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <footer className="bg-[#F8FAFC] border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280]">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">         
           <span>© {new Date().getFullYear()} Chris Bitoye Ventures. All rights reserved.</span>
+          <div className="flex items-center gap-4 text-xs font-medium">
+            <button onClick={onOpenAbout} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              About Us
+            </button>
+            <span>•</span>
+            <button onClick={onOpenHowItWorks} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              How It Works & Rules
+            </button>
+            <span>•</span>
+            <button onClick={onOpenContact} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              Contact Us
+            </button>
+            {onOpenAdvertiser && (
+              <>
+                <span>•</span>
+                <button onClick={onOpenAdvertiser} className="text-amber-700 hover:text-amber-800 font-bold transition-colors cursor-pointer flex items-center gap-1">
+                  <Megaphone className="w-3 h-3 text-amber-600" />
+                  <span>Advertise with Us</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </footer>
 

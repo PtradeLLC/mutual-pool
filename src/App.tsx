@@ -20,6 +20,7 @@ const EditProfileModal = lazy(() => import('./components/EditProfileModal').then
 const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.AboutUsModal })));
 const HowItWorksModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
 const ContactUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
+const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 import { INITIAL_USERS, INITIAL_PODS } from './data/initialData';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
@@ -48,7 +49,7 @@ export default function App() {
       return null;
     }
   });
-  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD'>(() => {
+  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD' | 'ADVERTISER'>(() => {
     try {
       return localStorage.getItem('mutualpool_active_user') ? 'DASHBOARD' : 'LANDING';
     } catch {
@@ -750,6 +751,10 @@ export default function App() {
           onOpenAbout={() => setShowAboutModal(true)}
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           onOpenContact={() => setShowContactModal(true)}
+          onOpenAdvertiser={() => {
+            setViewMode('ADVERTISER');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onOpenSubmitPerk={() => {
             if (!currentUser || currentUser.id === 'usr_guest') {
               setOpenSubmitPerkDirectly(true);
@@ -786,6 +791,38 @@ export default function App() {
           onClose={() => setShowContactModal(false)}
         />
       </>
+    );
+  }
+
+  // If viewing Advertiser / Partner Brand Ambassador Page
+  if (viewMode === 'ADVERTISER') {
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">
+          <div className="flex items-center gap-3 text-[#005FB8] font-semibold text-sm">
+            <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
+            <span>Loading Partner Promo Apparel & Advertiser Portal...</span>
+          </div>
+        </div>
+      }>
+        <AdvertiserPage
+          currentUser={currentUser}
+          onBack={() => {
+            setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenAuth={handleOpenAuth}
+        />
+
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={handleCloseAuth}
+          allUsers={allUsers}
+          onSelectUser={handleAuthSuccess}
+          onRegistered={handleAuthSuccess}
+          initialMode={authInitialMode}
+        />
+      </Suspense>
     );
   }
 
@@ -943,6 +980,10 @@ export default function App() {
             setOpenSubmitPerkDirectly(true);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
+        }}
+        onOpenAdvertiser={() => {
+          setViewMode('ADVERTISER');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onExitToLanding={() => setViewMode('LANDING')}
         onOpenAbout={() => setShowAboutModal(true)}

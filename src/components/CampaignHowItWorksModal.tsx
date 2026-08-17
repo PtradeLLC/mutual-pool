@@ -131,7 +131,7 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
                 <Shirt className="w-4 h-4" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                02 — Get the Gear
+                02 — Select Campaigns &amp; Get Gear
               </h3>
             </div>
             <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-100/70 px-2.5 py-0.5 rounded-full">
@@ -140,16 +140,16 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
           </div>
 
           <p className="text-sm font-bold text-slate-900">
-            Your Pod fills. We send the drip.
+            Your Pod fills. You choose campaigns.
           </p>
 
           <p className="text-sm text-slate-600 leading-relaxed">
-            Once your Pod is completely full and activated, we'll send you campaign apparel and promotional gear from our brand partners. No shopping. No upfront cost. Just put it on and get ready to represent.
+            Once your Pod reaches its required maximum size and is activated, you can select which brand partner campaigns you'd like to participate in. We'll send you custom campaign apparel and promotional gear from our brand partners with zero upfront cost.
           </p>
 
           <div className="pt-1 flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200/70 w-fit">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Pod activated. Gear delivered.</span>
+            <span>Pod activated. Campaigns unlocked.</span>
           </div>
         </div>
 

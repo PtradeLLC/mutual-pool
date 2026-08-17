@@ -4,7 +4,8 @@ import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
-  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap
+  ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
+  Megaphone
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -17,6 +18,7 @@ interface HeaderProps {
   onOpenBankModal: () => void;
   onOpenEditProfile?: () => void;
   onOpenSubmitPerk?: () => void;
+  onOpenAdvertiser?: () => void;
   onInstallPWA?: () => void;
   canInstallPWA?: boolean;
   onExitToLanding?: () => void;
@@ -40,6 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBankModal,
   onOpenEditProfile,
   onOpenSubmitPerk,
+  onOpenAdvertiser,
   onInstallPWA,
   canInstallPWA,
   onExitToLanding,
@@ -291,6 +294,19 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Submit Benefits & Perks</span>
             </button>
 
+            {onOpenAdvertiser && (
+              <button
+                type="button"
+                id="header-advertise-btn"
+                onClick={onOpenAdvertiser}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+                title="Launch a brand campaign or sponsor courier promo apparel"
+              >
+                <Megaphone className="w-3.5 h-3.5 text-slate-950" />
+                <span>Advertise with Us</span>
+              </button>
+            )}
+
             <button
               onClick={() => setActiveTab('audit-log')}
               className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
@@ -320,25 +336,38 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick Info Modal Links */}
           <div className="flex items-center gap-2 sm:gap-3 text-xs text-[#4B5563] shrink-0 font-medium">
+            {onOpenAdvertiser && (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenAdvertiser}
+                  className="text-amber-700 hover:text-amber-800 font-extrabold hover:underline transition-colors py-1 px-1.5 rounded flex items-center gap-1"
+                >
+                  <Megaphone className="w-3 h-3 text-amber-600 inline" />
+                  <span>Advertise with Us</span>
+                </button>
+                <span className="text-gray-300">•</span>
+              </>
+            )}
             <button
               onClick={onOpenAbout}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
             >
-              About Us
+              About
             </button>
             <span className="text-gray-300">•</span>
             <button
               onClick={onOpenHowItWorks}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
             >
-              How It Works & Rules
+              Rules
             </button>
             <span className="text-gray-300">•</span>
             <button
               onClick={onOpenContact}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
             >
-              Contact Us
+              Contact
             </button>
           </div>
         </nav>

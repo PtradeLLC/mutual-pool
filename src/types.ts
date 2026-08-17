@@ -27,9 +27,14 @@ export interface User {
   id: string;
   email: string;
   displayName: string;
+  name?: string;
+  city?: string;
   avatarUrl?: string;
   platform: GigPlatform;
   role: UserRole;
+  isAdmin?: boolean;
+  deliveryPlatforms?: string[];
+  currentPodId?: string;
   accountAgeDays: number;
   kycStatus: KYCStatus;
   kycVerifiedAt?: string;
@@ -436,3 +441,75 @@ export function isDemoPod(p: any): boolean {
   }
   return false;
 }
+
+export interface AdvertiserInquiry {
+  id: string;
+  brandName: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone?: string;
+  websiteUrl?: string;
+  targetMarkets: string[];
+  campaignObjective: string;
+  estimatedBudget: string;
+  fleetSizeTarget: number;
+  campaignDurationWeeks: number;
+  apparelTypes: string[];
+  customNotes?: string;
+  submittedAt: string;
+  status: 'NEW' | 'CONTACTED' | 'PROPOSAL_SENT' | 'ACTIVE';
+}
+
+export interface AdCampaign {
+  id: string;
+  title: string;
+  brandName: string;
+  brandLogo?: string;
+  brandColor?: string;
+  description: string;
+  bannerUrl?: string;
+  targetMetro: string;
+  deliveryPlatforms: string[];
+  dailyPayout: number;
+  weeklyEstimatedEarnings: number;
+  maxCouriersTarget: number;
+  activeCouriersCount: number;
+  durationWeeks: number;
+  startDate?: string;
+  endDate?: string;
+  impressionsTarget?: number;
+  currentImpressions?: number;
+  payoutTerms?: string;
+  gearRequired: string[];
+  requirements: string[];
+  status: 'recruiting' | 'active' | 'completed' | 'paused';
+  createdAt?: string;
+}
+
+export interface CourierCampaignParticipation {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  campaignId: string;
+  campaignTitle: string;
+  brandName: string;
+  dailyRate: number;
+  totalEarningsAccumulated: number;
+  status: 'applied' | 'approved' | 'active' | 'completed' | 'paused';
+  apparelDeliveryStatus: 'processing' | 'shipped' | 'delivered';
+  apparelShipmentTracking?: string;
+  gearDeliveryAddress?: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+  gearSizes?: {
+    jacketSize: string;
+    shirtSize: string;
+  };
+  enrolledAt: string;
+}
+
+

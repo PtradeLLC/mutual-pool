@@ -3667,6 +3667,100 @@ app.use((req, res, next) => {
     res.json({ success: true, member, pod });
   });
 
+// --- ADVERTISER / BRAND PARTNER CAMPAIGN INQUIRIES ---
+const ADVERTISER_INQUIRIES_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'advertiser_inquiries.json');
+
+function loadAdvertiserInquiries(): any[] {
+  try {
+    if (fs.existsSync(ADVERTISER_INQUIRIES_FILE)) {
+      const data = fs.readFileSync(ADVERTISER_INQUIRIES_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Failed to load advertiser inquiries:', err);
+  }
+  return [];
+}
+
+function saveAdvertiserInquiries(inquiries: any[]) {
+  try {
+    fs.writeFileSync(ADVERTISER_INQUIRIES_FILE, JSON.stringify(inquiries, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save advertiser inquiries:', err);
+  }
+}
+
+app.post('/api/campaigns/advertiser-inquiry', async (req: Request, res: Response) => {
+  try {
+    const {
+      brandName,
+      contactName,
+      contactEmail,
+      contactPhone,
+      websiteUrl,
+      targetMarkets,
+      campaignObjective,
+      estimatedBudget,
+      fleetSizeTarget,
+      campaignDurationWeeks,
+      apparelTypes,
+      customNotes,
+    } = req.body;
+
+    if (!brandName || !contactEmail) {
+      return res.status(400).json({ error: 'Brand name and contact email are required' });
+    }
+
+    const newInquiry = {
+      id: `inq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      brandName: String(brandName).trim(),
+      contactName: String(contactName || 'Partner').trim(),
+      contactEmail: String(contactEmail).trim(),
+      contactPhone: contactPhone ? String(contactPhone).trim() : '',
+      websiteUrl: websiteUrl ? String(websiteUrl).trim() : '',
+      targetMarkets: Array.isArray(targetMarkets) ? targetMarkets : ['national'],
+      campaignObjective: String(campaignObjective || 'Brand Awareness'),
+      estimatedBudget: String(estimatedBudget || '$5,000 - $15,000'),
+      fleetSizeTarget: Number(fleetSizeTarget) || 100,
+      campaignDurationWeeks: Number(campaignDurationWeeks) || 4,
+      apparelTypes: Array.isArray(apparelTypes) ? apparelTypes : ['hoodie'],
+      customNotes: customNotes ? String(customNotes).trim() : '',
+      submittedAt: new Date().toISOString(),
+      status: 'NEW',
+    };
+
+    const inquiries = loadAdvertiserInquiries();
+    inquiries.unshift(newInquiry);
+    saveAdvertiserInquiries(inquiries);
+
+    // Also persist to Firestore if available
+    try {
+      const db = getDb();
+      if (db) {
+        await db.collection('advertiserInquiries').doc(newInquiry.id).set(sanitizeForServerFirestore(newInquiry));
+      }
+    } catch (fsErr) {
+      console.warn('Could not persist inquiry to Firestore:', fsErr);
+    }
+
+    console.log(`[Advertiser Inquiry] New campaign lead from ${newInquiry.brandName} (${newInquiry.contactEmail})`);
+
+    res.json({
+      success: true,
+      message: 'Campaign inquiry submitted successfully. A Brand Partnerships Director will reach out within 24 hours.',
+      inquiry: newInquiry,
+    });
+  } catch (err: any) {
+    console.error('Error submitting advertiser inquiry:', err);
+    res.status(500).json({ error: 'Failed to submit advertiser inquiry', details: err?.message });
+  }
+});
+
+app.get('/api/campaigns/advertiser-inquiries', (req: Request, res: Response) => {
+  const inquiries = loadAdvertiserInquiries();
+  res.json({ inquiries });
+});
+
 // 404 handler for unmatched API routes
 app.use(['/api', '/api/*'], (req: Request, res: Response) => {
   res.status(404).json({
