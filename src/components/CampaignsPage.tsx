@@ -58,6 +58,15 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   const userParticipations = participations.filter(p => p.userId === currentUser?.id);
   const userEnrolledCampaignIds = new Set(userParticipations.map(p => p.campaignId));
 
+  const isUserAdmin = Boolean(
+    currentUser?.isAdmin ||
+    currentUser?.role === 'Admin' ||
+    currentUser?.role === 'SUPER_ADMIN' ||
+    currentUser?.role === 'POD_ADMIN' ||
+    (typeof currentUser?.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) ||
+    currentUser?.email?.toLowerCase() === 'chrisbitoy@gmail.com'
+  );
+
   // Metros and platforms lists
   const availableMetros = Array.from(new Set(campaigns.map(c => c.targetMetro)));
   const availablePlatforms = ['DoorDash', 'UberEats', 'Grubhub', 'Instacart', 'Relay'];
@@ -135,7 +144,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               <span>Are You a Brand? Sponsor a Fleet</span>
             </button>
 
-            {currentUser?.isAdmin && onOpenCreateCampaign && (
+            {isUserAdmin && onOpenCreateCampaign && (
               <button
                 type="button"
                 onClick={onOpenCreateCampaign}

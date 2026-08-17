@@ -5,15 +5,15 @@ import { NotificationCenter } from './NotificationCenter';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
-  Megaphone
+  Megaphone, Shirt
 } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: User;
   allUsers: User[];
   myPods?: Pod[];
-  activeTab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops';
-  setActiveTab: (tab: 'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops') => void;
+  activeTab: 'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops';
+  setActiveTab: (tab: 'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops') => void;
   onLogoClick?: () => void;
   onOpenBankModal: () => void;
   onOpenEditProfile?: () => void;
@@ -56,7 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPodDetail,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com';
+  const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' || Boolean(currentUser.isAdmin);
 
   return (
     <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs">
@@ -283,6 +283,19 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Gift className="w-3.5 h-3.5" />
               <span>Benefits Marketplace</span>
+            </button>
+
+            <button
+              id="header-tab-campaigns"
+              onClick={() => setActiveTab('campaigns')}
+              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'campaigns'
+                  ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                  : 'text-[#4B5563] hover:bg-gray-100'
+              }`}
+            >
+              <Shirt className="w-3.5 h-3.5" />
+              <span>Ad Campaigns</span>
             </button>
 
             <button

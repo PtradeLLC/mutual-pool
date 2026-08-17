@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects, isDemoPod } from './types';
+import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -21,7 +21,9 @@ const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) 
 const HowItWorksModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
 const ContactUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
-import { INITIAL_USERS, INITIAL_PODS } from './data/initialData';
+const CampaignsPage = lazy(() => import('./components/CampaignsPage').then((module) => ({ default: module.CampaignsPage })));
+const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
+import { INITIAL_USERS, INITIAL_PODS, INITIAL_CAMPAIGNS } from './data/initialData';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { 
@@ -76,7 +78,24 @@ export default function App() {
       return [];
     }
   });
-  const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'audit-log' | 'admin-ops'>('my-pods');
+  const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops'>('my-pods');
+  const [campaigns, setCampaigns] = useState<AdCampaign[]>(() => {
+    try {
+      const saved = localStorage.getItem('mutualpool_campaigns');
+      return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
+    } catch {
+      return INITIAL_CAMPAIGNS;
+    }
+  });
+  const [participations, setParticipations] = useState<CourierCampaignParticipation[]>(() => {
+    try {
+      const saved = localStorage.getItem('mutualpool_participations');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
 
   // Sync active user and cached pods to localStorage for session persistence across refreshes
   useEffect(() => {
@@ -124,6 +143,39 @@ export default function App() {
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
   const [repayingHardship, setRepayingHardship] = useState(false);
   const [openSubmitPerkDirectly, setOpenSubmitPerkDirectly] = useState(false);
+
+  const handleApplyParticipation = (newPart: CourierCampaignParticipation) => {
+    setParticipations(prev => {
+      const next = [newPart, ...prev.filter(p => p.id !== newPart.id)];
+      try {
+        localStorage.setItem('mutualpool_participations', JSON.stringify(next));
+      } catch {
+        // storage silent
+      }
+      return next;
+    });
+    setCampaigns(prev => {
+      const next = prev.map(c => c.id === newPart.campaignId ? { ...c, activeCouriersCount: (c.activeCouriersCount || 0) + 1 } : c);
+      try {
+        localStorage.setItem('mutualpool_campaigns', JSON.stringify(next));
+      } catch {
+        // storage silent
+      }
+      return next;
+    });
+  };
+
+  const handleCreateCampaign = (newCamp: AdCampaign) => {
+    setCampaigns(prev => {
+      const next = [newCamp, ...prev];
+      try {
+        localStorage.setItem('mutualpool_campaigns', JSON.stringify(next));
+      } catch {
+        // storage silent
+      }
+      return next;
+    });
+  };
 
   const handleRepayHardship = async () => {
     if (!currentUser) return;
@@ -1326,14 +1378,33 @@ export default function App() {
           </Suspense>
         )}
 
-        {/* 4. AUDIT LOG LEDGER TAB */}
+        {/* 4. AD CAMPAIGNS TAB */}
+        {activeTab === 'campaigns' && (
+          <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading brand campaigns…</div>}>
+            <CampaignsPage
+              currentUser={currentUser}
+              campaigns={campaigns}
+              participations={participations}
+              onApplyParticipation={handleApplyParticipation}
+              onOpenAuth={handleOpenAuth}
+              onOpenAdvertiser={() => setViewMode('ADVERTISER')}
+              onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
+              onStartPod={() => {
+                setActiveTab('my-pods');
+                setShowCreatePodModal(true);
+              }}
+            />
+          </Suspense>
+        )}
+
+        {/* 5. AUDIT LOG LEDGER TAB */}
         {activeTab === 'audit-log' && (
           <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading audit log…</div>}>
             <AuditLogViewer />
           </Suspense>
         )}
 
-        {/* 5. OPERATIONS & WEBHOOKS TAB */}
+        {/* 6. OPERATIONS & WEBHOOKS TAB */}
         {activeTab === 'admin-ops' && currentUser && (
           <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading admin tools…</div>}>
             <AdminOpsView
@@ -1510,6 +1581,16 @@ export default function App() {
           initialTab={hardshipModalTab}
           onRequestSubmitted={() => fetchAppData(currentUser.id)}
         />
+      )}
+
+      {showCreateCampaignModal && (
+        <Suspense fallback={null}>
+          <CreateCampaignModal
+            isOpen={showCreateCampaignModal}
+            onClose={() => setShowCreateCampaignModal(false)}
+            onCreateCampaign={handleCreateCampaign}
+          />
+        </Suspense>
       )}
 
       {inviteCodeTargetPod && (
