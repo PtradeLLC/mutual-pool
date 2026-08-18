@@ -18,7 +18,7 @@ interface HeaderProps {
   onOpenBankModal: () => void;
   onOpenEditProfile?: () => void;
   onOpenSubmitPerk?: () => void;
-  onOpenAdvertiser?: () => void;
+  onOpenAdvertiser?: (tab?: 'metrics' | 'media-kit') => void;
   onInstallPWA?: () => void;
   canInstallPWA?: boolean;
   onExitToLanding?: () => void;
@@ -213,7 +213,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
-                          onOpenAdvertiser();
+                          onOpenAdvertiser('metrics');
                         }}
                         className="w-full text-left p-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold text-xs flex items-center justify-between transition-colors border border-amber-200 cursor-pointer"
                       >
@@ -327,7 +327,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 id="header-advertise-btn"
-                onClick={onOpenAdvertiser}
+                onClick={() => onOpenAdvertiser('media-kit')}
                 className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
                 title="Launch a brand campaign or sponsor courier promo apparel"
               >

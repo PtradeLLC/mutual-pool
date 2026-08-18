@@ -30,7 +30,7 @@ interface CampaignsPageProps {
   participations: CourierCampaignParticipation[];
   onApplyParticipation: (participation: CourierCampaignParticipation) => void;
   onOpenAuth: () => void;
-  onOpenAdvertiser: () => void;
+  onOpenAdvertiser: (tab?: 'metrics' | 'media-kit') => void;
   onOpenCreateCampaign?: () => void;
   onStartPod?: () => void;
 }
@@ -138,7 +138,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
 
             <button
               type="button"
-              onClick={onOpenAdvertiser}
+              onClick={() => onOpenAdvertiser('metrics')}
               className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
             >
               <BarChart3 className="w-4 h-4" />

@@ -163,6 +163,13 @@ export default function App() {
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
   const [repayingHardship, setRepayingHardship] = useState(false);
   const [openSubmitPerkDirectly, setOpenSubmitPerkDirectly] = useState(false);
+  const [advertiserInitialTab, setAdvertiserInitialTab] = useState<'metrics' | 'media-kit'>('media-kit');
+
+  const handleOpenAdvertiser = (tab: 'metrics' | 'media-kit' = 'media-kit') => {
+    setAdvertiserInitialTab(tab);
+    setViewMode('ADVERTISER');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleApplyParticipation = (newPart: CourierCampaignParticipation) => {
     setParticipations(prev => {
@@ -823,10 +830,7 @@ export default function App() {
           onOpenAbout={() => setShowAboutModal(true)}
           onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           onOpenContact={() => setShowContactModal(true)}
-          onOpenAdvertiser={() => {
-            setViewMode('ADVERTISER');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
+          onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
           onOpenSubmitPerk={() => {
             if (!currentUser || currentUser.id === 'usr_guest') {
               setOpenSubmitPerkDirectly(true);
@@ -881,6 +885,7 @@ export default function App() {
           currentUser={currentUser}
           campaigns={campaigns}
           shifts={campaignShifts}
+          initialTab={advertiserInitialTab}
           onAddNewShift={handleAddNewShift}
           onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
           onBack={() => {
@@ -1057,10 +1062,7 @@ export default function App() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         }}
-        onOpenAdvertiser={() => {
-          setViewMode('ADVERTISER');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onOpenAdvertiser={handleOpenAdvertiser}
         onExitToLanding={() => setViewMode('LANDING')}
         onOpenAbout={() => setShowAboutModal(true)}
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
@@ -1411,7 +1413,7 @@ export default function App() {
               participations={participations}
               onApplyParticipation={handleApplyParticipation}
               onOpenAuth={handleOpenAuth}
-              onOpenAdvertiser={() => setViewMode('ADVERTISER')}
+              onOpenAdvertiser={handleOpenAdvertiser}
               onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
               onStartPod={() => {
                 setActiveTab('my-pods');
