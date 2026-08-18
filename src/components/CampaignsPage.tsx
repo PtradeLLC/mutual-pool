@@ -17,7 +17,8 @@ import {
   Calendar,
   AlertCircle,
   HelpCircle,
-  Plus
+  Plus,
+  BarChart3
 } from 'lucide-react';
 import { AdCampaign, User, CourierCampaignParticipation } from '../types';
 import { CampaignEnrollmentModal } from './CampaignEnrollmentModal';
@@ -140,8 +141,8 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               onClick={onOpenAdvertiser}
               className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
             >
-              <Building2 className="w-4 h-4" />
-              <span>Are You a Brand? Sponsor a Fleet</span>
+              <BarChart3 className="w-4 h-4" />
+              <span>Advertiser Portal & Metrics</span>
             </button>
 
             {isUserAdmin && onOpenCreateCampaign && (

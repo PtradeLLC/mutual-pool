@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, AdCampaign, CampaignShiftLog } from '../types';
 import { Logo } from './Logo';
+import { AdvertiserDashboard } from './AdvertiserDashboard';
+import { INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from '../data/initialData';
 import { 
   Megaphone, ShieldCheck, Sparkles, TrendingUp, Users, DollarSign, 
   MapPin, CheckCircle2, ArrowRight, Clock, Award, BarChart3, 
   Calendar, Layers, Shirt, Send, Check, Phone, Mail, Building, 
   Globe, HelpCircle, ChevronRight, Eye, RefreshCw, Star, HeartHandshake,
-  Download, ArrowLeft, Zap, Filter
+  Download, ArrowLeft, Zap, Filter, LayoutDashboard, Calculator, Plus
 } from 'lucide-react';
 
 import promoFrontImg from '../assets/images/promo_hoodie_front_1786902471783.jpg';
@@ -15,8 +17,13 @@ import promoSleeveImg from '../assets/images/promo_hoodie_sleeve_1786902506042.j
 
 interface AdvertiserPageProps {
   currentUser?: User | null;
+  campaigns?: AdCampaign[];
+  shifts?: CampaignShiftLog[];
+  onAddNewShift?: (shift: CampaignShiftLog) => void;
+  onOpenCreateCampaign?: () => void;
   onBack: () => void;
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER') => void;
+  initialTab?: 'metrics' | 'media-kit';
 }
 
 const METRO_MARKETS = [
@@ -90,9 +97,17 @@ const FAQS = [
 
 export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   currentUser,
+  campaigns = INITIAL_CAMPAIGNS,
+  shifts = INITIAL_CAMPAIGN_SHIFTS,
+  onAddNewShift,
+  onOpenCreateCampaign,
   onBack,
   onOpenAuth,
+  initialTab = 'metrics',
 }) => {
+  // Main view mode: 'metrics' (Dashboard) or 'media-kit' (Proposal Builder / Media Kit)
+  const [pageViewMode, setPageViewMode] = useState<'metrics' | 'media-kit'>(initialTab);
+
   // Campaign Calculator State
   const [selectedMarket, setSelectedMarket] = useState(METRO_MARKETS[0].id);
   const [courierCount, setCourierCount] = useState<number>(100);
@@ -184,7 +199,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
       
       {/* Top Sticky Header */}
       <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               onClick={onBack}
@@ -200,19 +215,90 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <a
-              href="#launch-form"
-              className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+          {/* Center View Selector Tabs */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setPageViewMode('metrics');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                pageViewMode === 'metrics'
+                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <Megaphone className="w-4 h-4" />
-              <span>Launch a Campaign</span>
-            </a>
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Campaign Metrics Dashboard</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPageViewMode('media-kit');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                pageViewMode === 'media-kit'
+                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span>Media Kit & Proposal Builder</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {pageViewMode === 'metrics' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPageViewMode('media-kit');
+                  setTimeout(() => {
+                    document.getElementById('launch-form')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Sponsor Fleet</span>
+              </button>
+            ) : (
+              <a
+                href="#launch-form"
+                className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              >
+                <Megaphone className="w-4 h-4" />
+                <span>Launch a Campaign</span>
+              </a>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Main Content Render */}
+      {pageViewMode === 'metrics' ? (
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          <AdvertiserDashboard
+            currentUser={currentUser}
+            campaigns={campaigns}
+            shifts={shifts}
+            onAddNewShift={onAddNewShift}
+            onOpenProposalBuilder={() => {
+              setPageViewMode('media-kit');
+              setTimeout(() => {
+                document.getElementById('launch-form')?.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            }}
+            onOpenCreateCampaign={onOpenCreateCampaign}
+            onBack={onBack}
+          />
+        </main>
+      ) : (
+        <>
+          {/* Hero Section */}
       <section className="relative overflow-hidden pt-10 pb-16 px-4 sm:px-6 border-b border-slate-200 bg-gradient-to-b from-[#F8FAFC] via-white to-white">
         <div className="max-w-7xl mx-auto">
           
@@ -968,6 +1054,8 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
           ))}
         </div>
       </section>
+      </>
+      )}
 
       {/* Footer */}
       <footer className="bg-[#F8FAFC] border-t border-slate-200 py-8 text-center text-xs text-slate-500">

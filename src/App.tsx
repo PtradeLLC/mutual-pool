@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation } from './types';
+import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -23,7 +23,7 @@ const ContactUsModal = lazy(() => import('./components/InfoModals').then((module
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const CampaignsPage = lazy(() => import('./components/CampaignsPage').then((module) => ({ default: module.CampaignsPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
-import { INITIAL_USERS, INITIAL_PODS, INITIAL_CAMPAIGNS } from './data/initialData';
+import { INITIAL_USERS, INITIAL_PODS, INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from './data/initialData';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { 
@@ -95,7 +95,27 @@ export default function App() {
       return [];
     }
   });
+  const [campaignShifts, setCampaignShifts] = useState<CampaignShiftLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('mutualpool_campaign_shifts');
+      return saved ? JSON.parse(saved) : INITIAL_CAMPAIGN_SHIFTS;
+    } catch {
+      return INITIAL_CAMPAIGN_SHIFTS;
+    }
+  });
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
+
+  const handleAddNewShift = (newShift: CampaignShiftLog) => {
+    setCampaignShifts(prev => {
+      const next = [newShift, ...prev];
+      try {
+        localStorage.setItem('mutualpool_campaign_shifts', JSON.stringify(next));
+      } catch {
+        // storage silent
+      }
+      return next;
+    });
+  };
 
   // Sync active user and cached pods to localStorage for session persistence across refreshes
   useEffect(() => {
@@ -859,6 +879,10 @@ export default function App() {
       }>
         <AdvertiserPage
           currentUser={currentUser}
+          campaigns={campaigns}
+          shifts={campaignShifts}
+          onAddNewShift={handleAddNewShift}
+          onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
           onBack={() => {
             setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
             window.scrollTo({ top: 0, behavior: 'smooth' });

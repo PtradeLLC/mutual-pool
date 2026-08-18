@@ -5,7 +5,7 @@ import { NotificationCenter } from './NotificationCenter';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
-  Megaphone, Shirt
+  Megaphone, Shirt, BarChart3
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -209,6 +209,22 @@ export const Header: React.FC<HeaderProps> = ({
 
                   {/* Navigation & Logout Section */}
                   <div className="pt-2 space-y-1">
+                    {onOpenAdvertiser && (
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenAdvertiser();
+                        }}
+                        className="w-full text-left p-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold text-xs flex items-center justify-between transition-colors border border-amber-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="w-4 h-4 text-amber-600" />
+                          <span>Advertiser & Campaign Metrics</span>
+                        </div>
+                        <span className="text-[10px] bg-amber-200/80 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">Portal</span>
+                      </button>
+                    )}
+
                     {onExitToLanding && (
                       <button
                         onClick={() => {

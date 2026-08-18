@@ -512,4 +512,46 @@ export interface CourierCampaignParticipation {
   enrolledAt: string;
 }
 
+export interface CampaignShiftLog {
+  id: string;
+  campaignId: string;
+  campaignTitle: string;
+  brandName: string;
+  courierId: string;
+  courierName: string;
+  courierAvatar?: string;
+  platform: 'DoorDash' | 'UberEats' | 'Grubhub' | 'Instacart' | 'Relay' | 'Postmates';
+  metro: string;
+  neighborhood: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationHours: number;
+  milesTraveled: number;
+  estimatedImpressions: number;
+  courierPayoutEarned: number;
+  verifiedGps: boolean;
+  verifiedPhoto: boolean;
+  complianceScore: number; // 0-100
+  notes?: string;
+}
+
+export interface CampaignDailyMetric {
+  date: string;
+  dayLabel: string;
+  impressions: number;
+  activeCouriers: number;
+  shiftsCompleted: number;
+  spend: number;
+}
+
+export interface CampaignZoneMetric {
+  zoneName: string;
+  metro: string;
+  activeCouriers: number;
+  impressions: number;
+  footTrafficScore: string;
+  popularPlatform: string;
+}
+
 
