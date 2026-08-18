@@ -8,7 +8,8 @@ import {
   MapPin, CheckCircle2, ArrowRight, Clock, Award, BarChart3, 
   Calendar, Layers, Shirt, Send, Check, Phone, Mail, Building, 
   Globe, HelpCircle, ChevronRight, Eye, RefreshCw, Star, HeartHandshake,
-  Download, ArrowLeft, Zap, Filter, LayoutDashboard, Calculator, Plus
+  Download, ArrowLeft, Zap, Filter, LayoutDashboard, Calculator, Plus,
+  Lock, LogIn
 } from 'lucide-react';
 
 import promoFrontImg from '../assets/images/promo_hoodie_front_1786902471783.jpg';
@@ -103,10 +104,16 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   onOpenCreateCampaign,
   onBack,
   onOpenAuth,
-  initialTab = 'metrics',
+  initialTab = 'media-kit',
 }) => {
-  // Main view mode: 'metrics' (Dashboard) or 'media-kit' (Proposal Builder / Media Kit)
-  const [pageViewMode, setPageViewMode] = useState<'metrics' | 'media-kit'>(initialTab);
+  const isAuthenticated = !!(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
+
+  // Non-authenticated users ALWAYS default to 'media-kit' (Media Kit & Proposal Builder)
+  // Authenticated users can view either 'metrics' or 'media-kit'
+  const [pageViewMode, setPageViewMode] = useState<'metrics' | 'media-kit'>(() => {
+    if (!isAuthenticated) return 'media-kit';
+    return initialTab === 'metrics' ? 'metrics' : 'media-kit';
+  });
 
   // Campaign Calculator State
   const [selectedMarket, setSelectedMarket] = useState(METRO_MARKETS[0].id);
@@ -220,22 +227,6 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             <button
               type="button"
               onClick={() => {
-                setPageViewMode('metrics');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                pageViewMode === 'metrics'
-                  ? 'bg-[#005FB8] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Campaign Metrics Dashboard</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
                 setPageViewMode('media-kit');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
@@ -248,10 +239,51 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               <Calculator className="w-3.5 h-3.5" />
               <span>Media Kit & Proposal Builder</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  onOpenAuth?.('LOGIN');
+                  return;
+                }
+                setPageViewMode('metrics');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                pageViewMode === 'metrics' && isAuthenticated
+                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title={isAuthenticated ? 'View live campaign analytics & courier fleet shifts' : 'Sign in to access real-time metrics'}
+            >
+              {isAuthenticated ? (
+                <LayoutDashboard className="w-3.5 h-3.5" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+              )}
+              <span>Campaign Metrics Dashboard</span>
+              {!isAuthenticated && (
+                <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded border border-amber-300">
+                  Login Required
+                </span>
+              )}
+            </button>
           </div>
 
-          <div className="flex items-center gap-3">
-            {pageViewMode === 'metrics' ? (
+          <div className="flex items-center gap-2">
+            {!isAuthenticated && onOpenAuth && (
+              <button
+                type="button"
+                onClick={() => onOpenAuth('LOGIN')}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5 text-slate-700" />
+                <span>Sign In</span>
+              </button>
+            )}
+
+            {pageViewMode === 'metrics' && isAuthenticated ? (
               <button
                 type="button"
                 onClick={() => {
@@ -279,7 +311,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
       </header>
 
       {/* Main Content Render */}
-      {pageViewMode === 'metrics' ? (
+      {pageViewMode === 'metrics' && isAuthenticated ? (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           <AdvertiserDashboard
             currentUser={currentUser}
@@ -295,6 +327,43 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             onOpenCreateCampaign={onOpenCreateCampaign}
             onBack={onBack}
           />
+        </main>
+      ) : pageViewMode === 'metrics' && !isAuthenticated ? (
+        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center">
+          <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl space-y-6">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+              <Lock className="w-8 h-8" />
+            </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">
+                Authentication Required
+              </h2>
+              <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+                Real-time courier fleet route logs, impression charts, and active shift ledgers are restricted to authenticated brand partners and administrators.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              {onOpenAuth && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('LOGIN')}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Log In to View Metrics</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPageViewMode('media-kit')}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm border border-slate-300 transition-colors cursor-pointer"
+              >
+                <span>View Media Kit & Proposal Builder</span>
+              </button>
+            </div>
+          </div>
         </main>
       ) : (
         <>
