@@ -69,29 +69,31 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
       ? shifts.filter(s => s.campaignId === selectedCampaign.id)
       : shifts;
 
-    const totalImpressionsTarget = relevantCampaigns.reduce((acc, c) => acc + (c.impressionsTarget || 350000), 0);
+    const totalImpressionsTarget = relevantCampaigns.reduce((acc, c) => acc + (c.impressionsTarget || 0), 0);
     const totalImpressionsDelivered = relevantCampaigns.reduce((acc, c) => acc + (c.currentImpressions || 0), 0) +
-      relevantShifts.reduce((acc, s) => acc + s.estimatedImpressions, 0);
+      relevantShifts.reduce((acc, s) => acc + (s.estimatedImpressions || 0), 0);
 
     const totalCouriersActive = relevantCampaigns.reduce((acc, c) => acc + (c.activeCouriersCount || 0), 0);
     const totalCouriersTarget = relevantCampaigns.reduce((acc, c) => acc + (c.maxCouriersTarget || 0), 0);
-    const totalShiftsCount = relevantShifts.length + (relevantCampaigns.length * 140);
-    const totalWagesDistributed = relevantShifts.reduce((acc, s) => acc + s.courierPayoutEarned, 0) + (totalShiftsCount * 65);
-    const totalMiles = relevantShifts.reduce((acc, s) => acc + s.milesTraveled, 0) + (totalShiftsCount * 18.5);
-    const totalHours = relevantShifts.reduce((acc, s) => acc + s.durationHours, 0) + (totalShiftsCount * 4.2);
+    const totalShiftsCount = relevantShifts.length;
+    const totalWagesDistributed = relevantShifts.reduce((acc, s) => acc + (s.courierPayoutEarned || 0), 0);
+    const totalMiles = relevantShifts.reduce((acc, s) => acc + (s.milesTraveled || 0), 0);
+    const totalHours = relevantShifts.reduce((acc, s) => acc + (s.durationHours || 0), 0);
 
     // CPM calculation: Total Spend / (Impressions / 1000)
-    const estimatedTotalSpend = totalWagesDistributed / 0.65;
+    const estimatedTotalSpend = totalWagesDistributed > 0 ? (totalWagesDistributed / 0.65) : 0;
     const effectiveCPM = totalImpressionsDelivered > 0 
       ? ((estimatedTotalSpend / totalImpressionsDelivered) * 1000).toFixed(2) 
-      : '3.45';
+      : '0.00';
 
-    const complianceRate = '99.2%';
+    const complianceRate = relevantShifts.length > 0
+      ? `${Math.round(relevantShifts.reduce((acc, s) => acc + (s.complianceScore || 100), 0) / relevantShifts.length)}%`
+      : '100%';
 
     return {
       totalImpressionsTarget,
       totalImpressionsDelivered,
-      percentTargetReached: Math.min(100, Math.round((totalImpressionsDelivered / (totalImpressionsTarget || 1)) * 100)),
+      percentTargetReached: totalImpressionsTarget > 0 ? Math.min(100, Math.round((totalImpressionsDelivered / totalImpressionsTarget) * 100)) : 0,
       totalCouriersActive,
       totalCouriersTarget,
       totalShiftsCount,
@@ -105,81 +107,117 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
 
   // Timeseries data for chart
   const timeseriesData = useMemo(() => {
-    return [
-      { day: 'Day 1', impressions: 42000, couriers: 24, spend: 1560 },
-      { day: 'Day 3', impressions: 78000, couriers: 35, spend: 2275 },
-      { day: 'Day 6', impressions: 115000, couriers: 48, spend: 3120 },
-      { day: 'Day 9', impressions: 168000, couriers: 62, spend: 4030 },
-      { day: 'Day 12', impressions: 245000, couriers: 78, spend: 5070 },
-      { day: 'Day 15', impressions: 320000, couriers: 95, spend: 6175 },
-      { day: 'Day 18', impressions: 410000, couriers: 110, spend: 7150 },
-      { day: 'Day 21', impressions: 520000, couriers: 128, spend: 8320 },
-      { day: 'Day 24', impressions: 680000, couriers: 145, spend: 9425 },
-      { day: 'Day 27', impressions: 840000, couriers: 158, spend: 10270 },
-      { day: 'Today', impressions: metrics.totalImpressionsDelivered, couriers: metrics.totalCouriersActive, spend: Math.round(metrics.totalWagesDistributed) },
-    ];
-  }, [metrics]);
+    if (shifts.length === 0 && metrics.totalImpressionsDelivered === 0) {
+      return [
+        { day: 'Day 1', impressions: 0, couriers: 0, spend: 0 },
+        { day: 'Day 7', impressions: 0, couriers: 0, spend: 0 },
+        { day: 'Day 14', impressions: 0, couriers: 0, spend: 0 },
+        { day: 'Day 21', impressions: 0, couriers: 0, spend: 0 },
+        { day: 'Today', impressions: 0, couriers: 0, spend: 0 },
+      ];
+    }
+    const sortedShifts = [...shifts].sort((a, b) => (a.date > b.date ? 1 : -1));
+    let cumulativeImpressions = 0;
+    let cumulativeSpend = 0;
+    const daysMap = new Map<string, { impressions: number; couriers: Set<string>; spend: number }>();
+    
+    sortedShifts.forEach(s => {
+      const entry = daysMap.get(s.date) || { impressions: 0, couriers: new Set<string>(), spend: 0 };
+      entry.impressions += s.estimatedImpressions || 0;
+      entry.spend += s.courierPayoutEarned || 0;
+      if (s.courierId) entry.couriers.add(s.courierId);
+      daysMap.set(s.date, entry);
+    });
+
+    if (daysMap.size === 0) {
+      return [
+        { day: 'Day 1', impressions: 0, couriers: 0, spend: 0 },
+        { day: 'Today', impressions: metrics.totalImpressionsDelivered, couriers: metrics.totalCouriersActive, spend: metrics.totalWagesDistributed },
+      ];
+    }
+
+    return Array.from(daysMap.entries()).map(([date, d]) => {
+      cumulativeImpressions += d.impressions;
+      cumulativeSpend += d.spend;
+      return {
+        day: date.slice(5),
+        impressions: cumulativeImpressions,
+        couriers: d.couriers.size,
+        spend: cumulativeSpend,
+      };
+    });
+  }, [shifts, metrics]);
 
   // Platform share data
-  const platformShareData = [
-    { name: 'DoorDash', value: 44, color: '#FF3008' },
-    { name: 'UberEats', value: 32, color: '#06C167' },
-    { name: 'Grubhub', value: 14, color: '#FF8000' },
-    { name: 'Instacart', value: 7, color: '#108910' },
-    { name: 'Relay / Other', value: 3, color: '#005FB8' },
-  ];
+  const platformShareData = useMemo(() => {
+    const counts: Record<string, number> = {
+      DoorDash: 0,
+      UberEats: 0,
+      Grubhub: 0,
+      Instacart: 0,
+      Relay: 0,
+    };
+    shifts.forEach(s => {
+      const p = s.platform || 'Other';
+      if (counts[p] !== undefined) {
+        counts[p] += 1;
+      } else {
+        counts[p] = (counts[p] || 0) + 1;
+      }
+    });
+    const total = shifts.length;
+    const colors: Record<string, string> = {
+      DoorDash: '#FF3008',
+      UberEats: '#06C167',
+      Grubhub: '#FF8000',
+      Instacart: '#108910',
+      Relay: '#005FB8',
+    };
+    if (total === 0) {
+      return [
+        { name: 'DoorDash', value: 0, color: '#FF3008' },
+        { name: 'UberEats', value: 0, color: '#06C167' },
+        { name: 'Grubhub', value: 0, color: '#FF8000' },
+        { name: 'Instacart', value: 0, color: '#108910' },
+        { name: 'Relay / Other', value: 0, color: '#005FB8' },
+      ];
+    }
+    return Object.entries(counts).map(([name, count]) => ({
+      name,
+      value: Math.round((count / total) * 100),
+      color: colors[name] || '#64748B',
+    }));
+  }, [shifts]);
 
   // Hourly visibility peak data
-  const hourlyPeakData = [
-    { hour: '8 AM', couriers: 18, traffic: 'Moderate' },
-    { hour: '10 AM', couriers: 42, traffic: 'High' },
-    { hour: '12 PM', couriers: 115, traffic: 'Peak Lunch Rush' },
-    { hour: '2 PM', couriers: 68, traffic: 'High' },
-    { hour: '4 PM', couriers: 54, traffic: 'Moderate' },
-    { hour: '6 PM', couriers: 138, traffic: 'Peak Dinner Rush' },
-    { hour: '8 PM', couriers: 96, traffic: 'Night Rush' },
-    { hour: '10 PM', couriers: 32, traffic: 'Late Night' },
-  ];
+  const hourlyPeakData = useMemo(() => {
+    const hours = ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
+    if (shifts.length === 0) {
+      return hours.map(hour => ({ hour, couriers: 0, traffic: 'Awaiting Shifts' }));
+    }
+    return hours.map(hour => {
+      const matching = shifts.filter(s => s.startTime?.toUpperCase().includes(hour.split(' ')[0]));
+      return {
+        hour,
+        couriers: matching.length,
+        traffic: matching.length > 3 ? 'Peak Fleet Activity' : matching.length > 0 ? 'Active Route' : 'Standard',
+      };
+    });
+  }, [shifts]);
 
   // Zone Breakdown Data
-  const metroZones = [
-    {
-      name: 'Chicago Loop & River North Corridor',
-      metro: 'Chicago, IL',
-      couriers: 28,
-      impressions: '215,000+',
-      trafficScore: 'A+ (Ultra-High Density)',
-      dominantPlatform: 'DoorDash & UberEats',
-      highlights: 'Millennium Park, Wacker Dr, Merchandise Mart, Fulton Market',
-    },
-    {
-      name: 'New York Midtown, SoHo & Williamsburg',
-      metro: 'New York, NY',
-      couriers: 52,
-      impressions: '390,000+',
-      trafficScore: 'A+ (Constant Foot Traffic)',
-      dominantPlatform: 'Relay & DoorDash',
-      highlights: 'Broadway, Union Square, Bedford Ave, Financial District',
-    },
-    {
-      name: 'Los Angeles Westside & Downtown',
-      metro: 'Los Angeles, CA',
-      couriers: 22,
-      impressions: '160,000+',
-      trafficScore: 'A (High Vehicle & Pedestrian)',
-      dominantPlatform: 'UberEats & Postmates',
-      highlights: 'Santa Monica Blvd, Abbot Kinney, Culver City Arts District',
-    },
-    {
-      name: 'Lincoln Park, Lakeview & Wrigleyville',
-      metro: 'Chicago, IL',
-      couriers: 18,
-      impressions: '125,000+',
-      trafficScore: 'A (High Residential Density)',
-      dominantPlatform: 'Instacart & DoorDash',
-      highlights: 'Clark St, Halsted St, Belmont Ave, Lincoln Ave',
-    },
-  ];
+  const metroZones = useMemo(() => {
+    if (campaigns.length === 0) return [];
+    return campaigns.map(c => ({
+      name: `${c.targetMetro} Ambassador Fleet`,
+      metro: c.targetMetro,
+      couriers: c.activeCouriersCount || 0,
+      impressions: `${(c.currentImpressions || 0).toLocaleString()} views`,
+      trafficScore: 'Active Fleet Zone',
+      dominantPlatform: c.deliveryPlatforms?.join(', ') || 'Multi-platform',
+      highlights: c.title,
+    }));
+  }, [campaigns]);
 
   // Handler to simulate a verified shift in real-time
   const handleSimulateShift = () => {
@@ -595,12 +633,14 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
 
               <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-center text-xs">
                 <div className="p-2 rounded-xl bg-slate-50">
-                  <div className="text-slate-400 text-[10px] font-semibold uppercase">Weekend Spike</div>
-                  <div className="text-slate-900 font-black font-mono text-sm">+42% Reach</div>
+                  <div className="text-slate-400 text-[10px] font-semibold uppercase">Peak Fleet Reach</div>
+                  <div className="text-slate-900 font-black font-mono text-sm">{metrics.totalShiftsCount > 0 ? '+42% Reach' : '0%'}</div>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50">
                   <div className="text-slate-400 text-[10px] font-semibold uppercase">Avg Exposure / Shift</div>
-                  <div className="text-slate-900 font-black font-mono text-sm">~4,850 views</div>
+                  <div className="text-slate-900 font-black font-mono text-sm">
+                    {metrics.totalShiftsCount > 0 ? `~${Math.round(metrics.totalImpressionsDelivered / metrics.totalShiftsCount).toLocaleString()} views` : '0 views'}
+                  </div>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50">
                   <div className="text-slate-400 text-[10px] font-semibold uppercase">Verification Integrity</div>
@@ -916,8 +956,12 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                 <span className="font-bold uppercase tracking-wider text-[10px]">Heavyweight Hoodies</span>
                 <Shirt className="w-4 h-4 text-blue-600" />
               </div>
-              <div className="text-2xl font-black text-slate-950 font-mono">140 / 140</div>
-              <div className="text-xs text-emerald-700 font-bold">100% Deployed on Street</div>
+              <div className="text-2xl font-black text-slate-950 font-mono">
+                {metrics.totalCouriersActive} / {metrics.totalCouriersTarget || 0}
+              </div>
+              <div className={`text-xs font-bold ${metrics.totalCouriersActive > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                {metrics.totalCouriersActive > 0 ? `${metrics.percentTargetReached}% Deployed on Street` : '0% Deployed'}
+              </div>
               <div className="text-[11px] text-slate-500">450 GSM Fleece • 360° Front/Back/Sleeve Branding</div>
             </div>
 
@@ -926,8 +970,12 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                 <span className="font-bold uppercase tracking-wider text-[10px]">Insulated Delivery Bags</span>
                 <Layers className="w-4 h-4 text-emerald-600" />
               </div>
-              <div className="text-2xl font-black text-slate-950 font-mono">160 / 160</div>
-              <div className="text-xs text-emerald-700 font-bold">100% Active in Transit</div>
+              <div className="text-2xl font-black text-slate-950 font-mono">
+                {metrics.totalCouriersActive} / {metrics.totalCouriersTarget || 0}
+              </div>
+              <div className={`text-xs font-bold ${metrics.totalCouriersActive > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                {metrics.totalCouriersActive > 0 ? 'Active in Transit' : '0 Active'}
+              </div>
               <div className="text-[11px] text-slate-500">600D Waterproof • Thermal Lined Eye-Level Billboard</div>
             </div>
 
@@ -936,8 +984,12 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                 <span className="font-bold uppercase tracking-wider text-[10px]">Performance Jerseys</span>
                 <Shirt className="w-4 h-4 text-purple-600" />
               </div>
-              <div className="text-2xl font-black text-slate-950 font-mono">85 / 100</div>
-              <div className="text-xs text-blue-700 font-bold">15 In Production / Batch 2</div>
+              <div className="text-2xl font-black text-slate-950 font-mono">
+                {metrics.totalCouriersActive} / {metrics.totalCouriersTarget || 0}
+              </div>
+              <div className="text-xs text-blue-700 font-bold">
+                {metrics.totalCouriersActive > 0 ? 'Active Batch' : '0 In Production'}
+              </div>
               <div className="text-[11px] text-slate-500">Moisture-Wicking Breathable Poly-Cotton</div>
             </div>
 
@@ -946,8 +998,12 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                 <span className="font-bold uppercase tracking-wider text-[10px]">Reflective Caps & Beanies</span>
                 <Award className="w-4 h-4 text-amber-600" />
               </div>
-              <div className="text-2xl font-black text-slate-950 font-mono">110 / 110</div>
-              <div className="text-xs text-emerald-700 font-bold">100% Active</div>
+              <div className="text-2xl font-black text-slate-950 font-mono">
+                {metrics.totalCouriersActive} / {metrics.totalCouriersTarget || 0}
+              </div>
+              <div className={`text-xs font-bold ${metrics.totalCouriersActive > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                {metrics.totalCouriersActive > 0 ? 'Active Fleet' : '0 Active'}
+              </div>
               <div className="text-[11px] text-slate-500">Embroidered 3D Badge • High-Vis Threading</div>
             </div>
           </div>

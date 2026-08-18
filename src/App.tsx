@@ -82,7 +82,15 @@ export default function App() {
   const [campaigns, setCampaigns] = useState<AdCampaign[]>(() => {
     try {
       const saved = localStorage.getItem('mutualpool_campaigns');
-      return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
+      if (!saved) return INITIAL_CAMPAIGNS;
+      const parsed: AdCampaign[] = JSON.parse(saved);
+      const isDemoCampaign = (c: any) => {
+        if (!c || !c.id) return true;
+        return ['camp_celsius_chicago_2026', 'camp_liquiddeath_nyc_2026', 'camp_meineke_national_2026', 'camp_sweetgreen_la_2026'].includes(c.id);
+      };
+      const clean = Array.isArray(parsed) ? parsed.filter(c => !isDemoCampaign(c)) : [];
+      localStorage.setItem('mutualpool_campaigns', JSON.stringify(clean));
+      return clean;
     } catch {
       return INITIAL_CAMPAIGNS;
     }
@@ -98,7 +106,16 @@ export default function App() {
   const [campaignShifts, setCampaignShifts] = useState<CampaignShiftLog[]>(() => {
     try {
       const saved = localStorage.getItem('mutualpool_campaign_shifts');
-      return saved ? JSON.parse(saved) : INITIAL_CAMPAIGN_SHIFTS;
+      if (!saved) return INITIAL_CAMPAIGN_SHIFTS;
+      const parsed: CampaignShiftLog[] = JSON.parse(saved);
+      const isDemoShift = (s: any) => {
+        if (!s || !s.id) return true;
+        return ['shift_101', 'shift_102', 'shift_103', 'shift_104', 'shift_105', 'shift_106', 'shift_107', 'shift_108'].includes(s.id) ||
+          ['camp_celsius_chicago_2026', 'camp_liquiddeath_nyc_2026', 'camp_meineke_national_2026', 'camp_sweetgreen_la_2026'].includes(s.campaignId);
+      };
+      const clean = Array.isArray(parsed) ? parsed.filter(s => !isDemoShift(s)) : [];
+      localStorage.setItem('mutualpool_campaign_shifts', JSON.stringify(clean));
+      return clean;
     } catch {
       return INITIAL_CAMPAIGN_SHIFTS;
     }
