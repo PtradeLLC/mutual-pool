@@ -222,54 +222,43 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             </div>
           </div>
 
-          {/* Center View Selector Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => {
-                setPageViewMode('media-kit');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                pageViewMode === 'media-kit'
-                  ? 'bg-[#005FB8] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Calculator className="w-3.5 h-3.5" />
-              <span>Media Kit & Proposal Builder</span>
-            </button>
+          {/* Center View Selector Tabs - Visible Only to Authenticated Users */}
+          {isAuthenticated && (
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setPageViewMode('media-kit');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  pageViewMode === 'media-kit'
+                    ? 'bg-[#005FB8] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Calculator className="w-3.5 h-3.5" />
+                <span>Media Kit & Proposal Builder</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (!isAuthenticated) {
-                  onOpenAuth?.('LOGIN');
-                  return;
-                }
-                setPageViewMode('metrics');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                pageViewMode === 'metrics' && isAuthenticated
-                  ? 'bg-[#005FB8] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title={isAuthenticated ? 'View live campaign analytics & courier fleet shifts' : 'Sign in to access real-time metrics'}
-            >
-              {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPageViewMode('metrics');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  pageViewMode === 'metrics'
+                    ? 'bg-[#005FB8] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="View live campaign analytics & courier fleet shifts"
+              >
                 <LayoutDashboard className="w-3.5 h-3.5" />
-              ) : (
-                <Lock className="w-3.5 h-3.5 text-amber-600" />
-              )}
-              <span>Campaign Metrics Dashboard</span>
-              {!isAuthenticated && (
-                <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded border border-amber-300">
-                  Login Required
-                </span>
-              )}
-            </button>
-          </div>
+                <span>Campaign Metrics Dashboard</span>
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             {!isAuthenticated && onOpenAuth && (
