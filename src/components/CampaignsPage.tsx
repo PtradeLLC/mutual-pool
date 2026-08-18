@@ -20,7 +20,7 @@ import {
   Plus,
   BarChart3
 } from 'lucide-react';
-import { AdCampaign, User, CourierCampaignParticipation } from '../types';
+import { AdCampaign, User, CourierCampaignParticipation, isAdvertiserOrAdmin } from '../types';
 import { CampaignEnrollmentModal } from './CampaignEnrollmentModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 
@@ -136,14 +136,25 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               <span>How Courier Payouts Work</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => onOpenAdvertiser('metrics')}
-              className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>Advertiser Portal & Metrics</span>
-            </button>
+            {isAdvertiserOrAdmin(currentUser) ? (
+              <button
+                type="button"
+                onClick={() => onOpenAdvertiser('metrics')}
+                className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Advertiser Portal & Metrics</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenAdvertiser('media-kit')}
+                className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              >
+                <Megaphone className="w-4 h-4" />
+                <span>Advertise with Us</span>
+              </button>
+            )}
 
             {isUserAdmin && onOpenCreateCampaign && (
               <button

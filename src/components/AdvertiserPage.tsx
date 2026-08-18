@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User, AdCampaign, CampaignShiftLog } from '../types';
+import React, { useState, useEffect } from 'react';
+import { User, AdCampaign, CampaignShiftLog, isAdvertiserOrAdmin } from '../types';
 import { Logo } from './Logo';
 import { AdvertiserDashboard } from './AdvertiserDashboard';
 import { INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from '../data/initialData';
@@ -107,13 +107,20 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   initialTab = 'media-kit',
 }) => {
   const isAuthenticated = !!(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
+  const canAccessMetrics = isAdvertiserOrAdmin(currentUser);
 
-  // Non-authenticated users ALWAYS default to 'media-kit' (Media Kit & Proposal Builder)
-  // Authenticated users can view either 'metrics' or 'media-kit'
+  // Users with role of Advertisers and Admins can access 'metrics' or 'media-kit'.
+  // Gig workers, pod creators, and unauthenticated users only access 'media-kit' (Media Kit & Proposal Builder).
   const [pageViewMode, setPageViewMode] = useState<'metrics' | 'media-kit'>(() => {
-    if (!isAuthenticated) return 'media-kit';
+    if (!canAccessMetrics) return 'media-kit';
     return initialTab === 'metrics' ? 'metrics' : 'media-kit';
   });
+
+  useEffect(() => {
+    if (!canAccessMetrics && pageViewMode === 'metrics') {
+      setPageViewMode('media-kit');
+    }
+  }, [canAccessMetrics, pageViewMode]);
 
   // Campaign Calculator State
   const [selectedMarket, setSelectedMarket] = useState(METRO_MARKETS[0].id);
@@ -222,8 +229,8 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             </div>
           </div>
 
-          {/* Center View Selector Tabs - Visible Only to Authenticated Users */}
-          {isAuthenticated && (
+          {/* Center View Selector Tabs - Visible Only to Users with Role Advertiser or Admin */}
+          {canAccessMetrics && (
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
               <button
                 type="button"
@@ -272,7 +279,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               </button>
             )}
 
-            {pageViewMode === 'metrics' && isAuthenticated ? (
+            {pageViewMode === 'metrics' && canAccessMetrics ? (
               <button
                 type="button"
                 onClick={() => {
@@ -299,8 +306,8 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
         </div>
       </header>
 
-      {/* Main Content Render */}
-      {pageViewMode === 'metrics' && isAuthenticated ? (
+      {/* Main Content Render: Restricted to Advertisers and Admins only */}
+      {pageViewMode === 'metrics' && canAccessMetrics ? (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           <AdvertiserDashboard
             currentUser={currentUser}
@@ -316,43 +323,6 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             onOpenCreateCampaign={onOpenCreateCampaign}
             onBack={onBack}
           />
-        </main>
-      ) : pageViewMode === 'metrics' && !isAuthenticated ? (
-        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center">
-          <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl space-y-6">
-            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
-              <Lock className="w-8 h-8" />
-            </div>
-            
-            <div className="space-y-2">
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">
-                Authentication Required
-              </h2>
-              <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                Real-time courier fleet route logs, impression charts, and active shift ledgers are restricted to authenticated brand partners and administrators.
-              </p>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-              {onOpenAuth && (
-                <button
-                  type="button"
-                  onClick={() => onOpenAuth('LOGIN')}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Log In to View Metrics</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setPageViewMode('media-kit')}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm border border-slate-300 transition-colors cursor-pointer"
-              >
-                <span>View Media Kit & Proposal Builder</span>
-              </button>
-            </div>
-          </div>
         </main>
       ) : (
         <>

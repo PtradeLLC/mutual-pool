@@ -1,6 +1,18 @@
 export type KYCStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'FAILED';
 
-export type UserRole = 'RIDER' | 'DRIVER' | 'POD_ADMIN' | 'SUPER_ADMIN' | 'Admin';
+export type UserRole = 'RIDER' | 'DRIVER' | 'POD_ADMIN' | 'SUPER_ADMIN' | 'Admin' | 'ADVERTISER' | 'Advertiser';
+
+export const isAdvertiserOrAdmin = (user?: User | null): boolean => {
+  if (!user || !user.id || user.id === 'usr_guest') return false;
+  if (user.isAdmin) return true;
+  const role = String(user.role || '').toUpperCase();
+  return (
+    role.includes('ADVERTISER') ||
+    role.includes('ADMIN') ||
+    role === 'SUPER_ADMIN' ||
+    user.email?.toLowerCase() === 'chrisbitoy@gmail.com'
+  );
+};
 
 export type GigPlatform = 'Uber Eats' | 'Lyft' | 'DoorDash' | 'Instacart' | 'Amazon Flex' | 'Grubhub' | 'Spark' | 'Partner Provider';
 

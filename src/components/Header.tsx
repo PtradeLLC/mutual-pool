@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Pod } from '../types';
+import { User, Pod, isAdvertiserOrAdmin } from '../types';
 import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
 import { 
@@ -209,7 +209,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                   {/* Navigation & Logout Section */}
                   <div className="pt-2 space-y-1">
-                    {onOpenAdvertiser && (
+                    {onOpenAdvertiser && isAdvertiserOrAdmin(currentUser) ? (
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
@@ -223,7 +223,21 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                         <span className="text-[10px] bg-amber-200/80 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">Portal</span>
                       </button>
-                    )}
+                    ) : onOpenAdvertiser ? (
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenAdvertiser('media-kit');
+                        }}
+                        className="w-full text-left p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] font-bold text-xs flex items-center justify-between transition-colors border border-blue-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Megaphone className="w-4 h-4 text-[#005FB8]" />
+                          <span>Advertise with Us</span>
+                        </div>
+                        <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded text-blue-900 font-bold uppercase">Media Kit</span>
+                      </button>
+                    ) : null}
 
                     {onExitToLanding && (
                       <button

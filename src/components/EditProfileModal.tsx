@@ -242,6 +242,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <option value="RIDER">Delivery Rider / Courier</option>
                 <option value="DRIVER">Rideshare / Fleet Driver</option>
                 <option value="POD_ADMIN">Pod Administrator</option>
+                <option value="ADVERTISER">Brand Advertiser / Campaign Sponsor</option>
                 <option value="Admin">Site Administrator (Admin)</option>
                 <option value="SUPER_ADMIN">Platform Super Admin</option>
               </select>
