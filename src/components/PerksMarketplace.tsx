@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { User, Perk, PerkCategory, PerkStatus, PerkRedemptionType } from '../types';
 import { savePerkToFirestore, deletePerkFromFirestore, subscribeToPerks } from '../lib/firestoreService';
 import { INITIAL_PERKS } from '../data/initialData';
+import { PerkImageUploadControl } from './PerkImageUploadControl';
 import { 
   Gift, Search, Filter, ExternalLink, Copy, Check, PlusCircle, 
   ShieldCheck, HeartPulse, ShieldAlert, Car, Calculator, Smile, Zap, Sparkles, X,
   Pencil, Trash2, CheckCircle2, XCircle, Building2, UserCheck, AlertCircle, FileText,
-  PauseCircle, PlayCircle, EyeOff
+  PauseCircle, PlayCircle, EyeOff, Image as ImageIcon
 } from 'lucide-react';
 
 interface PerksMarketplaceProps {
@@ -76,9 +77,31 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const [submitEligibility, setSubmitEligibility] = useState('All verified members');
   const [submitPartnerEmail, setSubmitPartnerEmail] = useState('');
   const [submitPartnerNotes, setSubmitPartnerNotes] = useState('');
+  const [submitImageUrl, setSubmitImageUrl] = useState('');
+  const [submitLogoUrl, setSubmitLogoUrl] = useState('');
   const [createAccount, setCreateAccount] = useState(true);
   const [submitStatus, setSubmitStatus] = useState<PerkStatus>('APPROVED');
   const [submitLoading, setSubmitLoading] = useState(false);
+
+  // Normalize perk data to ensure true count and fallback images for default initial items
+  const normalizePerk = (p: Perk): Perk => {
+    const initial = INITIAL_PERKS.find(ip => ip.id === p.id);
+    const imageUrl = p.imageUrl || initial?.imageUrl;
+    const logoUrl = p.logoUrl || initial?.logoUrl;
+    
+    // Reset legacy hardcoded counts (42, 89, 18, 124) so it reflects true redemption data
+    let count = typeof p.redeemedCount === 'number' ? p.redeemedCount : 0;
+    if (initial && (count === 42 || count === 89 || count === 18 || count === 124)) {
+      count = 0;
+    }
+
+    return {
+      ...p,
+      imageUrl,
+      logoUrl,
+      redeemedCount: count,
+    };
+  };
 
   const isAdmin = currentUser.role === 'Admin' ||
     currentUser.role === 'SUPER_ADMIN' ||
@@ -99,7 +122,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (res && res.ok) {
         const data = await res.json().catch(() => null);
         if (data && Array.isArray(data) && data.length > 0 && allAdminPerks.length === 0) {
-          setPerks(data);
+          setPerks(data.map(normalizePerk));
         }
       }
     } catch (err) {
@@ -118,7 +141,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (res && res.ok) {
         const data = await res.json().catch(() => null);
         if (data && Array.isArray(data) && data.length > 0 && allAdminPerks.length === 0) {
-          setAllAdminPerks(data);
+          setAllAdminPerks(data.map(normalizePerk));
         }
       }
     } catch (err) {
@@ -202,7 +225,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         if (!map.has(p.id)) map.set(p.id, p);
       });
 
-      const allMergedPerks = Array.from(map.values());
+      const allMergedPerks = Array.from(map.values()).map(normalizePerk);
 
       setAllAdminPerks(allMergedPerks);
 
@@ -332,6 +355,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         partnerNotes: submitPartnerNotes,
         status: perkStatus,
         iconName: 'Gift',
+        imageUrl: submitImageUrl || undefined,
+        logoUrl: submitLogoUrl || undefined,
         redeemedCount: 0,
       };
 
@@ -410,6 +435,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         partnerNotes: submitPartnerNotes,
         status: submitStatus || 'APPROVED',
         iconName: 'ShieldAlert',
+        imageUrl: submitImageUrl || undefined,
+        logoUrl: submitLogoUrl || undefined,
         redeemedCount: 0,
       };
 
@@ -457,6 +484,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         status: submitStatus || editingPerk.status,
         partnerEmail: submitPartnerEmail,
         partnerNotes: submitPartnerNotes,
+        imageUrl: submitImageUrl || undefined,
+        logoUrl: submitLogoUrl || undefined,
       };
 
       await savePerkToFirestore(updatedPerk);
@@ -576,6 +605,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         headers: {
           'x-user-id': currentUser.id,
         },
+        body: JSON.stringify({ id: perkId }),
       }).catch(() => null);
     } catch (err) {
       console.error('Delete perk error:', err);
@@ -594,6 +624,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     setSubmitEligibility(perk.eligibility || 'All verified members');
     setSubmitPartnerEmail(perk.partnerEmail || '');
     setSubmitPartnerNotes(perk.partnerNotes || '');
+    setSubmitImageUrl(perk.imageUrl || '');
+    setSubmitLogoUrl(perk.logoUrl || '');
     setSubmitStatus(perk.status);
   };
 
@@ -608,6 +640,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     setSubmitEligibility('All verified members');
     setSubmitPartnerEmail('');
     setSubmitPartnerNotes('');
+    setSubmitImageUrl('');
+    setSubmitLogoUrl('');
     setSubmitStatus('APPROVED');
   };
 
@@ -766,9 +800,32 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   mySubmittedOffers.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-3">
-                        <div className="font-bold text-[#111827]">{p.title}</div>
-                        <div className="text-[11px] text-gray-500 font-medium">
-                          {p.provider} {p.partnerEmail && `(${p.partnerEmail})`}
+                        <div className="flex items-center gap-3">
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt={p.title}
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : p.logoUrl ? (
+                            <img
+                              src={p.logoUrl}
+                              alt={p.provider}
+                              className="w-10 h-10 rounded-lg object-contain bg-white border border-slate-200 p-1 shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                              <Gift className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-[#111827]">{p.title}</div>
+                            <div className="text-[11px] text-gray-500 font-medium">
+                              {p.provider} {p.partnerEmail && `(${p.partnerEmail})`}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="p-3">
@@ -939,10 +996,33 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   filteredAdminPerks.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-3">
-                        <div className="font-bold text-[#111827]">{p.title}</div>
-                        <div className="text-[11px] text-gray-500 font-medium">
-                          Provider: <strong className="text-[#005FB8]">{p.provider}</strong>
-                          {p.partnerEmail && ` • ${p.partnerEmail}`}
+                        <div className="flex items-center gap-3">
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt={p.title}
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : p.logoUrl ? (
+                            <img
+                              src={p.logoUrl}
+                              alt={p.provider}
+                              className="w-10 h-10 rounded-lg object-contain bg-white border border-slate-200 p-1 shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                              <Building2 className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-[#111827]">{p.title}</div>
+                            <div className="text-[11px] text-gray-500 font-medium">
+                              Provider: <strong className="text-[#005FB8]">{p.provider}</strong>
+                              {p.partnerEmail && ` • ${p.partnerEmail}`}
+                            </div>
+                          </div>
                         </div>
                       </td>
 
@@ -1048,45 +1128,84 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       </div>
 
       {/* Perk Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {perks.map((perk) => (
           <div
             key={perk.id}
-            className="bg-white border border-[#DDE1E6] rounded-xl p-5 hover:border-[#005FB8] transition-all flex flex-col justify-between shadow-xs relative"
+            className="bg-white border border-[#DDE1E6] rounded-xl overflow-hidden hover:border-[#005FB8] hover:shadow-md transition-all flex flex-col justify-between shadow-xs relative group"
           >
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="px-2.5 py-0.5 rounded bg-blue-50 text-[#005FB8] text-[10px] font-bold border border-blue-200">
+            {/* Top Cover / Hero Image Banner */}
+            <div className="h-40 w-full relative bg-slate-100 overflow-hidden shrink-0">
+              {perk.imageUrl ? (
+                <img
+                  src={perk.imageUrl}
+                  alt={perk.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-blue-50 via-slate-100 to-indigo-50 flex items-center justify-center">
+                  <Gift className="w-10 h-10 text-slate-300" />
+                </div>
+              )}
+
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
+
+              {/* Floating Badges */}
+              <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2 z-10">
+                <span className="px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-xs text-[#005FB8] text-[10px] font-bold shadow-xs border border-blue-100">
                   {perk.category}
                 </span>
 
-                <span className="px-2.5 py-0.5 rounded bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
+                <span className="px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
                   {perk.valueBadge}
                 </span>
               </div>
-
-              <h3 className="text-base font-bold text-[#111827] mb-1">
-                {perk.title}
-              </h3>
-              <p className="text-[11px] font-semibold text-[#6B7280] mb-2">
-                Provided by {perk.provider}
-              </p>
-              <p className="text-xs text-[#4B5563] leading-relaxed line-clamp-3 mb-4">
-                {perk.description}
-              </p>
             </div>
 
-            <div className="pt-3 border-t border-[#DDE1E6] flex items-center justify-between gap-2">
-              <span className="text-[10px] text-[#6B7280]">
-                {perk.redeemedCount} redeemed
-              </span>
+            {/* Card Content */}
+            <div className="p-4 flex-1 flex flex-col justify-between">
+              <div>
+                {/* Merchant / Provider Row */}
+                <div className="flex items-center gap-2 mb-2">
+                  {perk.logoUrl ? (
+                    <img
+                      src={perk.logoUrl}
+                      alt={perk.provider}
+                      className="w-6 h-6 rounded-md object-contain bg-white border border-slate-200 p-0.5 shadow-2xs shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+                      <Building2 className="w-3.5 h-3.5" />
+                    </div>
+                  )}
+                  <span className="text-[11px] font-semibold text-slate-600 truncate">
+                    Provided by {perk.provider}
+                  </span>
+                </div>
 
-              <button
-                onClick={() => handleRedeem(perk)}
-                className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
-              >
-                Redeem Benefit
-              </button>
+                <h3 className="text-sm font-bold text-[#111827] mb-1.5 leading-snug line-clamp-2">
+                  {perk.title}
+                </h3>
+
+                <p className="text-xs text-[#4B5563] leading-relaxed line-clamp-2 mb-3">
+                  {perk.description}
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-[#DDE1E6] flex items-center justify-between gap-2 mt-auto">
+                <span className="text-[10.5px] font-medium text-[#6B7280]">
+                  {perk.redeemedCount || 0} redeemed
+                </span>
+
+                <button
+                  onClick={() => handleRedeem(perk)}
+                  className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer"
+                >
+                  Redeem Benefit
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -1095,67 +1214,96 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       {/* Redemption Modal */}
       {selectedPerkForRedeem && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-md w-full p-6 shadow-2xl relative text-[#111827]">
+          <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-md w-full overflow-hidden shadow-2xl relative text-[#111827]">
             <button
               onClick={() => setSelectedPerkForRedeem(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
+              className="absolute top-3 right-3 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors z-20"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 rounded-xl bg-green-50 text-green-700">
-                <Gift className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-[#111827]">Benefit Redeemed!</h3>
-                <p className="text-xs text-[#6B7280]">{selectedPerkForRedeem.title}</p>
-              </div>
-            </div>
-
-            <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] text-center space-y-3 mb-5">
-              <span className="text-xs text-[#6B7280] block">Your Exclusive Redemption Voucher / Code:</span>
-
-              {selectedPerkForRedeem.redemptionType === 'CODE' && (
-                <div className="flex items-center justify-center gap-2">
-                  <span className="font-mono text-xl font-bold text-[#005FB8] tracking-wider bg-white px-4 py-2 rounded-lg border border-gray-300 shadow-xs">
-                    {selectedPerkForRedeem.redemptionData}
+            {/* Header Image if available */}
+            {selectedPerkForRedeem.imageUrl && (
+              <div className="h-32 w-full relative bg-slate-100 overflow-hidden">
+                <img
+                  src={selectedPerkForRedeem.imageUrl}
+                  alt={selectedPerkForRedeem.title}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <div className="absolute bottom-2.5 left-4 right-4 text-white">
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/90 text-[10px] font-bold uppercase tracking-wider">
+                    {selectedPerkForRedeem.valueBadge}
                   </span>
-                  <button
-                    onClick={() => copyToClipboard(selectedPerkForRedeem.redemptionData)}
-                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                </div>
+              </div>
+            )}
+
+            <div className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                {selectedPerkForRedeem.logoUrl ? (
+                  <img
+                    src={selectedPerkForRedeem.logoUrl}
+                    alt={selectedPerkForRedeem.provider}
+                    className="w-10 h-10 rounded-lg object-contain bg-white border border-slate-200 p-1 shadow-xs shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-green-50 text-green-700 shrink-0">
+                    <Gift className="w-5 h-5 text-green-600" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-base font-bold text-[#111827] leading-snug">Benefit Redeemed!</h3>
+                  <p className="text-xs text-[#6B7280]">{selectedPerkForRedeem.title}</p>
+                </div>
+              </div>
+
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] text-center space-y-3 mb-5">
+                <span className="text-xs text-[#6B7280] block">Your Exclusive Redemption Voucher / Code:</span>
+
+                {selectedPerkForRedeem.redemptionType === 'CODE' && (
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="font-mono text-xl font-bold text-[#005FB8] tracking-wider bg-white px-4 py-2 rounded-lg border border-gray-300 shadow-xs">
+                      {selectedPerkForRedeem.redemptionData}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(selectedPerkForRedeem.redemptionData)}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                    >
+                      {copiedCode ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
+                    </button>
+                  </div>
+                )}
+
+                {selectedPerkForRedeem.redemptionType === 'LINK' && (
+                  <a
+                    href={selectedPerkForRedeem.redemptionData}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
                   >
-                    {copiedCode ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
-                  </button>
-                </div>
-              )}
+                    <span>Open Partner Link</span>
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
 
-              {selectedPerkForRedeem.redemptionType === 'LINK' && (
-                <a
-                  href={selectedPerkForRedeem.redemptionData}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
+                {selectedPerkForRedeem.redemptionType === 'VOUCHER' && (
+                  <div className="p-3 bg-gray-100 text-slate-950 rounded-lg font-mono text-xs font-bold tracking-widest border border-gray-300">
+                    BARCODE: {selectedPerkForRedeem.redemptionData}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setSelectedPerkForRedeem(null)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold text-xs border border-gray-300 cursor-pointer"
                 >
-                  <span>Open Partner Link</span>
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              )}
-
-              {selectedPerkForRedeem.redemptionType === 'VOUCHER' && (
-                <div className="p-3 bg-gray-100 text-slate-950 rounded-lg font-mono text-xs font-bold tracking-widest border border-gray-300">
-                  BARCODE: {selectedPerkForRedeem.redemptionData}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setSelectedPerkForRedeem(null)}
-                className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold text-xs border border-gray-300"
-              >
-                Close
-              </button>
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1313,6 +1461,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   placeholder="Special instructions, contact details, or notes for the Mutual Pool admin review team."
                 />
               </div>
+
+              {/* Image & Logo Upload Controls */}
+              <PerkImageUploadControl
+                category={submitCategory}
+                imageUrl={submitImageUrl}
+                logoUrl={submitLogoUrl}
+                onImageUrlChange={setSubmitImageUrl}
+                onLogoUrlChange={setSubmitLogoUrl}
+              />
 
               {(!currentUser || currentUser.id === 'usr_guest') && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-950 flex items-start gap-2.5 text-xs">
@@ -1506,6 +1663,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 />
               </div>
 
+              {/* Image & Logo Upload Controls */}
+              <PerkImageUploadControl
+                category={submitCategory}
+                imageUrl={submitImageUrl}
+                logoUrl={submitLogoUrl}
+                onImageUrlChange={setSubmitImageUrl}
+                onLogoUrlChange={setSubmitLogoUrl}
+              />
+
               <div className="pt-2 flex justify-end gap-2 border-t border-gray-200">
                 <button
                   type="button"
@@ -1672,6 +1838,15 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                 />
               </div>
+
+              {/* Image & Logo Upload Controls */}
+              <PerkImageUploadControl
+                category={submitCategory}
+                imageUrl={submitImageUrl}
+                logoUrl={submitLogoUrl}
+                onImageUrlChange={setSubmitImageUrl}
+                onLogoUrlChange={setSubmitLogoUrl}
+              />
 
               <div className="pt-2 flex justify-end gap-2 border-t border-gray-200">
                 <button

@@ -22,7 +22,9 @@ export const INITIAL_PERKS: Perk[] = [
     submittedBy: 'Meineke Corporate',
     submittedByUserId: 'partner_meineke',
     iconName: 'Car',
-    redeemedCount: 42,
+    imageUrl: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=700&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=120&auto=format&fit=crop&q=80',
+    redeemedCount: 0,
   },
   {
     id: 'perk_stride_health',
@@ -39,7 +41,9 @@ export const INITIAL_PERKS: Perk[] = [
     submittedBy: 'Stride Health',
     submittedByUserId: 'partner_stride',
     iconName: 'HeartPulse',
-    redeemedCount: 89,
+    imageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=700&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=120&auto=format&fit=crop&q=80',
+    redeemedCount: 0,
   },
   {
     id: 'perk_legal_shield',
@@ -56,7 +60,9 @@ export const INITIAL_PERKS: Perk[] = [
     submittedBy: 'Imagine Legal',
     submittedByUserId: 'partner_imagine',
     iconName: 'ShieldCheck',
-    redeemedCount: 18,
+    imageUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=700&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?w=120&auto=format&fit=crop&q=80',
+    redeemedCount: 0,
   },
   {
     id: 'perk_gasbuddy_fuel',
@@ -73,7 +79,9 @@ export const INITIAL_PERKS: Perk[] = [
     submittedBy: 'GasBuddy Fleet',
     submittedByUserId: 'partner_gasbuddy',
     iconName: 'Zap',
-    redeemedCount: 124,
+    imageUrl: 'https://images.unsplash.com/photo-1527018601619-a508a2be00be?w=700&auto=format&fit=crop&q=80',
+    logoUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=120&auto=format&fit=crop&q=80',
+    redeemedCount: 0,
   },
 ];
 

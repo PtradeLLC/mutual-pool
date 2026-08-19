@@ -3300,7 +3300,7 @@ app.use((req, res, next) => {
       const isGuest = !rawUserId || rawUserId === 'usr_guest';
       let user = isGuest ? null : getCurrentUser(req);
 
-      const { title, category, provider, guestDisplayName, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, guestEmail, partnerNotes, createAccount } = req.body || {};
+      const { title, category, provider, guestDisplayName, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, guestEmail, partnerNotes, createAccount, imageUrl, logoUrl } = req.body || {};
 
       if (!title || !category) {
         return res.status(400).json({ error: 'Title and category are required.' });
@@ -3369,6 +3369,8 @@ app.use((req, res, next) => {
         partnerNotes,
         status: perkStatus,
         iconName: 'Gift',
+        imageUrl: imageUrl || undefined,
+        logoUrl: logoUrl || undefined,
         redeemedCount: 0,
       };
 
@@ -3446,7 +3448,7 @@ app.use((req, res, next) => {
     const user = getCurrentUser(req);
     if (!user) return res.status(401).json({ error: 'User context required.' });
 
-    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, status, partnerEmail, partnerNotes } = req.body;
+    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, status, partnerEmail, partnerNotes, imageUrl, logoUrl } = req.body;
 
     if (!title || !category || !provider) {
       return res.status(400).json({ error: 'Title, category, and provider are required.' });
@@ -3465,6 +3467,8 @@ app.use((req, res, next) => {
       submittedBy: user.displayName || 'Site Admin',
       status: status || 'APPROVED',
       iconName: 'Sparkles',
+      imageUrl: imageUrl || undefined,
+      logoUrl: logoUrl || undefined,
       redeemedCount: 0,
       partnerEmail,
       partnerNotes,
@@ -3495,7 +3499,7 @@ app.use((req, res, next) => {
     const perk = perks.find(p => p.id === req.params.id);
     if (!perk) return res.status(404).json({ error: 'Perk not found' });
 
-    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, status, partnerEmail, partnerNotes } = req.body;
+    const { title, category, provider, description, valueBadge, redemptionType, redemptionData, eligibility, status, partnerEmail, partnerNotes, imageUrl, logoUrl } = req.body;
 
     if (title !== undefined) perk.title = title;
     if (category !== undefined) perk.category = category;
@@ -3508,6 +3512,8 @@ app.use((req, res, next) => {
     if (status !== undefined) perk.status = status;
     if (partnerEmail !== undefined) perk.partnerEmail = partnerEmail;
     if (partnerNotes !== undefined) perk.partnerNotes = partnerNotes;
+    if (imageUrl !== undefined) perk.imageUrl = imageUrl;
+    if (logoUrl !== undefined) perk.logoUrl = logoUrl;
 
     addAuditLog(
       undefined,

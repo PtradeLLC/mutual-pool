@@ -351,6 +351,7 @@ export interface Perk {
   status: PerkStatus;
   iconName: string;
   imageUrl?: string;
+  logoUrl?: string;
   redeemedCount: number;
   partnerEmail?: string;
   partnerNotes?: string;
