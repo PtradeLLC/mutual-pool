@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog } from './types';
+import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -120,6 +120,15 @@ export default function App() {
       return INITIAL_CAMPAIGN_SHIFTS;
     }
   });
+  const [activeShiftSession, setActiveShiftSession] = useState<ActiveShiftSession | null>(() => {
+    try {
+      const saved = localStorage.getItem('mutualpool_active_shift');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
 
   const handleAddNewShift = (newShift: CampaignShiftLog) => {
@@ -132,6 +141,90 @@ export default function App() {
       }
       return next;
     });
+  };
+
+  const handleStartShift = (session: ActiveShiftSession) => {
+    setActiveShiftSession(session);
+    try {
+      localStorage.setItem('mutualpool_active_shift', JSON.stringify(session));
+    } catch {
+      // storage silent
+    }
+  };
+
+  const handleUpdateShiftSession = (session: ActiveShiftSession) => {
+    setActiveShiftSession(session);
+    try {
+      localStorage.setItem('mutualpool_active_shift', JSON.stringify(session));
+    } catch {
+      // storage silent
+    }
+  };
+
+  const handleCompleteShift = (completedShift: CampaignShiftLog) => {
+    // 1. Add shift to campaignShifts
+    handleAddNewShift(completedShift);
+
+    // 2. Credit Stripe Treasury balance of current user immediately
+    if (currentUser) {
+      const payout = completedShift.courierPayoutEarned || 65;
+      const updatedUser: User = {
+        ...currentUser,
+        treasury: {
+          ...currentUser.treasury,
+          balanceUsd: (currentUser.treasury?.balanceUsd || 0) + payout,
+          totalPayoutsReceivedUsd: (currentUser.treasury?.totalPayoutsReceivedUsd || 0) + payout,
+        },
+      };
+      setCurrentUser(updatedUser);
+      saveUserToFirestore(updatedUser).catch(console.error);
+    }
+
+    // 3. Update courier participations total earnings
+    setParticipations(prev => {
+      const next = prev.map(p => {
+        if (p.campaignId === completedShift.campaignId && (p.userId === completedShift.courierId || p.userId === currentUser?.id)) {
+          return {
+            ...p,
+            totalEarningsAccumulated: (p.totalEarningsAccumulated || 0) + (completedShift.courierPayoutEarned || 65),
+          };
+        }
+        return p;
+      });
+      try {
+        localStorage.setItem('mutualpool_participations', JSON.stringify(next));
+      } catch {
+        // silent
+      }
+      return next;
+    });
+
+    // 4. Update campaign current impressions
+    setCampaigns(prev => {
+      const next = prev.map(c => {
+        if (c.id === completedShift.campaignId) {
+          return {
+            ...c,
+            currentImpressions: (c.currentImpressions || 0) + (completedShift.estimatedImpressions || 0),
+          };
+        }
+        return c;
+      });
+      try {
+        localStorage.setItem('mutualpool_campaigns', JSON.stringify(next));
+      } catch {
+        // silent
+      }
+      return next;
+    });
+
+    // 5. Clear active shift session
+    setActiveShiftSession(null);
+    try {
+      localStorage.removeItem('mutualpool_active_shift');
+    } catch {
+      // silent
+    }
   };
 
   // Sync active user and cached pods to localStorage for session persistence across refreshes
@@ -1428,7 +1521,11 @@ export default function App() {
               currentUser={currentUser}
               campaigns={campaigns}
               participations={participations}
+              activeShiftSession={activeShiftSession}
               onApplyParticipation={handleApplyParticipation}
+              onStartShift={handleStartShift}
+              onUpdateShiftSession={handleUpdateShiftSession}
+              onCompleteShift={handleCompleteShift}
               onOpenAuth={handleOpenAuth}
               onOpenAdvertiser={handleOpenAdvertiser}
               onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}

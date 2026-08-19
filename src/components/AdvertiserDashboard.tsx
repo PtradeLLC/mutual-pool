@@ -752,7 +752,18 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <div className="font-bold text-slate-950">Mandatory Shift Photo Check-in</div>
-                    <div className="text-slate-500 text-[11px]">Couriers submit timestamped photos wearing partner apparel at pickups.</div>
+                    <div className="text-slate-500 text-[11px]">Couriers submit timestamped photos wearing partner apparel at initial route start.</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-slate-950 flex items-center gap-1.5">
+                      <span>Randomized In-Shift Photo Prompts</span>
+                      <span className="text-[9px] uppercase tracking-wider font-black px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-900">Anti-Gaming</span>
+                    </div>
+                    <div className="text-slate-600 text-[11px]">Unpredictable spot-check notifications require selfie proofs within 3 minutes to confirm apparel remains worn during delivery shifts.</div>
                   </div>
                 </div>
 
@@ -866,9 +877,23 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                         ${shift.courierPayoutEarned}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-[11px]">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>GPS + Photo</span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-[11px]">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>GPS + Photo Check</span>
+                          </div>
+                          {shift.complianceScore !== undefined && (
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                                {shift.complianceScore}% Score
+                              </span>
+                              {shift.spotChecks && shift.spotChecks.length > 0 && (
+                                <span className="text-slate-400">
+                                  • {shift.spotChecks.filter(s => s.status === 'VERIFIED').length}/{shift.spotChecks.length} Prompts
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>

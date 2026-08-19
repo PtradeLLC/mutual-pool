@@ -524,6 +524,45 @@ export interface CourierCampaignParticipation {
   enrolledAt: string;
 }
 
+export interface PhotoSpotCheck {
+  id: string;
+  timestamp: string; // e.g. "1:42 PM"
+  promptedAt: number; // epoch ms
+  respondedAt?: number; // epoch ms
+  status: 'PENDING' | 'VERIFIED' | 'MISSED' | 'REJECTED';
+  photoUrl?: string;
+  locationLabel?: string;
+  responseWindowSeconds: number; // e.g. 300 (5 mins)
+  secondsToRespond?: number;
+}
+
+export interface ActiveShiftSession {
+  id: string;
+  campaignId: string;
+  campaignTitle: string;
+  brandName: string;
+  brandColor?: string;
+  dailyRate: number;
+  targetMetro: string;
+  platform: 'DoorDash' | 'UberEats' | 'Grubhub' | 'Instacart' | 'Relay' | 'Postmates';
+  courierId: string;
+  courierName: string;
+  startedAt: number; // epoch ms
+  startFormatted: string; // e.g. "12:15 PM"
+  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+  currentMiles: number;
+  estimatedImpressions: number;
+  spotChecks: PhotoSpotCheck[];
+  activePrompt?: PhotoSpotCheck | null;
+  neighborhood: string;
+  lastGpsPing?: {
+    neighborhood: string;
+    speedMph: number;
+    accuracyMeters: number;
+    heading: string;
+  };
+}
+
 export interface CampaignShiftLog {
   id: string;
   campaignId: string;
@@ -544,6 +583,9 @@ export interface CampaignShiftLog {
   courierPayoutEarned: number;
   verifiedGps: boolean;
   verifiedPhoto: boolean;
+  spotChecks?: PhotoSpotCheck[];
+  spotChecksCount?: number;
+  spotChecksVerified?: number;
   complianceScore: number; // 0-100
   notes?: string;
 }

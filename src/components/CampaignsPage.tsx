@@ -18,17 +18,27 @@ import {
   AlertCircle,
   HelpCircle,
   Plus,
-  BarChart3
+  BarChart3,
+  Camera,
+  Play,
+  Clock,
+  Navigation,
+  Bell
 } from 'lucide-react';
-import { AdCampaign, User, CourierCampaignParticipation, isAdvertiserOrAdmin } from '../types';
+import { AdCampaign, User, CourierCampaignParticipation, isAdvertiserOrAdmin, ActiveShiftSession, CampaignShiftLog } from '../types';
 import { CampaignEnrollmentModal } from './CampaignEnrollmentModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
+import { ActiveShiftModal } from './ActiveShiftModal';
 
 interface CampaignsPageProps {
   currentUser: User | null;
   campaigns: AdCampaign[];
   participations: CourierCampaignParticipation[];
+  activeShiftSession?: ActiveShiftSession | null;
   onApplyParticipation: (participation: CourierCampaignParticipation) => void;
+  onStartShift?: (session: ActiveShiftSession) => void;
+  onUpdateShiftSession?: (session: ActiveShiftSession) => void;
+  onCompleteShift?: (completedShift: CampaignShiftLog) => void;
   onOpenAuth: () => void;
   onOpenAdvertiser: (tab?: 'metrics' | 'media-kit') => void;
   onOpenCreateCampaign?: () => void;
@@ -39,7 +49,11 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   currentUser,
   campaigns,
   participations,
+  activeShiftSession,
   onApplyParticipation,
+  onStartShift,
+  onUpdateShiftSession,
+  onCompleteShift,
   onOpenAuth,
   onOpenAdvertiser,
   onOpenCreateCampaign,
@@ -52,6 +66,8 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   
   // Modal states
   const [selectedCampaignForApply, setSelectedCampaignForApply] = useState<AdCampaign | null>(null);
+  const [selectedCampaignForShift, setSelectedCampaignForShift] = useState<AdCampaign | null>(null);
+  const [showShiftModal, setShowShiftModal] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [detailCampaignModal, setDetailCampaignModal] = useState<AdCampaign | null>(null);
 
@@ -191,6 +207,47 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
 
       </div>
 
+      {/* ACTIVE SHIFT IN PROGRESS BANNER (IF ANY) */}
+      {activeShiftSession && activeShiftSession.status === 'ACTIVE' && (
+        <div className="bg-slate-950 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-3.5 w-full md:w-auto">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+              <Camera className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Shift In Progress</span>
+                <span className="text-xs text-slate-400">• {activeShiftSession.brandName} Fleet</span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white mt-0.5">
+                {activeShiftSession.campaignTitle}
+              </h3>
+              <p className="text-xs text-slate-400">
+                Started {activeShiftSession.startFormatted} • {activeShiftSession.spotChecks.filter(s => s.status === 'VERIFIED').length}/{activeShiftSession.spotChecks.length} Photo Checks Verified
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                const targetCamp = campaigns.find(c => c.id === activeShiftSession.campaignId);
+                if (targetCamp) {
+                  setSelectedCampaignForShift(targetCamp);
+                  setShowShiftModal(true);
+                }
+              }}
+              className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+            >
+              <Clock className="w-4 h-4" />
+              <span>Open Active Shift Tracker & Prompts</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* User's Active Enrolled Campaigns Section (If any) */}
       {userParticipations.length > 0 && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
@@ -212,6 +269,8 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {userParticipations.map(part => {
               const campaign = campaigns.find(c => c.id === part.campaignId);
+              const isThisShiftActive = activeShiftSession?.status === 'ACTIVE' && activeShiftSession.campaignId === part.campaignId;
+
               return (
                 <div
                   key={part.id}
@@ -254,6 +313,40 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       <span className="text-emerald-600 font-semibold">Active Ambassador</span>
                     </div>
                   )}
+
+                  {/* SHIFT ACTION BUTTON */}
+                  <div className="pt-2 border-t border-slate-200">
+                    {isThisShiftActive ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (campaign) {
+                            setSelectedCampaignForShift(campaign);
+                            setShowShiftModal(true);
+                          }
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                      >
+                        <Clock className="w-4 h-4 animate-spin" />
+                        <span>Shift In Progress (Open Live Tracker)</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (campaign) {
+                            setSelectedCampaignForShift(campaign);
+                            setShowShiftModal(true);
+                          }
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Start Shift Check-In & Earn ${part.dailyRate}</span>
+                      </button>
+                    )}
+                  </div>
+
                 </div>
               );
             })}
@@ -511,6 +604,27 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
           onApplySuccess={(newPart) => {
             onApplyParticipation(newPart);
             setSelectedCampaignForApply(null);
+          }}
+        />
+      )}
+
+      {/* Active Shift Tracking & Randomized Photo Spot-Checks Modal */}
+      {showShiftModal && selectedCampaignForShift && currentUser && (
+        <ActiveShiftModal
+          isOpen={showShiftModal}
+          onClose={() => setShowShiftModal(false)}
+          currentUser={currentUser}
+          campaign={selectedCampaignForShift}
+          activeSession={activeShiftSession || null}
+          onStartShift={(newSession) => {
+            onStartShift?.(newSession);
+          }}
+          onUpdateSession={(updatedSession) => {
+            onUpdateShiftSession?.(updatedSession);
+          }}
+          onCompleteShift={(completedShift) => {
+            onCompleteShift?.(completedShift);
+            setShowShiftModal(false);
           }}
         />
       )}
