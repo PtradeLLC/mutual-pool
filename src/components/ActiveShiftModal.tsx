@@ -580,7 +580,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-900">Shift Verification Log</span>
                 <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  {activeSession.spotChecks.filter(s => s.status === 'VERIFIED').length} / {activeSession.spotChecks.length} Verified (100% Score)
+                  {activeSession.spotChecks.filter(s => s.status === 'VERIFIED').length} / {activeSession.spotChecks.length} Verified ({activeSession.spotChecks.length > 0 ? Math.round((activeSession.spotChecks.filter(s => s.status === 'VERIFIED').length / activeSession.spotChecks.length) * 100) : 100}% Score)
                 </span>
               </div>
 
