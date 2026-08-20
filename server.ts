@@ -13,6 +13,23 @@ import {
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
 } from './src/data/initialData';
 import { getDb } from './src/config/firebase';
+import { GoogleGenAI, Modality } from '@google/genai';
+
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI | null {
+  if (!process.env.GEMINI_API_KEY) return null;
+  if (!geminiClient) {
+    geminiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  }
+  return geminiClient;
+}
 
 const PORT = 3000;
 
@@ -3765,6 +3782,237 @@ app.post('/api/campaigns/advertiser-inquiry', async (req: Request, res: Response
 app.get('/api/campaigns/advertiser-inquiries', (req: Request, res: Response) => {
   const inquiries = loadAdvertiserInquiries();
   res.json({ inquiries });
+});
+
+// --- VOICE AI & NATURAL AUDIO AGENT API ---
+app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
+  try {
+    const { query, currentContext } = req.body || {};
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Query string is required' });
+    }
+
+    const client = getGeminiClient();
+    const activeTab = currentContext?.activeTab || 'my-pods';
+    const userName = currentContext?.userName || 'Member';
+    const platform = currentContext?.platform || 'Gig Courier';
+    const treasuryBalance = currentContext?.treasuryBalance ?? 0;
+    const activePodsCount = currentContext?.activePodsCount ?? 0;
+
+    const fallbackKnowledge = (userQuery: string) => {
+      const q = userQuery.toLowerCase();
+      if (q.includes('swap') || q.includes('spot') || q.includes('trade') || q.includes('turn')) {
+        return {
+          spokenText: "To swap your payout spot, open your active Pod details, go to the Rotation tab, and click Swap Spot next to any available member. Both members must approve the request to finalize the swap.",
+          displayText: "### 🔄 How Spot Swaps Work\n\n1. Go to **My Pods** and open your active Pod.\n2. Navigate to the **Rotation** tab.\n3. Click **'Request Spot Swap'** next to another member's rotation slot.\n4. Once the other member accepts, the payout schedule updates automatically with no penalty.",
+          suggestedActions: [
+            { label: "View My Pods", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "How fixed rotation works", action: "SPEAK_EXPLANATION", prompt: "How does fixed rotation work?" }
+          ],
+          navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
+        };
+      }
+      if (q.includes('perk') || q.includes('discount') || q.includes('gas') || q.includes('oil') || q.includes('tire') || q.includes('tax') || q.includes('repair')) {
+        return {
+          spokenText: "Our Gig Perks Marketplace offers exclusive savings on auto repairs, oil changes, roadside assistance, and tax preparation tailored for 1099 couriers. Let's look at the marketplace now.",
+          displayText: "### 🎁 Gig Perks Marketplace\n\nSave on essential gig work expenses:\n- **Auto Maintenance & Tires** (Meineke, Jiffy Lube)\n- **Roadside Assistance** & Emergency Towing\n- **Tax Prep & Mileage Tracking** for 1099 drivers\n- **Healthcare & Telehealth** micro-plans",
+          suggestedActions: [
+            { label: "Open Perks Marketplace", action: "NAVIGATE_TAB", tab: "perks" },
+            { label: "Redeem a Perk", action: "NAVIGATE_TAB", tab: "perks" }
+          ],
+          navigationAction: { type: "NAVIGATE_TAB", target: "perks" }
+        };
+      }
+      if (q.includes('create') || q.includes('new pod') || q.includes('start pod')) {
+        return {
+          spokenText: "To start a new Pod, click Create Pod at the top. You can choose a Trusted Circle for your trusted contacts or an Open Pod with automated KYC verification.",
+          displayText: "### 🚀 Creating a Savings Pod\n\n1. Click **+ Create Pod** in the dashboard header.\n2. Select **Trusted Circle** (invite-only, family/friends) or **Open Pod** (KYC-verified gig couriers).\n3. Set your target amount, weekly deposit (e.g. $50/wk), and cycle length.",
+          suggestedActions: [
+            { label: "Create a Pod Now", action: "OPEN_MODAL", modal: "CREATE_POD" },
+            { label: "Explore Open Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+        };
+      }
+      if (q.includes('campaign') || q.includes('advertiser') || q.includes('wrap') || q.includes('brand') || q.includes('shift')) {
+        return {
+          spokenText: "Through our Brand Ambassador program, gig drivers earn extra income by displaying verified vehicle wraps or apparel during active delivery shifts. Payouts deposit directly into your Treasury.",
+          displayText: "### 🚗 Brand Ambassador & Vehicle Wrap Campaigns\n\n- Earn $50-$150/week on top of your delivery earnings.\n- Check in for shifts with GPS and photo verification.\n- Direct deposit straight to your FDIC pass-through Treasury balance.",
+          suggestedActions: [
+            { label: "View Active Campaigns", action: "NAVIGATE_TAB", tab: "campaigns" },
+            { label: "Advertiser Portal", action: "OPEN_ADVERTISER" }
+          ],
+          navigationAction: { type: "NAVIGATE_TAB", target: "campaigns" }
+        };
+      }
+      if (q.includes('treasury') || q.includes('bank') || q.includes('fdic') || q.includes('stripe') || q.includes('balance') || q.includes('payout')) {
+        return {
+          spokenText: "Your MutualPool Treasury is a dedicated account eligible for FDIC pass-through insurance up to $250,000 via Stripe Treasury partner banks. Your weekly pool payouts deposit automatically here.",
+          displayText: "### 🏦 Stripe Treasury & FDIC Pass-Through\n\n- Dedicated holding account for weekly pool deposits.\n- Pass-through FDIC insurance eligibility up to $250,000.\n- Instant payouts to your linked external checking account or debit card.",
+          suggestedActions: [
+            { label: "Manage Bank & Treasury", action: "OPEN_MODAL", modal: "BANK" },
+            { label: "Verify Identity (KYC)", action: "OPEN_MODAL", modal: "KYC" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "BANK" }
+        };
+      }
+      if (q.includes('hardship') || q.includes('emergency') || q.includes('miss') || q.includes('late') || q.includes('delinquent')) {
+        return {
+          spokenText: "If you experience an unexpected vehicle breakdown or income disruption, you can request support from the MutualPool Hardship Fund to cover your weekly deposit without losing your pod standing.",
+          displayText: "### 🛡️ MutualPool Hardship Protection\n\n- Emergency bridge funds to cover deposit during vehicle repairs.\n- Zero predatory interest — simple repayment terms.\n- Protects your reputation score and keeps your pod running smoothly.",
+          suggestedActions: [
+            { label: "Open Hardship Assistance", action: "OPEN_MODAL", modal: "HARDSHIP" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "HARDSHIP" }
+        };
+      }
+      return {
+        spokenText: `Welcome ${userName}! I'm your MutualPool Voice Assistant. You can ask me how savings pods work, how to swap payout spots, how to access gig worker perks, or how to earn with vehicle wrap campaigns.`,
+        displayText: `### 🎙️ MutualPool Voice Assistant\n\nI can help guide you through every feature:\n- **Rotating Savings Pods** (Trusted Circles vs Open Pods)\n- **Spot Swaps & Payout Rotations**\n- **Gig Perks Marketplace** (Discounts on repair, gas, tax prep)\n- **Brand Ambassador Campaigns** (Earn while driving)\n- **Stripe Treasury & FDIC Pass-Through Account**`,
+        suggestedActions: [
+          { label: "How does fixed rotation work?", action: "SPEAK_EXPLANATION", prompt: "How does fixed rotation work?" },
+          { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" },
+          { label: "Browse Perks", action: "NAVIGATE_TAB", tab: "perks" }
+        ],
+        navigationAction: null
+      };
+    };
+
+    if (!client) {
+      const fallback = fallbackKnowledge(query);
+      return res.json(fallback);
+    }
+
+    const systemInstruction = `You are "Aria", the intelligent, friendly on-screen Voice AI Guide for MutualPool (mutualpool.org).
+MutualPool is a collaborative savings and gig economy perks platform built for 1099 couriers, rideshare drivers, and independent workers.
+
+Key platform concepts:
+1. Rotating Savings Pods (ROSCAs / Tandas / Susu):
+   - Members contribute a fixed amount weekly (e.g., $50/wk).
+   - Every week, one member receives the full lump-sum pool (e.g., $500 for a 10-person pod).
+   - Trusted Circle Pods: Invite-only for friends, family, or close driver circles.
+   - Open Pods: Public matching for KYC-verified gig workers with reputation scores.
+2. Spot Swaps:
+   - Members can trade payout rotation slots peer-to-peer if an unexpected expense arises.
+   - Requires mutual approval from both parties.
+3. Gig Perks Marketplace:
+   - Exclusive merchant discounts on tires, oil changes (Meineke, Jiffy Lube), roadside assistance, tax filing (TurboTax 1099), and healthcare.
+4. Brand Ambassador Campaigns:
+   - Gig drivers earn supplemental income ($50-$150/week) by displaying sponsor car wraps or apparel during active delivery shifts.
+5. Stripe Treasury:
+   - FDIC pass-through eligible account up to $250,000 holding pooled deposits and instant payouts.
+6. Hardship Fund:
+   - Community emergency protection to cover a deposit during mechanical breakdowns.
+
+Instructions for your response:
+- Keep "spokenText" concise, conversational, and natural (1-3 sentences) suitable for natural speech synthesis. Avoid markdown symbols in spokenText.
+- Provide clear markdown formatting in "displayText" for the visual transcript.
+- If the user's intent is to view or do something in the app, specify "navigationAction":
+  - {"type": "NAVIGATE_TAB", "target": "my-pods" | "explore-pods" | "perks" | "campaigns" | "audit-log" | "admin-ops"}
+  - {"type": "OPEN_MODAL", "target": "CREATE_POD" | "KYC" | "BANK" | "HARDSHIP" | "ABOUT" | "HOW_IT_WORKS" | "CONTACT"}
+  - {"type": "OPEN_ADVERTISER"}
+- Provide 2-3 helpful "suggestedActions" pills for one-tap follow-ups.
+
+Current user context:
+- User Name: ${userName}
+- Platform: ${platform}
+- Active Tab: ${activeTab}
+- Treasury Balance: $${treasuryBalance.toFixed(2)}
+- Active Pods: ${activePodsCount}
+
+Output MUST be strictly valid JSON matching this schema:
+{
+  "spokenText": "string",
+  "displayText": "string (markdown)",
+  "suggestedActions": [{"label": "string", "action": "NAVIGATE_TAB"|"OPEN_MODAL"|"SPEAK_EXPLANATION", "tab"?: "string", "modal"?: "string", "prompt"?: "string"}],
+  "navigationAction": {"type": "NAVIGATE_TAB"|"OPEN_MODAL"|"OPEN_ADVERTISER", "target"?: "string"} | null
+}`;
+
+    const response = await client.models.generateContent({
+      model: 'gemini-3.7-flash',
+      contents: [{ role: 'user', parts: [{ text: query }] }],
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+      },
+    });
+
+    const responseText = response.text || '';
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(responseText);
+    } catch {
+      parsedData = fallbackKnowledge(query);
+    }
+
+    res.json(parsedData);
+  } catch (err: any) {
+    console.error('Error generating voice guide response:', err);
+    // Graceful fallback
+    const fallback = {
+      spokenText: "I'm here to help you navigate MutualPool. You can explore active savings pods, check out merchant perks, or start your own pool anytime.",
+      displayText: "### 🎙️ MutualPool Voice Assistant\n\nI can help guide you through:\n- **Savings Pods & Payout Rotations**\n- **Gig Perks Marketplace**\n- **Brand Ambassador Earnings**\n- **Stripe Treasury & FDIC Accounts**",
+      suggestedActions: [
+        { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" },
+        { label: "Browse Perks", action: "NAVIGATE_TAB", tab: "perks" }
+      ],
+      navigationAction: null
+    };
+    res.json(fallback);
+  }
+});
+
+// --- NATURAL GEMINI TTS (SPEECH GENERATION) API ---
+app.post('/api/ai/tts', async (req: Request, res: Response) => {
+  try {
+    const { text, voiceName } = req.body || {};
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Text is required for TTS' });
+    }
+
+    const client = getGeminiClient();
+    if (!client) {
+      return res.json({ fallbackToWebSpeech: true, reason: 'No Gemini API key configured' });
+    }
+
+    const selectedVoice = voiceName || 'Zephyr'; // 'Zephyr', 'Puck', 'Kore', 'Fenrir', 'Charon'
+    
+    // Clean text of markdown or special characters before speaking
+    const cleanText = text.replace(/[*_#`~\[\]]/g, '').trim().substring(0, 500);
+
+    const response = await client.models.generateContent({
+      model: 'gemini-3.1-flash-tts-preview',
+      contents: [{ parts: [{ text: cleanText }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: selectedVoice },
+          },
+        },
+      },
+    });
+
+    const candidates = response.candidates;
+    if (candidates && candidates[0]?.content?.parts) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData && part.inlineData.mimeType?.startsWith('audio/')) {
+          return res.json({
+            audioBase64: part.inlineData.data,
+            mimeType: part.inlineData.mimeType,
+            sampleRate: 24000,
+            voice: selectedVoice,
+          });
+        }
+      }
+    }
+
+    res.json({ fallbackToWebSpeech: true, reason: 'Audio modality part not found in response' });
+  } catch (err: any) {
+    console.warn('Gemini TTS error (falling back to Web Speech):', err?.message);
+    res.json({ fallbackToWebSpeech: true, error: err?.message });
+  }
 });
 
 // 404 handler for unmatched API routes

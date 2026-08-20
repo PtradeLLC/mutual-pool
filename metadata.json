@@ -1,6 +1,6 @@
 {
   "name": "MutualPool Savings & Perks",
-  "description": "Pod-based mutual savings pools (Trusted Circle & Open Pods) with Stripe Treasury integration, fixed rotation payouts, gig worker perks marketplace, brand ambassador campaigns, and real-time advertiser metrics dashboard.",
-  "requestFramePermissions": [],
+  "description": "Pod-based mutual savings pools (Trusted Circle & Open Pods) with Stripe Treasury integration, fixed rotation payouts, gig worker perks marketplace, brand ambassador campaigns, real-time advertiser metrics dashboard, and on-screen real-time voice AI assistant.",
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

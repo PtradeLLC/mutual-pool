@@ -6,6 +6,7 @@ import { FDICNoticeBanner } from './components/FDICNoticeBanner';
 import { PodCard } from './components/PodCard';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { HardshipRequestModal } from './components/HardshipRequestModal';
+import { VoiceAgent } from './components/VoiceAgent';
 
 const LandingPage = lazy(() => import('./components/LandingPage').then((module) => ({ default: module.LandingPage })));
 const PodDetailModal = lazy(() => import('./components/PodDetailModal').then((module) => ({ default: module.PodDetailModal })));
@@ -976,6 +977,35 @@ export default function App() {
           isOpen={showContactModal}
           onClose={() => setShowContactModal(false)}
         />
+
+        <VoiceAgent
+          currentUser={currentUser}
+          activeTab={activeTab}
+          onNavigateTab={(tab) => {
+            setActiveTab(tab);
+            setViewMode('DASHBOARD');
+          }}
+          onOpenCreatePod={() => {
+            setViewMode('DASHBOARD');
+            setShowCreatePodModal(true);
+          }}
+          onOpenKyc={() => {
+            setViewMode('DASHBOARD');
+            setShowKycModal(true);
+          }}
+          onOpenBank={() => {
+            setViewMode('DASHBOARD');
+            setShowBankModal(true);
+          }}
+          onOpenHardship={() => {
+            setViewMode('DASHBOARD');
+            setShowHardshipModal(true);
+          }}
+          onOpenAbout={() => setShowAboutModal(true)}
+          onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+          onOpenContact={() => setShowContactModal(true)}
+          onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
+        />
       </>
     );
   }
@@ -1012,6 +1042,35 @@ export default function App() {
           onSelectUser={handleAuthSuccess}
           onRegistered={handleAuthSuccess}
           initialMode={authInitialMode}
+        />
+
+        <VoiceAgent
+          currentUser={currentUser}
+          activeTab={activeTab}
+          onNavigateTab={(tab) => {
+            setActiveTab(tab);
+            setViewMode('DASHBOARD');
+          }}
+          onOpenCreatePod={() => {
+            setViewMode('DASHBOARD');
+            setShowCreatePodModal(true);
+          }}
+          onOpenKyc={() => {
+            setViewMode('DASHBOARD');
+            setShowKycModal(true);
+          }}
+          onOpenBank={() => {
+            setViewMode('DASHBOARD');
+            setShowBankModal(true);
+          }}
+          onOpenHardship={() => {
+            setViewMode('DASHBOARD');
+            setShowHardshipModal(true);
+          }}
+          onOpenAbout={() => setShowAboutModal(true)}
+          onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+          onOpenContact={() => setShowContactModal(true)}
+          onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
         />
       </Suspense>
     );
@@ -1800,6 +1859,21 @@ export default function App() {
 
       {/* PWA Floating Install Banner */}
       <PWAInstallPrompt />
+
+      {/* Voice AI Real-Time Assistant Agent */}
+      <VoiceAgent
+        currentUser={currentUser}
+        activeTab={activeTab}
+        onNavigateTab={(tab) => setActiveTab(tab)}
+        onOpenCreatePod={() => setShowCreatePodModal(true)}
+        onOpenKyc={() => setShowKycModal(true)}
+        onOpenBank={() => setShowBankModal(true)}
+        onOpenHardship={() => setShowHardshipModal(true)}
+        onOpenAbout={() => setShowAboutModal(true)}
+        onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+        onOpenContact={() => setShowContactModal(true)}
+        onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
+      />
 
     </div>
   );
