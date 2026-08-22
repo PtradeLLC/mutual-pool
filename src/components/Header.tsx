@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { User, Pod, isAdvertiserOrAdmin } from '../types';
 import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
+import { LanguageSelector } from './LanguageSelector';
+import { useTranslation } from '../i18n';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
@@ -56,6 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPodDetail,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const { t } = useTranslation();
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' || Boolean(currentUser.isAdmin);
 
   return (
@@ -86,6 +89,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* User Status Bar & Switcher */}
           <div className="flex items-center gap-2 sm:gap-3">
+
+            {/* Language Selector */}
+            <LanguageSelector />
 
             {/* PWA Install Button */}
             {canInstallPWA && onInstallPWA && (
@@ -288,7 +294,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>My Mutual Pods</span>
+              <span>{t('dash.myPods')}</span>
             </button>
 
             <button
@@ -300,7 +306,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Users className="w-3.5 h-3.5" />
-              <span>Explore Pods</span>
+              <span>{t('dash.explorePods')}</span>
             </button>
 
             <button
@@ -312,7 +318,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Gift className="w-3.5 h-3.5" />
-              <span>Benefits Marketplace</span>
+              <span>{t('dash.perks')}</span>
             </button>
 
             <button
@@ -325,7 +331,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Shirt className="w-3.5 h-3.5" />
-              <span>Ad Campaigns</span>
+              <span>{t('dash.campaigns')}</span>
             </button>
 
             <button
@@ -334,7 +340,7 @@ export const Header: React.FC<HeaderProps> = ({
               title="Submit a partner or community perk offer for admin review"
             >
               <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Submit Benefits & Perks</span>
+              <span>{t('nav.submitPerksShort')}</span>
             </button>
 
             {onOpenAdvertiser && (
@@ -346,7 +352,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Launch a brand campaign or sponsor courier promo apparel"
               >
                 <Megaphone className="w-3.5 h-3.5 text-slate-950" />
-                <span>Advertise with Us</span>
+                <span>{t('nav.advertiseShort')}</span>
               </button>
             )}
 
@@ -359,7 +365,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
-              <span>Audit Ledger</span>
+              <span>{t('dash.auditLog')}</span>
             </button>
 
             {isAdmin && (
@@ -367,12 +373,12 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setActiveTab('admin-ops')}
                 className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'admin-ops'
-                    ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                    : 'text-[#4B5563] hover:bg-gray-100'
+                    ? 'bg-purple-700 text-white font-bold shadow-xs'
+                    : 'text-purple-800 bg-purple-50 hover:bg-purple-100 font-bold'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Operations & Webhooks</span>
+                <Lock className="w-3.5 h-3.5 text-purple-600" />
+                <span>{t('dash.adminOps')}</span>
               </button>
             )}
           </div>

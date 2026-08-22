@@ -7,6 +7,8 @@ import { Logo } from './Logo';
 import { WatchVideoModal } from './WatchVideoModal';
 import { AppStoreModal } from './AppStoreModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
+import { LanguageSelector } from './LanguageSelector';
+import { useTranslation } from '../i18n';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
@@ -67,6 +69,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenAdvertiser,
 }) => {
   const isAuthUser = Boolean(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
+  const { t, formatCurrency } = useTranslation();
 
   const handleActionOrAuth = (
     mode: 'LOGIN' | 'REGISTER' = 'LOGIN',
@@ -267,19 +270,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onClick={onOpenAbout}
               className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
             >
-              About
+              {t('nav.about')}
             </button>
             <button
               onClick={onOpenHowItWorks}
               className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
             >
-              Rules
+              {t('nav.rules')}
             </button>
             <button
               onClick={onOpenContact}
               className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
             >
-              Contact
+              {t('nav.contact')}
             </button>
             {onOpenAdvertiser && (
               <button
@@ -290,7 +293,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 title="Launch a brand campaign or sponsor courier promo apparel"
               >
                 <Megaphone className="w-3.5 h-3.5 text-slate-950" />
-                <span>Advertise with Us</span>
+                <span>{t('nav.advertiseShort')}</span>
               </button>
             )}
             <button
@@ -308,12 +311,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               title="Submit a partner or community benefit offer for admin review"
             >
               <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Submit Benefits & Perks</span>
+              <span>{t('nav.submitPerksShort')}</span>
             </button>
           </div>
 
           {/* Right Action CTAs & Mobile/Tablet Burger Button */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Language Selector */}
+            <LanguageSelector />
+
             {currentUser ? (
               <div className="hidden md:flex items-center gap-2">
                 <button
@@ -325,18 +331,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     alt={currentUser.displayName}
                     className="w-5 h-5 rounded-full object-cover ring-1 ring-white"
                   />
-                  <span>Go to Dashboard</span>
+                  <span>{t('nav.goToDashboard')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
 
                 {onLogout && (
                   <button
                     onClick={onLogout}
-                    title="Log Out"
+                    title={t('nav.logOut')}
                     className="px-2.5 py-2 rounded-lg bg-white hover:bg-red-50 text-gray-700 hover:text-red-700 border border-[#DDE1E6] hover:border-red-200 font-bold text-xs transition-colors items-center gap-1 shadow-xs cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5 text-red-600" />
-                    <span>Log Out</span>
+                    <span>{t('nav.logOut')}</span>
                   </button>
                 )}
               </div>
@@ -346,14 +352,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => onOpenAuth('LOGIN')}
                   className="px-3 sm:px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs cursor-pointer"
                 >
-                  Sign In
+                  {t('nav.signIn')}
                 </button>
 
                 <button
                   onClick={() => onOpenAuth('REGISTER')}
                   className="px-3 sm:px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer"
                 >
-                  <span>Get Started</span>
+                  <span>{t('nav.getStarted')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -364,7 +370,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               id="landing-mobile-menu-btn"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="xl:hidden p-2 rounded-lg border border-[#DDE1E6] bg-white hover:bg-gray-50 text-gray-700 hover:text-[#005FB8] transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-label={mobileMenuOpen ? t('nav.closeMenu') : t('nav.openMenu')}
               aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -385,7 +391,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   }}
                   className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-bold text-xs text-center transition-all shadow-2xs cursor-pointer"
                 >
-                  Sign In
+                  {t('nav.signIn')}
                 </button>
                 <button
                   onClick={() => {
@@ -394,7 +400,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   }}
                   className="w-full py-2.5 px-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>Get Started</span>
+                  <span>{t('nav.getStarted')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -412,11 +418,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     alt={currentUser.displayName}
                     className="w-5 h-5 rounded-full object-cover ring-1 ring-white"
                   />
-                  <span>Go to Dashboard</span>
+                  <span>{t('nav.goToDashboard')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
+
+            {/* Language Selector in Drawer */}
+            <LanguageSelector variant="drawer" />
 
             {/* Quick Links */}
             <div className="grid grid-cols-3 gap-2">
@@ -427,7 +436,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 }}
                 className="py-2.5 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-center font-bold text-xs text-gray-800 border border-gray-200 transition-colors"
               >
-                About
+                {t('nav.about')}
               </button>
               <button
                 onClick={() => {
@@ -436,7 +445,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 }}
                 className="py-2.5 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-center font-bold text-xs text-gray-800 border border-gray-200 transition-colors"
               >
-                Rules
+                {t('nav.rules')}
               </button>
               <button
                 onClick={() => {
@@ -445,7 +454,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 }}
                 className="py-2.5 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-center font-bold text-xs text-gray-800 border border-gray-200 transition-colors"
               >
-                Contact
+                {t('nav.contact')}
               </button>
             </div>
 
@@ -462,7 +471,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 >
                   <div className="flex items-center gap-2 truncate">
                     <Megaphone className="w-4 h-4 text-slate-950 shrink-0" />
-                    <span className="truncate">Advertise with Us</span>
+                    <span className="truncate">{t('nav.advertiseShort')}</span>
                   </div>
                   <ArrowRight className="w-4 h-4 shrink-0 ml-1" />
                 </button>
@@ -485,7 +494,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               >
                 <div className="flex items-center gap-2 truncate">
                   <PlusCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="truncate">Submit Benefits & Perks</span>
+                  <span className="truncate">{t('nav.submitPerksShort')}</span>
                 </div>
                 <ArrowRight className="w-4 h-4 text-emerald-600 shrink-0 ml-1" />
               </button>
@@ -511,7 +520,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     className="text-red-600 hover:text-red-700 font-bold flex items-center gap-1"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Log Out</span>
+                    <span>{t('nav.logOut')}</span>
                   </button>
                 )}
               </div>
@@ -540,8 +549,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-bold text-[#111827] block text-[11px]">Pass-Through FDIC</span>
-                <span className="text-[10px] text-[#6B7280]">Insured up to $250k</span>
+                <span className="font-bold text-[#111827] block text-[11px]">{t('hero.fdicBadgeTitle')}</span>
+                <span className="text-[10px] text-[#6B7280]">{t('hero.fdicBadgeSub')}</span>
               </div>
             </div>
 
@@ -552,12 +561,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <Users className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="font-bold text-[#111827] block text-[11px]">Fleet Savings Circles</span>
+                  <span className="font-bold text-[#111827] block text-[11px]">{t('hero.savingsCircleTitle')}</span>
                   <span className="text-[10px] text-[#6B7280]">DoorDash, Uber Eats, Lyft, Instacart</span>
                 </div>
               </div>
               <span className="text-[10px] font-mono font-bold text-emerald-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
-                0% Interest
+                {t('hero.interestFree')}
               </span>
             </div>
           </div>
@@ -579,11 +588,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   
                   <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-semibold">
                     <Sparkles className="w-4 h-4 text-[#005FB8]" />
-                    <span>Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers and more</span>
+                    <span>{t('hero.badge')}</span>
                   </div>
 
                   <h1 className="text-3xl sm:text-5xl font-extrabold text-[#111827] tracking-tight leading-tight">
-                    Cash pool, Perks & Benefits built for Gig & Trade workers
+                    {t('hero.title')}
                   </h1>
 
                   {/* Mobile & Tablet Hero Image (Placed directly beneath the Hero title) */}
@@ -592,7 +601,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
-                    Pool weekly cash deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.
+                    {t('hero.subtitle')}
                   </p>
 
               {/* Hero CTAs */}
@@ -601,7 +610,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
                   className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                 >
-                  <span>{isAuthUser ? 'Go to Dashboard' : 'Join a Pod Free'}</span>
+                  <span>{isAuthUser ? t('hero.goToDashboard') : t('hero.startPodFree')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
@@ -612,7 +621,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="w-6 h-6 rounded-full bg-blue-50 text-[#005FB8] flex items-center justify-center group-hover:bg-[#005FB8] group-hover:text-white transition-colors">
                     <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                   </div>
-                  <span>Watch Video</span>
+                  <span>{t('hero.watchVideo')}</span>
                 </button>
               </div>
 
@@ -620,7 +629,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="pt-2 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5">
                 <span className="text-[11px] font-semibold text-[#6B7280] flex items-center gap-1 shrink-0">
                   <Smartphone className="w-3.5 h-3.5 text-[#005FB8]" />
-                  Download:
+                  {t('hero.downloadLabel')}:
                 </span>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -633,7 +642,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.14-1.9-14.4-6.08-3.38-2.65-7.23-7.24-11.57-13.78-8.16-12.18-14.28-25.79-18.35-40.82-4.07-15.03-6.11-28.84-6.11-41.42 0-16.7 4.12-30.49 12.36-41.37 8.24-10.88 18.59-16.42 31.06-16.63 4.82 0 10.22 1.25 16.2 3.75 5.98 2.5 10.15 3.8 12.51 3.9 1.95 0 6.27-1.35 12.96-4.05 6.69-2.7 12.11-3.95 16.26-3.75 13.62.63 24.58 5.67 32.88 15.13-11.96 7.22-17.82 17.15-17.58 29.79.25 10.02 4.1 18.38 11.56 25.08 7.46 6.7 16.14 10.37 26.04 11.01-2.52 7.74-5.88 15.53-10.08 23.37zm-29.35-104.9c0-7.39 2.65-14.42 7.95-21.09 5.3-6.67 12.01-10.79 20.13-12.36.42 1.08.63 2.16.63 3.24 0 7.29-2.75 14.37-8.25 21.24-5.5 6.87-12.28 11.01-20.34 12.42-.12-.95-.12-2.11-.12-3.45z"/>
                     </svg>
                     <div>
-                      <span className="text-[8.5px] block text-gray-300 leading-tight uppercase tracking-wider">Download on the</span>
+                      <span className="text-[8.5px] block text-gray-300 leading-tight uppercase tracking-wider">{t('hero.downloadOnThe')}</span>
                       <span className="text-xs font-bold leading-tight block">App Store</span>
                     </div>
                   </button>
@@ -647,7 +656,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 65.7 65.7 65.7 59-34.2c16.8-9.8 26.7-27 26.7-46.5s-9.9-36.8-26.8-46.6zM104.6 499l220.7-221.3 60.1 60.1L104.6 499z"/>
                     </svg>
                     <div>
-                      <span className="text-[8.5px] block text-gray-300 leading-tight uppercase tracking-wider">GET IT ON</span>
+                      <span className="text-[8.5px] block text-gray-300 leading-tight uppercase tracking-wider">{t('hero.getItOn')}</span>
                       <span className="text-xs font-bold leading-tight block">Google Play</span>
                     </div>
                   </button>
@@ -658,26 +667,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span className="text-xs font-bold text-[#111827] block">Create pod & Invite</span>
-                  <span className="text-[10px] text-[#6B7280]">Create pods for free and invite friends to participate</span>
+                  <span className="text-xs font-bold text-[#111827] block">{t('hero.featurePodInviteTitle')}</span>
+                  <span className="text-[10px] text-[#6B7280]">{t('hero.featurePodInviteDesc')}</span>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Lock className="w-4 h-4 text-[#005FB8]" />
-                  <span className="text-xs font-bold text-[#111827] block">All deposits are safe</span>
-                  <span className="text-[10px] text-[#6B7280]">Every Pod is Safe, Secure & Insured up to $250k via Stripe</span>
+                  <span className="text-xs font-bold text-[#111827] block">{t('hero.featureSafeDepositsTitle')}</span>
+                  <span className="text-[10px] text-[#6B7280]">{t('hero.featureSafeDepositsDesc')}</span>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Gift className="w-4 h-4 text-[#005FB8]" />
-                  <span className="text-xs font-bold text-[#111827] block">Perks and Benefits</span>
-                  <span className="text-[10px] text-[#6B7280]">Get 15-20% off products & services</span>
+                  <span className="text-xs font-bold text-[#111827] block">{t('hero.featurePerksBenefitsTitle')}</span>
+                  <span className="text-[10px] text-[#6B7280]">{t('hero.featurePerksBenefitsDesc')}</span>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <Zap className="w-4 h-4 text-amber-600" />
-                  <span className="text-xs font-bold text-[#111827] block">Emergency Swap</span>
-                  <span className="text-[10px] text-[#6B7280]">Swap payout with other members in community voting</span>
+                  <span className="text-xs font-bold text-[#111827] block">{t('hero.featureEmergencySwapTitle')}</span>
+                  <span className="text-[10px] text-[#6B7280]">{t('hero.featureEmergencySwapDesc')}</span>
                 </div>
               </div>
 
@@ -694,12 +703,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
         <div className="bg-white border border-[#DDE1E6] rounded-2xl p-6 sm:p-8 shadow-xs">
           <div className="max-w-3xl mb-8">
-            <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block mb-1">Interactive Calculator</span>
+            <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block mb-1">{t('calculator.badge')}</span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111827]">
-              Calculate Your Mutual Pool Payout
+              {t('calculator.title')}
             </h2>
             <p className="text-xs sm:text-sm text-[#6B7280] mt-1">
-              See how a small weekly commitment turns into lump-sum emergency fund for impromptu financial hardships.
+              {t('calculator.subtitle')}
             </p>
           </div>
 
@@ -711,8 +720,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Member Tier Selector */}
               <div>
                 <div className="flex justify-between text-xs font-bold text-[#111827] mb-2">
-                  <span>Pod Capacity (Gig workers):</span>
-                  <span className="text-[#005FB8] font-mono">{calcMembers} Gig Workers</span>
+                  <span>{t('calculator.podCapacityLabel')}</span>
+                  <span className="text-[#005FB8] font-mono">{calcMembers} {t('calculator.gigWorkersUnit')}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {[20, 50, 100, 500].map(num => (
@@ -726,7 +735,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      {num} Members
+                      {num} {t('calculator.membersUnit')}
                     </button>
                   ))}
                 </div>
@@ -735,8 +744,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Weekly Deposit Tier Selector */}
               <div>
                 <div className="flex justify-between text-xs font-bold text-[#111827] mb-2">
-                  <span>Weekly Deposit Tier:</span>
-                  <span className="text-emerald-700 font-mono">${calcDeposit}/week</span>
+                  <span>{t('calculator.weeklyDepositTierLabel')}</span>
+                  <span className="text-emerald-700 font-mono">${calcDeposit}/{t('calculator.weekAbbr')}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {[10, 20, 50, 100].map(amt => (
@@ -750,14 +759,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      ${amt}/wk
+                      ${amt}/{t('calculator.weekAbbr')}
                     </button>
                   ))}
                 </div>
               </div>
 
               <p className="text-[11px] text-[#6B7280]">
-                * You contribute ${calcDeposit}/wk base deposit (+5% fee = ${(calcDeposit * 1.05).toFixed(2)} total) for {calcMembers} weeks. When your rotation turn arrives, you receive a net payout of ${((calcMembers * calcDeposit) * 0.90).toLocaleString()} after 10% platform fee deduction.
+                * {t('calculator.disclaimer', {
+                  deposit: calcDeposit.toString(),
+                  totalDeposit: (calcDeposit * 1.05).toFixed(2),
+                  weeks: calcMembers.toString(),
+                  netPayout: ((calcMembers * calcDeposit) * 0.90).toLocaleString()
+                })}
               </p>
             </div>
 
@@ -765,40 +779,40 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="bg-[#005FB8] text-white rounded-xl p-8 space-y-6 shadow-sm relative overflow-hidden">
               <div>
                 <span className="text-xs uppercase font-mono font-bold tracking-wider text-blue-200 block mb-1">
-                  Net Single Rotation Payout (After 10% Fee)
+                  {t('calculator.netPayoutTitle')}
                 </span>
                 <div className="text-4xl sm:text-5xl font-extrabold font-mono tracking-tight">
                   ${(totalPoolPayout * 0.90).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  <span className="text-base font-normal text-blue-200 ml-2">USD Net</span>
+                  <span className="text-base font-normal text-blue-200 ml-2">{t('calculator.usdNet')}</span>
                 </div>
               </div>
 
               <div className="space-y-3 text-xs border-t border-blue-400/40 pt-4 font-mono">
                 <div className="flex justify-between">
-                  <span className="text-blue-100 font-sans">Base Weekly Contribution:</span>
-                  <span className="font-bold">${calcDeposit}.00 / week</span>
+                  <span className="text-blue-100 font-sans">{t('calculator.baseWeeklyLabel')}</span>
+                  <span className="font-bold">${calcDeposit}.00 / {t('calculator.weekAbbr')}</span>
                 </div>
 
                 <div className="flex justify-between text-blue-200">
-                  <span className="font-sans">Initial Deposit Fee (5%):</span>
+                  <span className="font-sans">{t('calculator.depositFeeLabel')}</span>
                   <span>+${(calcDeposit * 0.05).toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-blue-100">
-                  <span className="font-sans">Gross Collective Pool ({calcMembers} Members):</span>
+                  <span className="font-sans">{t('calculator.grossPoolLabel', { members: calcMembers.toString() })}</span>
                   <span className="font-bold">${totalPoolPayout}.00</span>
                 </div>
 
                 <div className="flex justify-between text-rose-200">
-                  <span className="font-sans">Payout Service Fee (10%):</span>
+                  <span className="font-sans">{t('calculator.payoutFeeLabel')}</span>
                   <span>-${(totalPoolPayout * 0.10).toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between border-t border-blue-400/40 pt-2">
-                  <span className="text-blue-100 font-sans">FDIC Pass-Through Status:</span>
+                  <span className="text-blue-100 font-sans">{t('calculator.fdicStatusLabel')}</span>
                   <span className="font-bold text-emerald-300 font-sans flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    Eligible ($250k Limit)
+                    {t('calculator.fdicEligible')}
                   </span>
                 </div>
               </div>
@@ -807,7 +821,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
                 className="w-full py-3 rounded-lg bg-white hover:bg-blue-50 text-[#005FB8] font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>{isAuthUser ? `Go to Dashboard (${calcMembers}-Member Pod)` : `Join or Create ${calcMembers}-Member Circle`}</span>
+                <span>{isAuthUser ? t('calculator.goToDashboardCircle', { members: calcMembers.toString() }) : t('calculator.joinCircle', { members: calcMembers.toString() })}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -831,16 +845,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Badge */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold">
                 <Sparkles className="w-4 h-4 text-blue-400" />
-                <span>Feature Service • Community-Powered Financial Security</span>
+                <span>{t('promo.badge')}</span>
               </div>
 
               {/* Heading */}
               <div className="space-y-2">
                 <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  Get Paid to Rep our clients, Don't Just Make deliveries: Start now & give Your t-shirt a Job
+                  {t('promo.ambassadorTitle')}
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  After your Pod is created and activated with members, select brand campaigns, get equipped with free turnkey partner gear, and earn guaranteed daily wages on your deliveries.
+                  {t('promo.ambassadorDesc')}
                 </p>
               </div>
 
@@ -849,30 +863,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
                   <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
                     <ShieldCheck className="w-4 h-4 shrink-0" />
-                    <span>Activate a Pod</span>
+                    <span>{t('promo.activatePodTitle')}</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    Start a Pod for free, invite friends, crew members, and families to participate.
+                    {t('promo.activatePodDesc')}
                   </p>
                 </div>
 
                 <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
                   <div className="flex items-center gap-1.5 text-blue-400 font-bold text-xs">
                     <RefreshCw className="w-4 h-4 shrink-0" />
-                    <span>We provide Merch</span>
+                    <span>{t('promo.weProvideMerchTitle')}</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    After creating and inviting members to join your Pod, your Pod is full & activated we'll send you campaign ad gears from our partners. 
+                    {t('promo.weProvideMerchDesc')}
                   </p>
                 </div>
 
                 <div className="bg-slate-800/70 border border-slate-700/80 rounded-xl p-3.5 space-y-1">
                   <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
                     <Gift className="w-4 h-4 shrink-0" />
-                    <span>Get Paid everyday</span>
+                    <span>{t('promo.getPaidEverydayTitle')}</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    Wear the clothing as you go on your delivery routes and get paid per day.
+                    {t('promo.getPaidEverydayDesc')}
                   </p>
                 </div>
               </div>
@@ -884,7 +898,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
                   className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-lg hover:shadow-blue-500/25 flex items-center gap-2 cursor-pointer"
                 >
-                  <span>{isAuthUser ? 'Go to Active Pods Dashboard' : 'Start a Pod for Free'}</span>
+                  <span>{isAuthUser ? t('promo.goToActivePods') : t('promo.startPodFree')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
@@ -894,7 +908,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => setShowCampaignHowItWorksModal(true)}
                   className="px-5 py-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600 font-semibold text-sm transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <span>How It Works</span>
+                  <span>{t('promo.howItWorks')}</span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </button>
               </div>
@@ -903,15 +917,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 pt-1">
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  No credit check required
+                  {t('promo.trustNoCredit')}
                 </span>
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  Stripe Identity Verified
+                  {t('promo.trustStripe')}
                 </span>
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  Available across 50 US States
+                  {t('promo.trustFiftyStates')}
                 </span>
               </div>
 
@@ -930,10 +944,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="mt-3 flex items-center justify-between px-2 text-[11px] text-slate-400">
                 <span className="flex items-center gap-1.5 font-medium text-slate-300">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Active Courier & Gig Network
+                  {t('promo.activeNetworkBadge')}
                 </span>
                 <span className="font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60 text-[10px] font-semibold">
-                  Zero Interest Payouts
+                  {t('promo.zeroInterestBadge')}
                 </span>
               </div>
             </div>
@@ -945,12 +959,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* 4. HOW IT WORKS */}
       <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
         <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
-          <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider">Transparent Architecture</span>
+          <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider">{t('howItWorks.badge')}</span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111827]">
-            How MutualPool Pods Work
+            {t('howItWorks.title')}
           </h2>
           <p className="text-xs sm:text-sm text-[#6B7280]">
-            Digital Rotating Savings and Credit Associations (ROSCAs) engineered specifically for gig workers and delivery driver fleets.
+            {t('howItWorks.subtitle')}
           </p>
         </div>
 
@@ -960,9 +974,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#005FB8] font-bold text-sm flex items-center justify-center">
               1
             </div>
-            <h3 className="font-bold text-base text-[#111827]">Forming Circle</h3>
+            <h3 className="font-bold text-base text-[#111827]">{t('howItWorks.step1Title')}</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              Create or Join an open pod in your region or fleet category (DoorDash, Uber Eats, Instacart).
+              {t('howItWorks.step1Desc')}
             </p>
           </div>
 
@@ -970,9 +984,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#005FB8] font-bold text-sm flex items-center justify-center">
               2
             </div>
-            <h3 className="font-bold text-base text-[#111827]">Rotation Locking</h3>
+            <h3 className="font-bold text-base text-[#111827]">{t('howItWorks.step2Title')}</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              When capacity is reached, a cryptographically random shuffle permanently locks rotation indices.
+              {t('howItWorks.step2Desc')}
             </p>
           </div>
 
@@ -980,9 +994,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#005FB8] font-bold text-sm flex items-center justify-center">
               3
             </div>
-            <h3 className="font-bold text-base text-[#111827]">Stripe Treasury Payout</h3>
+            <h3 className="font-bold text-base text-[#111827]">{t('howItWorks.step3Title')}</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              Each week everyone deposits what they can afford. The collected pool then goes into Stripe Treasury holding accounts and transfer the full lump-sum to whoever's next in the rotation.
+              {t('howItWorks.step3Desc')}
             </p>
           </div>
 
@@ -990,9 +1004,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#005FB8] font-bold text-sm flex items-center justify-center">
               4
             </div>
-            <h3 className="font-bold text-base text-[#111827]">Emergency Voting</h3>
+            <h3 className="font-bold text-base text-[#111827]">{t('howItWorks.step4Title')}</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              Facing sudden transmission or brake failure? Submit a reprioritization request. Members vote to swap payout weeks transparently.
+              {t('howItWorks.step4Desc')}
             </p>
           </div>
 
@@ -1008,9 +1022,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div>
-                <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block mb-0.5">Live Marketplace</span>
+                <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block mb-0.5">{t('formingPods.badge')}</span>
                 <h2 className="text-2xl font-extrabold text-[#111827]">
-                  Open Forming Pods ({formingPods.length})
+                  {t('formingPods.title', { count: formingPods.length.toString() })}
                 </h2>
               </div>
 
@@ -1018,7 +1032,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={() => handleActionOrAuth('LOGIN', 'explore-pods')}
                 className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-[#DDE1E6] font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
-                <span>Browse All Pool Circles</span>
+                <span>{t('formingPods.browseAll')}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -1034,7 +1048,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <h3 className="font-bold text-base text-[#111827] mt-1">{pod.name}</h3>
                     </div>
                     <span className="text-xs font-mono font-bold text-emerald-700 bg-green-50 px-2 py-1 rounded border border-green-200">
-                      ${pod.weeklyPoolTarget}/wk Pool
+                      ${pod.weeklyPoolTarget}/{t('calculator.weekAbbr')} {t('formingPods.poolTargetLabel')}
                     </span>
                   </div>
 
@@ -1044,12 +1058,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                   <div className="grid grid-cols-2 gap-2 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
                     <div>
-                      <span className="text-[#6B7280] text-[10px] block font-medium">Weekly Deposit</span>
-                      <span className="font-bold text-[#111827] font-mono">${pod.depositTier}/wk</span>
+                      <span className="text-[#6B7280] text-[10px] block font-medium">{t('formingPods.weeklyDepositLabel')}</span>
+                      <span className="font-bold text-[#111827] font-mono">${pod.depositTier}/{t('calculator.weekAbbr')}</span>
                     </div>
                     <div>
-                      <span className="text-[#6B7280] text-[10px] block font-medium">Capacity</span>
-                      <span className="font-bold text-[#111827] font-mono">{Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} / {pod.sizeTier} Members</span>
+                      <span className="text-[#6B7280] text-[10px] block font-medium">{t('formingPods.capacityLabel')}</span>
+                      <span className="font-bold text-[#111827] font-mono">{Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} / {pod.sizeTier} {t('calculator.membersUnit')}</span>
                     </div>
                   </div>
 
@@ -1057,7 +1071,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     onClick={() => handleActionOrAuth('LOGIN', 'explore-pods')}
                     className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   >
-                    <span>{isAuthUser ? 'View Pod in Dashboard' : 'View & Join Pod'}</span>
+                    <span>{isAuthUser ? t('formingPods.viewInDashboard') : t('formingPods.viewAndJoin')}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1073,13 +1087,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="space-y-2">
             <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider flex items-center justify-center gap-1.5">
               <Smartphone className="w-4 h-4" />
-              Available on iOS & Android PWA
+              {t('bottomCta.badge')}
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111827]">
-              Ready to Build Your Emergency Reserve?
+              {t('bottomCta.title')}
             </h2>
             <p className="text-xs sm:text-sm text-[#6B7280] max-w-xl mx-auto">
-              Join thousands of gig workers saving together with Stripe Treasury security and pass-through FDIC insurance.
+              {t('bottomCta.subtitle')}
             </p>
           </div>
 
@@ -1091,7 +1105,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
               >
                 <LayoutDashboard className="w-4 h-4" />
-                <span>Return to Dashboard</span>
+                <span>{t('bottomCta.returnToDashboard')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             ) : (
@@ -1100,14 +1114,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={() => onOpenAuth('REGISTER')}
                   className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                 >
-                  <span>Create Account Free</span>
+                  <span>{t('bottomCta.createAccountFree')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => onOpenAuth('LOGIN')}
                   className="px-6 py-3.5 rounded-xl bg-[#F8FAFC] hover:bg-gray-100 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs cursor-pointer"
                 >
-                  Sign In to Your Account
+                  {t('bottomCta.signInToAccount')}
                 </button>
               </>
             )}
@@ -1115,18 +1129,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* App Store CTA Badges Block */}
           <div className="pt-4 border-t border-[#E2E8F0] max-w-md mx-auto">
-            <p className="text-xs font-bold text-[#111827] mb-3">Install MutualPool Mobile App:</p>
+            <p className="text-xs font-bold text-[#111827] mb-3">{t('bottomCta.installApp')}:</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               {/* Apple App Store Button */}
               <button
                 onClick={() => openAppStore('ios')}
-                className="px-4 py-2 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-sm flex items-center gap-3 text-left group border border-gray-800"
+                className="px-4 py-2 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-sm flex items-center gap-3 text-left group border border-gray-800 cursor-pointer"
               >
                 <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 170 170">
                   <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.14-1.9-14.4-6.08-3.38-2.65-7.23-7.24-11.57-13.78-8.16-12.18-14.28-25.79-18.35-40.82-4.07-15.03-6.11-28.84-6.11-41.42 0-16.7 4.12-30.49 12.36-41.37 8.24-10.88 18.59-16.42 31.06-16.63 4.82 0 10.22 1.25 16.2 3.75 5.98 2.5 10.15 3.8 12.51 3.9 1.95 0 6.27-1.35 12.96-4.05 6.69-2.7 12.11-3.95 16.26-3.75 13.62.63 24.58 5.67 32.88 15.13-11.96 7.22-17.82 17.15-17.58 29.79.25 10.02 4.1 18.38 11.56 25.08 7.46 6.7 16.14 10.37 26.04 11.01-2.52 7.74-5.88 15.53-10.08 23.37zm-29.35-104.9c0-7.39 2.65-14.42 7.95-21.09 5.3-6.67 12.01-10.79 20.13-12.36.42 1.08.63 2.16.63 3.24 0 7.29-2.75 14.37-8.25 21.24-5.5 6.87-12.28 11.01-20.34 12.42-.12-.95-.12-2.11-.12-3.45z"/>
                 </svg>
                 <div>
-                  <span className="text-[10px] block text-gray-300 uppercase tracking-wider leading-tight">Download on the</span>
+                  <span className="text-[10px] block text-gray-300 uppercase tracking-wider leading-tight">{t('hero.downloadOnThe')}</span>
                   <span className="text-xs font-bold leading-tight block">App Store</span>
                 </div>
               </button>
@@ -1134,13 +1148,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Google Play Store Button */}
               <button
                 onClick={() => openAppStore('android')}
-                className="px-4 py-2 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-sm flex items-center gap-3 text-left group border border-gray-800"
+                className="px-4 py-2 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-sm flex items-center gap-3 text-left group border border-gray-800 cursor-pointer"
               >
                 <svg className="w-5 h-5 fill-current shrink-0 text-white" viewBox="0 0 512 512">
                   <path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 65.7 65.7 65.7 59-34.2c16.8-9.8 26.7-27 26.7-46.5s-9.9-36.8-26.8-46.6zM104.6 499l220.7-221.3 60.1 60.1L104.6 499z"/>
                 </svg>
                 <div>
-                  <span className="text-[10px] block text-gray-300 uppercase tracking-wider leading-tight">GET IT ON</span>
+                  <span className="text-[10px] block text-gray-300 uppercase tracking-wider leading-tight">{t('hero.getItOn')}</span>
                   <span className="text-xs font-bold leading-tight block">Google Play</span>
                 </div>
               </button>
@@ -1152,25 +1166,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* FOOTER */}
       <footer className="bg-[#F8FAFC] border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280]">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">         
-          <span>© {new Date().getFullYear()} Chris Bitoye Ventures. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} {t('footer.allRightsReserved')}</span>
           <div className="flex items-center gap-4 text-xs font-medium">
             <button onClick={onOpenAbout} className="hover:text-[#005FB8] transition-colors cursor-pointer">
-              About Us
+              {t('nav.about')}
             </button>
             <span>•</span>
             <button onClick={onOpenHowItWorks} className="hover:text-[#005FB8] transition-colors cursor-pointer">
-              How It Works & Rules
+              {t('footer.howItWorksAndRules')}
             </button>
             <span>•</span>
             <button onClick={onOpenContact} className="hover:text-[#005FB8] transition-colors cursor-pointer">
-              Contact Us
+              {t('nav.contact')}
             </button>
             {onOpenAdvertiser && (
               <>
                 <span>•</span>
                 <button onClick={onOpenAdvertiser} className="text-amber-700 hover:text-amber-800 font-bold transition-colors cursor-pointer flex items-center gap-1">
                   <Megaphone className="w-3 h-3 text-amber-600" />
-                  <span>Advertise with Us</span>
+                  <span>{t('nav.advertise')}</span>
                 </button>
               </>
             )}
