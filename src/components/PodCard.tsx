@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pod, User } from '../types';
+import { useTranslation } from '../i18n';
 import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut } from 'lucide-react';
 
 interface PodCardProps {
@@ -19,6 +20,7 @@ export const PodCard: React.FC<PodCardProps> = ({
   onLeavePod,
   onSignAgreement,
 }) => {
+  const { t } = useTranslation();
   const activeId = currentUser?.id;
   const activeEmail = currentUser?.email?.trim().toLowerCase();
   const activeName = currentUser?.displayName?.trim().toLowerCase();
@@ -92,10 +94,10 @@ export const PodCard: React.FC<PodCardProps> = ({
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusColors[pod.status]}`}>
-              {pod.status === 'FORMING' && 'Filling Pod Members'}
-              {pod.status === 'LOCKED' && 'Rotation Order Locked'}
-              {pod.status === 'ACTIVE' && `Cycle Week ${pod.currentCycleWeek}/${pod.totalCycles}`}
-              {pod.status === 'COMPLETED' && 'All Cycles Completed'}
+              {pod.status === 'FORMING' && t('pod.fillingMembers')}
+              {pod.status === 'LOCKED' && t('pod.rotationLocked')}
+              {pod.status === 'ACTIVE' && t('pod.cycleWeek', { current: pod.currentCycleWeek, total: pod.totalCycles })}
+              {pod.status === 'COMPLETED' && t('pod.allCyclesCompleted')}
             </span>
 
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
@@ -104,7 +106,7 @@ export const PodCard: React.FC<PodCardProps> = ({
                 : 'bg-gray-100 text-gray-700 border-gray-200'
             }`}>
               {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
-              <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
+              <span>{pod.podType === 'TRUSTED_CIRCLE' ? t('pod.trustedCircle') : t('pod.openPod')}</span>
             </span>
 
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
@@ -115,12 +117,12 @@ export const PodCard: React.FC<PodCardProps> = ({
               {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
                 <>
                   <Zap className="w-3 h-3 text-amber-600" />
-                  <span>Early Start Allowed</span>
+                  <span>{t('pod.earlyStartAllowed')}</span>
                 </>
               ) : (
                 <>
                   <Users className="w-3 h-3 text-emerald-600" />
-                  <span>Full Capacity Required</span>
+                  <span>{t('pod.fullCapacityRequired')}</span>
                 </>
               )}
             </span>
@@ -128,17 +130,17 @@ export const PodCard: React.FC<PodCardProps> = ({
             {pod.isPrioritizedForReplacement && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-800 border-rose-200 flex items-center gap-1 animate-pulse">
                 <Sparkles className="w-3 h-3 text-rose-600" />
-                <span>⚡ Hardship Replacement Spot</span>
+                <span>{t('pod.hardshipReplacementSpot')}</span>
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="px-2 py-0.5 rounded bg-gray-100 text-[#4B5563] text-[10px] font-mono border border-gray-200">
-              ${pod.depositTier}/wk
+              {t('pod.depositPerWeek', { amount: pod.depositTier })}
             </span>
             <span className="px-2 py-0.5 rounded bg-gray-100 text-[#4B5563] text-[10px] font-mono border border-gray-200">
-              {pod.sizeTier} Members
+              {t('pod.memberCountOfTotal', { current: pod.sizeTier, max: pod.sizeTier })}
             </span>
           </div>
         </div>
@@ -154,21 +156,21 @@ export const PodCard: React.FC<PodCardProps> = ({
         {/* Financial Overview Metrics */}
         <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] mb-3 grid grid-cols-2 gap-3 text-xs">
           <div>
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Active Weekly Pool</span>
+            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">{t('pod.activeWeeklyPool')}</span>
             <span className="font-mono font-bold text-[#005FB8] text-sm">
               ${currentActivePool.toLocaleString()}
             </span>
             <span className="text-[10px] text-[#6B7280] block font-mono">
-              {displayCount} member{displayCount === 1 ? '' : 's'} × ${pod.depositTier}/wk
+              {displayCount} {displayCount === 1 ? 'member' : 'members'} × ${pod.depositTier}/wk
             </span>
           </div>
           <div>
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">Full Target Payout</span>
+            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">{t('pod.fullTargetPayout')}</span>
             <span className="font-mono font-bold text-slate-700 text-sm">
               ${fullCapacityTarget.toLocaleString()}
             </span>
             <span className="text-[10px] text-[#6B7280] block font-mono">
-              At {pod.sizeTier} max capacity
+              {t('pod.maxCapacityLabel', { count: pod.sizeTier })}
             </span>
           </div>
         </div>
@@ -176,8 +178,8 @@ export const PodCard: React.FC<PodCardProps> = ({
         {/* Capacity Progress Bar */}
         <div className="mb-3">
           <div className="flex items-center justify-between text-xs text-[#6B7280] mb-1">
-            <span>Pod Capacity Fill</span>
-            <span className="font-mono text-[#111827] font-semibold">{displayCount} / {pod.sizeTier} Members</span>
+            <span>{t('pod.podCapacityFill')}</span>
+            <span className="font-mono text-[#111827] font-semibold">{t('pod.memberCountOfTotal', { current: displayCount, max: pod.sizeTier })}</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
             <div
@@ -187,26 +189,6 @@ export const PodCard: React.FC<PodCardProps> = ({
           </div>
         </div>
 
-        {/* Dynamic Capacity Scaling Notice */}
-        {pod.status === 'FORMING' && (
-          <div className="mb-3 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-[10.5px] text-amber-900 leading-tight space-y-1">
-            <div>
-              💡 <strong>Dynamic Payout Scaling:</strong> Weekly payout is currently <strong>${currentActivePool.toLocaleString()}</strong> ({displayCount} member{displayCount === 1 ? '' : 's'} × ${pod.depositTier}/wk).
-            </div>
-            {pod.activationPolicy === 'FLEXIBLE_EARLY' ? (
-              <div className="text-[10px] text-amber-800 font-medium flex items-center gap-1 pt-0.5">
-                <Zap className="w-3 h-3 text-amber-600 shrink-0" />
-                <span>Creator choice: Pod can be activated early before reaching all {pod.sizeTier} member spots.</span>
-              </div>
-            ) : (
-              <div className="text-[10px] text-emerald-800 font-medium flex items-center gap-1 pt-0.5">
-                <Users className="w-3 h-3 text-emerald-600 shrink-0" />
-                <span>Creator choice: Pod activates when all {pod.sizeTier} member spots fill for max target payout (${fullCapacityTarget.toLocaleString()}/wk).</span>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* User Membership Banner if in Pod */}
         {isMember && (
           <div className="mb-3 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
@@ -214,12 +196,12 @@ export const PodCard: React.FC<PodCardProps> = ({
               <ShieldCheck className="w-4 h-4 text-[#005FB8] shrink-0" />
               <div>
                 <span className="font-bold block text-[#111827]">
-                  You are #{userMembership ? userMembership.rotationIndex + 1 : 1} in line for Lump-Sum Payout.
+                  {t('pod.lineForPayout', { index: userMembership ? userMembership.rotationIndex + 1 : 1 })}
                 </span>
                 <span className="text-[10px] text-[#005FB8]">
                   {userMembership?.hasReceivedPayout 
-                    ? `Payout Received in Week ${userMembership.payoutCycleWeek}` 
-                    : `Next Up in Queue`}
+                    ? t('pod.payoutReceivedWeek', { week: userMembership.payoutCycleWeek })
+                    : t('pod.nextUpInQueue')}
                 </span>
               </div>
             </div>
@@ -231,7 +213,7 @@ export const PodCard: React.FC<PodCardProps> = ({
                 }}
                 className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shrink-0 transition-colors shadow-xs cursor-pointer"
               >
-                Sign Agreement
+                {t('pod.signPodAgreement')}
               </button>
             )}
           </div>
@@ -242,7 +224,7 @@ export const PodCard: React.FC<PodCardProps> = ({
       {/* Action Footer */}
       <div className="pt-3 border-t border-[#DDE1E6] flex items-center justify-between gap-2">
         <span className="text-[11px] text-[#6B7280]">
-          Creator: <strong className="text-[#111827]">{pod.creatorName}</strong>
+          {t('pod.creator')}: <strong className="text-[#111827]">{pod.creatorName}</strong>
         </span>
 
         <div className="flex items-center gap-2">
@@ -252,8 +234,8 @@ export const PodCard: React.FC<PodCardProps> = ({
               onClick={() => onLeavePod?.(pod)}
               title={
                 !hasEveryMemberReceivedPayout
-                  ? "Leave Pod is disabled until every member in the pod has taken a turn to get their payout."
-                  : "Leave this completed pod"
+                  ? t('pod.leavePodDisabledTitle')
+                  : t('pod.leavePod')
               }
               className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs border ${
                 !hasEveryMemberReceivedPayout
@@ -262,7 +244,7 @@ export const PodCard: React.FC<PodCardProps> = ({
               }`}
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Leave Pod</span>
+              <span>{t('pod.leavePod')}</span>
             </button>
           ) : (
             !isFull && pod.status !== 'COMPLETED' && (
@@ -270,7 +252,7 @@ export const PodCard: React.FC<PodCardProps> = ({
                 onClick={() => onJoinPod(pod)}
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
               >
-                <span>Join Pod</span>
+                <span>{t('pod.joinPod')}</span>
               </button>
             )
           )}
@@ -279,7 +261,7 @@ export const PodCard: React.FC<PodCardProps> = ({
             onClick={() => onSelectPod(pod, 'deposits')}
             className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] font-semibold text-xs transition-colors flex items-center gap-1 border border-[#DDE1E6] shadow-xs cursor-pointer"
           >
-            <span>View Ledger</span>
+            <span>{t('pod.viewLedger')}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -287,3 +269,4 @@ export const PodCard: React.FC<PodCardProps> = ({
     </div>
   );
 };
+

@@ -42,8 +42,10 @@ import {
   Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil,
   HeartHandshake, DollarSign, AlertTriangle, ExternalLink
 } from 'lucide-react';
+import { useTranslation } from './i18n';
 
 export default function App() {
+  const { t, formatCurrency } = useTranslation();
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('mutualpool_active_user');
@@ -1264,17 +1266,17 @@ export default function App() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-amber-950 text-sm">
-                    Account Inactive / On Hold — Financial Hardship Fund Active
+                    {t('dash.hardshipAlertTitle')}
                   </span>
                   <span className="px-2.5 py-0.5 bg-amber-200 text-amber-900 font-bold text-[10px] rounded-full uppercase font-mono border border-amber-300">
-                    On Hold
+                    {t('dash.onHold')}
                   </span>
                 </div>
                 <p className="text-amber-800 mt-1 max-w-3xl leading-relaxed">
-                  A Financial Hardship Fund deposit was disbursed on your behalf. While on hold, you cannot participate in weekly pool deposits or join new pods until repaid.
+                  {t('dash.hardshipAlertDesc')}
                 </p>
                 <div className="mt-2 flex items-center gap-3 font-mono text-xs text-amber-950 font-bold">
-                  <span>Owed Balance: ${(activeUser.hardshipOwedUsd || 0).toFixed(2)} (Deposit + 7% service fee)</span>
+                  <span>{t('dash.owedBalance', { amount: (activeUser.hardshipOwedUsd || 0).toFixed(2) })}</span>
                 </div>
               </div>
             </div>
@@ -1285,7 +1287,7 @@ export default function App() {
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer"
             >
               <DollarSign className="w-4 h-4" />
-              <span>{repayingHardship ? 'Processing...' : `Pay $${(activeUser.hardshipOwedUsd || 0).toFixed(2)} & Reactivate`}</span>
+              <span>{repayingHardship ? t('dash.processing') : t('dash.payAndReactivate', { amount: (activeUser.hardshipOwedUsd || 0).toFixed(2) })}</span>
             </button>
           </div>
         )}
@@ -1302,24 +1304,24 @@ export default function App() {
                   title="Click to change your primary gig platform or role"
                   className="text-xs font-mono font-bold text-[#005FB8] bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  <span>{activeUser.platform} Fleet Member</span>
+                  <span>{t('dash.fleetMember', { platform: activeUser.platform })}</span>
                   <Pencil className="w-3 h-3 text-[#005FB8]" />
                 </button>
                 <span className="text-xs font-mono text-[#6B7280]">
-                  {activeUser.accountAgeDays} days account tenure
+                  {t('dash.accountTenure', { count: activeUser.accountAgeDays })}
                 </span>
               </div>
               <h2 className="text-2xl font-bold text-[#111827]">
-                Welcome, {activeUser.displayName}
+                {t('dash.welcomeUser', { name: activeUser.displayName })}
               </h2>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <p className="text-xs text-[#6B7280]">
-                  FDIC Pass-Through Treasury Balance: <strong className="text-emerald-700 font-mono">${activeUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                  {t('dash.fdicBalance')} <strong className="text-emerald-700 font-mono">${activeUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
                 </p>
                 {hasWelcomeMatch && (
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse" />
-                    +${activeUser.welcomeMatchAmountUsd || 20}.00 Welcome Match Credited
+                    {t('dash.welcomeMatchCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
                   </span>
                 )}
               </div>
@@ -1332,7 +1334,7 @@ export default function App() {
                 className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Building2 className="w-4 h-4 text-[#005FB8]" />
-                <span>{activeUser.externalBank.status === 'LINKED' ? `Bank: ${activeUser.externalBank.bankName}` : 'Deposit Funds in Treasury'}</span>
+                <span>{activeUser.externalBank.status === 'LINKED' ? t('dash.bankLinked', { bankName: activeUser.externalBank.bankName }) : t('dash.depositFundsInTreasury')}</span>
               </button>
 
               <button
@@ -1340,7 +1342,7 @@ export default function App() {
                 className="px-3.5 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <HeartHandshake className="w-4 h-4 text-[#005FB8]" />
-                <span>Request Hardship Fund</span>
+                <span>{t('dash.requestHardshipFund')}</span>
               </button>
 
               <button
@@ -1353,7 +1355,7 @@ export default function App() {
                 title={isPodCreationLimitReached ? 'Maximum created pod limit reached (3/3)' : 'Create a new mutual savings pod'}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>Create New Pod</span>
+                <span>{t('dash.createNewPodBtn')}</span>
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold ${
                   isPodCreationLimitReached ? 'bg-rose-500 text-white' : 'bg-blue-700 text-blue-100'
                 }`}>
@@ -1367,26 +1369,26 @@ export default function App() {
           {/* Metrics summary row */}
           <div className="mt-5 pt-4 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
             <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">Active Pods</span>
-              <span className="font-extrabold text-[#111827] font-mono text-sm">{myPods.length} Pods</span>
+              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.activePodsMetric')}</span>
+              <span className="font-extrabold text-[#111827] font-mono text-sm">{t('dash.podsCount', { count: myPods.length })}</span>
             </div>
 
             <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">Pods Created (Limit)</span>
+              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.podsCreatedLimit')}</span>
               <span className={`font-extrabold font-mono text-sm inline-flex items-center gap-1 ${
                 isPodCreationLimitReached ? 'text-rose-600' : 'text-[#111827]'
               }`}>
-                {createdPodsCount} / 3 Max
+                {t('dash.podsCreatedMax', { count: createdPodsCount })}
                 {isPodCreationLimitReached && (
                   <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
-                    Max
+                    {t('dash.max')}
                   </span>
                 )}
               </span>
             </div>
 
             <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">Member Status</span>
+              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.memberStatus')}</span>
               {activeUser.kycStatus === 'VERIFIED' ? (
                 <a
                   href="https://dashboard.stripe.com/test/identity"
@@ -1395,7 +1397,7 @@ export default function App() {
                   className="font-extrabold font-mono text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
                   title="Verified via Stripe Identity — Click to view in Stripe Dashboard"
                 >
-                  <span>VERIFIED MEMBER</span>
+                  <span>{t('dash.verifiedMember')}</span>
                   <ExternalLink className="w-3 h-3 text-emerald-600 shrink-0" />
                 </a>
               ) : (
@@ -1405,14 +1407,14 @@ export default function App() {
                   className="font-extrabold font-mono text-xs text-amber-700 hover:text-amber-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
                   title="Verification Pending — Click to complete Stripe Identity KYC"
                 >
-                  <span>{activeUser.kycStatus === 'PENDING' ? 'KYC PENDING' : 'VERIFY IDENTITY'}</span>
+                  <span>{activeUser.kycStatus === 'PENDING' ? t('dash.kycPending') : t('dash.verifyIdentity')}</span>
                   <ExternalLink className="w-3 h-3 text-amber-600 shrink-0" />
                 </button>
               )}
             </div>
 
             <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">Stripe Treasury Account</span>
+              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.stripeTreasuryAccount')}</span>
               <a
                 href="https://dashboard.stripe.com/test/connect/accounts"
                 target="_blank"
@@ -1420,29 +1422,29 @@ export default function App() {
                 className="font-mono text-[#111827] text-xs hover:text-[#005FB8] hover:underline inline-flex items-center gap-1 max-w-full"
                 title="View Connected Accounts in Stripe Dashboard"
               >
-                <span className="truncate">{activeUser.treasury.stripeFinAccountId || 'Active Treasury'}</span>
+                <span className="truncate">{activeUser.treasury.stripeFinAccountId || t('dash.activeTreasury')}</span>
                 <ExternalLink className="w-3 h-3 text-gray-400 shrink-0" />
               </a>
             </div>
 
             <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">1st-Cycle Contingency Match</span>
+              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.contingencyMatch')}</span>
               {hasWelcomeMatch ? (
                 <span className="font-extrabold text-emerald-700 font-mono text-xs inline-flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                  +${activeUser.welcomeMatchAmountUsd || 20}.00 Credited
+                  {t('dash.contingencyCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
                 </span>
               ) : (
                 <span className="font-semibold text-emerald-600 font-mono text-xs inline-flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-emerald-500" />
-                  $20 Available on 1st Pod
+                  {t('dash.contingencyAvailable')}
                 </span>
               )}
             </div>
 
             <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">Completed Pod Cycles</span>
-              <span className="font-extrabold text-[#005FB8] font-mono text-sm">{activeUser.completedPodsCount} Completed</span>
+              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.completedPodCycles')}</span>
+              <span className="font-extrabold text-[#005FB8] font-mono text-sm">{t('dash.completedCount', { count: activeUser.completedPodsCount })}</span>
             </div>
           </div>
         </div>
@@ -1457,8 +1459,8 @@ export default function App() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-[#111827]">My Active Mutual Pods ({myPods.length})</h3>
-                <p className="text-xs text-[#6B7280]">Pods you are currently participating in with locked rotation order.</p>
+                <h3 className="text-lg font-bold text-[#111827]">{t('dash.myActivePodsTitle', { count: myPods.length })}</h3>
+                <p className="text-xs text-[#6B7280]">{t('dash.myActivePodsDesc')}</p>
               </div>
 
               <button
@@ -1466,22 +1468,22 @@ export default function App() {
                 className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
-                <span>New Pod</span>
+                <span>{t('dash.newPod')}</span>
               </button>
             </div>
 
             {myPods.length === 0 ? (
               <div className="bg-white border border-[#DDE1E6] rounded-xl p-10 text-center space-y-3 shadow-xs">
                 <Layers className="w-10 h-10 text-gray-400 mx-auto" />
-                <h4 className="text-base font-bold text-[#111827]">You haven't joined any pods yet</h4>
+                <h4 className="text-base font-bold text-[#111827]">{t('dash.noMyPodsTitle')}</h4>
                 <p className="text-xs text-[#6B7280] max-w-md mx-auto">
-                  Explore available forming pods in the marketplace or create a new pod with custom weekly deposit tiers.
+                  {t('dash.noMyPodsDesc')}
                 </p>
                 <button
                   onClick={() => setActiveTab('explore-pods')}
                   className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
                 >
-                  Explore Forming Pods
+                  {t('dash.exploreFormingPodsBtn')}
                 </button>
               </div>
             ) : (
@@ -1509,22 +1511,22 @@ export default function App() {
         {activeTab === 'explore-pods' && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-bold text-[#111827]">Explore Open Forming Pods ({explorePods.length})</h3>
-              <p className="text-xs text-[#6B7280]">Join an open savings circle. Rotation order locks automatically when full.</p>
+              <h3 className="text-lg font-bold text-[#111827]">{t('dash.exploreOpenPodsTitle', { count: explorePods.length })}</h3>
+              <p className="text-xs text-[#6B7280]">{t('dash.exploreOpenPodsDesc')}</p>
             </div>
 
             {explorePods.length === 0 ? (
               <div className="bg-white border border-[#DDE1E6] rounded-xl p-10 text-center space-y-3 shadow-xs">
                 <Users className="w-10 h-10 text-gray-400 mx-auto" />
-                <h4 className="text-base font-bold text-[#111827]">No open forming pods right now</h4>
+                <h4 className="text-base font-bold text-[#111827]">{t('dash.noExplorePodsTitle')}</h4>
                 <p className="text-xs text-[#6B7280] max-w-md mx-auto">
-                  Be the first to start a new savings pool for your delivery fleet!
+                  {t('dash.noExplorePodsDesc')}
                 </p>
                 <button
                   onClick={() => setShowCreatePodModal(true)}
                   className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
                 >
-                  Create Pod
+                  {t('dash.createPodBtn')}
                 </button>
               </div>
             ) : (
@@ -1620,8 +1622,8 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280] mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>2026 Chris Bitoye Ventures. All rights reserved.</span>
-          <span>Pass-Through FDIC Insured up to $250,000 per user</span>
+          <span>{t('dash.allRightsReserved')}</span>
+          <span>{t('dash.fdicInsuredFooter')}</span>
         </div>
       </footer>
 

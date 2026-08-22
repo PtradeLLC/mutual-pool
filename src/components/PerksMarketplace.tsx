@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Perk, PerkCategory, PerkStatus, PerkRedemptionType } from '../types';
+import { useTranslation } from '../i18n';
 import { savePerkToFirestore, deletePerkFromFirestore, subscribeToPerks } from '../lib/firestoreService';
 import { INITIAL_PERKS } from '../data/initialData';
 import { PerkImageUploadControl } from './PerkImageUploadControl';
@@ -45,6 +46,7 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
 ];
 
 export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onClearInitialSubmitModal, onSelectUser, onOpenAuth }) => {
+  const { t } = useTranslation();
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<PerkCategory | 'All'>('All');
@@ -661,11 +663,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <div className="flex items-center gap-2 mb-1">
               <Gift className="w-6 h-6 text-[#005FB8]" />
               <h2 className="text-2xl font-bold text-[#111827]">
-                Perks & Benefits Marketplace
+                {t('perks.title')}
               </h2>
             </div>
             <p className="text-xs text-[#6B7280] max-w-2xl leading-relaxed">
-              Curated healthcare, legal aid, vehicle repair discounts, and tax automation built exclusively for food delivery riders & rideshare drivers.
+              {t('perks.subtitle')}
             </p>
           </div>
 
@@ -683,7 +685,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Submit Benefits & Perks</span>
+              <span>{t('perks.submitOffer')}</span>
             </button>
 
             <button
@@ -1104,7 +1106,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search healthcare, legal aid, oil changes..."
+            placeholder={t('perks.searchPlaceholder')}
             className="w-full bg-white border border-[#DDE1E6] rounded-lg pl-10 pr-4 py-2.5 text-xs text-[#111827] placeholder-gray-400 focus:outline-none focus:border-[#005FB8] shadow-xs"
           />
         </div>
@@ -1196,14 +1198,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
               <div className="pt-3 border-t border-[#DDE1E6] flex items-center justify-between gap-2 mt-auto">
                 <span className="text-[10.5px] font-medium text-[#6B7280]">
-                  {perk.redeemedCount || 0} redeemed
+                  {perk.redeemedCount || 0} {t('perks.redeemed')}
                 </span>
 
                 <button
                   onClick={() => handleRedeem(perk)}
                   className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer"
                 >
-                  Redeem Benefit
+                  {t('perks.redeem')}
                 </button>
               </div>
             </div>

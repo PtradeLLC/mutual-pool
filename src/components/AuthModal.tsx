@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, GigPlatform } from '../types';
 import { Logo } from './Logo';
+import { useTranslation } from '../i18n';
 import { 
   UserCheck, PlusCircle, LogIn, X, ShieldCheck, 
   Sparkles, AlertCircle, Building2, Wallet, ArrowRight, Check,
@@ -36,6 +37,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onRegistered,
   initialMode = 'LOGIN',
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'LOGIN' | 'REGISTER' | 'PHONE'>(
     initialMode === 'REGISTER' ? 'REGISTER' : (initialMode === 'PHONE' ? 'PHONE' : 'LOGIN')
   );
@@ -385,15 +387,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="flex items-center gap-3 mb-5">
           <Logo size="md" />
           <div>
-            <h3 className="text-xl font-bold text-[#111827]">MutualPool Portal</h3>
-            <p className="text-xs text-[#6B7280]">Email, Google, or Phone Authentication</p>
+            <h3 className="text-xl font-bold text-[#111827]">{t('auth.portalTitle')}</h3>
+            <p className="text-xs text-[#6B7280]">{t('auth.portalSubtitle')}</p>
           </div>
         </div>
 
         {/* Gig Platform Selector for Social / Phone Login */}
         <div className="mb-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl p-3">
           <label className="block text-[11px] font-bold text-[#005FB8] mb-1">
-            Select Your Primary Gig Fleet Platform
+            {t('auth.selectPlatformLabel')}
           </label>
           <select
             value={authPlatform}
@@ -404,13 +406,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
             className="w-full px-3 py-1.5 text-xs font-semibold border border-blue-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#005FB8] bg-white text-[#111827]"
           >
-            <option value="DoorDash">DoorDash Fleet</option>
-            <option value="Uber Eats">Uber Eats Fleet</option>
-            <option value="Instacart">Instacart Shoppers</option>
-            <option value="Lyft">Lyft Drivers</option>
-            <option value="Grubhub">Grubhub Delivery</option>
-            <option value="Spark">Spark (Walmart)</option>
-            <option value="Amazon Flex">Amazon Flex Drivers</option>
+            <option value="DoorDash">{t('auth.platformDoorDash')}</option>
+            <option value="Uber Eats">{t('auth.platformUberEats')}</option>
+            <option value="Instacart">{t('auth.platformInstacart')}</option>
+            <option value="Lyft">{t('auth.platformLyft')}</option>
+            <option value="Grubhub">{t('auth.platformGrubhub')}</option>
+            <option value="Spark">{t('auth.platformSpark')}</option>
+            <option value="Amazon Flex">{t('auth.platformAmazonFlex')}</option>
           </select>
         </div>
 
@@ -420,7 +422,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             type="button"
             onClick={handleGoogleSignIn}
             disabled={googleLoading}
-            className="w-full py-2.5 px-4 rounded-xl border border-gray-300 hover:border-[#005FB8] bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs transition-all flex items-center justify-center gap-2.5 shadow-2xs"
+            className="w-full py-2.5 px-4 rounded-xl border border-gray-300 hover:border-[#005FB8] bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs transition-all flex items-center justify-center gap-2.5 shadow-2xs cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -428,13 +430,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
             </svg>
-            <span>{googleLoading ? 'Signing in with Google...' : 'Continue with Google Account'}</span>
+            <span>{googleLoading ? t('auth.signingInGoogle') : t('auth.continueWithGoogle')}</span>
           </button>
           {googleError && (
             <div className="mt-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-[11px] space-y-1.5 leading-relaxed">
               <div className="flex items-center gap-1.5 font-bold text-amber-800">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Google Auth Domain Setup Needed</span>
+                <span>{t('auth.googleDomainSetupNeeded')}</span>
               </div>
               <p>{googleError}</p>
               <div className="flex gap-2 pt-1">
@@ -443,14 +445,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   onClick={() => setActiveTab('LOGIN')}
                   className="px-2.5 py-1 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[10px]"
                 >
-                  Use Email Sign In
+                  {t('auth.useEmailSignIn')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('PHONE')}
                   className="px-2.5 py-1 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[10px]"
                 >
-                  Use Phone Sign In
+                  {t('auth.usePhoneSignIn')}
                 </button>
               </div>
             </div>
@@ -459,7 +461,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         <div className="relative flex py-2 items-center mb-4">
           <div className="flex-grow border-t border-gray-200"></div>
-          <span className="flex-shrink mx-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Or choose method</span>
+          <span className="flex-shrink mx-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">{t('auth.orChooseMethod')}</span>
           <div className="flex-grow border-t border-gray-200"></div>
         </div>
 
@@ -475,7 +477,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }`}
           >
             <Mail className="w-3.5 h-3.5" />
-            <span>Email Sign In</span>
+            <span>{t('auth.tabEmailSignIn')}</span>
           </button>
 
           <button
@@ -488,7 +490,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>Create Account</span>
+            <span>{t('auth.tabCreateAccount')}</span>
           </button>
 
           <button
@@ -501,7 +503,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Phone SMS</span>
+            <span>{t('auth.tabPhoneSms')}</span>
           </button>
         </div>
 
@@ -517,28 +519,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1">
-                Firebase Email Address
+                {t('auth.emailLabel')}
               </label>
               <input
                 type="email"
                 required
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="e.g. driver@mutualpool.org"
+                placeholder={t('auth.emailPlaceholder')}
                 className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1">
-                Password
+                {t('auth.passwordLabel')}
               </label>
               <input
                 type="password"
                 required
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={t('auth.passwordPlaceholder')}
                 className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
               />
             </div>
@@ -546,13 +548,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <button
               type="submit"
               disabled={loginLoading}
-              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs"
+              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
             >
               {loginLoading ? (
-                <span>Verifying Credentials...</span>
+                <span>{t('auth.verifyingCredentials')}</span>
               ) : (
                 <>
-                  <span>Sign In with Email</span>
+                  <span>{t('auth.signInWithEmailBtn')}</span>
                   <LogIn className="w-4 h-4" />
                 </>
               )}
@@ -574,31 +576,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <form onSubmit={handleSendPhoneSms} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#111827] mb-1">
-                    Mobile Phone Number (with Country Code)
+                    {t('auth.phoneLabel')}
                   </label>
                   <input
                     type="tel"
                     required
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="e.g. +1 555 234 5678"
+                    placeholder={t('auth.phonePlaceholder')}
                     className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8] font-mono"
                   />
                   <p className="text-[11px] text-gray-500 mt-1">
-                    We'll send an SMS code to verify your mobile identity.
+                    {t('auth.phoneHelperText')}
                   </p>
                 </div>
 
                 <button
                   type="submit"
                   disabled={phoneLoading}
-                  className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs"
+                  className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
                 >
                   {phoneLoading ? (
-                    <span>Sending SMS Verification...</span>
+                    <span>{t('auth.sendingSmsVerification')}</span>
                   ) : (
                     <>
-                      <span>Send SMS Verification Code</span>
+                      <span>{t('auth.sendSmsCodeBtn')}</span>
                       <Smartphone className="w-4 h-4" />
                     </>
                   )}
@@ -607,19 +609,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             ) : (
               <form onSubmit={handleVerifyPhoneCode} className="space-y-4">
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs">
-                  SMS Code sent to <strong>{phoneNumber}</strong>
+                  {t('auth.smsCodeSentTo', { phone: phoneNumber })}
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[#111827] mb-1">
-                    Enter 6-Digit SMS Verification Code
+                    {t('auth.enterSmsCodeLabel')}
                   </label>
                   <input
                     type="text"
                     required
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
-                    placeholder="e.g. 123456"
+                    placeholder={t('auth.smsCodePlaceholder')}
                     maxLength={6}
                     className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-center tracking-widest text-lg font-mono font-bold text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   />
@@ -629,16 +631,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setPhoneStep('NUMBER')}
-                    className="w-1/3 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 font-bold text-xs text-gray-700"
+                    className="w-1/3 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 font-bold text-xs text-gray-700 cursor-pointer"
                   >
-                    Change Number
+                    {t('auth.changeNumberBtn')}
                   </button>
                   <button
                     type="submit"
                     disabled={phoneLoading}
-                    className="w-2/3 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs"
+                    className="w-2/3 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
                   >
-                    {phoneLoading ? 'Verifying Code...' : 'Confirm Code & Sign In'}
+                    {phoneLoading ? t('auth.verifyingCode') : t('auth.confirmCodeBtn')}
                   </button>
                 </div>
               </form>
@@ -658,75 +660,75 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1">
-                Full Legal Name
+                {t('auth.fullNameLabel')}
               </label>
               <input
                 type="text"
                 required
                 value={regName}
                 onChange={(e) => setRegName(e.target.value)}
-                placeholder="e.g. Maya Lin"
+                placeholder={t('auth.fullNamePlaceholder')}
                 className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1">
-                Email Address
+                {t('auth.emailAddressLabel')}
               </label>
               <input
                 type="email"
                 required
                 value={regEmail}
                 onChange={(e) => setRegEmail(e.target.value)}
-                placeholder="e.g. maya.lin@example.com"
+                placeholder={t('auth.emailAddressPlaceholder')}
                 className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1">
-                Password
+                {t('auth.createPasswordLabel')}
               </label>
               <input
                 type="password"
                 required
                 value={regPassword}
                 onChange={(e) => setRegPassword(e.target.value)}
-                placeholder="Min 6 characters"
+                placeholder={t('auth.passwordMinLength')}
                 className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1">
-                Primary Delivery / Fleet
+                {t('auth.primaryFleetLabel')}
               </label>
               <select
                 value={regPlatform}
                 onChange={(e) => setRegPlatform(e.target.value as GigPlatform)}
                 className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
               >
-                <option value="DoorDash">DoorDash Driver</option>
-                <option value="Uber Eats">Uber / Uber Eats</option>
-                <option value="Lyft">Lyft Driver</option>
-                <option value="Instacart">Instacart Shopper</option>
-                <option value="Amazon Flex">Amazon Flex Driver</option>
-                <option value="Spark">Walmart Spark</option>
-                <option value="Grubhub">Grubhub Driver</option>
+                <option value="DoorDash">{t('auth.driverDoorDash')}</option>
+                <option value="Uber Eats">{t('auth.driverUber')}</option>
+                <option value="Lyft">{t('auth.driverLyft')}</option>
+                <option value="Instacart">{t('auth.driverInstacart')}</option>
+                <option value="Amazon Flex">{t('auth.driverAmazonFlex')}</option>
+                <option value="Spark">{t('auth.driverSpark')}</option>
+                <option value="Grubhub">{t('auth.driverGrubhub')}</option>
               </select>
             </div>
 
             <button
               type="submit"
               disabled={regLoading}
-              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs"
+              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
             >
               {regLoading ? (
-                <span>Creating Firebase User & Firestore Profile...</span>
+                <span>{t('auth.creatingProfile')}</span>
               ) : (
                 <>
-                  <span>Register Account</span>
+                  <span>{t('auth.registerAccountBtn')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

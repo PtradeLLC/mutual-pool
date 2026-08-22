@@ -113,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
               <div className="text-left">
-                <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">Stripe Treasury Balance</span>
+                <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">{t('header.stripeTreasuryBalance')}</span>
                 <span className="font-bold text-[#111827] font-mono">
                   ${currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
                 </span>
@@ -124,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
             {(hasWelcomeMatch || currentUser.welcomeMatchReceived) && (
               <div className="hidden xl:flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1.5 rounded-lg text-xs font-extrabold shadow-2xs">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse shrink-0" />
-                <span>+$20.00 Welcome Match</span>
+                <span>{t('header.welcomeMatchPill')}</span>
               </div>
             )}
 
@@ -142,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Verified via Stripe Identity — Click to view in Stripe Dashboard & Verification Details"
               >
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">VERIFIED MEMBER</span>
+                <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">{t('dash.verifiedMember')}</span>
                 <ExternalLink className="w-3 h-3 text-green-600 ml-0.5 shrink-0" />
               </button>
             ) : (
@@ -153,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Click to complete Stripe Identity KYC verification"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span className="hidden sm:inline font-extrabold text-[11px] uppercase tracking-wide">VERIFY IDENTITY (KYC)</span>
+                <span className="hidden sm:inline font-extrabold text-[11px] uppercase tracking-wide">{t('dash.verifyIdentityKyc')}</span>
               </button>
             )}
 
@@ -206,7 +206,7 @@ export const Header: React.FC<HeaderProps> = ({
                             alt={currentUser.displayName}
                             className="w-5 h-5 rounded-full object-cover"
                           />
-                          <span>Edit Profile, Fleet & Role</span>
+                          <span>{t('header.editProfile')}</span>
                         </div>
                         <Sparkles className="w-3.5 h-3.5" />
                       </button>
@@ -225,9 +225,9 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <div className="flex items-center gap-2">
                           <BarChart3 className="w-4 h-4 text-amber-600" />
-                          <span>Advertiser & Campaign Metrics</span>
+                          <span>{t('header.advertiserPortal')}</span>
                         </div>
-                        <span className="text-[10px] bg-amber-200/80 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">Portal</span>
+                        <span className="text-[10px] bg-amber-200/80 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">{t('header.portal')}</span>
                       </button>
                     ) : onOpenAdvertiser ? (
                       <button
@@ -239,9 +239,9 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <div className="flex items-center gap-2">
                           <Megaphone className="w-4 h-4 text-[#005FB8]" />
-                          <span>Advertise with Us</span>
+                          <span>{t('header.mediaKit')}</span>
                         </div>
-                        <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded text-blue-900 font-bold uppercase">Media Kit</span>
+                        <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded text-blue-900 font-bold uppercase">{t('header.mediaKitBadge')}</span>
                       </button>
                     ) : null}
 
@@ -254,7 +254,7 @@ export const Header: React.FC<HeaderProps> = ({
                         className="w-full text-left p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-[#111827] font-semibold text-xs flex items-center gap-2 transition-colors border border-gray-200 cursor-pointer"
                       >
                         <Home className="w-4 h-4 text-[#005FB8]" />
-                        <span>Return to Landing Page</span>
+                        <span>{t('header.returnToLanding')}</span>
                       </button>
                     )}
 
@@ -268,9 +268,9 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <div className="flex items-center gap-2">
                           <LogOut className="w-4 h-4 text-red-600" />
-                          <span>Log Out</span>
+                          <span>{t('nav.logout')}</span>
                         </div>
-                        <span className="text-[10px] text-red-500 font-normal">End Session</span>
+                        <span className="text-[10px] text-red-500 font-normal">{t('header.endSession')}</span>
                       </button>
                     )}
                   </div>
@@ -389,21 +389,21 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onOpenAbout}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
             >
-              About
+              {t('nav.about')}
             </button>
             <span className="text-gray-300">•</span>
             <button
               onClick={onOpenHowItWorks}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
             >
-              Rules
+              {t('nav.howItWorks')}
             </button>
             <span className="text-gray-300">•</span>
             <button
               onClick={onOpenContact}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
             >
-              Contact
+              {t('nav.contact')}
             </button>
           </div>
         </nav>
