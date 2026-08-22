@@ -840,7 +840,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   Get Paid to Rep our clients, Don't Just Make deliveries: Start now & give Your t-shirt a Job
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  After your Pod activates, select brand campaigns, get equipped with turnkey partner gear, and earn guaranteed daily wages on your deliveries.
+                  After your Pod is created and activated with members, select brand campaigns, get equipped with turnkey partner gear, and earn guaranteed daily wages on your deliveries.
                 </p>
               </div>
 
