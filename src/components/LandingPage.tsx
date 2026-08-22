@@ -11,7 +11,7 @@ import {
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
   AlertCircle, DollarSign, Clock, RefreshCw, Zap, Play, Smartphone, LogOut, LayoutDashboard,
-  PlusCircle, X, Megaphone
+  PlusCircle, X, Megaphone, Menu
 } from 'lucide-react';
 
 const PERK_CATEGORIES = [
@@ -92,6 +92,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   // Campaign How It Works Modal State
   const [showCampaignHowItWorksModal, setShowCampaignHowItWorksModal] = useState(false);
+
+  // Mobile / Tablet Hamburger Menu State
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Public Partner Perk Submission Modal State
   const [showSubmitPerkModal, setShowSubmitPerkModal] = useState(false);
@@ -228,7 +231,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       
       {/* 1. LANDING NAVBAR */}
       <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
           
           {/* Logo */}
           <div 
@@ -239,7 +242,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }
             }}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group shrink-0"
             title={currentUser ? "Click logo to return to Dashboard" : "MutualPool Home"}
           >
             <Logo size="md" />
@@ -258,23 +261,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </div>
 
-          {/* Quick Nav Links */}
-          <div className="hidden md:flex items-center gap-4 lg:gap-6 text-xs text-[#4B5563] font-semibold">
+          {/* Desktop Nav Links (Visible on XL screens 1280px+) */}
+          <div className="hidden xl:flex items-center gap-5 text-xs text-[#4B5563] font-semibold">
             <button
               onClick={onOpenAbout}
-              className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
+              className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
             >
               About
             </button>
             <button
               onClick={onOpenHowItWorks}
-              className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
+              className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
             >
               Rules
             </button>
             <button
               onClick={onOpenContact}
-              className="hover:text-[#005FB8] transition-colors py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer"
+              className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
             >
               Contact
             </button>
@@ -309,13 +312,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
           </div>
 
-          {/* Quick Nav Links & Auth CTAs */}
-          <div className="flex items-center gap-2.5">
+          {/* Right Action CTAs & Mobile/Tablet Burger Button */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             {currentUser ? (
-              <>
+              <div className="hidden md:flex items-center gap-2">
                 <button
                   onClick={() => onGoToDashboard && onGoToDashboard('my-pods')}
-                  className="px-3.5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="px-3 sm:px-3.5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 cursor-pointer"
                 >
                   <img
                     src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
@@ -330,98 +333,267 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <button
                     onClick={onLogout}
                     title="Log Out"
-                    className="px-3 py-2 rounded-lg bg-white hover:bg-red-50 text-gray-700 hover:text-red-700 border border-[#DDE1E6] hover:border-red-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    className="px-2.5 py-2 rounded-lg bg-white hover:bg-red-50 text-gray-700 hover:text-red-700 border border-[#DDE1E6] hover:border-red-200 font-bold text-xs transition-colors items-center gap-1 shadow-xs cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5 text-red-600" />
-                    <span className="hidden sm:inline">Log Out</span>
+                    <span>Log Out</span>
                   </button>
                 )}
-              </>
+              </div>
             ) : (
-              <>
+              <div className="hidden md:flex items-center gap-2">
                 <button
                   onClick={() => onOpenAuth('LOGIN')}
-                  className="px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs cursor-pointer"
+                  className="px-3 sm:px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs cursor-pointer"
                 >
                   Sign In
                 </button>
 
                 <button
                   onClick={() => onOpenAuth('REGISTER')}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 sm:px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer"
                 >
                   <span>Get Started</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-              </>
+              </div>
             )}
+
+            {/* Hamburger Menu Toggle Button (Visible on mobile & tablet: < xl) */}
+            <button
+              id="landing-mobile-menu-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="xl:hidden p-2 rounded-lg border border-[#DDE1E6] bg-white hover:bg-gray-50 text-gray-700 hover:text-[#005FB8] transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
+
+        {/* Collapsible Mobile & Tablet Menu Drawer (< xl) */}
+        {mobileMenuOpen && (
+          <div className="xl:hidden border-t border-[#DDE1E6] bg-white px-4 py-4 space-y-3.5 shadow-lg animate-in slide-in-from-top-2 duration-200">
+            {/* Primary Auth CTAs in Drawer on Mobile (< md) */}
+            {!currentUser ? (
+              <div className="md:hidden grid grid-cols-2 gap-2 pb-1 border-b border-gray-100">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenAuth('LOGIN');
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-bold text-xs text-center transition-all shadow-2xs cursor-pointer"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenAuth('REGISTER');
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>Get Started</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="md:hidden pb-1 border-b border-gray-100">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onGoToDashboard) onGoToDashboard('my-pods');
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <img
+                    src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
+                    alt={currentUser.displayName}
+                    className="w-5 h-5 rounded-full object-cover ring-1 ring-white"
+                  />
+                  <span>Go to Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Quick Links */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (onOpenAbout) onOpenAbout();
+                }}
+                className="py-2.5 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-center font-bold text-xs text-gray-800 border border-gray-200 transition-colors"
+              >
+                About
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (onOpenHowItWorks) onOpenHowItWorks();
+                }}
+                className="py-2.5 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-center font-bold text-xs text-gray-800 border border-gray-200 transition-colors"
+              >
+                Rules
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (onOpenContact) onOpenContact();
+                }}
+                className="py-2.5 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 text-center font-bold text-xs text-gray-800 border border-gray-200 transition-colors"
+              >
+                Contact
+              </button>
+            </div>
+
+            {/* Special Action Buttons in Drawer (2-column layout on sm+, single column on small phones) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+              {onOpenAdvertiser && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenAdvertiser();
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center justify-between shadow-2xs cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Megaphone className="w-4 h-4 text-slate-950 shrink-0" />
+                    <span className="truncate">Advertise with Us</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 shrink-0 ml-1" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  if (onOpenSubmitPerk) {
+                    onOpenSubmitPerk();
+                  } else if (!currentUser || currentUser.id === 'usr_guest') {
+                    onOpenAuth('LOGIN');
+                  } else {
+                    resetSubmitForm();
+                    setShowSubmitPerkModal(true);
+                  }
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs transition-all flex items-center justify-between shadow-2xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <PlusCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="truncate">Submit Benefits & Perks</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-emerald-600 shrink-0 ml-1" />
+              </button>
+            </div>
+
+            {/* Logged in state extra actions in Drawer */}
+            {currentUser && (
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
+                    alt={currentUser.displayName}
+                    className="w-6 h-6 rounded-full object-cover"
+                  />
+                  <span className="font-bold text-gray-800">{currentUser.displayName}</span>
+                </div>
+                {onLogout && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="text-red-600 hover:text-red-700 font-bold flex items-center gap-1"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       {/* 2. HERO SECTION */}
-      <section className="bg-white border-b border-[#DDE1E6] pt-10 pb-16 px-4 sm:px-6 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto relative z-10">
-          
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      {(() => {
+        const heroImageElement = (
+          <div className="relative rounded-2xl overflow-hidden border border-[#DDE1E6] shadow-xl bg-[#F8FAFC]">
+            <img
+              src={heroImg}
+              alt="Gig delivery driver using mutual savings app"
+              referrerPolicy="no-referrer"
+              className="w-full h-auto max-h-[480px] object-cover object-center"
+            />
             
-            {/* LEFT COLUMN: HERO IMAGE & OVERLAY BADGES */}
-            <div className="lg:col-span-5 relative order-2 lg:order-1">
-              <div className="relative rounded-2xl overflow-hidden border border-[#DDE1E6] shadow-xl bg-[#F8FAFC]">
-                <img
-                  src={heroImg}
-                  alt="Gig delivery driver using mutual savings app"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-auto max-h-[480px] object-cover object-center"
-                />
-                
-                {/* Gradient overlay at bottom for text readability if needed */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+            {/* Gradient overlay at bottom for text readability if needed */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
-                {/* Floating Badge Top Right */}
-                <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-3 shadow-lg flex items-center gap-2.5 text-xs">
-                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-[#111827] block text-[11px]">Pass-Through FDIC</span>
-                    <span className="text-[10px] text-[#6B7280]">Insured up to $250k</span>
-                  </div>
-                </div>
-
-                {/* Floating Badge Bottom Left */}
-                <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-3 shadow-lg flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-blue-50 text-[#005FB8] shrink-0">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-[#111827] block text-[11px]">Fleet Savings Circles</span>
-                      <span className="text-[10px] text-[#6B7280]">DoorDash, Uber Eats, Lyft, Instacart</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-emerald-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
-                    0% Interest
-                  </span>
-                </div>
+            {/* Floating Badge Top Right */}
+            <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-3 shadow-lg flex items-center gap-2.5 text-xs">
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-bold text-[#111827] block text-[11px]">Pass-Through FDIC</span>
+                <span className="text-[10px] text-[#6B7280]">Insured up to $250k</span>
               </div>
             </div>
 
-            {/* RIGHT COLUMN: HERO TEXT & CTAS */}
-            <div className="lg:col-span-7 space-y-6 order-1 lg:order-2 text-left">
-              
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-semibold">
-                <Sparkles className="w-4 h-4 text-[#005FB8]" />
-                <span>Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers and more</span>
+            {/* Floating Badge Bottom Left */}
+            <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-3 shadow-lg flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-50 text-[#005FB8] shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-[#111827] block text-[11px]">Fleet Savings Circles</span>
+                  <span className="text-[10px] text-[#6B7280]">DoorDash, Uber Eats, Lyft, Instacart</span>
+                </div>
               </div>
+              <span className="text-[10px] font-mono font-bold text-emerald-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                0% Interest
+              </span>
+            </div>
+          </div>
+        );
 
-              <h1 className="text-3xl sm:text-5xl font-extrabold text-[#111827] tracking-tight leading-tight">
-                Cash pool, Perks & Benefits built for Gig & Trade workers
-              </h1>
+        return (
+          <section className="bg-white border-b border-[#DDE1E6] pt-8 sm:pt-10 pb-14 sm:pb-16 px-4 sm:px-6 relative overflow-hidden">
+            <div className="max-w-7xl mx-auto relative z-10">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                
+                {/* LEFT COLUMN: HERO IMAGE & OVERLAY BADGES (Desktop only: lg+) */}
+                <div className="hidden lg:block lg:col-span-5 relative">
+                  {heroImageElement}
+                </div>
 
-              <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
-                Pool weekly cash deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.
-              </p>
+                {/* RIGHT COLUMN: HERO TEXT & CTAS */}
+                <div className="lg:col-span-7 space-y-6 text-left">
+                  
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-semibold">
+                    <Sparkles className="w-4 h-4 text-[#005FB8]" />
+                    <span>Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers and more</span>
+                  </div>
+
+                  <h1 className="text-3xl sm:text-5xl font-extrabold text-[#111827] tracking-tight leading-tight">
+                    Cash pool, Perks & Benefits built for Gig & Trade workers
+                  </h1>
+
+                  {/* Mobile & Tablet Hero Image (Placed directly beneath the Hero title) */}
+                  <div className="block lg:hidden my-4 sm:my-6">
+                    {heroImageElement}
+                  </div>
+
+                  <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
+                    Pool weekly cash deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.
+                  </p>
 
               {/* Hero CTAs */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -515,6 +687,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         </div>
       </section>
+    );
+  })()}
 
       {/* 3. INTERACTIVE ROSCA CALCULATOR SIMULATOR */}
       <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
@@ -825,9 +999,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* 5. CURRENT FORMING PODS PREVIEW */}
+      {/* 5. CURRENT FORMING PODS PREVIEW (Displays only when at least 3 active pods are forming) */}
       {(() => {
         const formingPods = allPods.filter((p) => p && p.id && !isDemoPod(p) && p.status !== 'COMPLETED');
+        if (formingPods.length < 3) return null;
+
         return (
           <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -847,67 +1023,46 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </button>
             </div>
 
-            {formingPods.length === 0 ? (
-              <div className="bg-white border border-[#DDE1E6] rounded-xl p-8 text-center space-y-3 shadow-xs">
-                <div className="w-12 h-12 rounded-full bg-blue-50 text-[#005FB8] flex items-center justify-center mx-auto">
-                  <Users className="w-6 h-6" />
-                </div>
-                <h3 className="font-bold text-base text-[#111827]">No Open Forming Pods At This Moment</h3>
-                <p className="text-xs text-[#6B7280] max-w-md mx-auto">
-                  Be the first to create a mutual savings pool for your fleet or join an existing circle by signing in.
-                </p>
-                <div className="pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {formingPods.slice(0, 6).map((pod) => (
+                <div key={pod.id} className="bg-white border border-[#DDE1E6] rounded-xl p-5 space-y-4 shadow-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
+                        {pod.category}
+                      </span>
+                      <h3 className="font-bold text-base text-[#111827] mt-1">{pod.name}</h3>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-emerald-700 bg-green-50 px-2 py-1 rounded border border-green-200">
+                      ${pod.weeklyPoolTarget}/wk Pool
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-[#6B7280] line-clamp-2">
+                    {pod.description}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
+                    <div>
+                      <span className="text-[#6B7280] text-[10px] block font-medium">Weekly Deposit</span>
+                      <span className="font-bold text-[#111827] font-mono">${pod.depositTier}/wk</span>
+                    </div>
+                    <div>
+                      <span className="text-[#6B7280] text-[10px] block font-medium">Capacity</span>
+                      <span className="font-bold text-[#111827] font-mono">{Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} / {pod.sizeTier} Members</span>
+                    </div>
+                  </div>
+
                   <button
-                    onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
-                    className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs inline-flex items-center gap-2 shadow-xs cursor-pointer"
+                    onClick={() => handleActionOrAuth('LOGIN', 'explore-pods')}
+                    className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   >
-                    <span>{isAuthUser ? 'Go to Dashboard & Create a Pod' : 'Get Started & Create a Pod'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>{isAuthUser ? 'View Pod in Dashboard' : 'View & Join Pod'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {formingPods.slice(0, 6).map((pod) => (
-                  <div key={pod.id} className="bg-white border border-[#DDE1E6] rounded-xl p-5 space-y-4 shadow-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
-                          {pod.category}
-                        </span>
-                        <h3 className="font-bold text-base text-[#111827] mt-1">{pod.name}</h3>
-                      </div>
-                      <span className="text-xs font-mono font-bold text-emerald-700 bg-green-50 px-2 py-1 rounded border border-green-200">
-                        ${pod.weeklyPoolTarget}/wk Pool
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-[#6B7280] line-clamp-2">
-                      {pod.description}
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
-                      <div>
-                        <span className="text-[#6B7280] text-[10px] block font-medium">Weekly Deposit</span>
-                        <span className="font-bold text-[#111827] font-mono">${pod.depositTier}/wk</span>
-                      </div>
-                      <div>
-                        <span className="text-[#6B7280] text-[10px] block font-medium">Capacity</span>
-                        <span className="font-bold text-[#111827] font-mono">{Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} / {pod.sizeTier} Members</span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleActionOrAuth('LOGIN', 'explore-pods')}
-                      className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      <span>{isAuthUser ? 'View Pod in Dashboard' : 'View & Join Pod'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
           </section>
         );
       })()}
