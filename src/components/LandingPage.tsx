@@ -445,39 +445,41 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               {/* App Store Download Badges in Hero */}
-              <div className="pt-2 flex flex-wrap items-center gap-2.5">
-                <span className="text-[11px] font-semibold text-[#6B7280] flex items-center gap-1">
+              <div className="pt-2 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5">
+                <span className="text-[11px] font-semibold text-[#6B7280] flex items-center gap-1 shrink-0">
                   <Smartphone className="w-3.5 h-3.5 text-[#005FB8]" />
-                  Download Mobile App:
+                  Download:
                 </span>
 
-                {/* Apple App Store Button */}
-                <button
-                  onClick={() => openAppStore('ios')}
-                  className="px-3.5 py-1.5 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-xs flex items-center gap-2.5 text-left group border border-gray-800"
-                >
-                  <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 170 170">
-                    <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.14-1.9-14.4-6.08-3.38-2.65-7.23-7.24-11.57-13.78-8.16-12.18-14.28-25.79-18.35-40.82-4.07-15.03-6.11-28.84-6.11-41.42 0-16.7 4.12-30.49 12.36-41.37 8.24-10.88 18.59-16.42 31.06-16.63 4.82 0 10.22 1.25 16.2 3.75 5.98 2.5 10.15 3.8 12.51 3.9 1.95 0 6.27-1.35 12.96-4.05 6.69-2.7 12.11-3.95 16.26-3.75 13.62.63 24.58 5.67 32.88 15.13-11.96 7.22-17.82 17.15-17.58 29.79.25 10.02 4.1 18.38 11.56 25.08 7.46 6.7 16.14 10.37 26.04 11.01-2.52 7.74-5.88 15.53-10.08 23.37zm-29.35-104.9c0-7.39 2.65-14.42 7.95-21.09 5.3-6.67 12.01-10.79 20.13-12.36.42 1.08.63 2.16.63 3.24 0 7.29-2.75 14.37-8.25 21.24-5.5 6.87-12.28 11.01-20.34 12.42-.12-.95-.12-2.11-.12-3.45z"/>
-                  </svg>
-                  <div>
-                    <span className="text-[9px] block text-gray-300 leading-tight uppercase tracking-wider">Download on the</span>
-                    <span className="text-xs font-bold leading-tight block">App Store</span>
-                  </div>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Apple App Store Button */}
+                  <button
+                    onClick={() => openAppStore('ios')}
+                    className="px-3 py-1.5 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-xs flex items-center gap-2 text-left group border border-gray-800 shrink-0 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 170 170">
+                      <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.14-1.9-14.4-6.08-3.38-2.65-7.23-7.24-11.57-13.78-8.16-12.18-14.28-25.79-18.35-40.82-4.07-15.03-6.11-28.84-6.11-41.42 0-16.7 4.12-30.49 12.36-41.37 8.24-10.88 18.59-16.42 31.06-16.63 4.82 0 10.22 1.25 16.2 3.75 5.98 2.5 10.15 3.8 12.51 3.9 1.95 0 6.27-1.35 12.96-4.05 6.69-2.7 12.11-3.95 16.26-3.75 13.62.63 24.58 5.67 32.88 15.13-11.96 7.22-17.82 17.15-17.58 29.79.25 10.02 4.1 18.38 11.56 25.08 7.46 6.7 16.14 10.37 26.04 11.01-2.52 7.74-5.88 15.53-10.08 23.37zm-29.35-104.9c0-7.39 2.65-14.42 7.95-21.09 5.3-6.67 12.01-10.79 20.13-12.36.42 1.08.63 2.16.63 3.24 0 7.29-2.75 14.37-8.25 21.24-5.5 6.87-12.28 11.01-20.34 12.42-.12-.95-.12-2.11-.12-3.45z"/>
+                    </svg>
+                    <div>
+                      <span className="text-[8.5px] block text-gray-300 leading-tight uppercase tracking-wider">Download on the</span>
+                      <span className="text-xs font-bold leading-tight block">App Store</span>
+                    </div>
+                  </button>
 
-                {/* Google Play Store Button */}
-                <button
-                  onClick={() => openAppStore('android')}
-                  className="px-3.5 py-1.5 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-xs flex items-center gap-2.5 text-left group border border-gray-800"
-                >
-                  <svg className="w-4 h-4 fill-current shrink-0 text-white" viewBox="0 0 512 512">
-                    <path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 65.7 65.7 65.7 59-34.2c16.8-9.8 26.7-27 26.7-46.5s-9.9-36.8-26.8-46.6zM104.6 499l220.7-221.3 60.1 60.1L104.6 499z"/>
-                  </svg>
-                  <div>
-                    <span className="text-[9px] block text-gray-300 leading-tight uppercase tracking-wider">GET IT ON</span>
-                    <span className="text-xs font-bold leading-tight block">Google Play</span>
-                  </div>
-                </button>
+                  {/* Google Play Store Button */}
+                  <button
+                    onClick={() => openAppStore('android')}
+                    className="px-3 py-1.5 rounded-xl bg-black hover:bg-gray-900 text-white transition-all shadow-xs flex items-center gap-2 text-left group border border-gray-800 shrink-0 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4 fill-current shrink-0 text-white" viewBox="0 0 512 512">
+                      <path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 65.7 65.7 65.7 59-34.2c16.8-9.8 26.7-27 26.7-46.5s-9.9-36.8-26.8-46.6zM104.6 499l220.7-221.3 60.1 60.1L104.6 499z"/>
+                    </svg>
+                    <div>
+                      <span className="text-[8.5px] block text-gray-300 leading-tight uppercase tracking-wider">GET IT ON</span>
+                      <span className="text-xs font-bold leading-tight block">Google Play</span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Trust Highlights Strip */}
@@ -535,8 +537,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Member Tier Selector */}
               <div>
                 <div className="flex justify-between text-xs font-bold text-[#111827] mb-2">
-                  <span>Pod Capacity (Fleet Drivers):</span>
-                  <span className="text-[#005FB8] font-mono">{calcMembers} Drivers</span>
+                  <span>Pod Capacity (Gig workers):</span>
+                  <span className="text-[#005FB8] font-mono">{calcMembers} Gig Workers</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {[20, 50, 100, 500].map(num => (
@@ -661,7 +663,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Heading */}
               <div className="space-y-2">
                 <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                  Get Paid to Rep, Not Just Deliver: Start now & give Your t-shirt a Job
+                  Get Paid to Rep our clients, Don't Just Make deliveries: Start now & give Your t-shirt a Job
                 </h2>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
                   After your Pod activates, select brand campaigns, get equipped with turnkey partner gear, and earn guaranteed daily wages on your deliveries.
@@ -686,7 +688,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span>We provide Merch</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-normal">
-                    After Pod is full & activated we'll send you campaign ad gears from our partners. 
+                    After creating and inviting members to join your Pod, your Pod is full & activated we'll send you campaign ad gears from our partners. 
                   </p>
                 </div>
 
