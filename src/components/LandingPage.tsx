@@ -420,7 +420,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </h1>
 
               <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
-                Pool weekly deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.
+                Pool weekly cash deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.
               </p>
 
               {/* Hero CTAs */}
