@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy } from '../types';
+import { useTranslation } from '../i18n/LanguageContext';
 import { savePodToFirestore, saveUserToFirestore, addAuditLogToFirestore } from '../lib/firestoreService';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { KycVerificationModal } from './KycVerificationModal';
@@ -39,6 +40,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   existingPods = [],
   userCreatedPodsCount
 }) => {
+  const { t } = useTranslation();
   const [currentUserState, setCurrentUserState] = useState<User>(user);
   const [showKycModal, setShowKycModal] = useState(false);
   const [step, setStep] = useState<'CONFIG' | 'STRIPE_CHECKOUT' | 'SUCCESS'>('CONFIG');
@@ -105,23 +107,23 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
     e.preventDefault();
 
     if (currentUserState.kycStatus !== 'VERIFIED') {
-      setError('You must complete Stripe Identity KYC verification before creating a mutual savings pod.');
+      setError(t('createPod.errorKyc'));
       setShowKycModal(true);
       return;
     }
 
     if (isCreationLimitReached) {
-      setError(`Pod creation limit reached: You currently maintain ${activeCreatedCount} active/forming created Pods (maximum limit: 3). To prevent fraud and maintain fund safety, please wait for an existing Pod to complete its cycle before creating another.`);
+      setError(t('createPod.errorLimit', { count: activeCreatedCount }));
       return;
     }
 
     if (!name.trim()) {
-      setError('Please enter a descriptive name for your Mutual Savings Pod before proceeding to payment.');
+      setError(t('createPod.errorName'));
       return;
     }
 
     if (podType === 'OPEN_POD' && !canCreateOpenPod) {
-      setError('Creating an Open Pod requires having completed at least 1 full Trusted Circle pod cycle with no missed payments.');
+      setError(t('createPod.errorOpenPodReq'));
       return;
     }
 
@@ -132,13 +134,13 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   // Step 2 -> Step 3 transition: execute Stripe payment and server pod creation
   const handleExecuteStripePayment = async () => {
     if (currentUserState.kycStatus !== 'VERIFIED') {
-      setError('You must complete Stripe Identity KYC verification before creating a mutual savings pod.');
+      setError(t('createPod.errorKyc'));
       setShowKycModal(true);
       return;
     }
 
     if (isCreationLimitReached) {
-      setError('Pod creation limit reached: You have reached the maximum allowed limit of 3 concurrent created Pods.');
+      setError(t('createPod.errorLimit', { count: activeCreatedCount }));
       setLoading(false);
       return;
     }
@@ -388,8 +390,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <PlusCircle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-[#111827]">Create New Mutual Savings Pod</h3>
-                <p className="text-xs text-[#6B7280]">Fixed-Rotation Pod with Stripe Treasury Balance</p>
+                <h3 className="text-xl font-bold text-[#111827]">{t('createPod.modalTitle')}</h3>
+                <p className="text-xs text-[#6B7280]">{t('createPod.modalSubtitle')}</p>
               </div>
             </div>
 
@@ -399,23 +401,23 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-sm text-emerald-900">
                     <Sparkles className="w-4 h-4 text-emerald-600 fill-emerald-600 shrink-0" />
-                    <span>$20 Founding Member Welcome Match & Contingency Buffer</span>
+                    <span>{t('createPod.welcomeMatchTitle')}</span>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider shrink-0">
-                    100% Platform Funded
+                    {t('createPod.platformFundedBadge')}
                   </span>
                 </div>
                 <p className="text-xs text-emerald-800 leading-relaxed">
-                  Mutual Pool matches up to <strong>${Math.min(depositTier, 20)}.00</strong> on your first pod creation deposit! This promotional credit goes directly into your pod's <strong>First-Cycle Contingency Buffer</strong> to guarantee rotation stability if any member misses a deposit during Cycle 1.
+                  {t('createPod.welcomeMatchDesc', { amount: Math.min(depositTier, 20) })}
                 </p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold text-emerald-700 pt-1 border-t border-emerald-200/60">
                   <span className="flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{currentUserState.kycStatus === 'VERIFIED' ? 'Verified KYC Account Qualified' : 'Requires Verified KYC Account'}</span>
+                    <span>{currentUserState.kycStatus === 'VERIFIED' ? t('createPod.verifiedKycQualified') : t('createPod.requiresKyc')}</span>
                   </span>
                   <span className="flex items-center gap-1">
                     <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Non-Withdrawal Pod Buffer</span>
+                    <span>{t('createPod.nonWithdrawalBuffer')}</span>
                   </span>
                 </div>
               </div>
@@ -423,9 +425,9 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               <div className="mb-5 p-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-xs flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-medium">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Lifetime Welcome Match Claimed (${user.welcomeMatchAmountUsd || 20}.00)</span>
+                  <span>{t('createPod.lifetimeMatchClaimed', { amount: user.welcomeMatchAmountUsd || 20 })}</span>
                 </span>
-                <span className="text-[11px] text-gray-500 font-mono">1 match per account limit</span>
+                <span className="text-[11px] text-gray-500 font-mono">{t('createPod.oneMatchLimit')}</span>
               </div>
             )}
 
@@ -435,14 +437,14 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
                     <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
-                    <span>Stripe Identity Verification Required</span>
+                    <span>{t('createPod.kycRequiredTitle')}</span>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-600 text-white uppercase tracking-wider shrink-0">
-                    KYC Required
+                    {t('createPod.kycRequiredBadge')}
                   </span>
                 </div>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  Federal banking regulations and Stripe Treasury rules require identity verification before creating or managing mutual savings pools.
+                  {t('createPod.kycRequiredDesc')}
                 </p>
                 <div className="pt-1">
                   <button
@@ -451,7 +453,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                     className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Complete Stripe Identity Verification Now</span>
+                    <span>{t('createPod.completeKycBtn')}</span>
                   </button>
                 </div>
               </div>
@@ -478,7 +480,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="font-bold">
-                      {isCreationLimitReached ? 'Pod Creation Limit Reached' : '3-Pod Creation Limit (Anti-Fraud Policy)'}
+                      {isCreationLimitReached ? t('createPod.limitReachedTitle') : t('createPod.limitPolicyTitle')}
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                       isCreationLimitReached
@@ -487,13 +489,13 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                           ? 'bg-amber-600 text-white'
                           : 'bg-blue-600 text-white'
                     }`}>
-                      {activeCreatedCount} / 3 Active Pods
+                      {t('createPod.activePodsBadge', { current: activeCreatedCount })}
                     </span>
                   </div>
                   <p className="text-[11.5px] leading-relaxed text-slate-600">
                     {isCreationLimitReached
-                      ? 'You have reached the maximum allowed limit of 3 concurrent created Pods (3/3). To prevent fraud and maintain collective solvency, complete an existing pod rotation before starting another.'
-                      : 'To protect collective funds and curb fraudulent activity, members are limited to 3 active or forming created Pods at any one time.'}
+                      ? t('createPod.limitReachedDesc')
+                      : t('createPod.limitPolicyDesc')}
                   </p>
                 </div>
               </div>
@@ -526,12 +528,12 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               )}
               <div>
                 <span className="font-bold block mb-0.5">
-                  {isSeasoned ? 'Tenure Unlocked: Seasoned Account' : '3-Month Tenure Tier Policy'}
+                  {isSeasoned ? t('createPod.tenureUnlockedTitle') : t('createPod.tenurePolicyTitle')}
                 </span>
                 <span>
                   {isSeasoned
-                    ? `Account tenure of ${currentUserState.accountAgeDays} days unlocks all large pod member tiers (up to 10,000) and $50/$100 deposit tiers.`
-                    : `New accounts (<90 days tenure) can create 20 or 50 member pods at $5, $10, or $20 weekly tiers. Larger tiers unlock after 3 months of successful operation.`}
+                    ? t('createPod.tenureUnlockedDesc', { days: currentUserState.accountAgeDays })
+                    : t('createPod.tenurePolicyDesc')}
                 </span>
               </div>
             </div>
@@ -549,7 +551,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                     className="px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer ml-6"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Verify Identity (KYC)</span>
+                    <span>{t('createPod.verifyIdentityBtn')}</span>
                   </button>
                 )}
               </div>
@@ -560,7 +562,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               {/* SECTION 1: POD TYPE SELECTION */}
               <div>
                 <label className="block text-xs font-bold text-[#111827] mb-2">
-                  Select Pod Type & Access Rules
+                  {t('createPod.selectTypeLabel')}
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -577,16 +579,16 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-[#005FB8] text-sm flex items-center gap-1.5">
                         <Lock className="w-4 h-4" />
-                        <span>🔒 Trusted Circle</span>
+                        <span>{t('createPod.trustedCircleTitle')}</span>
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#005FB8]">Default</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#005FB8]">{t('createPod.defaultBadge')}</span>
                     </div>
                     <p className="text-[#374151] text-[11px] leading-relaxed">
-                      Built from people you already know — contacts from your phone, email, or social invites. Only people you invite can join.
+                      {t('createPod.trustedCircleDesc')}
                     </p>
                     <div className="text-[10px] text-[#005FB8] font-semibold flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Includes Contact Picker & Private Code</span>
+                      <span>{t('createPod.trustedCircleFeature')}</span>
                     </div>
                   </div>
 
@@ -604,16 +606,16 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-[#111827] text-sm flex items-center gap-1.5">
                         <Users className="w-4 h-4 text-[#005FB8]" />
-                        <span>🌐 Open Pod</span>
+                        <span>{t('createPod.openPodTitle')}</span>
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-[#374151]">Auto-Match</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-[#374151]">{t('createPod.autoMatchBadge')}</span>
                     </div>
                     <p className="text-[#374151] text-[11px] leading-relaxed">
-                      Open to any verified member on the platform. Pod fills automatically based on availability.
+                      {t('createPod.openPodDesc')}
                     </p>
                     {!canCreateOpenPod && (
                       <span className="text-[10px] text-amber-700 font-medium block">
-                        ⚠️ Requires 1 completed Trusted Circle cycle first.
+                        {t('createPod.openPodRequirement')}
                       </span>
                     )}
                   </div>
@@ -625,15 +627,15 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-[#111827]">
-                    Choose Pod Activation & Lock Timing Policy
+                    {t('createPod.activationTimingLabel')}
                   </label>
                   <span className="text-[10px] text-[#005FB8] font-bold uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                    Pod Creator Setting
+                    {t('createPod.creatorSettingBadge')}
                   </span>
                 </div>
 
                 <p className="text-[11px] text-[#6B7280] mb-2.5 leading-relaxed">
-                  Select when this Pod should lock its rotation order and begin active weekly savings cycles. Full capacity guarantees maximum lump-sum payouts, but flexible activation lets you start earlier.
+                  {t('createPod.activationTimingDesc')}
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -650,19 +652,19 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-[#111827] text-xs flex items-center gap-1.5">
                         <Users className="w-4 h-4 text-[#005FB8]" />
-                        <span>Activate Only When 100% Full</span>
+                        <span>{t('createPod.activateWhenFullTitle')}</span>
                       </span>
                       <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        Max Payout
+                        {t('createPod.maxPayoutBadge')}
                       </span>
                     </div>
 
                     <p className="text-[#374151] text-[11px] leading-relaxed">
-                      Wait until all <strong>{sizeTier} member spots</strong> are filled before locking rotation. Guarantees maximum lump-sum payout target for every member.
+                      {t('createPod.activateWhenFullDesc', { count: sizeTier })}
                     </p>
 
                     <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-600 flex items-center justify-between font-mono">
-                      <span>Target Payout Pool:</span>
+                      <span>{t('createPod.targetPayoutPool')}</span>
                       <strong className="text-emerald-700 font-bold">${(sizeTier * depositTier).toLocaleString()}/wk</strong>
                     </div>
                   </div>
@@ -679,20 +681,20 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-[#111827] text-xs flex items-center gap-1.5">
                         <Zap className="w-4 h-4 text-amber-600" />
-                        <span>Flexible Early Activation</span>
+                        <span>{t('createPod.flexibleEarlyTitle')}</span>
                       </span>
                       <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        Start Before Max
+                        {t('createPod.startBeforeMaxBadge')}
                       </span>
                     </div>
 
                     <p className="text-[#374151] text-[11px] leading-relaxed">
-                      Allows you (Pod Creator) to lock rotation and activate weekly cycles early as soon as <strong>2+ members</strong> join, without waiting for max capacity.
+                      {t('createPod.flexibleEarlyDesc')}
                     </p>
 
                     <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-600 flex items-center justify-between font-mono">
-                      <span>Minimum Threshold:</span>
-                      <strong className="text-amber-800 font-bold">2 Signed Members</strong>
+                      <span>{t('createPod.minThreshold')}</span>
+                      <strong className="text-amber-800 font-bold">{t('createPod.minThresholdValue')}</strong>
                     </div>
                   </div>
 
@@ -704,38 +706,38 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <div className="p-4 bg-white border border-[#DDE1E6] rounded-xl space-y-3.5 text-xs">
                   <div className="flex items-center gap-2 text-sm font-bold text-[#111827]">
                     <Clock className="w-4 h-4 text-[#005FB8]" />
-                    <span>Trusted Circle Invite Window & Expiration Action</span>
+                    <span>{t('createPod.inviteWindowLabel')}</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     
                     <div>
                       <label className="block text-[11px] font-semibold text-[#111827] mb-1">
-                        Set Invite Window Duration
+                        {t('createPod.inviteWindowDuration')}
                       </label>
                       <select
                         value={inviteWindowDays}
                         onChange={(e) => setInviteWindowDays(Number(e.target.value))}
                         className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
                       >
-                        <option value={3}>3 Days Invite Window</option>
-                        <option value={7}>7 Days Invite Window (Default)</option>
-                        <option value={14}>14 Days Invite Window</option>
-                        <option value={30}>30 Days Invite Window</option>
+                        <option value={3}>{t('createPod.inviteWindow3Days')}</option>
+                        <option value={7}>{t('createPod.inviteWindow7Days')}</option>
+                        <option value={14}>{t('createPod.inviteWindow14Days')}</option>
+                        <option value={30}>{t('createPod.inviteWindow30Days')}</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-semibold text-[#111827] mb-1">
-                        If Pod Isn't Full After Window Expires
+                        {t('createPod.expireActionLabel')}
                       </label>
                       <select
                         value={autoOpenOnExpire ? 'AUTO_OPEN' : 'KEEP_WAITING'}
                         onChange={(e) => setAutoOpenOnExpire(e.target.value === 'AUTO_OPEN')}
                         className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
                       >
-                        <option value="AUTO_OPEN">Automatically open remaining spots to verified Open Pod members</option>
-                        <option value="KEEP_WAITING">Keep waiting for private circle invites only</option>
+                        <option value="AUTO_OPEN">{t('createPod.autoOpenOption')}</option>
+                        <option value="KEEP_WAITING">{t('createPod.keepWaitingOption')}</option>
                       </select>
                     </div>
 
@@ -755,39 +757,39 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               {/* SECTION 3: POD NAME & DETAILS */}
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#111827] mb-1">Pod Name</label>
+                  <label className="block text-xs font-semibold text-[#111827] mb-1">{t('createPod.podNameLabel')}</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. SF East Bay DoorDash Drivers Circle"
+                    placeholder={t('createPod.podNamePlaceholder')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#111827] mb-1">Category</label>
+                  <label className="block text-xs font-semibold text-[#111827] mb-1">{t('createPod.categoryLabel')}</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
-                    <option value="Food Delivery & Rideshare">Food Delivery & Rideshare</option>
-                    <option value="Grocery & Cargo">Grocery & Cargo</option>
-                    <option value="General Gig Workers">General Gig Workers</option>
-                    <option value="High-Yield Reserve">High-Yield Reserve (Advanced)</option>
+                    <option value="Food Delivery & Rideshare">{t('createPod.catFoodDelivery')}</option>
+                    <option value="Grocery & Cargo">{t('createPod.catGroceryCargo')}</option>
+                    <option value="General Gig Workers">{t('createPod.catGeneralGig')}</option>
+                    <option value="High-Yield Reserve">{t('createPod.catHighYield')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#111827] mb-1">Description & Purpose</label>
+                  <label className="block text-xs font-semibold text-[#111827] mb-1">{t('createPod.descriptionLabel')}</label>
                   <textarea
                     rows={2}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="Describe purpose (e.g., tax reserves, vehicle maintenance, emergency gear)..."
+                    placeholder={t('createPod.descriptionPlaceholder')}
                   />
                 </div>
               </div>
@@ -795,7 +797,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               {/* Member Size Tier Selection */}
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1.5">
-                  Member Capacity Tier
+                  {t('createPod.memberCapacityLabel')}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {([20, 50, 100, 500] as PodSizeTier[]).map((tier) => {
@@ -814,8 +816,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                             : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                         }`}
                       >
-                        <span>{tier} Members</span>
-                        {disabled && <span className="text-[9px] text-amber-700 font-mono">3-Mo Req</span>}
+                        <span>{t('createPod.membersCount', { count: tier })}</span>
+                        {disabled && <span className="text-[9px] text-amber-700 font-mono">{t('createPod.threeMonthReq')}</span>}
                       </button>
                     );
                   })}
@@ -825,7 +827,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               {/* Deposit Tier Selection */}
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1.5">
-                  Weekly Deposit Tier
+                  {t('createPod.weeklyDepositLabel')}
                 </label>
                 <div className="grid grid-cols-5 gap-2">
                   {([5, 10, 20, 50, 100] as DepositTier[]).map((tier) => {
@@ -845,7 +847,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                         }`}
                       >
                         <span>${tier}/wk</span>
-                        {disabled && <span className="text-[9px] text-amber-700 font-mono">Locked</span>}
+                        {disabled && <span className="text-[9px] text-amber-700 font-mono">{t('createPod.lockedTier')}</span>}
                       </button>
                     );
                   })}
@@ -856,8 +858,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[#111827] font-bold block">Initial Pool Deposit ({user.displayName})</span>
-                    <span className="text-[11px] text-gray-500">Your base weekly deposit allocated to the pool</span>
+                    <span className="text-[#111827] font-bold block">{t('createPod.initialDepositLabel', { name: user.displayName })}</span>
+                    <span className="text-[11px] text-gray-500">{t('createPod.initialDepositDesc')}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-bold text-[#111827] font-mono">
@@ -868,8 +870,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
 
                 <div className="flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[#005FB8] font-bold block">Platform Service & Treasury Fee (5%)</span>
-                    <span className="text-[11px] text-gray-500">Applied to all deposits before creating pool</span>
+                    <span className="text-[#005FB8] font-bold block">{t('createPod.platformFeeLabel')}</span>
+                    <span className="text-[11px] text-gray-500">{t('createPod.platformFeeDesc')}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-bold text-[#005FB8] font-mono">
@@ -880,8 +882,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
 
                 <div className="pt-2 border-t border-gray-200 flex items-center justify-between bg-blue-50/60 p-2.5 rounded-lg border border-blue-100">
                   <div>
-                    <span className="text-[#111827] font-bold block text-xs">Total Initial Payment Required to Create Pool</span>
-                    <span className="text-[10.5px] text-[#005FB8]">Includes base deposit + 5% fee</span>
+                    <span className="text-[#111827] font-bold block text-xs">{t('createPod.totalInitialPaymentLabel')}</span>
+                    <span className="text-[10.5px] text-[#005FB8]">{t('createPod.totalInitialPaymentDesc')}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-base font-extrabold text-[#005FB8] font-mono">
@@ -892,8 +894,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
 
                 <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
                   <div>
-                    <span className="text-[#111827] font-bold block">Full Capacity Payout Target</span>
-                    <span className="text-[11px] text-gray-500">{sizeTier} members × ${depositTier}/wk</span>
+                    <span className="text-[#111827] font-bold block">{t('createPod.fullCapacityTargetLabel')}</span>
+                    <span className="text-[11px] text-gray-500">{t('createPod.fullCapacityCalculation', { size: sizeTier, deposit: depositTier })}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-lg font-extrabold text-emerald-600 font-mono">
@@ -903,7 +905,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 </div>
 
                 <p className="text-[10.5px] text-[#6B7280] pt-1">
-                  💡 <strong>Dynamic Payout Scaling:</strong> Weekly payouts scale automatically as members join. For example, when 5 members join, weekly payout becomes ${5 * depositTier}/wk; when all {sizeTier} members join, payout reaches ${(sizeTier * depositTier).toLocaleString()}/wk.
+                  {t('createPod.dynamicPayoutNote', { min: 5 * depositTier, size: sizeTier, max: (sizeTier * depositTier).toLocaleString() })}
                 </p>
               </div>
 
@@ -913,7 +915,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                   onClick={onClose}
                   className="px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold text-xs border border-gray-300 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('createPod.cancelBtn')}
                 </button>
                 <button
                   type="submit"
@@ -927,8 +929,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                   <CreditCard className="w-4 h-4" />
                   <span>
                     {isCreationLimitReached
-                      ? 'Pod Creation Limit Reached (3/3)'
-                      : `Pay $${totalChargedAmount.toFixed(2)} & Create ${podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open'} Pod`}
+                      ? t('createPod.limitReachedBadge')
+                      : t('createPod.payAndCreateBtn', { amount: totalChargedAmount.toFixed(2), type: podType === 'TRUSTED_CIRCLE' ? t('createPod.typeTrustedCircle') : t('createPod.typeOpenPod') })}
                   </span>
                 </button>
               </div>
@@ -956,13 +958,13 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[#111827] flex items-center gap-1.5">
-                    <span>Stripe Checkout</span>
+                    <span>{t('createPod.stripeCheckoutTitle')}</span>
                     <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      256-bit SSL Encrypted
+                      {t('createPod.sslEncrypted')}
                     </span>
                   </h3>
                   <p className="text-[11px] text-[#6B7280]">
-                    Mutual Pool Deposit & Treasury Holding Account Setup
+                    {t('createPod.stripeCheckoutSubtitle')}
                   </p>
                 </div>
               </div>
@@ -978,21 +980,21 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
             {/* Order Summary Box */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200">
-                <span className="font-bold text-slate-800">Order Summary</span>
-                <span className="text-[10.5px] text-slate-500 font-mono">Ref: {name.trim() || 'New Pod'}</span>
+                <span className="font-bold text-slate-800">{t('createPod.orderSummary')}</span>
+                <span className="text-[10.5px] text-slate-500 font-mono">{t('createPod.ref')} {name.trim() || 'New Pod'}</span>
               </div>
 
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-700">
-                  <span>Initial Weekly Deposit ({sizeTier} Members @ ${depositTier}/wk)</span>
+                  <span>{t('createPod.initialWeeklyDepositSummary', { size: sizeTier, deposit: depositTier })}</span>
                   <span className="font-bold font-mono">${depositTier}.00</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Stripe Treasury & Platform Reserve Fee (5%)</span>
+                  <span>{t('createPod.stripeFeeSummary')}</span>
                   <span className="font-mono">+${platformFee.toFixed(2)}</span>
                 </div>
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-extrabold text-[#111827]">
-                  <span>Total Due Now</span>
+                  <span>{t('createPod.totalDueNow')}</span>
                   <span className="text-emerald-700 font-mono text-base">${totalChargedAmount.toFixed(2)}</span>
                 </div>
               </div>
@@ -1001,7 +1003,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <div className="mt-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-2 font-medium">
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
-                    🎁 <strong>+$20.00 Welcome Match</strong> will be funded automatically by Mutual Pool directly into your Pod First-Cycle Contingency Reserve!
+                    {t('createPod.welcomeMatchBanner')}
                   </span>
                 </div>
               )}
@@ -1010,7 +1012,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
             {/* Payment Method Selector */}
             <div className="space-y-3">
               <label className="block text-xs font-bold text-[#111827]">
-                Select Payment Method
+                {t('createPod.selectPaymentMethod')}
               </label>
 
               <div className="grid grid-cols-3 gap-2 text-xs">
@@ -1023,7 +1025,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  💳 Saved Visa (4242)
+                  {t('createPod.savedCard')}
                 </button>
                 <button
                   type="button"
@@ -1034,7 +1036,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  ➕ New Card
+                  {t('createPod.newCard')}
                 </button>
                 <button
                   type="button"
@@ -1045,7 +1047,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                   Apple Pay / GPay
+                  {t('createPod.applePay')}
                 </button>
               </div>
 
@@ -1057,12 +1059,12 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       VISA
                     </div>
                     <div>
-                      <span className="font-bold text-slate-900 block">Stripe Treasury Linked Visa</span>
+                      <span className="font-bold text-slate-900 block">{t('createPod.stripeTreasuryVisa')}</span>
                       <span className="text-[11px] text-slate-500 font-mono">•••• •••• •••• 4242 (Expires 12/28)</span>
                     </div>
                   </div>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 bg-emerald-100 rounded-full">
-                    Verified
+                    {t('createPod.verifiedBadge')}
                   </span>
                 </div>
               )}
@@ -1070,17 +1072,17 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               {paymentMethod === 'NEW_CARD' && (
                 <div className="p-3.5 rounded-xl border border-gray-200 bg-white space-y-2.5 text-xs">
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">Cardholder Name</label>
+                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.cardholderName')}</label>
                     <input
                       type="text"
                       value={cardName}
                       onChange={(e) => setCardName(e.target.value)}
                       className="w-full bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                      placeholder="Name as it appears on card"
+                      placeholder={t('createPod.cardholderNamePlaceholder')}
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">Card Number</label>
+                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.cardNumber')}</label>
                     <input
                       type="text"
                       value={cardNumber}
@@ -1103,14 +1105,14 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                         }}
                         className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md text-[#005FB8] text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
                       >
-                        <span>⚡ Use Official Stripe Test Card (4242 4242 4242 4242)</span>
+                        <span>{t('createPod.useTestCard')}</span>
                       </button>
-                      <span className="text-[10px] text-gray-500 font-mono">Stripe Test Mode</span>
+                      <span className="text-[10px] text-gray-500 font-mono">{t('createPod.stripeTestMode')}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">Expires</label>
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.expires')}</label>
                       <input
                         type="text"
                         value={cardExpiry}
@@ -1120,7 +1122,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">CVC</label>
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.cvc')}</label>
                       <input
                         type="text"
                         value={cardCvc}
@@ -1130,7 +1132,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">Postal Code</label>
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.postalCode')}</label>
                       <input
                         type="text"
                         value={cardZip}
@@ -1145,9 +1147,9 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
 
               {paymentMethod === 'APPLE_PAY' && (
                 <div className="p-4 rounded-xl border border-gray-200 bg-gray-900 text-white text-center space-y-1">
-                  <div className="text-lg font-bold"> Pay / Google Pay Instant Authorization</div>
+                  <div className="text-lg font-bold">{t('createPod.applePayInstant')}</div>
                   <p className="text-[11px] text-gray-400">
-                    Touch ID or Face ID will be prompted upon clicking Confirm.
+                    {t('createPod.applePayPrompt')}
                   </p>
                 </div>
               )}
@@ -1157,7 +1159,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-600 flex items-start gap-2 leading-relaxed">
               <Shield className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
               <span>
-                <strong>Stripe Treasury Protection:</strong> Mutual Pool deposits are held in dedicated Stripe Treasury Financial Accounts with FDIC pass-through coverage up to $250,000 per member.
+                {t('createPod.stripeProtection')}
               </span>
             </div>
 
@@ -1169,7 +1171,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 className="px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold text-xs border border-gray-300 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Pod Configuration</span>
+                <span>{t('createPod.backToConfig')}</span>
               </button>
 
               <button
@@ -1181,12 +1183,12 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Processing Stripe Payment (${totalChargedAmount.toFixed(2)})...</span>
+                    <span>{t('createPod.processingPayment', { amount: totalChargedAmount.toFixed(2) })}</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                    <span>Confirm & Pay ${totalChargedAmount.toFixed(2)} via Stripe</span>
+                    <span>{t('createPod.confirmAndPay', { amount: totalChargedAmount.toFixed(2) })}</span>
                   </>
                 )}
               </button>
@@ -1205,36 +1207,36 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
 
             <div className="space-y-1">
               <h3 className="text-2xl font-extrabold text-slate-900">
-                Stripe Payment Authorized & Pod Initialized!
+                {t('createPod.successTitle')}
               </h3>
               <p className="text-xs text-slate-600">
-                Your initial deposit of <strong>${totalChargedAmount.toFixed(2)}</strong> has been processed via Stripe.
+                {t('createPod.successDesc', { amount: totalChargedAmount.toFixed(2) })}
               </p>
             </div>
 
             <div className="max-w-md mx-auto p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl text-left space-y-2 text-xs text-emerald-950">
               <div className="flex justify-between font-bold border-b border-emerald-200 pb-1.5">
-                <span>Pod Name:</span>
+                <span>{t('createPod.successPodName')}</span>
                 <span className="font-mono text-emerald-800">{createdPodResult?.name || name}</span>
               </div>
               <div className="flex justify-between">
-                <span>Stripe Payment Ref:</span>
+                <span>{t('createPod.stripePaymentRef')}</span>
                 <span className="font-mono text-emerald-800">pi_create_pod_{Date.now().toString().substring(5)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Holding Account:</span>
+                <span>{t('createPod.holdingAccount')}</span>
                 <span className="font-mono text-emerald-800">{createdPodResult?.holdingFinAccountId || `fa_pod_holding_${Date.now()}`}</span>
               </div>
               {createdPodResult?.welcomeMatchGranted && (
                 <div className="flex justify-between text-emerald-700 font-bold pt-1 border-t border-emerald-200/80">
-                  <span>Welcome Match Granted:</span>
-                  <span>+${createdPodResult.welcomeMatchAmountUsd}.00 to Contingency Buffer</span>
+                  <span>{t('createPod.welcomeMatchGranted')}</span>
+                  <span>{t('createPod.welcomeMatchAdded', { amount: createdPodResult.welcomeMatchAmountUsd })}</span>
                 </div>
               )}
             </div>
 
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Your Mutual Savings Pod is now set up in <strong>FORMING</strong> status. Invites have been created for your circle!
+              {t('createPod.successFormingDesc')}
             </p>
 
             <div className="pt-4 border-t border-gray-200">
@@ -1243,7 +1245,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 onClick={() => onPodCreated(createdPodResult || undefined)}
                 className="w-full max-w-sm py-3 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-colors shadow-md cursor-pointer mx-auto block"
               >
-                View My Pod & Start Inviting Members
+                {t('createPod.viewMyPodBtn')}
               </button>
             </div>
           </div>

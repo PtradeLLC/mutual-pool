@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { InvitedContact, User } from '../types';
+import { useTranslation } from '../i18n/LanguageContext';
 import { 
   Users, Lock, Plus, CheckCircle2, UserCheck, Mail, Phone, 
   Copy, Check, Sparkles, Smartphone, Share2, ShieldCheck,
@@ -64,6 +65,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
   onAddContacts,
   currentUser,
 }) => {
+  const { t } = useTranslation();
   const [customName, setCustomName] = useState('');
   const [customContact, setCustomContact] = useState('');
   const [showDevicePicker, setShowDevicePicker] = useState(false);
@@ -189,21 +191,21 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-[#005FB8] font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
               <Lock className="w-3 h-3" />
-              <span>Trusted Circle Governance</span>
+              <span>{t('circleInviter.governanceBadge')}</span>
             </span>
             <span className="text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              Only Invited Contacts Can Join
+              {t('circleInviter.onlyInvitedCanJoin')}
             </span>
           </div>
-          <h4 className="font-bold text-sm text-[#111827]">Invite & Manage Trusted Contacts</h4>
+          <h4 className="font-bold text-sm text-[#111827]">{t('circleInviter.title')}</h4>
           <p className="text-[11px] text-[#6B7280]">
-            Add contacts from your phone or email. We automatically check who is already a member and send invites to the rest.
+            {t('circleInviter.subtitle')}
           </p>
         </div>
 
         {/* Invite Code Box */}
         <div className="p-2.5 rounded-lg bg-white border border-[#005FB8] text-center shrink-0 shadow-2xs">
-          <span className="text-[9px] uppercase font-bold text-[#6B7280] block">Private Invite Code</span>
+          <span className="text-[9px] uppercase font-bold text-[#6B7280] block">{t('circleInviter.privateCode')}</span>
           <span className="font-mono font-black text-base text-[#005FB8] tracking-widest block">{inviteCode}</span>
         </div>
       </div>
@@ -213,9 +215,9 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
         <div className="flex items-center justify-between">
           <span className="font-bold text-[#111827] text-[11px] flex items-center gap-1.5">
             <Share2 className="w-3.5 h-3.5 text-[#005FB8]" />
-            <span>Shareable Trusted Circle Invite Link</span>
+            <span>{t('circleInviter.shareableLinkTitle')}</span>
           </span>
-          <span className="text-[10px] text-[#6B7280]">Valid for pod capacity</span>
+          <span className="text-[10px] text-[#6B7280]">{t('circleInviter.validForCapacity')}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -228,17 +230,17 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
           <button
             type="button"
             onClick={handleCopy}
-            className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-xs"
+            className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
           >
             {copied ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Copied!</span>
+                <span>{t('circleInviter.copied')}</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span>Copy Invite Text</span>
+                <span>{t('circleInviter.copyInviteText')}</span>
               </>
             )}
           </button>
@@ -253,19 +255,19 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
           <div>
             <span className="font-bold text-[#111827] block text-[11px] flex items-center gap-1.5">
               <Smartphone className="w-4 h-4 text-[#005FB8]" />
-              <span>Import Device Contacts</span>
+              <span>{t('circleInviter.importDeviceTitle')}</span>
             </span>
             <p className="text-[10px] text-[#6B7280]">
-              Access phone contacts or driver hub groups to invite multiple trusted peers at once.
+              {t('circleInviter.importDeviceDesc')}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowDevicePicker(true)}
-            className="w-full py-2 px-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+            className="w-full py-2 px-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
           >
             <UserCheck className="w-3.5 h-3.5" />
-            <span>Select Phone / Email Contacts</span>
+            <span>{t('circleInviter.selectContactsBtn')}</span>
           </button>
         </div>
 
@@ -273,12 +275,12 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
         <div className="bg-white p-3 rounded-lg border border-[#DDE1E6] space-y-2">
           <span className="font-bold text-[#111827] block text-[11px] flex items-center gap-1.5">
             <Plus className="w-4 h-4 text-emerald-600" />
-            <span>Add Individual Contact</span>
+            <span>{t('circleInviter.addIndividualTitle')}</span>
           </span>
           <div className="grid grid-cols-2 gap-2">
             <input
               type="text"
-              placeholder="Name (e.g. Carlos)"
+              placeholder={t('circleInviter.namePlaceholder')}
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
               onKeyDown={(e) => {
@@ -291,7 +293,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
             />
             <input
               type="text"
-              placeholder="Email or Phone #"
+              placeholder={t('circleInviter.contactPlaceholder')}
               value={customContact}
               onChange={(e) => setCustomContact(e.target.value)}
               onKeyDown={(e) => {
@@ -309,7 +311,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
             className="w-full py-1.5 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add & Cross-Reference Contact</span>
+            <span>{t('circleInviter.addContactBtn')}</span>
           </button>
         </div>
 
@@ -324,21 +326,21 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
               <div>
                 <div className="flex items-center gap-1.5 text-[#005FB8] font-bold text-xs">
                   <Smartphone className="w-4 h-4" />
-                  <span>Device Contacts Permissions</span>
+                  <span>{t('circleInviter.modalPermissionTitle')}</span>
                 </div>
-                <h4 className="font-extrabold text-sm text-[#111827]">Import Phone Contacts</h4>
+                <h4 className="font-extrabold text-sm text-[#111827]">{t('circleInviter.modalTitle')}</h4>
               </div>
               <button
                 type="button"
                 onClick={() => setShowDevicePicker(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 text-sm font-bold"
+                className="text-gray-400 hover:text-gray-600 p-1 text-sm font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             <p className="text-[11px] text-[#6B7280] shrink-0">
-              MutualPool uses contact matching to verify existing members in your fleet network. Tap below to grant permission and select contacts directly from your phone's address book:
+              {t('circleInviter.modalDesc')}
             </p>
 
             {/* Native Mobile Permission Action Button */}
@@ -347,19 +349,19 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                 <button
                   type="button"
                   onClick={handleNativeContactPicker}
-                  className="px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                  className="px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
                 >
                   <Smartphone className="w-4 h-4" />
-                  <span>Grant Permission & Select Contacts</span>
+                  <span>{t('circleInviter.grantPermissionBtn')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowPasteArea(!showPasteArea)}
-                  className="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-[#111827] font-semibold text-xs flex items-center justify-center gap-1.5 shadow-2xs"
+                  className="px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-[#111827] font-semibold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <FileText className="w-3.5 h-3.5 text-[#005FB8]" />
-                  <span>{showPasteArea ? 'Hide Paste Tool' : 'Paste Phone / Email List'}</span>
+                  <span>{showPasteArea ? t('circleInviter.hidePasteTool') : t('circleInviter.pasteList')}</span>
                 </button>
               </div>
 
@@ -374,11 +376,11 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
               {showPasteArea && (
                 <div className="mt-2 space-y-2 pt-2 border-t border-blue-200">
                   <label className="block text-[10px] font-bold text-[#005FB8] uppercase tracking-wider">
-                    Paste Contacts (Phone numbers or Emails)
+                    {t('circleInviter.pasteTitle')}
                   </label>
                   <textarea
                     rows={3}
-                    placeholder="Paste numbers or emails separated by commas or lines... e.g. +14155550192, carlos@driver.com"
+                    placeholder={t('circleInviter.pastePlaceholder')}
                     value={pasteInput}
                     onChange={(e) => setPasteInput(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-md p-2 text-[11px] text-[#111827] focus:outline-none focus:border-[#005FB8]"
@@ -387,16 +389,16 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowPasteArea(false)}
-                      className="px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:text-gray-800"
+                      className="px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:text-gray-800 cursor-pointer"
                     >
-                      Cancel
+                      {t('createPod.cancelBtn')}
                     </button>
                     <button
                       type="button"
                       onClick={handlePasteImport}
-                      className="px-3 py-1 bg-[#005FB8] text-white font-bold text-[11px] rounded-md hover:bg-[#004C93]"
+                      className="px-3 py-1 bg-[#005FB8] text-white font-bold text-[11px] rounded-md hover:bg-[#004C93] cursor-pointer"
                     >
-                      Process & Add to List
+                      {t('circleInviter.processAddBtn')}
                     </button>
                   </div>
                 </div>
@@ -407,9 +409,9 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
             {importedDeviceContacts.length === 0 ? (
               <div className="py-8 px-4 border border-dashed border-gray-300 rounded-xl bg-gray-50 text-center space-y-2 my-auto">
                 <Users className="w-8 h-8 text-gray-300 mx-auto" />
-                <h5 className="font-bold text-xs text-[#111827]">No Contacts Selected Yet</h5>
+                <h5 className="font-bold text-xs text-[#111827]">{t('circleInviter.noContactsSelected')}</h5>
                 <p className="text-[11px] text-[#6B7280] max-w-xs mx-auto">
-                  Your list is currently empty. Tap <span className="font-semibold text-[#005FB8]">Grant Permission & Select Contacts</span> above to pick driver contacts from your phone.
+                  {t('circleInviter.noContactsDesc')}
                 </p>
               </div>
             ) : (
@@ -420,7 +422,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                     <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
                     <input
                       type="text"
-                      placeholder="Search contacts by name or phone/email..."
+                      placeholder={t('circleInviter.searchPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full bg-white border border-gray-300 rounded-lg pl-8 pr-3 py-1 text-[11px] text-[#111827] focus:outline-none focus:border-[#005FB8]"
@@ -431,25 +433,25 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                     <button
                       type="button"
                       onClick={handleSelectAll}
-                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded"
+                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded cursor-pointer"
                     >
-                      Select All
+                      {t('circleInviter.selectAll')}
                     </button>
                     <button
                       type="button"
                       onClick={handleDeselectAll}
-                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded"
+                      className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded cursor-pointer"
                     >
-                      Deselect
+                      {t('circleInviter.deselect')}
                     </button>
                     <button
                       type="button"
                       onClick={() => { setImportedDeviceContacts([]); setSelectedDeviceContacts([]); }}
-                      className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded flex items-center gap-1"
+                      className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded flex items-center gap-1 cursor-pointer"
                       title="Clear imported contacts"
                     >
                       <Trash2 className="w-3 h-3" />
-                      <span>Clear</span>
+                      <span>{t('circleInviter.clear')}</span>
                     </button>
                   </div>
                 </div>
@@ -458,7 +460,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                 <div className="max-h-56 overflow-y-auto space-y-1.5 border rounded-lg p-2 bg-gray-50 flex-1">
                   {filteredContacts.length === 0 ? (
                     <div className="p-4 text-center text-gray-500 text-[11px]">
-                      No contacts matched "{searchQuery}"
+                      {t('circleInviter.noContactsMatched', { query: searchQuery })}
                     </div>
                   ) : (
                     filteredContacts.map((c) => {
@@ -492,13 +494,13 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                           </div>
 
                           {isAlreadyInvited ? (
-                            <span className="text-[9px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">Already Added</span>
+                            <span className="text-[9px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{t('circleInviter.alreadyAdded')}</span>
                           ) : c.emailOrPhone.includes('gigmutual.app') ? (
                             <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Member Found
+                              <CheckCircle2 className="w-3 h-3" /> {t('circleInviter.memberFound')}
                             </span>
                           ) : (
-                            <span className="text-[9px] font-bold text-[#005FB8] bg-blue-100 px-1.5 py-0.5 rounded">SMS/Email</span>
+                            <span className="text-[9px] font-bold text-[#005FB8] bg-blue-100 px-1.5 py-0.5 rounded">{t('circleInviter.smsEmail')}</span>
                           )}
                         </div>
                       );
@@ -511,28 +513,28 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
             {/* Footer Buttons */}
             <div className="flex items-center justify-between pt-2 border-t shrink-0">
               <span className="text-[11px] text-[#6B7280]">
-                {selectedDeviceContacts.length} contacts selected
+                {t('circleInviter.contactsSelectedCount', { count: selectedDeviceContacts.length })}
               </span>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowDevicePicker(false)}
-                  className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs"
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs cursor-pointer"
                 >
-                  Cancel
+                  {t('createPod.cancelBtn')}
                 </button>
                 <button
                   type="button"
                   disabled={selectedDeviceContacts.length === 0 || importing}
                   onClick={handleConfirmDeviceContacts}
-                  className="px-4 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+                  className="px-4 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   {importing ? (
-                    <span>Importing & Checking...</span>
+                    <span>{t('circleInviter.importingChecking')}</span>
                   ) : (
                     <>
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Import & Cross-Reference ({selectedDeviceContacts.length})</span>
+                      <span>{t('circleInviter.importCrossReference', { count: selectedDeviceContacts.length })}</span>
                     </>
                   )}
                 </button>
@@ -547,10 +549,9 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
       <div className="p-3 bg-[#F0F7FF] border border-[#BBE0FF] rounded-lg flex items-start gap-2 text-xs text-[#003A70]">
         <Users className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
         <div>
-          <span className="font-bold block text-[#003A70]">Friends of Friends Network Growth</span>
+          <span className="font-bold block text-[#003A70]">{t('circleInviter.friendsOfFriendsTitle')}</span>
           <p className="text-[11px] text-[#003A70]/90 leading-relaxed mt-0.5">
-            Every invited member who joins this Pod can also invite their own trusted friends.
-            This allows your savings pool to grow safely across trusted networks.
+            {t('circleInviter.friendsOfFriendsDesc')}
           </p>
         </div>
       </div>
@@ -559,18 +560,18 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
       <div>
         <div className="flex items-center justify-between mb-2">
           <h5 className="font-bold text-xs text-[#111827]">
-            Trusted Circle Invited Contacts ({invitedContacts.length})
+            {t('circleInviter.invitedContactsListTitle', { count: invitedContacts.length })}
           </h5>
           <span className="text-[10px] text-[#6B7280]">
-            Instant cross-reference active
+            {t('circleInviter.instantCrossReference')}
           </span>
         </div>
 
         {invitedContacts.length === 0 ? (
           <div className="p-4 bg-white border border-[#DDE1E6] rounded-lg text-center text-[11px] text-[#6B7280] space-y-1">
             <Users className="w-6 h-6 text-gray-300 mx-auto" />
-            <p className="font-semibold text-[#111827]">No circle invites sent yet</p>
-            <p>Import phone contacts or share the private invite link above to fill your pod.</p>
+            <p className="font-semibold text-[#111827]">{t('circleInviter.noInvitesSent')}</p>
+            <p>{t('circleInviter.noInvitesSentDesc')}</p>
           </div>
         ) : (
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -601,7 +602,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                     <span className="text-[10px] text-[#6B7280] font-mono">{contact.emailOrPhone}</span>
                     {contact.invitedByName && (
                       <span className="block text-[10px] text-[#005FB8] font-medium mt-0.5">
-                        Invited by {contact.invitedByName}
+                        {t('circleInviter.invitedBy', { name: contact.invitedByName })}
                       </span>
                     )}
                   </div>
@@ -610,15 +611,15 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                 <div className="text-right">
                   {contact.status === 'JOINED' ? (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      Joined Pod
+                      {t('circleInviter.statusJoined')}
                     </span>
                   ) : contact.isExistingMember ? (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#005FB8] border border-blue-200">
-                      Member Auto-Invited
+                      {t('circleInviter.statusAutoInvited')}
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                      SMS/Email Sent
+                      {t('circleInviter.statusSmsEmailSent')}
                     </span>
                   )}
                 </div>
