@@ -327,7 +327,20 @@ export function markThreadMessagesAsRead(threadId: string, userId: string): void
 
 // WebSocket Server initialization
 export function setupWebSocketServer(httpServer: HttpServer) {
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({ noServer: true });
+
+  httpServer.on('upgrade', (request, socket, head) => {
+    try {
+      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      if (url.pathname === '/ws' || url.pathname === '/ws/' || url.pathname.startsWith('/ws')) {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      }
+    } catch (err) {
+      console.warn('[WebSocket] Upgrade error:', err);
+    }
+  });
 
   wss.on('connection', (ws: WebSocket) => {
     let currentUserId: string | null = null;

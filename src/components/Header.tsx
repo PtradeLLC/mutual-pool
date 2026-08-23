@@ -122,14 +122,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </button>
 
-            {/* Welcome Match Credited Pill */}
-            {(hasWelcomeMatch || currentUser.welcomeMatchReceived) && (
-              <div className="hidden xl:flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1.5 rounded-lg text-xs font-extrabold shadow-2xs">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse shrink-0" />
-                <span>{t('header.welcomeMatchPill')}</span>
-              </div>
-            )}
-
             {/* Verified Status Badge or KYC Verification Prompt */}
             {currentUser.kycStatus === 'VERIFIED' ? (
               <button

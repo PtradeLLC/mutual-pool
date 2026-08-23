@@ -119,10 +119,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ currentUser, onOpenSwapM
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
                       : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
                   }`}
-                  title={isConnected ? 'WebSocket connected' : 'Connecting to WebSocket'}
+                  title={isConnected ? t('chat.connected') : t('chat.connecting')}
                 >
                   <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                  <span className="hidden sm:inline">{isConnected ? t('chat.connected') : 'Connecting...'}</span>
+                  <span className="hidden sm:inline">{isConnected ? t('chat.connected') : t('chat.connecting')}</span>
                 </div>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">

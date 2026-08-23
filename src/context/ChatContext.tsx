@@ -53,6 +53,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
       if (res.ok) {
         const data: ChatThread[] = await res.json();
         setThreads(data);
+        setIsConnected(true);
       }
     } catch (err) {
       console.warn('[ChatContext] Error fetching threads:', err);
@@ -66,6 +67,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
       if (res.ok) {
         const data: ChatMessage[] = await res.json();
         setMessages(data);
+        setIsConnected(true);
       }
     } catch (err) {
       console.warn('[ChatContext] Error fetching messages:', err);
@@ -107,6 +109,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
 
             switch (data.type) {
               case 'AUTH_SUCCESS':
+                setIsConnected(true);
                 if (Array.isArray(data.onlineUsers)) {
                   setOnlineUsers(data.onlineUsers);
                 }
@@ -184,10 +187,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
 
         ws.onclose = () => {
           if (!isMounted) return;
-          setIsConnected(false);
           wsRef.current = null;
-          // Reconnect with 3s delay
-          reconnectTimeoutRef.current = window.setTimeout(connectWebSocket, 3000);
+          // Reconnect with 4s delay
+          reconnectTimeoutRef.current = window.setTimeout(connectWebSocket, 4000);
         };
 
         ws.onerror = () => {
@@ -203,8 +205,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
     connectWebSocket();
     refreshThreads();
 
-    // Periodic sync fallback
-    const interval = setInterval(refreshThreads, 15000);
+    // Periodic sync fallback (every 8s, or 3s when chat is open)
+    const interval = setInterval(() => {
+      refreshThreads();
+      if (activeThreadRef.current) {
+        fetchMessagesForThread(activeThreadRef.current.id);
+      }
+    }, 4000);
 
     return () => {
       isMounted = false;
@@ -215,7 +222,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
         wsRef.current = null;
       }
     };
-  }, [currentUserId, currentUserName, currentUserAvatar, currentUserPlatform, refreshThreads]);
+  }, [currentUserId, currentUserName, currentUserAvatar, currentUserPlatform, refreshThreads, fetchMessagesForThread]);
 
   // When active thread changes, fetch messages and mark read
   useEffect(() => {
