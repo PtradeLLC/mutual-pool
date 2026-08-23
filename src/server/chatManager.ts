@@ -123,11 +123,17 @@ export function getOrCreateDirectThread(
   return thread;
 }
 
-export function getOrCreatePodThread(pod: Pod): ChatThread {
+export function getOrCreatePodThread(pod: Pod, currentUserId?: string): ChatThread {
   const threadId = `thread_pod_${pod.id}`;
   let thread = threads.find(t => t.id === threadId || (t.podId && t.podId === pod.id));
 
   const memberIds = (pod.members || []).map(m => m.userId || m.id).filter(Boolean);
+  if (pod.createdBy && !memberIds.includes(pod.createdBy)) {
+    memberIds.push(pod.createdBy);
+  }
+  if (currentUserId && !memberIds.includes(currentUserId)) {
+    memberIds.push(currentUserId);
+  }
 
   if (!thread) {
     thread = {
@@ -146,7 +152,7 @@ export function getOrCreatePodThread(pod: Pod): ChatThread {
         isOnline: userSockets.has(m.userId || m.id),
       })),
       unreadCount: 0,
-      updatedAt: new Date().toISOString(),
+      updatedAt: pod.createdAt || new Date().toISOString(),
       isOnline: true,
     };
     threads.unshift(thread);
@@ -156,18 +162,52 @@ export function getOrCreatePodThread(pod: Pod): ChatThread {
     thread.participantIds = Array.from(new Set([...thread.participantIds, ...memberIds]));
     thread.podName = pod.name || thread.podName;
     thread.name = pod.name || thread.name;
+    if (pod.members && pod.members.length > 0) {
+      thread.participantProfiles = pod.members.map(m => ({
+        userId: m.userId || m.id,
+        displayName: m.displayName || 'Member',
+        avatarUrl: m.avatarUrl,
+        platform: m.platform,
+        isOnline: userSockets.has(m.userId || m.id),
+      }));
+    }
+    saveChatDataToDisk();
   }
   return thread;
 }
 
-export function getThreadsForUser(userId: string, availablePods?: Pod[]): ChatThread[] {
+export function getThreadsForUser(userId: string, availablePods?: Pod[], userEmail?: string, userName?: string): ChatThread[] {
+  const uId = String(userId || '').trim().toLowerCase();
+  const uEmail = String(userEmail || '').trim().toLowerCase();
+  const uName = String(userName || '').trim().toLowerCase();
+
   // Ensure Pod threads exist for all user's pods
   if (availablePods && Array.isArray(availablePods)) {
     for (const pod of availablePods) {
-      if (pod && pod.id && pod.members) {
-        const isMember = pod.members.some(m => m && (m.userId === userId || m.id === userId));
-        if (isMember) {
-          getOrCreatePodThread(pod);
+      if (pod && pod.id) {
+        const creatorId = String(pod.createdBy || '').trim().toLowerCase();
+        const creatorName = String(pod.creatorName || '').trim().toLowerCase();
+        const isCreator = (creatorId && (creatorId === uId || (uEmail && creatorId === uEmail))) ||
+          (creatorName && uName && (creatorName === uName || creatorName.includes(uName) || uName.includes(creatorName)));
+
+        const isMember = (pod.members || []).some(m => {
+          if (!m) return false;
+          const mUserId = String(m.userId || '').trim().toLowerCase();
+          const mId = String(m.id || '').trim().toLowerCase();
+          const mEmail = String((m as any).email || '').trim().toLowerCase();
+          const mName = String(m.displayName || '').trim().toLowerCase();
+          if (mUserId && (mUserId === uId || (uEmail && mUserId === uEmail))) return true;
+          if (mId && (mId === uId || (uEmail && mId === uEmail))) return true;
+          if (uEmail && mEmail && mEmail === uEmail) return true;
+          if (uName && mName && (mName === uName || mName.includes(uName) || uName.includes(mName))) return true;
+          return false;
+        });
+
+        if (isCreator || isMember) {
+          const thread = getOrCreatePodThread(pod, userId);
+          if (!thread.participantIds.includes(userId)) {
+            thread.participantIds.push(userId);
+          }
         }
       }
     }
@@ -176,7 +216,10 @@ export function getThreadsForUser(userId: string, availablePods?: Pod[]): ChatTh
   // Filter threads where user is an actual participant
   const userThreads = threads.filter(t => {
     if (!t) return false;
-    if (t.participantIds && t.participantIds.some(pid => pid === userId || (typeof pid === 'string' && pid.toLowerCase() === userId.toLowerCase()))) {
+    if (t.participantIds && t.participantIds.some(pid => {
+      const p = String(pid || '').trim().toLowerCase();
+      return p === uId || (uEmail && p === uEmail) || (uName && p === uName);
+    })) {
       return true;
     }
     return false;

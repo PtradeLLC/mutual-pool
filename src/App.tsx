@@ -1220,7 +1220,7 @@ export default function App() {
   );
 
   return (
-    <ChatProvider currentUser={activeUser}>
+    <ChatProvider currentUser={activeUser} availablePods={myPods}>
       <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
       
       {/* App Header */}

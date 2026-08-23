@@ -4217,10 +4217,21 @@ app.post('/api/ai/tts', async (req: Request, res: Response) => {
 });
 
 // --- CHAT API ROUTES ---
-app.get(['/api/chats/threads', '/chats/threads'], (req: Request, res: Response) => {
+app.get(['/api/chats/threads', '/chats/threads'], async (req: Request, res: Response) => {
   try {
     const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId') || 'usr_verified_101';
-    const userThreads = getThreadsForUser(rawUserId, pods);
+    const userEmail = getHeaderValue(req, 'x-user-email') || getQueryValue(req, 'userEmail') || '';
+    const userName = getHeaderValue(req, 'x-user-name') || getQueryValue(req, 'userName') || '';
+
+    // Ensure latest pods are loaded from disk & Firestore
+    let allPods = pods;
+    try {
+      allPods = await syncPodsFromFirestore();
+    } catch (e) {
+      allPods = loadPodsFromDisk();
+    }
+
+    const userThreads = getThreadsForUser(rawUserId, allPods, userEmail, userName);
     res.json(userThreads);
   } catch (err) {
     console.error('Error fetching chat threads:', err);

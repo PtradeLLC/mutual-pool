@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pod, User } from '../types';
 import { useTranslation } from '../i18n';
-import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut } from 'lucide-react';
+import { useChat } from '../context/ChatContext';
+import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut, MessageSquare } from 'lucide-react';
 
 interface PodCardProps {
   pod: Pod;
@@ -21,6 +22,7 @@ export const PodCard: React.FC<PodCardProps> = ({
   onSignAgreement,
 }) => {
   const { t } = useTranslation();
+  const { openPodChat } = useChat();
   const activeId = currentUser?.id;
   const activeEmail = currentUser?.email?.trim().toLowerCase();
   const activeName = currentUser?.displayName?.trim().toLowerCase();
@@ -228,6 +230,20 @@ export const PodCard: React.FC<PodCardProps> = ({
         </span>
 
         <div className="flex items-center gap-2">
+          {isMember && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openPodChat(pod);
+              }}
+              title="Open Pod Group Chat"
+              className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Chat</span>
+            </button>
+          )}
+
           {isMember ? (
             <button
               disabled={!hasEveryMemberReceivedPayout}

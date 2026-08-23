@@ -22,9 +22,14 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: User | null }> = ({
+export const ChatProvider: React.FC<{ 
+  children: React.ReactNode; 
+  currentUser: User | null;
+  availablePods?: Pod[];
+}> = ({
   children,
   currentUser,
+  availablePods = [],
 }) => {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeThread, setActiveThread] = useState<ChatThread | null>(null);
@@ -46,19 +51,74 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
   const currentUserAvatar = currentUser?.avatarUrl || '';
   const currentUserPlatform = currentUser?.platform || 'DoorDash';
 
-  // Fetch threads via REST API
+  // Fetch threads via REST API and merge with available pods
   const refreshThreads = useCallback(async () => {
     try {
-      const res = await fetch(`/api/chats/threads?userId=${encodeURIComponent(currentUserId)}`);
+      const uEmail = currentUser?.email || '';
+      const uName = currentUser?.displayName || '';
+      const params = new URLSearchParams({
+        userId: currentUserId,
+        userEmail: uEmail,
+        userName: uName,
+      });
+
+      const res = await fetch(`/api/chats/threads?${params.toString()}`, {
+        headers: {
+          'x-user-id': currentUserId,
+          'x-user-email': uEmail,
+          'x-user-name': uName,
+        }
+      });
+
+      let serverThreads: ChatThread[] = [];
       if (res.ok) {
-        const data: ChatThread[] = await res.json();
-        setThreads(data);
-        setIsConnected(true);
+        serverThreads = await res.json();
       }
+
+      // Merge server threads and availablePods
+      const threadMap = new Map<string, ChatThread>();
+      for (const t of serverThreads) {
+        if (t && t.id) threadMap.set(t.id, t);
+      }
+
+      if (availablePods && Array.isArray(availablePods)) {
+        for (const pod of availablePods) {
+          if (!pod || !pod.id) continue;
+          const threadId = `thread_pod_${pod.id}`;
+          const existing = threadMap.get(threadId);
+          if (existing) {
+            existing.name = pod.name || existing.name;
+            existing.podName = pod.name || existing.podName;
+          } else {
+            threadMap.set(threadId, {
+              id: threadId,
+              type: 'POD',
+              name: pod.name || 'Savings Pod Channel',
+              avatar: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=200',
+              podId: pod.id,
+              podName: pod.name,
+              participantIds: [currentUserId, ...(pod.members || []).map(m => m.userId || m.id).filter(Boolean)],
+              participantProfiles: (pod.members || []).map(m => ({
+                userId: m.userId || m.id,
+                displayName: m.displayName || 'Member',
+                avatarUrl: m.avatarUrl,
+                platform: m.platform,
+                isOnline: true,
+              })),
+              unreadCount: 0,
+              updatedAt: pod.createdAt || new Date().toISOString(),
+              isOnline: true,
+            });
+          }
+        }
+      }
+
+      setThreads(Array.from(threadMap.values()));
+      setIsConnected(true);
     } catch (err) {
       console.warn('[ChatContext] Error fetching threads:', err);
     }
-  }, [currentUserId]);
+  }, [currentUserId, currentUser?.email, currentUser?.displayName, availablePods]);
 
   // Fetch messages for active thread
   const fetchMessagesForThread = useCallback(async (threadId: string) => {
@@ -372,6 +432,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
     let matchingThread = threads.find(t => t.id === threadId || t.podId === pod.id);
 
     if (!matchingThread) {
+      const memberIds = (pod.members || []).map(m => m.userId || m.id).filter(Boolean);
+      if (pod.createdBy && !memberIds.includes(pod.createdBy)) memberIds.push(pod.createdBy);
+      if (currentUserId && !memberIds.includes(currentUserId)) memberIds.push(currentUserId);
+
       matchingThread = {
         id: threadId,
         type: 'POD',
@@ -379,17 +443,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
         avatar: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=200',
         podId: pod.id,
         podName: pod.name,
-        participantIds: (pod.members || []).map(m => m.userId || m.id),
+        participantIds: memberIds,
+        participantProfiles: (pod.members || []).map(m => ({
+          userId: m.userId || m.id,
+          displayName: m.displayName || 'Member',
+          avatarUrl: m.avatarUrl,
+          platform: m.platform,
+          isOnline: true,
+        })),
         unreadCount: 0,
-        updatedAt: new Date().toISOString(),
+        updatedAt: pod.createdAt || new Date().toISOString(),
         isOnline: true,
       };
-      setThreads(prev => [matchingThread!, ...prev]);
+      setThreads(prev => [matchingThread!, ...prev.filter(t => t.id !== threadId)]);
     }
 
     setActiveThread(matchingThread);
     setIsChatOpen(true);
-  }, [threads]);
+  }, [threads, currentUserId]);
 
   const totalUnreadCount = Math.max(0, threads.reduce((acc, t) => acc + (typeof t.unreadCount === 'number' && t.unreadCount > 0 ? t.unreadCount : 0), 0));
 
