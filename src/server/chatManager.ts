@@ -36,182 +36,8 @@ function loadChatDataFromDisk(): StoredChatData {
     console.error('[ChatManager] Error reading chats_data.json:', err);
   }
 
-  // Initial seed conversations for instant richness
-  const seedThreads: ChatThread[] = [
-    {
-      id: 'thread_direct_sarah_marcus',
-      type: 'DIRECT',
-      name: 'Sarah Jenkins',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-      participantIds: ['usr_verified_101', 'usr_uber_102', 'usr_marcus'],
-      participantProfiles: [
-        {
-          userId: 'usr_uber_102',
-          displayName: 'Sarah Jenkins',
-          avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-          platform: 'Uber Eats',
-          isOnline: true,
-        },
-        {
-          userId: 'usr_verified_101',
-          displayName: 'Verified Driver',
-          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-          platform: 'DoorDash',
-          isOnline: true,
-        }
-      ],
-      lastMessage: {
-        content: 'Hey! Thanks for accepting the rotation swap for Week 1. My brake repairs are fully covered now!',
-        senderName: 'Sarah Jenkins',
-        senderId: 'usr_uber_102',
-        createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-      },
-      unreadCount: 1,
-      updatedAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-      isOnline: true,
-    },
-    {
-      id: 'thread_pod_metro_riders',
-      type: 'POD',
-      name: 'Metro Delivery Riders Pod',
-      avatar: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=200',
-      podId: 'pod_metro_riders_20',
-      podName: 'Metro Delivery Riders Pod',
-      participantIds: ['usr_verified_101', 'usr_uber_102', 'usr_door_103', 'usr_marcus', 'usr_elena', 'usr_devon'],
-      lastMessage: {
-        content: 'Weekly pool target of $400.00 met! Treasury dispatches initiating at midnight.',
-        senderName: 'MutualPool System',
-        senderId: 'system',
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      },
-      unreadCount: 0,
-      updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      isOnline: true,
-    },
-    {
-      id: 'thread_direct_marcus_vance',
-      type: 'DIRECT',
-      name: 'Marcus Vance',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-      participantIds: ['usr_verified_101', 'usr_door_103', 'usr_marcus'],
-      participantProfiles: [
-        {
-          userId: 'usr_door_103',
-          displayName: 'Marcus Vance',
-          avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-          platform: 'DoorDash',
-          isOnline: true,
-        }
-      ],
-      lastMessage: {
-        content: 'Did you check out the Meineke 20% discount in the Fleet Perks tab? Saved me $35 on synthetic oil.',
-        senderName: 'Marcus Vance',
-        senderId: 'usr_door_103',
-        createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-      },
-      unreadCount: 0,
-      updatedAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-      isOnline: false,
-    }
-  ];
-
-  const seedMessages: ChatMessage[] = [
-    {
-      id: 'msg_seed_1',
-      threadId: 'thread_direct_sarah_marcus',
-      senderId: 'usr_uber_102',
-      senderName: 'Sarah Jenkins',
-      senderAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-      senderPlatform: 'Uber Eats',
-      recipientId: 'usr_verified_101',
-      content: 'Hey! Are you open to a spot swap in the Metro Delivery pod for Week 1?',
-      type: 'SWAP_OFFER',
-      createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-      readBy: ['usr_uber_102', 'usr_verified_101'],
-      metadata: {
-        podId: 'pod_metro_riders_20',
-        requestedSlot: 1,
-        offeredSlot: 4,
-        status: 'ACCEPTED'
-      }
-    },
-    {
-      id: 'msg_seed_2',
-      threadId: 'thread_direct_sarah_marcus',
-      senderId: 'usr_verified_101',
-      senderName: 'Verified Driver',
-      senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-      senderPlatform: 'DoorDash',
-      recipientId: 'usr_uber_102',
-      content: 'Yes, absolutely! I just clicked approve on the rotation board.',
-      type: 'TEXT',
-      createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-      readBy: ['usr_uber_102', 'usr_verified_101']
-    },
-    {
-      id: 'msg_seed_3',
-      threadId: 'thread_direct_sarah_marcus',
-      senderId: 'usr_uber_102',
-      senderName: 'Sarah Jenkins',
-      senderAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-      senderPlatform: 'Uber Eats',
-      recipientId: 'usr_verified_101',
-      content: 'Hey! Thanks for accepting the rotation swap for Week 1. My brake repairs are fully covered now!',
-      type: 'TEXT',
-      createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-      readBy: ['usr_uber_102']
-    },
-    {
-      id: 'msg_seed_4',
-      threadId: 'thread_pod_metro_riders',
-      senderId: 'system',
-      senderName: 'MutualPool System',
-      content: 'Welcome to the Metro Delivery Riders Pod! Contributions are scheduled weekly at $20/cycle.',
-      type: 'POD_ANNOUNCEMENT',
-      podId: 'pod_metro_riders_20',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-      readBy: ['usr_verified_101']
-    },
-    {
-      id: 'msg_seed_5',
-      threadId: 'thread_pod_metro_riders',
-      senderId: 'usr_door_103',
-      senderName: 'Marcus Vance',
-      senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-      senderPlatform: 'DoorDash',
-      content: 'Good luck on shifts this week everyone! Don’t forget to check the GasBuddy 15¢ discount before filling up.',
-      type: 'TEXT',
-      podId: 'pod_metro_riders_20',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-      readBy: ['usr_verified_101', 'usr_door_103']
-    },
-    {
-      id: 'msg_seed_6',
-      threadId: 'thread_pod_metro_riders',
-      senderId: 'system',
-      senderName: 'MutualPool System',
-      content: 'Weekly pool target of $400.00 met! Treasury dispatches initiating at midnight.',
-      type: 'SYSTEM',
-      podId: 'pod_metro_riders_20',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      readBy: ['usr_verified_101']
-    },
-    {
-      id: 'msg_seed_7',
-      threadId: 'thread_direct_marcus_vance',
-      senderId: 'usr_door_103',
-      senderName: 'Marcus Vance',
-      senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-      senderPlatform: 'DoorDash',
-      recipientId: 'usr_verified_101',
-      content: 'Did you check out the Meineke 20% discount in the Fleet Perks tab? Saved me $35 on synthetic oil.',
-      type: 'TEXT',
-      createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-      readBy: ['usr_door_103', 'usr_verified_101']
-    }
-  ];
-
-  return { threads: seedThreads, messages: seedMessages };
+  // Production clean start: empty threads and messages until real chats/messages occur
+  return { threads: [], messages: [] };
 }
 
 function saveChatDataToDisk() {
@@ -347,14 +173,10 @@ export function getThreadsForUser(userId: string, availablePods?: Pod[]): ChatTh
     }
   }
 
-  // Filter threads where user is a participant or if it's a general demo pod
+  // Filter threads where user is an actual participant
   const userThreads = threads.filter(t => {
     if (!t) return false;
-    if (t.participantIds && t.participantIds.some(pid => pid === userId || pid.toLowerCase() === userId.toLowerCase())) {
-      return true;
-    }
-    // Also include default demo threads for guest or verified user
-    if (t.id === 'thread_pod_metro_riders' || t.id === 'thread_direct_sarah_marcus' || t.id === 'thread_direct_marcus_vance') {
+    if (t.participantIds && t.participantIds.some(pid => pid === userId || (typeof pid === 'string' && pid.toLowerCase() === userId.toLowerCase()))) {
       return true;
     }
     return false;
@@ -363,7 +185,7 @@ export function getThreadsForUser(userId: string, availablePods?: Pod[]): ChatTh
   // Calculate unread counts and recipient names per user view
   return userThreads.map(t => {
     const threadMessages = messages.filter(m => m.threadId === t.id);
-    const unread = threadMessages.filter(m => m.senderId !== userId && !m.readBy?.includes(userId)).length;
+    const unread = threadMessages.filter(m => m.senderId !== userId && (!m.readBy || !m.readBy.includes(userId))).length;
     const lastMsg = threadMessages[threadMessages.length - 1];
 
     let dynamicName = t.name;

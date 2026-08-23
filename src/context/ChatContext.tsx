@@ -384,7 +384,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode; currentUser: Us
     setIsChatOpen(true);
   }, [threads]);
 
-  const totalUnreadCount = threads.reduce((acc, t) => acc + (t.unreadCount || 0), 0);
+  const totalUnreadCount = Math.max(0, threads.reduce((acc, t) => acc + (typeof t.unreadCount === 'number' && t.unreadCount > 0 ? t.unreadCount : 0), 0));
 
   return (
     <ChatContext.Provider
