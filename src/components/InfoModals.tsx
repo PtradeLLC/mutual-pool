@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Logo } from './Logo';
+import { useTranslation } from '../i18n';
 import { 
   X, ShieldCheck, Users, Heart, Award, CheckCircle2, 
   HelpCircle, Scale, Clock, Lock, AlertCircle, Phone, 
@@ -16,6 +17,7 @@ interface AboutUsModalProps {
 }
 
 export const AboutUsModal: React.FC<AboutUsModalProps> = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
@@ -34,8 +36,8 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({ isOpen, onClose }) =
         <div className="flex items-center gap-3">
           <Logo size="md" />
           <div>
-            <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block">Company & Mission</span>
-            <h3 className="text-xl font-bold text-[#111827]">About MutualPool</h3>
+            <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block">{t('aboutModal.badge')}</span>
+            <h3 className="text-xl font-bold text-[#111827]">{t('aboutModal.title')}</h3>
           </div>
         </div>
 
@@ -43,10 +45,10 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({ isOpen, onClose }) =
         <div className="p-4 bg-blue-50/60 border border-blue-200/80 rounded-xl space-y-2">
           <div className="flex items-center gap-2 text-[#005FB8] font-bold text-sm">
             <Heart className="w-4 h-4 fill-current" />
-            <span>Built By Drivers, For Drivers</span>
+            <span>{t('aboutModal.builtByDrivers')}</span>
           </div>
           <p className="text-xs text-[#374151] leading-relaxed">
-            MutualPool was founded to solve a critical issue faced by 15+ million independent delivery and ride-share workers: unpredictable cash flow and unexpected vehicle repair costs that can instantly wipe out a week's earnings.
+            {t('aboutModal.missionText')}
           </p>
         </div>
 
@@ -54,34 +56,34 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({ isOpen, onClose }) =
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
           <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-2">
             <ShieldCheck className="w-5 h-5 text-emerald-600" />
-            <h4 className="font-bold text-[#111827]">Pass-Through FDIC</h4>
+            <h4 className="font-bold text-[#111827]">{t('aboutModal.fdicTitle')}</h4>
             <p className="text-[#6B7280] text-[11px] leading-relaxed">
-              Partnered with Stripe Treasury to provide pass-through FDIC insurance up to $250,000 per driver account.
+              {t('aboutModal.fdicDesc')}
             </p>
           </div>
 
           <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-2">
             <Scale className="w-5 h-5 text-[#005FB8]" />
-            <h4 className="font-bold text-[#111827]">0% Interest ROSCAs</h4>
+            <h4 className="font-bold text-[#111827]">{t('aboutModal.roscaTitle')}</h4>
             <p className="text-[#6B7280] text-[11px] leading-relaxed">
-              Traditional peer-to-peer rotating savings. You put in $20/week for 20 weeks and receive 1 full $400 lump payout. No interest, no fees.
+              {t('aboutModal.roscaDesc')}
             </p>
           </div>
 
           <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-2">
             <Award className="w-5 h-5 text-amber-600" />
-            <h4 className="font-bold text-[#111827]">Fleet Collective Perks</h4>
+            <h4 className="font-bold text-[#111827]">{t('aboutModal.perksTitle')}</h4>
             <p className="text-[#6B7280] text-[11px] leading-relaxed">
-              Negotiated bulk fleet discounts saving members 15-20% on gas, tires, oil changes, and tax prep tools.
+              {t('aboutModal.perksDesc')}
             </p>
           </div>
         </div>
 
         {/* Supported Platforms */}
         <div className="space-y-2">
-          <h4 className="text-xs font-bold text-[#111827]">Fleet Integration Coverage</h4>
+          <h4 className="text-xs font-bold text-[#111827]">{t('aboutModal.fleetCoverageTitle')}</h4>
           <p className="text-xs text-[#6B7280]">
-            Our platform supports verified gig workers across all major delivery and rideshare networks:
+            {t('aboutModal.fleetCoverageDesc')}
           </p>
           <div className="flex flex-wrap gap-2 text-xs">
             {['DoorDash', 'Uber Eats', 'Lyft', 'Instacart', 'Amazon Flex', 'Walmart Spark', 'Grubhub'].map((platform) => (
@@ -94,12 +96,12 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({ isOpen, onClose }) =
 
         {/* Footer info */}
         <div className="pt-4 border-t border-[#DDE1E6] flex items-center justify-between text-xs text-[#6B7280]">
-          <span>Headquarters: San Francisco, CA & Remote Fleet Hubs</span>
+          <span>{t('aboutModal.hqFooter')}</span>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-[#005FB8] hover:bg-[#004C93] text-white font-bold rounded-lg transition-colors shadow-xs"
           >
-            Close
+            {t('aboutModal.closeBtn')}
           </button>
         </div>
 
@@ -118,6 +120,7 @@ interface HowItWorksModalProps {
 }
 
 export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
@@ -137,14 +140,14 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
           <div className="flex items-center gap-3">
             <Logo size="md" />
             <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200">
-              Official Platform Governance
+              {t('howItWorksModal.badge')}
             </span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-[#111827] tracking-tight">
-            How It Works & Rules
+            {t('howItWorksModal.title')}
           </h2>
           <p className="text-sm text-[#4B5563]">
-            Everything you need to know about how pools work, how payouts are decided, and how your money is protected.
+            {t('howItWorksModal.subtitle')}
           </p>
         </div>
 
@@ -459,12 +462,12 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
 
         {/* Footer info */}
         <div className="pt-4 border-t border-[#DDE1E6] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#6B7280]">
-          <span>MutualPool Governance & Rules • Stripe Treasury Protected</span>
+          <span>{t('howItWorksModal.footerText')}</span>
           <button
             onClick={onClose}
             className="px-6 py-2.5 bg-[#005FB8] hover:bg-[#004C93] text-white font-bold rounded-xl transition-colors shadow-xs w-full sm:w-auto"
           >
-            I Understand the Rules
+            {t('howItWorksModal.understandBtn')}
           </button>
         </div>
 
@@ -483,6 +486,7 @@ interface ContactUsModalProps {
 }
 
 export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [category, setCategory] = useState('DRIVER_SUPPORT');
@@ -503,6 +507,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label={t('contactModal.close')}
           className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
         >
           <X className="w-5 h-5" />
@@ -512,17 +517,21 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
         <div className="flex items-center gap-3">
           <Logo size="md" />
           <div>
-            <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block">24/7 Fleet Help Desk</span>
-            <h3 className="text-xl font-bold text-[#111827]">Contact MutualPool Support</h3>
+            <span className="text-xs font-mono font-bold text-[#005FB8] uppercase tracking-wider block">
+              {t('contactModal.helpDeskBadge')}
+            </span>
+            <h3 className="text-xl font-bold text-[#111827]">
+              {t('contactModal.title')}
+            </h3>
           </div>
         </div>
 
         {submitted ? (
           <div className="p-6 bg-green-50 border border-green-200 rounded-xl text-center space-y-3 my-4">
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
-            <h4 className="text-lg font-bold text-[#111827]">Message Received!</h4>
+            <h4 className="text-lg font-bold text-[#111827]">{t('contactModal.successTitle')}</h4>
             <p className="text-xs text-[#4B5563]">
-              Thanks, {name || 'Driver'}! Our fleet support specialist will reach out to <strong>{email || 'your email'}</strong> within 2 hours.
+              {t('contactModal.successDesc', { name: name || 'Driver', email: email || 'your email' })}
             </p>
             <button
               onClick={() => {
@@ -530,9 +539,9 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
                 setMessage('');
                 onClose();
               }}
-              className="px-4 py-2 bg-[#005FB8] text-white font-bold text-xs rounded-lg shadow-xs"
+              className="px-4 py-2 bg-[#005FB8] text-white font-bold text-xs rounded-lg shadow-xs hover:bg-[#004C93] transition-colors"
             >
-              Done
+              {t('contactModal.doneBtn')}
             </button>
           </div>
         ) : (
@@ -542,17 +551,17 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
               <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-[#111827]">
                   <Phone className="w-3.5 h-3.5 text-[#005FB8]" />
-                  <span>24/7 Driver Line</span>
+                  <span>{t('contactModal.driverLineTitle')}</span>
                 </div>
-                <p className="text-[#6B7280] text-[11px] font-mono">1-800-GIG-POOL</p>
+                <p className="text-[#6B7280] text-[11px] font-mono">{t('contactModal.driverLineNumber')}</p>
               </div>
 
               <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-[#111827]">
                   <Mail className="w-3.5 h-3.5 text-[#005FB8]" />
-                  <span>Email Support</span>
+                  <span>{t('contactModal.emailSupportTitle')}</span>
                 </div>
-                <p className="text-[#6B7280] text-[11px] font-mono">support@mutualpool.org</p>
+                <p className="text-[#6B7280] text-[11px] font-mono">{t('contactModal.emailAddress')}</p>
               </div>
             </div>
 
@@ -560,58 +569,58 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
             <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1">
-                  Your Full Name
+                  {t('contactModal.fullNameLabel')}
                 </label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Marcus Vance"
+                  placeholder={t('contactModal.fullNamePlaceholder')}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1">
-                  Email Address
+                  {t('contactModal.emailLabel')}
                 </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. marcus.vance@example.com"
+                  placeholder={t('contactModal.emailPlaceholder')}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1">
-                  Inquiry Topic
+                  {t('contactModal.inquiryTopicLabel')}
                 </label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
                 >
-                  <option value="DRIVER_SUPPORT">General Driver Assistance</option>
-                  <option value="PAYOUT_TREASURY">Stripe Treasury & Payouts</option>
-                  <option value="SWAP_REQUEST">Emergency Slot Swap Inquiry</option>
-                  <option value="FLEET_PERKS">Gas & Fleet Perks Partnering</option>
+                  <option value="DRIVER_SUPPORT">{t('contactModal.topicDriverSupport')}</option>
+                  <option value="PAYOUT_TREASURY">{t('contactModal.topicPayoutTreasury')}</option>
+                  <option value="SWAP_REQUEST">{t('contactModal.topicSwapRequest')}</option>
+                  <option value="FLEET_PERKS">{t('contactModal.topicFleetPerks')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1">
-                  Message / Question
+                  {t('contactModal.messageLabel')}
                 </label>
                 <textarea
                   required
                   rows={3}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Describe your issue or question..."
+                  placeholder={t('contactModal.messagePlaceholder')}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
                 />
               </div>
@@ -621,7 +630,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
                 className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>Submit Inquiry</span>
+                <span>{t('contactModal.submitBtn')}</span>
               </button>
             </form>
           </>

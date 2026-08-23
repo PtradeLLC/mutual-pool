@@ -4,10 +4,11 @@ import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
 import { LanguageSelector } from './LanguageSelector';
 import { useTranslation } from '../i18n';
+import { useChat } from '../context/ChatContext';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
-  Megaphone, Shirt, BarChart3
+  Megaphone, Shirt, BarChart3, MessageSquare
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -59,6 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const { t } = useTranslation();
+  const { openChat, totalUnreadCount, isConnected } = useChat();
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' || Boolean(currentUser.isAdmin);
 
   return (
@@ -164,6 +166,30 @@ export const Header: React.FC<HeaderProps> = ({
               onOpenHardshipModal={onOpenHardshipModal}
               onOpenPodDetail={onOpenPodDetail}
             />
+
+            {/* In-App Real-Time Chat Trigger */}
+            <button
+              id="header-chat-trigger-btn"
+              type="button"
+              onClick={openChat}
+              className="relative p-2 rounded-lg bg-white hover:bg-gray-50 border border-[#DDE1E6] text-gray-700 hover:text-blue-600 transition-colors shadow-xs"
+              title="Fleet & Pod In-App Chat"
+              aria-label="Open In-App Chat"
+            >
+              <MessageSquare className="w-4 h-4" />
+              {/* Online connection dot */}
+              <span
+                className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-white ${
+                  isConnected ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+              />
+              {/* Unread badge count */}
+              {totalUnreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white font-extrabold text-[10px] flex items-center justify-center shadow-xs">
+                  {totalUnreadCount}
+                </span>
+              )}
+            </button>
 
             {/* User Switcher Dropdown */}
             <div className="relative">

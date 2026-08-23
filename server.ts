@@ -2,6 +2,7 @@ process.noDeprecation = true;
 import express from 'express';
 type Request = express.Request;
 type Response = express.Response;
+import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { 
@@ -14,6 +15,15 @@ import {
 } from './src/data/initialData';
 import { getDb } from './src/config/firebase';
 import { GoogleGenAI, Modality } from '@google/genai';
+import {
+  setupWebSocketServer,
+  getThreadsForUser,
+  getMessagesForThread,
+  createMessage,
+  markThreadMessagesAsRead,
+  getOrCreateDirectThread,
+  getOrCreatePodThread
+} from './src/server/chatManager';
 
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -4206,6 +4216,107 @@ app.post('/api/ai/tts', async (req: Request, res: Response) => {
   }
 });
 
+// --- CHAT API ROUTES ---
+app.get(['/api/chats/threads', '/chats/threads'], (req: Request, res: Response) => {
+  try {
+    const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId') || 'usr_verified_101';
+    const userThreads = getThreadsForUser(rawUserId, pods);
+    res.json(userThreads);
+  } catch (err) {
+    console.error('Error fetching chat threads:', err);
+    res.status(500).json({ error: 'Failed to fetch chat threads' });
+  }
+});
+
+app.get(['/api/chats/messages', '/chats/messages'], (req: Request, res: Response) => {
+  try {
+    const threadId = getQueryValue(req, 'threadId');
+    const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId') || undefined;
+    if (!threadId) {
+      return res.status(400).json({ error: 'threadId is required' });
+    }
+    const msgs = getMessagesForThread(threadId, rawUserId);
+    res.json(msgs);
+  } catch (err) {
+    console.error('Error fetching chat messages:', err);
+    res.status(500).json({ error: 'Failed to fetch chat messages' });
+  }
+});
+
+app.post(['/api/chats/send', '/chats/send'], (req: Request, res: Response) => {
+  try {
+    const { threadId, content, senderId, senderName, senderAvatar, senderPlatform, recipientId, podId, type, metadata } = req.body;
+    const resolvedSenderId = senderId || getHeaderValue(req, 'x-user-id') || 'usr_verified_101';
+    const resolvedSenderName = senderName || getHeaderValue(req, 'x-user-name') || 'Driver';
+
+    if (!threadId || !content) {
+      return res.status(400).json({ error: 'threadId and content are required' });
+    }
+
+    const newMsg = createMessage({
+      threadId,
+      senderId: resolvedSenderId,
+      senderName: resolvedSenderName,
+      senderAvatar,
+      senderPlatform,
+      recipientId,
+      podId,
+      content,
+      type: type || 'TEXT',
+      metadata,
+    });
+
+    res.status(201).json({ success: true, message: newMsg });
+  } catch (err) {
+    console.error('Error sending chat message:', err);
+    res.status(500).json({ error: 'Failed to send chat message' });
+  }
+});
+
+app.post(['/api/chats/mark-read', '/chats/mark-read'], (req: Request, res: Response) => {
+  try {
+    const { threadId, userId } = req.body;
+    const resolvedUserId = userId || getHeaderValue(req, 'x-user-id') || 'usr_verified_101';
+    if (!threadId) {
+      return res.status(400).json({ error: 'threadId is required' });
+    }
+    markThreadMessagesAsRead(threadId, resolvedUserId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking thread as read:', err);
+    res.status(500).json({ error: 'Failed to mark thread as read' });
+  }
+});
+
+app.post(['/api/chats/start-direct', '/chats/start-direct'], (req: Request, res: Response) => {
+  try {
+    const { userId, targetUserId, targetName, targetAvatar, targetPlatform } = req.body;
+    const currentUser = getCurrentUser(req) || {
+      id: userId || 'usr_verified_101',
+      displayName: 'Verified Driver',
+      avatarUrl: '',
+      platform: 'DoorDash',
+    };
+
+    const targetUser = users.find(u => u && u.id === targetUserId) || {
+      id: targetUserId,
+      displayName: targetName || 'Driver Member',
+      avatarUrl: targetAvatar,
+      platform: targetPlatform || 'DoorDash',
+    };
+
+    const thread = getOrCreateDirectThread(
+      { id: currentUser.id, displayName: currentUser.displayName, avatarUrl: currentUser.avatarUrl, platform: currentUser.platform },
+      { id: targetUser.id, displayName: targetUser.displayName, avatarUrl: targetUser.avatarUrl, platform: targetUser.platform }
+    );
+
+    res.json({ success: true, thread });
+  } catch (err) {
+    console.error('Error starting direct chat:', err);
+    res.status(500).json({ error: 'Failed to start direct chat' });
+  }
+});
+
 // 404 handler for unmatched API routes
 app.use(['/api', '/api/*'], (req: Request, res: Response) => {
   res.status(404).json({
@@ -4249,11 +4360,15 @@ async function startServer() {
   }
 
   if (!process.env.VERCEL) {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`[Gig Mutual Pool PWA Server] running on http://localhost:${PORT}`);
+    const httpServer = http.createServer(app);
+    setupWebSocketServer(httpServer);
+
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`[Gig Mutual Pool PWA Server + WebSocket] running on http://localhost:${PORT}`);
     });
   }
 }
+
 
 if (!process.env.VERCEL) {
   startServer().catch((err) => {

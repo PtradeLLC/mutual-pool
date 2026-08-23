@@ -609,4 +609,50 @@ export interface CampaignZoneMetric {
   popularPlatform: string;
 }
 
+export type ChatMessageType = 'TEXT' | 'SWAP_OFFER' | 'POD_ANNOUNCEMENT' | 'SYSTEM';
+
+export interface ChatMessage {
+  id: string;
+  threadId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  senderPlatform?: GigPlatform | string;
+  recipientId?: string;
+  podId?: string;
+  content: string;
+  type?: ChatMessageType;
+  createdAt: string;
+  readBy: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ChatParticipant {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
+  platform?: GigPlatform | string;
+  isOnline?: boolean;
+}
+
+export interface ChatThread {
+  id: string;
+  type: 'DIRECT' | 'POD';
+  name: string;
+  avatar?: string;
+  participantIds: string[];
+  participantProfiles?: ChatParticipant[];
+  podId?: string;
+  podName?: string;
+  lastMessage?: {
+    content: string;
+    senderName: string;
+    senderId: string;
+    createdAt: string;
+  };
+  unreadCount?: number;
+  updatedAt: string;
+  isOnline?: boolean;
+}
+
 

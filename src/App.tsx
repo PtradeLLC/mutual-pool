@@ -7,6 +7,9 @@ import { PodCard } from './components/PodCard';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { HardshipRequestModal } from './components/HardshipRequestModal';
 import { VoiceAgent } from './components/VoiceAgent';
+import { ChatProvider } from './context/ChatContext';
+import { ChatDrawer } from './components/Chat/ChatDrawer';
+import { ChatButton } from './components/Chat/ChatButton';
 
 const LandingPage = lazy(() => import('./components/LandingPage').then((module) => ({ default: module.LandingPage })));
 const PodDetailModal = lazy(() => import('./components/PodDetailModal').then((module) => ({ default: module.PodDetailModal })));
@@ -929,7 +932,7 @@ export default function App() {
   // If viewing Landing Page or user explicitly hasn't entered dashboard
   if (viewMode === 'LANDING') {
     return (
-      <>
+      <ChatProvider currentUser={currentUser}>
         <LandingPage
           allPods={allPods}
           currentUser={currentUser}
@@ -1008,73 +1011,83 @@ export default function App() {
           onOpenContact={() => setShowContactModal(true)}
           onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
         />
-      </>
+
+        {/* Real-time in-app chat drawer & floating button */}
+        <ChatDrawer currentUser={currentUser} />
+        <ChatButton />
+      </ChatProvider>
     );
   }
 
   // If viewing Advertiser / Partner Brand Ambassador Page
   if (viewMode === 'ADVERTISER') {
     return (
-      <Suspense fallback={
-        <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">
-          <div className="flex items-center gap-3 text-[#005FB8] font-semibold text-sm">
-            <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
-            <span>Loading Partner Promo Apparel & Advertiser Portal...</span>
+      <ChatProvider currentUser={currentUser}>
+        <Suspense fallback={
+          <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">
+            <div className="flex items-center gap-3 text-[#005FB8] font-semibold text-sm">
+              <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
+              <span>Loading Partner Promo Apparel & Advertiser Portal...</span>
+            </div>
           </div>
-        </div>
-      }>
-        <AdvertiserPage
-          currentUser={currentUser}
-          campaigns={campaigns}
-          shifts={campaignShifts}
-          initialTab={advertiserInitialTab}
-          onAddNewShift={handleAddNewShift}
-          onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
-          onBack={() => {
-            setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          onOpenAuth={handleOpenAuth}
-        />
+        }>
+          <AdvertiserPage
+            currentUser={currentUser}
+            campaigns={campaigns}
+            shifts={campaignShifts}
+            initialTab={advertiserInitialTab}
+            onAddNewShift={handleAddNewShift}
+            onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
+            onBack={() => {
+              setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onOpenAuth={handleOpenAuth}
+          />
 
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={handleCloseAuth}
-          allUsers={allUsers}
-          onSelectUser={handleAuthSuccess}
-          onRegistered={handleAuthSuccess}
-          initialMode={authInitialMode}
-        />
+          <AuthModal
+            isOpen={showAuthModal}
+            onClose={handleCloseAuth}
+            allUsers={allUsers}
+            onSelectUser={handleAuthSuccess}
+            onRegistered={handleAuthSuccess}
+            initialMode={authInitialMode}
+          />
 
-        <VoiceAgent
-          currentUser={currentUser}
-          activeTab={activeTab}
-          onNavigateTab={(tab) => {
-            setActiveTab(tab);
-            setViewMode('DASHBOARD');
-          }}
-          onOpenCreatePod={() => {
-            setViewMode('DASHBOARD');
-            setShowCreatePodModal(true);
-          }}
-          onOpenKyc={() => {
-            setViewMode('DASHBOARD');
-            setShowKycModal(true);
-          }}
-          onOpenBank={() => {
-            setViewMode('DASHBOARD');
-            setShowBankModal(true);
-          }}
-          onOpenHardship={() => {
-            setViewMode('DASHBOARD');
-            setShowHardshipModal(true);
-          }}
-          onOpenAbout={() => setShowAboutModal(true)}
-          onOpenHowItWorks={() => setShowHowItWorksModal(true)}
-          onOpenContact={() => setShowContactModal(true)}
-          onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
-        />
-      </Suspense>
+          <VoiceAgent
+            currentUser={currentUser}
+            activeTab={activeTab}
+            onNavigateTab={(tab) => {
+              setActiveTab(tab);
+              setViewMode('DASHBOARD');
+            }}
+            onOpenCreatePod={() => {
+              setViewMode('DASHBOARD');
+              setShowCreatePodModal(true);
+            }}
+            onOpenKyc={() => {
+              setViewMode('DASHBOARD');
+              setShowKycModal(true);
+            }}
+            onOpenBank={() => {
+              setViewMode('DASHBOARD');
+              setShowBankModal(true);
+            }}
+            onOpenHardship={() => {
+              setViewMode('DASHBOARD');
+              setShowHardshipModal(true);
+            }}
+            onOpenAbout={() => setShowAboutModal(true)}
+            onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+            onOpenContact={() => setShowContactModal(true)}
+            onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
+          />
+
+          {/* Real-time in-app chat drawer & floating button */}
+          <ChatDrawer currentUser={currentUser} />
+          <ChatButton />
+        </Suspense>
+      </ChatProvider>
     );
   }
 
@@ -1207,7 +1220,8 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
+    <ChatProvider currentUser={activeUser}>
+      <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
       
       {/* App Header */}
       <Header
@@ -1877,6 +1891,11 @@ export default function App() {
         onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
       />
 
+      {/* Real-time in-app chat drawer & floating button */}
+      <ChatDrawer currentUser={activeUser} />
+      <ChatButton />
+
     </div>
+    </ChatProvider>
   );
 }

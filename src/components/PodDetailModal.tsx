@@ -4,9 +4,10 @@ import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { CampaignAdAgreementModal } from './CampaignAdAgreementModal';
 import { subscribeToAuditLogs } from '../lib/firestoreService';
+import { useChat } from '../context/ChatContext';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
-  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt
+  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -28,6 +29,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   onRefreshPod,
   onOpenAgreementModal,
 }) => {
+  const { openPodChat, startDirectChat } = useChat();
   const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>(initialTab);
   const [podLogs, setPodLogs] = useState<AuditLogEntry[]>([]);
   const [depositing, setDepositing] = useState(false);
@@ -607,6 +609,16 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
+                  onClick={() => openPodChat(pod)}
+                  className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  title="Open Real-Time Pod Group Chat"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Pod Chat</span>
+                </button>
+
+                <button
                   onClick={onOpenAgreementModal}
                   className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                 >
@@ -1007,6 +1019,23 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    {!isCurrentUserMember && (
+                      <button
+                        type="button"
+                        onClick={() => startDirectChat({
+                          id: member.userId,
+                          displayName: member.displayName,
+                          avatarUrl: member.avatarUrl,
+                          platform: member.platform,
+                        })}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-[#005FB8] border border-slate-200 hover:border-blue-300 transition-colors shadow-2xs cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                        title={`Send direct message to ${member.displayName}`}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Message</span>
+                      </button>
+                    )}
+
                     {member.agreementSignedAt ? (
                       <span className="px-2 py-1 rounded bg-green-50 text-green-700 text-[10px] font-mono border border-green-200 flex items-center gap-1 font-semibold">
                         <CheckCircle2 className="w-3 h-3 text-green-600" />
