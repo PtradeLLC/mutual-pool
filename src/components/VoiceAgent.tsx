@@ -2,11 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Mic, MicOff, Volume2, VolumeX, Sparkles, X, ChevronDown, 
   Send, RefreshCw, Compass, ArrowRight, Play, Square,
-  Shield, Users, Gift, TrendingUp, HelpCircle, CheckCircle2,
-  Sliders, MessageSquare
+  Sliders
 } from 'lucide-react';
 import { 
-  getAudioContext, 
   getAnalyser, 
   base64PcmToAudioBuffer, 
   playGeminiAudioBuffer, 
@@ -14,6 +12,7 @@ import {
   stopCurrentAudio 
 } from '../utils/audioPlayer';
 import { User } from '../types';
+import { useTranslation } from '../i18n';
 
 export interface VoiceAgentProps {
   currentUser: User | null;
@@ -56,15 +55,6 @@ const VOICE_OPTIONS = [
   { id: 'Charon', name: 'Charon', description: 'Clear & professional' },
 ];
 
-const GUIDED_QUESTIONS = [
-  { label: 'How does fixed rotation work?', query: 'How does the fixed weekly rotation payout work in a savings pod?' },
-  { label: 'How do Spot Swaps work?', query: 'How do I swap payout spots with another member?' },
-  { label: 'Trusted Circles vs Open Pods', query: 'What is the difference between Trusted Circles and Open Pods?' },
-  { label: 'Explore Gig Perks & Discounts', query: 'What merchant perks and auto repair discounts are available?' },
-  { label: 'Earn with Vehicle Wraps', query: 'How can I earn money with Brand Ambassador vehicle wrap campaigns?' },
-  { label: 'Is my Treasury balance FDIC insured?', query: 'Is my Stripe Treasury balance FDIC pass-through insured?' },
-];
-
 export const VoiceAgent: React.FC<VoiceAgentProps> = ({
   currentUser,
   activeTab,
@@ -78,6 +68,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
   onOpenContact,
   onOpenAdvertiser,
 }) => {
+  const { t, language } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -92,16 +83,48 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
     {
       id: 'welcome_1',
       sender: 'agent',
-      spokenText: `Hi there! I'm Aria, your MutualPool Voice AI Guide. Ask me anything about savings pods, spot swaps, gig perks, or vehicle wrap campaigns!`,
-      displayText: `### 👋 Hi, I'm Aria — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n- **Saving in Pods** (Weekly rotations & Susu/Tanda rules)\n- **Spot Swaps** (Trading payout turns safely)\n- **Gig Perks** (Auto maintenance, roadside assistance, tax discounts)\n- **Brand Ambassador Earnings** (Vehicle wraps for gig drivers)\n- **Stripe Treasury & FDIC Pass-Through**`,
+      spokenText: t('voiceAgent.welcomeSpoken'),
+      displayText: t('voiceAgent.welcomeDisplay'),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       suggestedActions: [
-        { label: 'How does fixed rotation work?', action: 'SPEAK_EXPLANATION', prompt: 'How does fixed rotation work?' },
-        { label: 'How do Spot Swaps work?', action: 'SPEAK_EXPLANATION', prompt: 'How do spot swaps work?' },
-        { label: 'Browse Gig Perks', action: 'NAVIGATE_TAB', tab: 'perks' },
+        { label: t('voiceAgent.q1Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q1Query') },
+        { label: t('voiceAgent.q2Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q2Query') },
+        { label: t('voiceAgent.browsePerks'), action: 'NAVIGATE_TAB', tab: 'perks' },
       ],
     },
   ]);
+
+  // Update initial welcome message when language changes if no interaction has occurred
+  useEffect(() => {
+    setMessages(prev => {
+      if (prev.length === 1 && prev[0].id === 'welcome_1') {
+        return [
+          {
+            id: 'welcome_1',
+            sender: 'agent',
+            spokenText: t('voiceAgent.welcomeSpoken'),
+            displayText: t('voiceAgent.welcomeDisplay'),
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            suggestedActions: [
+              { label: t('voiceAgent.q1Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q1Query') },
+              { label: t('voiceAgent.q2Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q2Query') },
+              { label: t('voiceAgent.browsePerks'), action: 'NAVIGATE_TAB', tab: 'perks' },
+            ],
+          },
+        ];
+      }
+      return prev;
+    });
+  }, [language, t]);
+
+  const guidedQuestions = [
+    { label: t('voiceAgent.q1Label'), query: t('voiceAgent.q1Query') },
+    { label: t('voiceAgent.q2Label'), query: t('voiceAgent.q2Query') },
+    { label: t('voiceAgent.q3Label'), query: t('voiceAgent.q3Query') },
+    { label: t('voiceAgent.q4Label'), query: t('voiceAgent.q4Query') },
+    { label: t('voiceAgent.q5Label'), query: t('voiceAgent.q5Query') },
+    { label: t('voiceAgent.q6Label'), query: t('voiceAgent.q6Query') },
+  ];
 
   const recognitionRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -291,6 +314,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
             platform: currentUser?.platform || 'DoorDash',
             treasuryBalance: currentUser?.treasury?.balanceUsd ?? 0,
             activePodsCount: currentUser?.completedPodsCount ?? 0,
+            language,
           },
         }),
       });
@@ -325,12 +349,12 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       const errorMsg: Message = {
         id: `agent_${Date.now()}`,
         sender: 'agent',
-        spokenText: "I'm having trouble connecting right now, but you can explore savings pods, browse gig perks, or manage your account from the dashboard.",
-        displayText: "### ⚠️ Temporary Connection Issue\n\nPlease try asking again or select one of the helpful topics below.",
+        spokenText: t('voiceAgent.connectionErrorSpoken'),
+        displayText: `### ⚠️ ${t('voiceAgent.connectionErrorTitle')}\n\n${t('voiceAgent.connectionErrorDesc')}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         suggestedActions: [
-          { label: 'Explore Savings Pods', action: 'NAVIGATE_TAB', tab: 'explore-pods' },
-          { label: 'Browse Perks Marketplace', action: 'NAVIGATE_TAB', tab: 'perks' },
+          { label: t('voiceAgent.explorePods'), action: 'NAVIGATE_TAB', tab: 'explore-pods' },
+          { label: t('voiceAgent.browsePerks'), action: 'NAVIGATE_TAB', tab: 'perks' },
         ],
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -344,7 +368,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
 
     const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionClass) {
-      alert('Speech recognition is not supported by your browser. You can type your question in the text input.');
+      alert(t('voiceAgent.speechNotSupported'));
       return;
     }
 
@@ -352,7 +376,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       const recognition = new SpeechRecognitionClass();
       recognition.continuous = false;
       recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      recognition.lang = language === 'es' ? 'es-US' : language === 'fr' ? 'fr-FR' : 'en-US';
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -416,7 +440,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
         <div id="voice-agent-trigger-container" className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-lg border border-slate-200 text-xs font-semibold text-slate-700 animate-pulse">
             <Sparkles className="w-3.5 h-3.5 text-[#005FB8]" />
-            <span>Voice Assistant Online</span>
+            <span>{t('voiceAgent.triggerOnline')}</span>
           </div>
 
           <button
@@ -425,7 +449,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
               setIsOpen(true);
               setIsMinimized(false);
             }}
-            aria-label="Open Voice AI Assistant"
+            aria-label={t('voiceAgent.triggerAria')}
             className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-[#005FB8] to-[#2563EB] text-white shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 ring-4 ring-[#005FB8]/20 focus:outline-none"
           >
             <div className="absolute inset-0 rounded-full bg-white/20 animate-ping pointer-events-none opacity-40 group-hover:opacity-60" />
@@ -457,12 +481,12 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-white tracking-wide">Aria Voice AI</h3>
+                  <h3 className="font-bold text-sm text-white tracking-wide">{t('voiceAgent.assistantName')}</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15 text-sky-200 font-medium">
-                    {isSpeaking ? 'Speaking' : isListening ? 'Listening' : isThinking ? 'Thinking...' : 'Ready'}
+                    {isSpeaking ? t('voiceAgent.statusSpeaking') : isListening ? t('voiceAgent.statusListening') : isThinking ? t('voiceAgent.statusThinking') : t('voiceAgent.statusReady')}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300">Natural Voice Guide • MutualPool</p>
+                <p className="text-[11px] text-slate-300">{t('voiceAgent.guideSubtitle')}</p>
               </div>
             </div>
 
@@ -470,7 +494,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
               <button
                 id="voice-agent-settings-btn"
                 onClick={() => setShowSettings(!showSettings)}
-                title="Voice Settings"
+                title={t('voiceAgent.settingsTitle')}
                 className={`p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors ${showSettings ? 'bg-white/20 text-white' : ''}`}
               >
                 <Sliders className="w-4 h-4" />
@@ -482,7 +506,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                   if (isSpeaking) handleStopSpeaking();
                   setAutoSpeak(!autoSpeak);
                 }}
-                title={autoSpeak ? 'Mute Voice Output' : 'Enable Voice Output'}
+                title={autoSpeak ? t('voiceAgent.muteBtn') : t('voiceAgent.replayAudio')}
                 className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
               >
                 {autoSpeak ? <Volume2 className="w-4 h-4 text-emerald-300" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
@@ -517,7 +541,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
                 <canvas ref={canvasRef} width={120} height={28} className="rounded-md" />
-                <span>{isSpeaking ? 'Speaking...' : isListening ? 'Listening...' : 'Voice AI Active'}</span>
+                <span>{isSpeaking ? t('voiceAgent.statusSpeaking') : isListening ? t('voiceAgent.statusListening') : t('voiceAgent.minimizedActive')}</span>
               </div>
               <button
                 onClick={handleToggleListening}
@@ -532,8 +556,8 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
               {showSettings && (
                 <div className="bg-slate-50 border-b border-slate-200 p-3.5 space-y-3 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Voice Personality</span>
-                    <span className="text-slate-500 text-[11px]">Gemini 3.1 Natural Speech</span>
+                    <span className="font-semibold text-slate-700">{t('voiceAgent.settingsTitle')}</span>
+                    <span className="text-slate-500 text-[11px]">{t('voiceAgent.settingsEngine')}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
                     {VOICE_OPTIONS.map((v) => (
@@ -562,7 +586,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                         onChange={(e) => setAutoSpeak(e.target.checked)}
                         className="rounded text-[#005FB8] focus:ring-[#005FB8]"
                       />
-                      <span>Auto-speak natural voice replies</span>
+                      <span>{t('voiceAgent.autoSpeakLabel')}</span>
                     </label>
 
                     {isSpeaking && (
@@ -571,7 +595,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                         className="flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700"
                       >
                         <Square className="w-3 h-3" />
-                        <span>Stop Voice</span>
+                        <span>{t('voiceAgent.stopVoiceBtn')}</span>
                       </button>
                     )}
                   </div>
@@ -583,7 +607,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                 <div className="flex items-center gap-2">
                   <canvas ref={canvasRef} width={180} height={28} className="rounded" />
                   <span className="text-[11px] font-medium text-slate-300">
-                    {isSpeaking ? 'Streaming natural audio' : isListening ? 'Listening to microphone...' : isThinking ? 'Analyzing request...' : 'Ready for voice question'}
+                    {isSpeaking ? t('voiceAgent.statusStreamingAudio') : isListening ? t('voiceAgent.statusListeningMic') : isThinking ? t('voiceAgent.statusAnalyzing') : t('voiceAgent.statusReadyQuestion')}
                   </span>
                 </div>
 
@@ -593,7 +617,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                     className="text-[11px] px-2.5 py-1 rounded bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 flex items-center gap-1"
                   >
                     <Square className="w-3 h-3" />
-                    <span>Mute</span>
+                    <span>{t('voiceAgent.muteBtn')}</span>
                   </button>
                 )}
               </div>
@@ -624,7 +648,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                             className="flex items-center gap-1 text-[11px] font-medium text-[#005FB8] hover:text-[#004A94] bg-sky-50 px-2 py-0.5 rounded-full"
                           >
                             <Play className="w-3 h-3 fill-current" />
-                            <span>Replay Audio</span>
+                            <span>{t('voiceAgent.replayAudio')}</span>
                           </button>
                         </div>
                       )}
@@ -657,9 +681,9 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                 ))}
 
                 {isThinking && (
-                  <div className="flex items-center gap-2 p-3 bg-white rounded-2xl border border-slate-200 text-slate-500 text-xs w-36">
+                  <div className="flex items-center gap-2 p-3 bg-white rounded-2xl border border-slate-200 text-slate-500 text-xs w-44">
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#005FB8]" />
-                    <span>Aria is thinking...</span>
+                    <span>{t('voiceAgent.thinkingName')}</span>
                   </div>
                 )}
 
@@ -670,10 +694,10 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
               <div className="bg-white border-t border-slate-200 px-3 py-2">
                 <div className="text-[11px] font-semibold text-slate-500 mb-1.5 flex items-center gap-1">
                   <Compass className="w-3 h-3 text-[#005FB8]" />
-                  <span>Popular Onboarding Guides:</span>
+                  <span>{t('voiceAgent.popularGuides')}</span>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {GUIDED_QUESTIONS.map((gq, idx) => (
+                  {guidedQuestions.map((gq, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleSendQuery(gq.query)}
@@ -698,7 +722,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                     type="button"
                     id="voice-agent-mic-btn"
                     onClick={handleToggleListening}
-                    title={isListening ? 'Stop Listening' : 'Speak to Voice AI'}
+                    title={isListening ? t('voiceAgent.stopVoiceBtn') : t('voiceAgent.triggerAria')}
                     className={`relative p-3 rounded-2xl font-semibold flex items-center justify-center transition-all shadow-md ${
                       isListening
                         ? 'bg-rose-500 text-white ring-4 ring-rose-200 animate-pulse'
@@ -713,7 +737,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                       type="text"
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
-                      placeholder={isListening ? 'Listening to your voice...' : 'Ask Aria a question or speak...'}
+                      placeholder={isListening ? t('voiceAgent.listeningPlaceholder') : t('voiceAgent.inputPlaceholder')}
                       className="w-full pl-3.5 pr-10 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:bg-white transition-all"
                     />
                     {inputText.trim() && (

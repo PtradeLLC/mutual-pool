@@ -3798,10 +3798,36 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
     const platform = currentContext?.platform || 'Gig Courier';
     const treasuryBalance = currentContext?.treasuryBalance ?? 0;
     const activePodsCount = currentContext?.activePodsCount ?? 0;
+    const lang = currentContext?.language || 'en';
 
-    const fallbackKnowledge = (userQuery: string) => {
+    const fallbackKnowledge = (userQuery: string, language: string = 'en') => {
       const q = userQuery.toLowerCase();
-      if (q.includes('swap') || q.includes('spot') || q.includes('trade') || q.includes('turn')) {
+      const isEs = language === 'es';
+      const isFr = language === 'fr';
+
+      if (q.includes('swap') || q.includes('spot') || q.includes('trade') || q.includes('turn') || q.includes('turno') || q.includes('intercamb') || q.includes('tour') || q.includes('échange')) {
+        if (isEs) {
+          return {
+            spokenText: "Para intercambiar tu turno de cobro, abre los detalles de tu grupo activo, ve a la pestaña Rotación y pulsa Solicitar Intercambio junto a cualquier miembro. Ambos deben aceptar para confirmar.",
+            displayText: "### 🔄 Cómo Funcionan los Intercambios de Turno\n\n1. Ve a **Mis Grupos** y abre tu grupo activo.\n2. Navega a la pestaña **Rotación**.\n3. Haz clic en **'Solicitar Intercambio'** junto al turno de otro compañero.\n4. Cuando el otro miembro acepte, el calendario se actualiza automáticamente sin penalizaciones.",
+            suggestedActions: [
+              { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" },
+              { label: "¿Cómo funciona la rotación fija?", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la rotación fija?" }
+            ],
+            navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Pour échanger votre tour de versement, ouvrez votre groupe actif, allez dans l'onglet Rotation et cliquez sur Échanger le tour. Les deux membres doivent approuver pour confirmer.",
+            displayText: "### 🔄 Fonctionnement des Échanges de Tours\n\n1. Rendez-vous dans **Mes Groupes** et ouvrez votre groupe actif.\n2. Accédez à l'onglet **Rotation**.\n3. Cliquez sur **'Demander un Échange'** à côté du tour d'un autre membre.\n4. Dès validation mutuelle, le calendrier est mis à jour sans pénalité.",
+            suggestedActions: [
+              { label: "Voir Mes Groupes", action: "NAVIGATE_TAB", tab: "my-pods" },
+              { label: "Rotation fixe", action: "SPEAK_EXPLANATION", prompt: "Comment fonctionne la rotation fixe ?" }
+            ],
+            navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
+          };
+        }
         return {
           spokenText: "To swap your payout spot, open your active Pod details, go to the Rotation tab, and click Swap Spot next to any available member. Both members must approve the request to finalize the swap.",
           displayText: "### 🔄 How Spot Swaps Work\n\n1. Go to **My Pods** and open your active Pod.\n2. Navigate to the **Rotation** tab.\n3. Click **'Request Spot Swap'** next to another member's rotation slot.\n4. Once the other member accepts, the payout schedule updates automatically with no penalty.",
@@ -3812,7 +3838,30 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
         };
       }
-      if (q.includes('perk') || q.includes('discount') || q.includes('gas') || q.includes('oil') || q.includes('tire') || q.includes('tax') || q.includes('repair')) {
+
+      if (q.includes('perk') || q.includes('discount') || q.includes('gas') || q.includes('oil') || q.includes('tire') || q.includes('tax') || q.includes('repair') || q.includes('ventaja') || q.includes('beneficio') || q.includes('gasolina') || q.includes('aceite') || q.includes('llanta') || q.includes('avantage') || q.includes('réduction') || q.includes('essence') || q.includes('pneu')) {
+        if (isEs) {
+          return {
+            spokenText: "Nuestro Mercado de Ventajas ofrece descuentos exclusivos en reparaciones mecánicas, cambio de aceite, auxilio vial y declaración de impuestos para repartidores 1099.",
+            displayText: "### 🎁 Mercado de Ventajas para Repartidores\n\nAhorra en gastos esenciales del trabajo:\n- **Mantenimiento y Neumáticos** (Meineke, Jiffy Lube)\n- **Auxilio Vial** y Grúa de Emergencia\n- **Impuestos y Deducciones** para trabajadores independientes\n- **Planes de Salud y Telemedicina**",
+            suggestedActions: [
+              { label: "Abrir Ventajas", action: "NAVIGATE_TAB", tab: "perks" },
+              { label: "Canjear Beneficio", action: "NAVIGATE_TAB", tab: "perks" }
+            ],
+            navigationAction: { type: "NAVIGATE_TAB", target: "perks" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Notre espace Avantages propose des réductions exclusives sur l'entretien auto, les vidanges, l'assistance dépannage et l'aide fiscale pour les livreurs et chauffeurs.",
+            displayText: "### 🎁 Espace Avantages Gig\n\nÉconomisez sur vos dépenses essentielles :\n- **Entretien Auto & Pneus** (Meineke, Jiffy Lube)\n- **Assistance Dépannage** & Remorquage d'urgence\n- **Gestion Fiscale & Suivi Kilométrique**\n- **Micro-assurances Santé & Téléconsultation**",
+            suggestedActions: [
+              { label: "Ouvrir les Avantages", action: "NAVIGATE_TAB", tab: "perks" },
+              { label: "Utiliser un Avantage", action: "NAVIGATE_TAB", tab: "perks" }
+            ],
+            navigationAction: { type: "NAVIGATE_TAB", target: "perks" }
+          };
+        }
         return {
           spokenText: "Our Gig Perks Marketplace offers exclusive savings on auto repairs, oil changes, roadside assistance, and tax preparation tailored for 1099 couriers. Let's look at the marketplace now.",
           displayText: "### 🎁 Gig Perks Marketplace\n\nSave on essential gig work expenses:\n- **Auto Maintenance & Tires** (Meineke, Jiffy Lube)\n- **Roadside Assistance** & Emergency Towing\n- **Tax Prep & Mileage Tracking** for 1099 drivers\n- **Healthcare & Telehealth** micro-plans",
@@ -3823,7 +3872,30 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           navigationAction: { type: "NAVIGATE_TAB", target: "perks" }
         };
       }
-      if (q.includes('create') || q.includes('new pod') || q.includes('start pod')) {
+
+      if (q.includes('create') || q.includes('new pod') || q.includes('start pod') || q.includes('crear') || q.includes('nuevo grupo') || q.includes('iniciar') || q.includes('créer') || q.includes('nouveau groupe')) {
+        if (isEs) {
+          return {
+            spokenText: "Para iniciar un nuevo grupo, pulsa Crear Grupo arriba. Puedes elegir un Círculo de Confianza para tus compañeros o un Grupo Abierto con verificación automática de identidad.",
+            displayText: "### 🚀 Crear un Grupo de Ahorro\n\n1. Haz clic en **+ Iniciar Grupo** en la parte superior.\n2. Elige **Círculo de Confianza** (amigos/familiares) o **Grupo Abierto** (repartidores verificados con KYC).\n3. Define el monto del pozo, el depósito semanal (ej. $50/sem) y la duración del ciclo.",
+            suggestedActions: [
+              { label: "Crear un Grupo Ahora", action: "OPEN_MODAL", modal: "CREATE_POD" },
+              { label: "Explorar Grupos Abiertos", action: "NAVIGATE_TAB", tab: "explore-pods" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Pour créer un groupe, cliquez sur Créer un Groupe en haut. Vous pouvez choisir un Cercle de Confiance ou un Groupe Ouvert avec vérification d'identité KYC.",
+            displayText: "### 🚀 Créer un Groupe d'Épargne\n\n1. Cliquez sur **+ Créer un Groupe** dans l'en-tête.\n2. Choisissez **Cercle de Confiance** (invitation uniquement) ou **Groupe Ouvert** (membres vérifiés KYC).\n3. Définissez le montant cible, la cotisation hebdomadaire et la durée du cycle.",
+            suggestedActions: [
+              { label: "Créer un Groupe", action: "OPEN_MODAL", modal: "CREATE_POD" },
+              { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+          };
+        }
         return {
           spokenText: "To start a new Pod, click Create Pod at the top. You can choose a Trusted Circle for your trusted contacts or an Open Pod with automated KYC verification.",
           displayText: "### 🚀 Creating a Savings Pod\n\n1. Click **+ Create Pod** in the dashboard header.\n2. Select **Trusted Circle** (invite-only, family/friends) or **Open Pod** (KYC-verified gig couriers).\n3. Set your target amount, weekly deposit (e.g. $50/wk), and cycle length.",
@@ -3834,7 +3906,30 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
         };
       }
-      if (q.includes('campaign') || q.includes('advertiser') || q.includes('wrap') || q.includes('brand') || q.includes('shift')) {
+
+      if (q.includes('campaign') || q.includes('advertiser') || q.includes('wrap') || q.includes('brand') || q.includes('shift') || q.includes('publicidad') || q.includes('embajador') || q.includes('vehículo') || q.includes('campagne') || q.includes('publicité') || q.includes('ambassadeur')) {
+        if (isEs) {
+          return {
+            spokenText: "Con el programa de Embajadores de Marca, los conductores ganan dinero extra llevando publicidad verificada en su vehículo durante sus turnos de entrega.",
+            displayText: "### 🚗 Campañas de Publicidad y Embajadores de Marca\n\n- Gana de $50 a $150/semana adicionales a tus ingresos de reparto.\n- Registra tus turnos con verificación GPS y fotografía.\n- Depósito directo a tu cuenta protegida por Stripe Treasury.",
+            suggestedActions: [
+              { label: "Ver Campañas Activas", action: "NAVIGATE_TAB", tab: "campaigns" },
+              { label: "Portal de Anunciantes", action: "OPEN_ADVERTISER" }
+            ],
+            navigationAction: { type: "NAVIGATE_TAB", target: "campaigns" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Grâce au programme Ambassadeur de Marque, les chauffeurs gagnent un revenu supplémentaire en affichant une publicité sur leur véhicule pendant leurs livraisons.",
+            displayText: "### 🚗 Campagnes Publicitaires Véhicule & Ambassadeurs\n\n- Gagnez 50$ à 150$/semaine en plus de vos courses habituelles.\n- Validez vos créneaux avec géolocalisation et photo.\n- Versement direct sur votre compte Stripe Treasury.",
+            suggestedActions: [
+              { label: "Voir les Campagnes", action: "NAVIGATE_TAB", tab: "campaigns" },
+              { label: "Portail Annonceurs", action: "OPEN_ADVERTISER" }
+            ],
+            navigationAction: { type: "NAVIGATE_TAB", target: "campaigns" }
+          };
+        }
         return {
           spokenText: "Through our Brand Ambassador program, gig drivers earn extra income by displaying verified vehicle wraps or apparel during active delivery shifts. Payouts deposit directly into your Treasury.",
           displayText: "### 🚗 Brand Ambassador & Vehicle Wrap Campaigns\n\n- Earn $50-$150/week on top of your delivery earnings.\n- Check in for shifts with GPS and photo verification.\n- Direct deposit straight to your FDIC pass-through Treasury balance.",
@@ -3845,7 +3940,30 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           navigationAction: { type: "NAVIGATE_TAB", target: "campaigns" }
         };
       }
-      if (q.includes('treasury') || q.includes('bank') || q.includes('fdic') || q.includes('stripe') || q.includes('balance') || q.includes('payout')) {
+
+      if (q.includes('treasury') || q.includes('bank') || q.includes('fdic') || q.includes('stripe') || q.includes('balance') || q.includes('payout') || q.includes('banco') || q.includes('saldo') || q.includes('seguro') || q.includes('banque') || q.includes('solde')) {
+        if (isEs) {
+          return {
+            spokenText: "Tu cuenta de MutualPool Treasury es una cuenta dedicada con seguro indirecto FDIC de hasta $250,000 mediante bancos asociados a Stripe Treasury.",
+            displayText: "### 🏦 Stripe Treasury y Seguro FDIC\n\n- Cuenta de custodia dedicada para tus ahorros semanales.\n- Elegible para seguro indirecto FDIC hasta $250,000.\n- Transferencias directas a tu cuenta bancaria vinculada.",
+            suggestedActions: [
+              { label: "Administrar Banco y Treasury", action: "OPEN_MODAL", modal: "BANK" },
+              { label: "Verificar Identidad (KYC)", action: "OPEN_MODAL", modal: "KYC" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "BANK" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Votre compte MutualPool Treasury est un compte dédié éligible à la garantie indirecte FDIC jusqu'à 250 000 $ via les banques partenaires de Stripe Treasury.",
+            displayText: "### 🏦 Stripe Treasury & Garantie FDIC\n\n- Compte sécurisé dédié pour vos dépôts d'épargne hebdomadaires.\n- Éligibilité à la protection FDIC jusqu'à 250 000 $.\n- Versements rapides vers votre compte bancaire lié.",
+            suggestedActions: [
+              { label: "Gérer la Banque & Treasury", action: "OPEN_MODAL", modal: "BANK" },
+              { label: "Vérifier l'Identité (KYC)", action: "OPEN_MODAL", modal: "KYC" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "BANK" }
+          };
+        }
         return {
           spokenText: "Your MutualPool Treasury is a dedicated account eligible for FDIC pass-through insurance up to $250,000 via Stripe Treasury partner banks. Your weekly pool payouts deposit automatically here.",
           displayText: "### 🏦 Stripe Treasury & FDIC Pass-Through\n\n- Dedicated holding account for weekly pool deposits.\n- Pass-through FDIC insurance eligibility up to $250,000.\n- Instant payouts to your linked external checking account or debit card.",
@@ -3856,7 +3974,28 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           navigationAction: { type: "OPEN_MODAL", target: "BANK" }
         };
       }
-      if (q.includes('hardship') || q.includes('emergency') || q.includes('miss') || q.includes('late') || q.includes('delinquent')) {
+
+      if (q.includes('hardship') || q.includes('emergency') || q.includes('miss') || q.includes('late') || q.includes('delinquent') || q.includes('emergencia') || q.includes('dificultad') || q.includes('avería') || q.includes('urgence') || q.includes('panne')) {
+        if (isEs) {
+          return {
+            spokenText: "Si sufres una avería imprevista en tu vehículo o una baja de ingresos, puedes solicitar ayuda al Fondo de Solidaridad de MutualPool para cubrir tu depósito sin perder tu posición.",
+            displayText: "### 🛡️ Protección y Fondo de Solidaridad\n\n- Fondos de emergencia para cubrir tu depósito durante reparaciones mecánicas.\n- Cero intereses abusivos — facilidades de pago justas.\n- Protege tu reputación y mantiene tu grupo activo.",
+            suggestedActions: [
+              { label: "Solicitar Ayuda de Emergencia", action: "OPEN_MODAL", modal: "HARDSHIP" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "HARDSHIP" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "En cas de panne de véhicule ou d'imprévu financier, vous pouvez solliciter le Fonds de Solidarité MutualPool pour couvrir votre dépôt sans perdre votre place.",
+            displayText: "### 🛡️ Protection & Fonds de Solidarité\n\n- Aide d'urgence pour couvrir vos cotisations en cas de réparation mécanique.\n- Aucun intérêt prédateur — conditions de remboursement souples.\n- Préserve votre réputation et le bon fonctionnement du groupe.",
+            suggestedActions: [
+              { label: "Demander une Aide d'Urgence", action: "OPEN_MODAL", modal: "HARDSHIP" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "HARDSHIP" }
+          };
+        }
         return {
           spokenText: "If you experience an unexpected vehicle breakdown or income disruption, you can request support from the MutualPool Hardship Fund to cover your weekly deposit without losing your pod standing.",
           displayText: "### 🛡️ MutualPool Hardship Protection\n\n- Emergency bridge funds to cover deposit during vehicle repairs.\n- Zero predatory interest — simple repayment terms.\n- Protects your reputation score and keeps your pod running smoothly.",
@@ -3866,8 +4005,35 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           navigationAction: { type: "OPEN_MODAL", target: "HARDSHIP" }
         };
       }
+
+      if (isEs) {
+        return {
+          spokenText: `¡Hola ${userName}! Soy Lainie, tu Guía de IA de MutualPool. Pregúntame sobre cómo funcionan los grupos de ahorro, cómo intercambiar turnos, acceder a ventajas para repartidores o ganar dinero con publicidad en vehículos.`,
+          displayText: `### 🎙️ Asistente de Voz Lainie AI\n\nPuedo orientarte en todas las funciones:\n- **Grupos de Ahorro Rotativo** (Círculos de Confianza vs Grupos Abiertos)\n- **Intercambio de Turnos de Cobro**\n- **Mercado de Ventajas** (Descuentos en talleres, gasolina, impuestos)\n- **Campañas para Embajadores de Marca** (Gana mientras conduces)\n- **Cuenta Stripe Treasury y Protección FDIC**`,
+          suggestedActions: [
+            { label: "¿Cómo funciona la rotación fija?", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la rotación fija?" },
+            { label: "Explorar Grupos", action: "NAVIGATE_TAB", tab: "explore-pods" },
+            { label: "Ver Ventajas", action: "NAVIGATE_TAB", tab: "perks" }
+          ],
+          navigationAction: null
+        };
+      }
+
+      if (isFr) {
+        return {
+          spokenText: `Bonjour ${userName} ! Je suis Lainie, votre Guide IA MutualPool. Posez-moi des questions sur les groupes d'épargne, les échanges de tours, les avantages ou les campagnes publicitaires sur véhicule.`,
+          displayText: `### 🎙️ Assistant Vocal Lainie AI\n\nJe peux vous guider sur l'ensemble des fonctionnalités :\n- **Groupes d'Épargne Rotative** (Cercles de Confiance vs Groupes Ouverts)\n- **Échanges de Tours de Versement**\n- **Espace Avantages Travailleurs Gig** (Réductions réparations, carburant, impôts)\n- **Campagnes Ambassadeurs de Marque** (Gagnez en roulant)\n- **Compte Stripe Treasury & Garantie FDIC**`,
+          suggestedActions: [
+            { label: "Comment fonctionne la rotation ?", action: "SPEAK_EXPLANATION", prompt: "Comment fonctionne la rotation fixe ?" },
+            { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" },
+            { label: "Voir les Avantages", action: "NAVIGATE_TAB", tab: "perks" }
+          ],
+          navigationAction: null
+        };
+      }
+
       return {
-        spokenText: `Welcome ${userName}! I'm your MutualPool Voice Assistant. You can ask me how savings pods work, how to swap payout spots, how to access gig worker perks, or how to earn with vehicle wrap campaigns.`,
+        spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. You can ask me how savings pods work, how to swap payout spots, how to access gig worker perks, or how to earn with vehicle wrap campaigns.`,
         displayText: `### 🎙️ MutualPool Voice Assistant\n\nI can help guide you through every feature:\n- **Rotating Savings Pods** (Trusted Circles vs Open Pods)\n- **Spot Swaps & Payout Rotations**\n- **Gig Perks Marketplace** (Discounts on repair, gas, tax prep)\n- **Brand Ambassador Campaigns** (Earn while driving)\n- **Stripe Treasury & FDIC Pass-Through Account**`,
         suggestedActions: [
           { label: "How does fixed rotation work?", action: "SPEAK_EXPLANATION", prompt: "How does fixed rotation work?" },
@@ -3879,12 +4045,20 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
     };
 
     if (!client) {
-      const fallback = fallbackKnowledge(query);
+      const fallback = fallbackKnowledge(query, lang);
       return res.json(fallback);
     }
 
-    const systemInstruction = `You are "Aria", the intelligent, friendly on-screen Voice AI Guide for MutualPool (mutualpool.org).
+    const languageInstruction = lang === 'es' 
+      ? 'MANDATORY LANGUAGE: The user\'s interface language is Spanish (Español). You MUST generate "spokenText", "displayText", and "suggestedActions[].label" completely in Spanish.'
+      : lang === 'fr'
+      ? 'MANDATORY LANGUAGE: The user\'s interface language is French (Français). You MUST generate "spokenText", "displayText", and "suggestedActions[].label" completely in French.'
+      : 'MANDATORY LANGUAGE: The user\'s interface language is English. Respond in English.';
+
+    const systemInstruction = `You are "Lainie", the intelligent, friendly on-screen Voice AI Guide for MutualPool (mutualpool.org).
 MutualPool is a collaborative savings and gig economy perks platform built for 1099 couriers, rideshare drivers, and independent workers.
+
+${languageInstruction}
 
 Key platform concepts:
 1. Rotating Savings Pods (ROSCAs / Tandas / Susu):
@@ -3911,7 +4085,7 @@ Instructions for your response:
   - {"type": "NAVIGATE_TAB", "target": "my-pods" | "explore-pods" | "perks" | "campaigns" | "audit-log" | "admin-ops"}
   - {"type": "OPEN_MODAL", "target": "CREATE_POD" | "KYC" | "BANK" | "HARDSHIP" | "ABOUT" | "HOW_IT_WORKS" | "CONTACT"}
   - {"type": "OPEN_ADVERTISER"}
-- Provide 2-3 helpful "suggestedActions" pills for one-tap follow-ups.
+- Provide 2-3 helpful "suggestedActions" pills for one-tap follow-ups (in the user's selected language: ${lang}).
 
 Current user context:
 - User Name: ${userName}
@@ -3919,6 +4093,7 @@ Current user context:
 - Active Tab: ${activeTab}
 - Treasury Balance: $${treasuryBalance.toFixed(2)}
 - Active Pods: ${activePodsCount}
+- Language: ${lang}
 
 Output MUST be strictly valid JSON matching this schema:
 {
@@ -3943,14 +4118,30 @@ Output MUST be strictly valid JSON matching this schema:
     try {
       parsedData = JSON.parse(responseText);
     } catch {
-      parsedData = fallbackKnowledge(query);
+      parsedData = fallbackKnowledge(query, lang);
     }
 
     res.json(parsedData);
   } catch (err: any) {
     console.error('Error generating voice guide response:', err);
-    // Graceful fallback
-    const fallback = {
+    const lang = req.body?.currentContext?.language || 'en';
+    const fallback = (lang === 'es') ? {
+      spokenText: "Estoy aquí para ayudarte a usar MutualPool. Puedes explorar grupos de ahorro activos, descubrir ventajas para repartidores o crear tu propio grupo.",
+      displayText: "### 🎙️ Asistente de Voz Lainie AI\n\nPuedo ayudarte con:\n- **Grupos de Ahorro y Turnos de Cobro**\n- **Mercado de Ventajas y Beneficios**\n- **Ganancias como Embajador de Marca**\n- **Cuentas Stripe Treasury y Seguro FDIC**",
+      suggestedActions: [
+        { label: "Explorar Grupos de Ahorro", action: "NAVIGATE_TAB", tab: "explore-pods" },
+        { label: "Ver Ventajas", action: "NAVIGATE_TAB", tab: "perks" }
+      ],
+      navigationAction: null
+    } : (lang === 'fr') ? {
+      spokenText: "Je suis là pour vous aider à utiliser MutualPool. Vous pouvez explorer les groupes d'épargne actifs, découvrir les avantages ou créer votre propre groupe.",
+      displayText: "### 🎙️ Assistant Vocal Lainie AI\n\nJe peux vous guider sur :\n- **Groupes d'Épargne & Rotations**\n- **Espace Avantages Travailleurs Gig**\n- **Rémunération Ambassadeurs de Marque**\n- **Comptes Stripe Treasury & Protection FDIC**",
+      suggestedActions: [
+        { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" },
+        { label: "Voir les Avantages", action: "NAVIGATE_TAB", tab: "perks" }
+      ],
+      navigationAction: null
+    } : {
       spokenText: "I'm here to help you navigate MutualPool. You can explore active savings pods, check out merchant perks, or start your own pool anytime.",
       displayText: "### 🎙️ MutualPool Voice Assistant\n\nI can help guide you through:\n- **Savings Pods & Payout Rotations**\n- **Gig Perks Marketplace**\n- **Brand Ambassador Earnings**\n- **Stripe Treasury & FDIC Accounts**",
       suggestedActions: [
