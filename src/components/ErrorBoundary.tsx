@@ -16,8 +16,18 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    const msg = error?.message || '';
-    if (msg.includes('MetaMask') || msg.includes('ethereum') || msg.includes('extension')) {
+    const msg = (error?.message || '') + ' ' + (error?.stack || '');
+    const lower = msg.toLowerCase();
+    if (
+      lower.includes('metamask') ||
+      lower.includes('ethereum') ||
+      lower.includes('extension') ||
+      lower.includes('inpage.js') ||
+      lower.includes('contentscript') ||
+      lower.includes('resetting the streams') ||
+      lower.includes('error restoring session') ||
+      lower.includes('failed to connect to metamask')
+    ) {
       return { hasError: false, error: null };
     }
     return { hasError: true, error };

@@ -222,8 +222,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
       const baseDepositAmount = Number(depositTier);
       const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
       const totalChargedAmount = baseDepositAmount + platformFee;
-      // Guarantee $20 First-Cycle Contingency Buffer match for all new pods
-      const welcomeMatchAmount = Math.max(20, Math.min(baseDepositAmount, 20));
+      // 100% Deposit Tier Welcome Match for all new verified pods
+      const welcomeMatchAmount = baseDepositAmount;
 
       // If backend didn't return created pod, perform client-side creation
       if (!podData) {
@@ -401,14 +401,14 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-sm text-emerald-900">
                     <Sparkles className="w-4 h-4 text-emerald-600 fill-emerald-600 shrink-0" />
-                    <span>{t('createPod.welcomeMatchTitle')}</span>
+                    <span>{t('createPod.welcomeMatchTitle', { amount: depositTier })}</span>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider shrink-0">
                     {t('createPod.platformFundedBadge')}
                   </span>
                 </div>
                 <p className="text-xs text-emerald-800 leading-relaxed">
-                  {t('createPod.welcomeMatchDesc', { amount: Math.min(depositTier, 20) })}
+                  {t('createPod.welcomeMatchDesc', { amount: depositTier })}
                 </p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold text-emerald-700 pt-1 border-t border-emerald-200/60">
                   <span className="flex items-center gap-1">
@@ -1003,7 +1003,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <div className="mt-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-2 font-medium">
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
-                    {t('createPod.welcomeMatchBanner')}
+                    {t('createPod.welcomeMatchBanner', { amount: depositTier })}
                   </span>
                 </div>
               )}

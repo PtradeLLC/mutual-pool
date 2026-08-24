@@ -1602,11 +1602,11 @@ app.use((req, res, next) => {
     const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
     const totalChargedAmount = baseDepositAmount + platformFee;
 
-    // Check Welcome Match Eligibility (Up to $20 match for verified KYC first pod creation)
+    // Check Welcome Match Eligibility (Matches 100% of selected deposit tier for verified KYC first pod creation)
     const creatorUser = users.find(u => u.id === user.id);
     const isKycVerified = user.kycStatus === 'VERIFIED' || creatorUser?.kycStatus === 'VERIFIED';
     const isEligibleForWelcomeMatch = isKycVerified && !creatorUser?.welcomeMatchReceived;
-    const welcomeMatchAmount = isEligibleForWelcomeMatch ? Math.min(baseDepositAmount, 20) : 0;
+    const welcomeMatchAmount = isEligibleForWelcomeMatch ? baseDepositAmount : 0;
 
     // Deduct initial total deposit payment from creator's treasury balance if available
     if (creatorUser) {

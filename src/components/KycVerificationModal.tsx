@@ -246,7 +246,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
             </li>
             <li className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong>$20 Welcome Match Unlocked:</strong> Immediately qualifies your account for a 100% platform-funded match on your first pod.</span>
+              <span><strong>Deposit Tier Welcome Match Unlocked:</strong> Immediately qualifies your account for a 100% platform-funded match equal to your deposit tier on your first pod.</span>
             </li>
           </ul>
         </div>

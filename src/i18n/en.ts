@@ -154,7 +154,7 @@ export const en = {
   'dash.activeTreasury': 'Active Treasury',
   'dash.contingencyMatch': '1st-Cycle Contingency Match',
   'dash.contingencyCredited': '+${amount}.00 Credited',
-  'dash.contingencyAvailable': '$20 Available on 1st Pod',
+  'dash.contingencyAvailable': '100% Tier Match on 1st Pod',
   'dash.completedPodCycles': 'Completed Pod Cycles',
   'dash.completedCount': '{count} Completed',
   'dash.searchPods': 'Search pods by name, driver type, or amount...',
@@ -185,7 +185,7 @@ export const en = {
 
   // Header specific labels
   'header.stripeTreasuryBalance': 'Stripe Treasury Balance',
-  'header.welcomeMatchPill': '+$20.00 Welcome Match',
+  'header.welcomeMatchPill': 'Deposit Tier Welcome Match',
   'header.editProfile': 'Edit Profile, Fleet & Role',
   'header.advertiserPortal': 'Advertiser & Campaign Metrics',
   'header.mediaKit': 'Advertise with Us',
@@ -360,9 +360,9 @@ export const en = {
   // Create Pod Modal
   'createPod.modalTitle': 'Create New Mutual Savings Pod',
   'createPod.modalSubtitle': 'Fixed-Rotation Pod with Stripe Treasury Balance',
-  'createPod.welcomeMatchTitle': '$20 Founding Member Welcome Match & Contingency Buffer',
+  'createPod.welcomeMatchTitle': '+${amount}.00 Founding Member Welcome Match & Contingency Buffer',
   'createPod.platformFundedBadge': '100% Platform Funded',
-  'createPod.welcomeMatchDesc': 'Mutual Pool matches up to ${amount}.00 on your first pod creation deposit! This promotional credit goes directly into your pod\'s First-Cycle Contingency Buffer to guarantee rotation stability if any member misses a deposit during Cycle 1.',
+  'createPod.welcomeMatchDesc': 'Mutual Pool matches 100% of your selected deposit tier (+${amount}.00) on your first pod creation! This promotional credit goes directly into your pod\'s First-Cycle Contingency Buffer to guarantee rotation stability if any member misses a deposit during Cycle 1.',
   'createPod.verifiedKycQualified': 'Verified KYC Account Qualified',
   'createPod.requiresKyc': 'Requires Verified KYC Account',
   'createPod.nonWithdrawalBuffer': 'Non-Withdrawal Pod Buffer',
@@ -452,7 +452,7 @@ export const en = {
   'createPod.initialWeeklyDepositSummary': 'Initial Weekly Deposit ({size} Members @ ${deposit}/wk)',
   'createPod.stripeFeeSummary': 'Stripe Treasury & Platform Reserve Fee (5%)',
   'createPod.totalDueNow': 'Total Due Now',
-  'createPod.welcomeMatchBanner': '🎁 +$20.00 Welcome Match will be funded automatically by Mutual Pool directly into your Pod First-Cycle Contingency Reserve!',
+  'createPod.welcomeMatchBanner': '🎁 +${amount}.00 Welcome Match (100% deposit tier match) will be funded automatically by Mutual Pool directly into your Pod First-Cycle Contingency Reserve!',
   'createPod.selectPaymentMethod': 'Select Payment Method',
   'createPod.savedCard': '💳 Saved Visa (4242)',
   'createPod.newCard': '➕ New Card',

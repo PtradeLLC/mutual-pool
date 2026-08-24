@@ -865,7 +865,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     )}
                   </div>
                   <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
-                    100% Platform-Funded by Mutual Pool Welcome Match (${pod.welcomeMatchAmountUsd || 20}.00). Automatically covers member deposit gaps during Cycle 1 so rotation payout timeline stays on schedule.
+                    100% Platform-Funded by Mutual Pool Welcome Match (${(pod.welcomeMatchAmountUsd || pod.contingencyBufferInitialUsd || pod.depositTier || 20).toFixed(2)}). Automatically covers member deposit gaps during Cycle 1 so rotation payout timeline stays on schedule.
                   </p>
                 </div>
               </div>

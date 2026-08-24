@@ -167,9 +167,9 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] pt-1">
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
-              <strong className="text-emerald-950 block font-bold">🎁 $20 First Deposit Match</strong>
+              <strong className="text-emerald-950 block font-bold">🎁 100% First Deposit Match</strong>
               <p className="text-emerald-800">
-                When a verified KYC member creates their first pod, Mutual Pool matches their first deposit up to $20.00.
+                When a verified KYC member creates their first pod, Mutual Pool matches 100% of their selected deposit tier.
               </p>
             </div>
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
@@ -389,7 +389,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
             </h4>
             <ul className="space-y-1.5 text-[#374151] list-disc list-inside text-[11px]">
               <li>A missed weekly deposit is flagged immediately and the member is marked delinquent with a 24-hour grace window.</li>
-              <li><strong>First-Cycle Contingency Buffer:</strong> For new pods, the platform-funded $20 Welcome Match buffer automatically covers missed deposit gaps during Cycle 1 to ensure payout continuity.</li>
+              <li><strong>First-Cycle Contingency Buffer:</strong> For new pods, the platform-funded Welcome Match buffer (equal to 100% of the deposit tier) automatically covers missed deposit gaps during Cycle 1 to ensure payout continuity.</li>
               <li>Your pod's signed agreement spells out backup rules if the buffer is exhausted: whether remaining members cover the gap, payout is adjusted, or delinquent members are replaced.</li>
               <li>Repeated missed payments affect your ability to join or create pods in the future, including Open Pods.</li>
             </ul>

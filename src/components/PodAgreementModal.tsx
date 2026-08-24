@@ -159,7 +159,7 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
           <section>
             <h4 className="font-bold text-[#111827] text-sm mb-1">6. Mutual Pool First Deposit Welcome Match & Contingency Buffer</h4>
             <p>
-              For new pod creators with verified KYC accounts, Mutual Pool provides a 100% platform-funded Welcome Match up to $20.00. This non-withdrawable promotional credit is deposited directly into the pod's First-Cycle Contingency Buffer to safeguard rotation payout schedules against missed deposits during Cycle 1. If the pod disbands prior to activation, unspent match funds revert to Mutual Pool Treasury.
+              For new pod creators with verified KYC accounts, Mutual Pool provides a 100% platform-funded Welcome Match equal to the pod deposit tier (${(pod.welcomeMatchAmountUsd || pod.contingencyBufferInitialUsd || pod.depositTier || 20).toFixed(2)}). This non-withdrawable promotional credit is deposited directly into the pod's First-Cycle Contingency Buffer to safeguard rotation payout schedules against missed deposits during Cycle 1. If the pod disbands prior to activation, unspent match funds revert to Mutual Pool Treasury.
             </p>
           </section>
         </div>

@@ -156,7 +156,7 @@ export const fr: Record<TranslationKey, string> = {
   'dash.activeTreasury': 'Séquestre Actif',
   'dash.contingencyMatch': 'Aide de Continuité 1er Cycle',
   'dash.contingencyCredited': '+${amount}.00 Crédité',
-  'dash.contingencyAvailable': '20 $ Disponibles au 1er Pod',
+  'dash.contingencyAvailable': '100% d\'Abondement au 1er Pod',
   'dash.completedPodCycles': 'Cycles de Pods Terminés',
   'dash.completedCount': '{count} Terminés',
   'dash.searchPods': 'Rechercher par nom, plateforme ou montant...',
@@ -187,7 +187,7 @@ export const fr: Record<TranslationKey, string> = {
 
   // Header specific labels
   'header.stripeTreasuryBalance': 'Solde Stripe Treasury',
-  'header.welcomeMatchPill': '+20.00 $ Prime de Bienvenue',
+  'header.welcomeMatchPill': 'Prime de Bienvenue par Palier',
   'header.editProfile': 'Modifier Profil, Flotte & Rôle',
   'header.advertiserPortal': 'Portail Annonceur & Métriques',
   'header.mediaKit': 'Annoncez avec Nous',
@@ -362,9 +362,9 @@ export const fr: Record<TranslationKey, string> = {
   // Create Pod Modal (Créer un Groupe d'Épargne Mutuelle)
   'createPod.modalTitle': 'Créer un Nouveau Groupe d\'Épargne Mutuelle',
   'createPod.modalSubtitle': 'Groupe à rotation fixe adossé à un compte Stripe Treasury',
-  'createPod.welcomeMatchTitle': 'Bonus de Bienvenue de 20 $ & Fonds de Réserve pour Membres Fondateurs',
+  'createPod.welcomeMatchTitle': '+${amount}.00 $ Prime de Bienvenue & Fonds de Réserve Fondateurs',
   'createPod.platformFundedBadge': '100 % Financé par la Plateforme',
-  'createPod.welcomeMatchDesc': 'Mutual Pool abonde jusqu\'à ${amount}.00 sur votre premier dépôt de création de groupe ! Ce crédit promotionnel est versé directement dans le Fonds de Réserve du Cycle 1 afin de garantir la stabilité des versements en cas d\'impayé.',
+  'createPod.welcomeMatchDesc': 'Mutual Pool abonde à 100 % votre palier de versement sélectionné (+${amount}.00 $) sur votre premier dépôt de création de groupe ! Ce crédit promotionnel est versé directement dans le Fonds de Réserve du Cycle 1 afin de garantir la stabilité des versements en cas d\'impayé.',
   'createPod.verifiedKycQualified': 'Compte vérifié KYC éligible',
   'createPod.requiresKyc': 'Compte vérifié KYC requis',
   'createPod.nonWithdrawalBuffer': 'Réserve Non Retirable du Groupe',
@@ -454,7 +454,7 @@ export const fr: Record<TranslationKey, string> = {
   'createPod.initialWeeklyDepositSummary': 'Dépôt Hebdomadaire Initial ({size} Membres @ ${deposit}/sem)',
   'createPod.stripeFeeSummary': 'Frais Stripe Treasury & Réserve de Plateforme (5 %)',
   'createPod.totalDueNow': 'Total à Payer Immédiatement',
-  'createPod.welcomeMatchBanner': '🎁 +20.00 $ de Bonus de Bienvenue seront versés automatiquement par MutualPool dans la Réserve de Contingence de votre Groupe !',
+  'createPod.welcomeMatchBanner': '🎁 +${amount}.00 $ de Prime de Bienvenue (100 % de votre palier) seront versés automatiquement par MutualPool dans la Réserve de Contingence de votre Groupe !',
   'createPod.selectPaymentMethod': 'Choisir le Mode de Paiement',
   'createPod.savedCard': '💳 Visa Enregistrée (4242)',
   'createPod.newCard': '➕ Nouvelle Carte',

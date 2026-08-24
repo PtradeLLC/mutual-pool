@@ -156,7 +156,7 @@ export const es: Record<TranslationKey, string> = {
   'dash.activeTreasury': 'Custodia Activa',
   'dash.contingencyMatch': 'Bono de Contingencia 1.er Ciclo',
   'dash.contingencyCredited': '+${amount}.00 Acreditado',
-  'dash.contingencyAvailable': '$20 Disponibles en 1.er Grupo',
+  'dash.contingencyAvailable': '100% Coincidencia en 1.er Grupo',
   'dash.completedPodCycles': 'Ciclos de Grupos Completados',
   'dash.completedCount': '{count} Completados',
   'dash.searchPods': 'Buscar grupos por nombre, tipo de conductor o monto...',
@@ -187,7 +187,7 @@ export const es: Record<TranslationKey, string> = {
 
   // Header specific labels
   'header.stripeTreasuryBalance': 'Saldo Stripe Treasury',
-  'header.welcomeMatchPill': '+$20.00 Bono de Bienvenida',
+  'header.welcomeMatchPill': 'Bono de Bienvenida por Nivel',
   'header.editProfile': 'Editar Perfil, Flota y Rol',
   'header.advertiserPortal': 'Métricas de Anunciante y Campañas',
   'header.mediaKit': 'Anúnciate con Nosotros',
@@ -362,9 +362,9 @@ export const es: Record<TranslationKey, string> = {
   // Create Pod Modal (Crear Grupo de Ahorro Mutuo)
   'createPod.modalTitle': 'Crear Nuevo Grupo de Ahorro Mutuo',
   'createPod.modalSubtitle': 'Grupo de rotación fija respaldado por Stripe Treasury',
-  'createPod.welcomeMatchTitle': 'Bono de Bienvenida de $20 y Fondo de Contingencia para Fundadores',
+  'createPod.welcomeMatchTitle': '+${amount}.00 Bono de Bienvenida y Fondo de Contingencia para Fundadores',
   'createPod.platformFundedBadge': '100% Financiado por la Plataforma',
-  'createPod.welcomeMatchDesc': '¡Mutual Pool iguala hasta ${amount}.00 en tu primer depósito de creación de grupo! Este crédito promocional se abona directamente al Fondo de Contingencia del Ciclo 1 para garantizar la estabilidad de la rotación si algún miembro se atrasa.',
+  'createPod.welcomeMatchDesc': '¡Mutual Pool iguala el 100% de tu nivel de depósito seleccionado (+${amount}.00) en tu primer grupo! Este crédito promocional se abona directamente al Fondo de Contingencia del Ciclo 1 para garantizar la estabilidad de la rotación si algún miembro se atrasa.',
   'createPod.verifiedKycQualified': 'Cuenta con KYC Verificada Calificada',
   'createPod.requiresKyc': 'Requiere Cuenta Verificada (KYC)',
   'createPod.nonWithdrawalBuffer': 'Reserva No Retirable del Grupo',
@@ -454,7 +454,7 @@ export const es: Record<TranslationKey, string> = {
   'createPod.initialWeeklyDepositSummary': 'Depósito Semanal Inicial ({size} Miembros @ ${deposit}/sem)',
   'createPod.stripeFeeSummary': 'Comisión de Reserva de Plataforma y Stripe Treasury (5%)',
   'createPod.totalDueNow': 'Total a Pagar Ahora',
-  'createPod.welcomeMatchBanner': '🎁 ¡MutualPool abonará automáticamente +$20.00 de Bono de Bienvenida directo al Fondo de Contingencia de tu Grupo!',
+  'createPod.welcomeMatchBanner': '🎁 ¡MutualPool abonará automáticamente +${amount}.00 de Bono de Bienvenida (100% de tu nivel) directo al Fondo de Contingencia de tu Grupo!',
   'createPod.selectPaymentMethod': 'Seleccionar Método de Pago',
   'createPod.savedCard': '💳 Visa Guardada (4242)',
   'createPod.newCard': '➕ Nueva Tarjeta',
