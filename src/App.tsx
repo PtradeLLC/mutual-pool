@@ -673,6 +673,123 @@ export default function App() {
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [inviteCodeError, setInviteCodeError] = useState<string | null>(null);
 
+  const activeUser: User = currentUser || {
+    id: 'usr_guest',
+    email: '',
+    displayName: 'Guest Member',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    platform: 'DoorDash',
+    role: 'RIDER',
+    accountAgeDays: 0,
+    kycStatus: 'VERIFIED',
+    treasury: {
+      stripeAccountId: '',
+      stripeFinAccountId: '',
+      balanceUsd: 0,
+      pendingInboundUsd: 0,
+      totalPayoutsReceivedUsd: 0,
+      fdicPassThroughEligible: false,
+      status: 'ACTIVE',
+    },
+    externalBank: {
+      bankName: '',
+      last4: '',
+      routingNumber: '',
+      accountType: 'CHECKING',
+      status: 'NOT_LINKED',
+    },
+    completedPodsCount: 0,
+  };
+
+  // Comprehensive Pod filtering to robustly match user by ID, Email, or Display Name across reloads
+  const myPods = useMemo(() => {
+    return allPods.filter(p => {
+      if (!p) return false;
+      // Unwrap if p was stored wrapped in Firestore as { pod: ... }
+      const pod: Pod = (p as any).pod && (p as any).pod.id ? (p as any).pod : p;
+      if (isDemoPod(pod)) return false;
+
+      const activeId = activeUser?.id;
+      const currentId = currentUser?.id;
+      const activeEmail = activeUser?.email?.trim().toLowerCase();
+      const currentEmail = currentUser?.email?.trim().toLowerCase();
+      const activeName = activeUser?.displayName?.trim().toLowerCase();
+      const currentName = currentUser?.displayName?.trim().toLowerCase();
+
+      // 0. Check if created or joined locally in this browser session for this user
+      if (typeof window !== 'undefined') {
+        try {
+          if (localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') {
+            return true;
+          }
+          const createdRaw = localStorage.getItem('mutualpool_created_pods');
+          if (createdRaw) {
+            const createdList: Pod[] = JSON.parse(createdRaw);
+            if (createdList.some(cp => cp.id === pod.id && (cp.createdBy === activeId || cp.createdBy === currentId))) return true;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // 1. Match creator ID or creator Display Name
+      if (activeId && pod.createdBy === activeId) return true;
+      if (currentId && pod.createdBy === currentId) return true;
+      if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
+      if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
+
+      // 2. Match members list by userId, email, or displayName
+      if (Array.isArray(pod.members)) {
+        return pod.members.some(m => {
+          if (!m) return false;
+          if (activeId && m.userId === activeId) return true;
+          if (currentId && m.userId === currentId) return true;
+          if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
+          if (currentEmail && (m as any).email && (m as any).email.trim().toLowerCase() === currentEmail) return true;
+          if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
+          if (currentName && m.displayName && m.displayName.trim().toLowerCase() === currentName) return true;
+          return false;
+        });
+      }
+
+      return false;
+    });
+  }, [allPods, activeUser?.id, activeUser?.email, activeUser?.displayName, currentUser?.id, currentUser?.email, currentUser?.displayName]);
+
+  // User-created forming pods
+  const userCreatedFormingPods = useMemo(() => {
+    return allPods.filter(p => !isDemoPod(p) && p.status === 'FORMING');
+  }, [allPods]);
+
+  // Explore pods: forming pods that the current user is not yet a member of
+  const explorePods = useMemo(() => {
+    return allPods.filter(p => {
+      if (!p || isDemoPod(p) || p.status !== 'FORMING') return false;
+      const isMyPod = myPods.some(mp => mp.id === p.id);
+      return !isMyPod;
+    });
+  }, [allPods, myPods]);
+
+  // Active / forming pods created by current user (3 Pod Limit)
+  const userCreatedActivePods = useMemo(() => {
+    return allPods.filter(p => {
+      if (!p || !p.id) return false;
+      const isCreator = (activeUser?.id && p.createdBy === activeUser.id) ||
+        (activeUser?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === activeUser.displayName.trim().toLowerCase());
+      return isCreator && p.status !== 'COMPLETED';
+    });
+  }, [allPods, activeUser?.id, activeUser?.displayName]);
+  const createdPodsCount = userCreatedActivePods.length;
+  const isPodCreationLimitReached = createdPodsCount >= 3;
+
+  const hasWelcomeMatch = Boolean(
+    activeUser.welcomeMatchReceived ||
+    myPods.some(p => p.welcomeMatchGranted || (p.contingencyBufferInitialUsd && p.contingencyBufferInitialUsd > 0) || (p.contingencyBufferUsd !== undefined && p.contingencyBufferUsd > 0) || (p.createdBy && p.createdBy === activeUser.id)) ||
+    (typeof window !== 'undefined' && localStorage.getItem(`mutualpool_welcome_match_${activeUser.id}`) === 'true') ||
+    (typeof window !== 'undefined' && localStorage.getItem('mutualpool_welcome_match_credited') === 'true') ||
+    (typeof window !== 'undefined' && localStorage.getItem('mutualpool_created_pods') && JSON.parse(localStorage.getItem('mutualpool_created_pods') || '[]').length > 0)
+  );
+
   const handleJoinPod = async (pod: Pod, inviteCode?: string) => {
     if (!currentUser) {
       handleOpenAuth('LOGIN');
@@ -929,98 +1046,90 @@ export default function App() {
     }
   };
 
-  // If viewing Landing Page or user explicitly hasn't entered dashboard
-  if (viewMode === 'LANDING') {
-    return (
-      <ChatProvider currentUser={currentUser}>
-        <LandingPage
-          allPods={allPods}
-          currentUser={currentUser}
-          onOpenAuth={handleOpenAuth}
-          onSelectUser={handleAuthSuccess}
-          onGoToDashboard={(tab) => {
-            if (tab) setActiveTab(tab);
-            setViewMode('DASHBOARD');
-          }}
-          onLogout={handleLogout}
-          onOpenAbout={() => setShowAboutModal(true)}
-          onOpenHowItWorks={() => setShowHowItWorksModal(true)}
-          onOpenContact={() => setShowContactModal(true)}
-          onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
-          onOpenSubmitPerk={() => {
-            if (!currentUser || currentUser.id === 'usr_guest') {
-              setOpenSubmitPerkDirectly(true);
-              handleOpenAuth('LOGIN');
-            } else {
+  return (
+    <ChatProvider currentUser={currentUser} availablePods={myPods}>
+      {viewMode === 'LANDING' ? (
+        <>
+          <LandingPage
+            allPods={allPods}
+            currentUser={currentUser}
+            onOpenAuth={handleOpenAuth}
+            onSelectUser={handleAuthSuccess}
+            onGoToDashboard={(tab) => {
+              if (tab) setActiveTab(tab);
               setViewMode('DASHBOARD');
-              setActiveTab('perks');
-              setOpenSubmitPerkDirectly(true);
-            }
-          }}
-        />
+            }}
+            onLogout={handleLogout}
+            onOpenAbout={() => setShowAboutModal(true)}
+            onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+            onOpenContact={() => setShowContactModal(true)}
+            onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
+            onOpenSubmitPerk={() => {
+              if (!currentUser || currentUser.id === 'usr_guest') {
+                setOpenSubmitPerkDirectly(true);
+                handleOpenAuth('LOGIN');
+              } else {
+                setViewMode('DASHBOARD');
+                setActiveTab('perks');
+                setOpenSubmitPerkDirectly(true);
+              }
+            }}
+          />
 
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={handleCloseAuth}
-          allUsers={allUsers}
-          onSelectUser={handleAuthSuccess}
-          onRegistered={handleAuthSuccess}
-          initialMode={authInitialMode}
-        />
+          <AuthModal
+            isOpen={showAuthModal}
+            onClose={handleCloseAuth}
+            allUsers={allUsers}
+            onSelectUser={handleAuthSuccess}
+            onRegistered={handleAuthSuccess}
+            initialMode={authInitialMode}
+          />
 
-        <AboutUsModal
-          isOpen={showAboutModal}
-          onClose={() => setShowAboutModal(false)}
-        />
+          <AboutUsModal
+            isOpen={showAboutModal}
+            onClose={() => setShowAboutModal(false)}
+          />
 
-        <HowItWorksModal
-          isOpen={showHowItWorksModal}
-          onClose={() => setShowHowItWorksModal(false)}
-        />
+          <HowItWorksModal
+            isOpen={showHowItWorksModal}
+            onClose={() => setShowHowItWorksModal(false)}
+          />
 
-        <ContactUsModal
-          isOpen={showContactModal}
-          onClose={() => setShowContactModal(false)}
-        />
+          <ContactUsModal
+            isOpen={showContactModal}
+            onClose={() => setShowContactModal(false)}
+          />
 
-        <VoiceAgent
-          currentUser={currentUser}
-          activeTab={activeTab}
-          onNavigateTab={(tab) => {
-            setActiveTab(tab);
-            setViewMode('DASHBOARD');
-          }}
-          onOpenCreatePod={() => {
-            setViewMode('DASHBOARD');
-            setShowCreatePodModal(true);
-          }}
-          onOpenKyc={() => {
-            setViewMode('DASHBOARD');
-            setShowKycModal(true);
-          }}
-          onOpenBank={() => {
-            setViewMode('DASHBOARD');
-            setShowBankModal(true);
-          }}
-          onOpenHardship={() => {
-            setViewMode('DASHBOARD');
-            setShowHardshipModal(true);
-          }}
-          onOpenAbout={() => setShowAboutModal(true)}
-          onOpenHowItWorks={() => setShowHowItWorksModal(true)}
-          onOpenContact={() => setShowContactModal(true)}
-          onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
-        />
-
-        {/* Chat is gated behind dashboard login - not rendered on public landing page */}
-      </ChatProvider>
-    );
-  }
-
-  // If viewing Advertiser / Partner Brand Ambassador Page
-  if (viewMode === 'ADVERTISER') {
-    return (
-      <ChatProvider currentUser={currentUser}>
+          <VoiceAgent
+            currentUser={currentUser}
+            activeTab={activeTab}
+            onNavigateTab={(tab) => {
+              setActiveTab(tab);
+              setViewMode('DASHBOARD');
+            }}
+            onOpenCreatePod={() => {
+              setViewMode('DASHBOARD');
+              setShowCreatePodModal(true);
+            }}
+            onOpenKyc={() => {
+              setViewMode('DASHBOARD');
+              setShowKycModal(true);
+            }}
+            onOpenBank={() => {
+              setViewMode('DASHBOARD');
+              setShowBankModal(true);
+            }}
+            onOpenHardship={() => {
+              setViewMode('DASHBOARD');
+              setShowHardshipModal(true);
+            }}
+            onOpenAbout={() => setShowAboutModal(true)}
+            onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+            onOpenContact={() => setShowContactModal(true)}
+            onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
+          />
+        </>
+      ) : viewMode === 'ADVERTISER' ? (
         <Suspense fallback={
           <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">
             <div className="flex items-center gap-3 text-[#005FB8] font-semibold text-sm">
@@ -1081,7 +1190,6 @@ export default function App() {
             onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
           />
 
-          {/* Real-time in-app chat drawer & floating button - only for authenticated users */}
           {currentUser && currentUser.id !== 'usr_guest' && (
             <>
               <ChatDrawer currentUser={currentUser} />
@@ -1089,149 +1197,15 @@ export default function App() {
             </>
           )}
         </Suspense>
-      </ChatProvider>
-    );
-  }
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex items-center justify-center p-4 font-sans">
-        <div className="flex items-center gap-3 text-[#005FB8] font-semibold">
-          <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
-          <span>Loading Gig Worker Mutual Pool Engine...</span>
+      ) : authLoading ? (
+        <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex items-center justify-center p-4 font-sans">
+          <div className="flex items-center gap-3 text-[#005FB8] font-semibold">
+            <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
+            <span>Loading Gig Worker Mutual Pool Engine...</span>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  const activeUser: User = currentUser || {
-    id: 'usr_guest',
-    email: '',
-    displayName: 'Guest Member',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    platform: 'DoorDash',
-    role: 'RIDER',
-    accountAgeDays: 0,
-    kycStatus: 'VERIFIED',
-    treasury: {
-      stripeAccountId: '',
-      stripeFinAccountId: '',
-      balanceUsd: 0,
-      pendingInboundUsd: 0,
-      totalPayoutsReceivedUsd: 0,
-      fdicPassThroughEligible: false,
-      status: 'ACTIVE',
-    },
-    externalBank: {
-      bankName: '',
-      last4: '',
-      routingNumber: '',
-      accountType: 'CHECKING',
-      status: 'NOT_LINKED',
-    },
-    completedPodsCount: 0,
-  };
-
-  // Comprehensive Pod filtering to robustly match user by ID, Email, or Display Name across reloads
-  const myPods = useMemo(() => {
-    return allPods.filter(p => {
-      if (!p) return false;
-      // Unwrap if p was stored wrapped in Firestore as { pod: ... }
-      const pod: Pod = (p as any).pod && (p as any).pod.id ? (p as any).pod : p;
-      if (isDemoPod(pod)) return false;
-
-      const activeId = activeUser?.id;
-      const currentId = currentUser?.id;
-      const activeEmail = activeUser?.email?.trim().toLowerCase();
-      const currentEmail = currentUser?.email?.trim().toLowerCase();
-      const activeName = activeUser?.displayName?.trim().toLowerCase();
-      const currentName = currentUser?.displayName?.trim().toLowerCase();
-
-      // 0. Check if created or joined locally in this browser session for this user
-      if (typeof window !== 'undefined') {
-        try {
-          if (localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') {
-            return true;
-          }
-          const createdRaw = localStorage.getItem('mutualpool_created_pods');
-          if (createdRaw) {
-            const createdList: Pod[] = JSON.parse(createdRaw);
-            if (createdList.some(cp => cp.id === pod.id && (cp.createdBy === activeId || cp.createdBy === currentId))) return true;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      // 1. Match creator ID or creator Display Name
-      if (activeId && pod.createdBy === activeId) return true;
-      if (currentId && pod.createdBy === currentId) return true;
-      if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
-      if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
-
-      // 2. Match members list by userId, email, or displayName
-      if (Array.isArray(pod.members)) {
-        return pod.members.some(m => {
-          if (!m) return false;
-          if (activeId && m.userId === activeId) return true;
-          if (currentId && m.userId === currentId) return true;
-          if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
-          if (currentEmail && (m as any).email && (m as any).email.trim().toLowerCase() === currentEmail) return true;
-          if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
-          if (currentName && m.displayName && m.displayName.trim().toLowerCase() === currentName) return true;
-          return false;
-        });
-      }
-
-      return false;
-    });
-  }, [allPods, activeUser?.id, activeUser?.email, activeUser?.displayName, currentUser?.id, currentUser?.email, currentUser?.displayName]);
-
-  // User-created forming pods
-  const userCreatedFormingPods = useMemo(() => {
-    return allPods.filter(p => !isDemoPod(p) && p.status === 'FORMING');
-  }, [allPods]);
-
-  // Explore pods: forming pods that the current user is not yet a member of
-  const explorePods = useMemo(() => {
-    return allPods.filter(p => {
-      if (!p || isDemoPod(p) || p.status !== 'FORMING') return false;
-      const isMyPod = myPods.some(mp => mp.id === p.id);
-      return !isMyPod;
-    });
-  }, [allPods, myPods]);
-
-  // Active / forming pods created by current user (3 Pod Limit)
-  const userCreatedActivePods = useMemo(() => {
-    return allPods.filter(p => {
-      if (!p || !p.id) return false;
-      const isCreator = (activeUser?.id && p.createdBy === activeUser.id) ||
-        (activeUser?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === activeUser.displayName.trim().toLowerCase());
-      return isCreator && p.status !== 'COMPLETED';
-    });
-  }, [allPods, activeUser?.id, activeUser?.displayName]);
-  const createdPodsCount = userCreatedActivePods.length;
-  const isPodCreationLimitReached = createdPodsCount >= 3;
-
-  // Always log debug info to browser console for verification
-  if (typeof window !== 'undefined') {
-    console.log('[MutualPool Debug] Active User:', { id: activeUser.id, email: activeUser.email, name: activeUser.displayName });
-    console.log('[MutualPool Debug] Total Pods Loaded in State:', allPods.length, allPods);
-    console.log('[MutualPool Debug] My Matched Pods:', myPods.length, myPods);
-    console.log('[MutualPool Debug] Explore Pods:', explorePods.length, explorePods);
-  }
-
-  const hasWelcomeMatch = Boolean(
-    activeUser.welcomeMatchReceived ||
-    myPods.some(p => p.welcomeMatchGranted || (p.contingencyBufferInitialUsd && p.contingencyBufferInitialUsd > 0) || (p.contingencyBufferUsd !== undefined && p.contingencyBufferUsd > 0) || (p.createdBy && p.createdBy === activeUser.id)) ||
-    (typeof window !== 'undefined' && localStorage.getItem(`mutualpool_welcome_match_${activeUser.id}`) === 'true') ||
-    (typeof window !== 'undefined' && localStorage.getItem('mutualpool_welcome_match_credited') === 'true') ||
-    (typeof window !== 'undefined' && localStorage.getItem('mutualpool_created_pods') && JSON.parse(localStorage.getItem('mutualpool_created_pods') || '[]').length > 0)
-  );
-
-  return (
-    <ChatProvider currentUser={activeUser} availablePods={myPods}>
-      <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
+      ) : (
+        <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
       
       {/* App Header */}
       <Header
@@ -1909,7 +1883,8 @@ export default function App() {
         </>
       )}
 
-    </div>
+        </div>
+      )}
     </ChatProvider>
   );
 }
