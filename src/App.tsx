@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
@@ -1012,9 +1012,7 @@ export default function App() {
           onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
         />
 
-        {/* Real-time in-app chat drawer & floating button */}
-        <ChatDrawer currentUser={currentUser} />
-        <ChatButton />
+        {/* Chat is gated behind dashboard login - not rendered on public landing page */}
       </ChatProvider>
     );
   }
@@ -1083,9 +1081,13 @@ export default function App() {
             onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
           />
 
-          {/* Real-time in-app chat drawer & floating button */}
-          <ChatDrawer currentUser={currentUser} />
-          <ChatButton />
+          {/* Real-time in-app chat drawer & floating button - only for authenticated users */}
+          {currentUser && currentUser.id !== 'usr_guest' && (
+            <>
+              <ChatDrawer currentUser={currentUser} />
+              <ChatButton />
+            </>
+          )}
         </Suspense>
       </ChatProvider>
     );
@@ -1131,75 +1133,83 @@ export default function App() {
   };
 
   // Comprehensive Pod filtering to robustly match user by ID, Email, or Display Name across reloads
-  const myPods = allPods.filter(p => {
-    if (!p) return false;
-    // Unwrap if p was stored wrapped in Firestore as { pod: ... }
-    const pod: Pod = (p as any).pod && (p as any).pod.id ? (p as any).pod : p;
-    if (isDemoPod(pod)) return false;
+  const myPods = useMemo(() => {
+    return allPods.filter(p => {
+      if (!p) return false;
+      // Unwrap if p was stored wrapped in Firestore as { pod: ... }
+      const pod: Pod = (p as any).pod && (p as any).pod.id ? (p as any).pod : p;
+      if (isDemoPod(pod)) return false;
 
-    const activeId = activeUser?.id;
-    const currentId = currentUser?.id;
-    const activeEmail = activeUser?.email?.trim().toLowerCase();
-    const currentEmail = currentUser?.email?.trim().toLowerCase();
-    const activeName = activeUser?.displayName?.trim().toLowerCase();
-    const currentName = currentUser?.displayName?.trim().toLowerCase();
+      const activeId = activeUser?.id;
+      const currentId = currentUser?.id;
+      const activeEmail = activeUser?.email?.trim().toLowerCase();
+      const currentEmail = currentUser?.email?.trim().toLowerCase();
+      const activeName = activeUser?.displayName?.trim().toLowerCase();
+      const currentName = currentUser?.displayName?.trim().toLowerCase();
 
-    // 0. Check if created or joined locally in this browser session for this user
-    if (typeof window !== 'undefined') {
-      try {
-        if (localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') {
-          return true;
+      // 0. Check if created or joined locally in this browser session for this user
+      if (typeof window !== 'undefined') {
+        try {
+          if (localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') {
+            return true;
+          }
+          const createdRaw = localStorage.getItem('mutualpool_created_pods');
+          if (createdRaw) {
+            const createdList: Pod[] = JSON.parse(createdRaw);
+            if (createdList.some(cp => cp.id === pod.id && (cp.createdBy === activeId || cp.createdBy === currentId))) return true;
+          }
+        } catch {
+          // ignore
         }
-        const createdRaw = localStorage.getItem('mutualpool_created_pods');
-        if (createdRaw) {
-          const createdList: Pod[] = JSON.parse(createdRaw);
-          if (createdList.some(cp => cp.id === pod.id && (cp.createdBy === activeId || cp.createdBy === currentId))) return true;
-        }
-      } catch {
-        // ignore
       }
-    }
 
-    // 1. Match creator ID or creator Display Name
-    if (activeId && pod.createdBy === activeId) return true;
-    if (currentId && pod.createdBy === currentId) return true;
-    if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
-    if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
+      // 1. Match creator ID or creator Display Name
+      if (activeId && pod.createdBy === activeId) return true;
+      if (currentId && pod.createdBy === currentId) return true;
+      if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
+      if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
 
-    // 2. Match members list by userId, email, or displayName
-    if (Array.isArray(pod.members)) {
-      return pod.members.some(m => {
-        if (!m) return false;
-        if (activeId && m.userId === activeId) return true;
-        if (currentId && m.userId === currentId) return true;
-        if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
-        if (currentEmail && (m as any).email && (m as any).email.trim().toLowerCase() === currentEmail) return true;
-        if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
-        if (currentName && m.displayName && m.displayName.trim().toLowerCase() === currentName) return true;
-        return false;
-      });
-    }
+      // 2. Match members list by userId, email, or displayName
+      if (Array.isArray(pod.members)) {
+        return pod.members.some(m => {
+          if (!m) return false;
+          if (activeId && m.userId === activeId) return true;
+          if (currentId && m.userId === currentId) return true;
+          if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
+          if (currentEmail && (m as any).email && (m as any).email.trim().toLowerCase() === currentEmail) return true;
+          if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
+          if (currentName && m.displayName && m.displayName.trim().toLowerCase() === currentName) return true;
+          return false;
+        });
+      }
 
-    return false;
-  });
+      return false;
+    });
+  }, [allPods, activeUser?.id, activeUser?.email, activeUser?.displayName, currentUser?.id, currentUser?.email, currentUser?.displayName]);
 
   // User-created forming pods
-  const userCreatedFormingPods = allPods.filter(p => !isDemoPod(p) && p.status === 'FORMING');
+  const userCreatedFormingPods = useMemo(() => {
+    return allPods.filter(p => !isDemoPod(p) && p.status === 'FORMING');
+  }, [allPods]);
 
   // Explore pods: forming pods that the current user is not yet a member of
-  const explorePods = allPods.filter(p => {
-    if (!p || isDemoPod(p) || p.status !== 'FORMING') return false;
-    const isMyPod = myPods.some(mp => mp.id === p.id);
-    return !isMyPod;
-  });
+  const explorePods = useMemo(() => {
+    return allPods.filter(p => {
+      if (!p || isDemoPod(p) || p.status !== 'FORMING') return false;
+      const isMyPod = myPods.some(mp => mp.id === p.id);
+      return !isMyPod;
+    });
+  }, [allPods, myPods]);
 
   // Active / forming pods created by current user (3 Pod Limit)
-  const userCreatedActivePods = allPods.filter(p => {
-    if (!p || !p.id) return false;
-    const isCreator = (activeUser?.id && p.createdBy === activeUser.id) ||
-      (activeUser?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === activeUser.displayName.trim().toLowerCase());
-    return isCreator && p.status !== 'COMPLETED';
-  });
+  const userCreatedActivePods = useMemo(() => {
+    return allPods.filter(p => {
+      if (!p || !p.id) return false;
+      const isCreator = (activeUser?.id && p.createdBy === activeUser.id) ||
+        (activeUser?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === activeUser.displayName.trim().toLowerCase());
+      return isCreator && p.status !== 'COMPLETED';
+    });
+  }, [allPods, activeUser?.id, activeUser?.displayName]);
   const createdPodsCount = userCreatedActivePods.length;
   const isPodCreationLimitReached = createdPodsCount >= 3;
 
@@ -1891,9 +1901,13 @@ export default function App() {
         onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
       />
 
-      {/* Real-time in-app chat drawer & floating button */}
-      <ChatDrawer currentUser={activeUser} />
-      <ChatButton />
+      {/* Real-time in-app chat drawer & floating button - only for authenticated members in dashboard */}
+      {currentUser && currentUser.id !== 'usr_guest' && (
+        <>
+          <ChatDrawer currentUser={currentUser} />
+          <ChatButton />
+        </>
+      )}
 
     </div>
     </ChatProvider>

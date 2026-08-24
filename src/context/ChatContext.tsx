@@ -51,7 +51,12 @@ export const ChatProvider: React.FC<{
   const currentUserAvatar = currentUser?.avatarUrl || '';
   const currentUserPlatform = currentUser?.platform || 'DoorDash';
 
-  // Fetch threads via REST API and merge with available pods
+// Fetch threads via REST API and merge with available pods
+  const availablePodsRef = useRef<Pod[]>(availablePods);
+  useEffect(() => {
+    availablePodsRef.current = availablePods;
+  }, [availablePods]);
+
   const refreshThreads = useCallback(async () => {
     try {
       const uEmail = currentUser?.email || '';
@@ -81,8 +86,9 @@ export const ChatProvider: React.FC<{
         if (t && t.id) threadMap.set(t.id, t);
       }
 
-      if (availablePods && Array.isArray(availablePods)) {
-        for (const pod of availablePods) {
+      const currentPods = availablePodsRef.current;
+      if (currentPods && Array.isArray(currentPods)) {
+        for (const pod of currentPods) {
           if (!pod || !pod.id) continue;
           const threadId = `thread_pod_${pod.id}`;
           const existing = threadMap.get(threadId);
@@ -113,12 +119,20 @@ export const ChatProvider: React.FC<{
         }
       }
 
-      setThreads(Array.from(threadMap.values()));
+      const newThreads = Array.from(threadMap.values());
+      setThreads(prev => {
+        // Only trigger state update if thread contents actually changed
+        if (JSON.stringify(prev.map(p => ({ id: p.id, unread: p.unreadCount, updated: p.updatedAt }))) ===
+            JSON.stringify(newThreads.map(p => ({ id: p.id, unread: p.unreadCount, updated: p.updatedAt })))) {
+          return prev;
+        }
+        return newThreads;
+      });
       setIsConnected(true);
     } catch (err) {
       console.warn('[ChatContext] Error fetching threads:', err);
     }
-  }, [currentUserId, currentUser?.email, currentUser?.displayName, availablePods]);
+  }, [currentUserId, currentUser?.email, currentUser?.displayName]);
 
   // Fetch messages for active thread
   const fetchMessagesForThread = useCallback(async (threadId: string) => {
@@ -285,20 +299,20 @@ export const ChatProvider: React.FC<{
   }, [currentUserId, currentUserName, currentUserAvatar, currentUserPlatform, refreshThreads, fetchMessagesForThread]);
 
   // When active thread changes, fetch messages and mark read
+  const activeThreadId = activeThread?.id;
   useEffect(() => {
-    if (activeThread) {
-      fetchMessagesForThread(activeThread.id);
+    if (activeThreadId) {
+      fetchMessagesForThread(activeThreadId);
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           type: 'MARK_READ',
-          threadId: activeThread.id,
+          threadId: activeThreadId,
         }));
       }
-      refreshThreads();
     } else {
       setMessages([]);
     }
-  }, [activeThread, fetchMessagesForThread, refreshThreads]);
+  }, [activeThreadId, fetchMessagesForThread]);
 
   const selectThread = useCallback((thread: ChatThread | null) => {
     setActiveThread(thread);
