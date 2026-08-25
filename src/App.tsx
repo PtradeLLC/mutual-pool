@@ -270,6 +270,16 @@ export default function App() {
       };
       setCurrentUser(updatedUser);
       saveUserToFirestore(updatedUser).catch(console.error);
+
+      // Sync with server treasury and audit log
+      fetch('/api/campaigns/shifts/verify-payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+        body: JSON.stringify({
+          shift: completedShift,
+          gearVerification: completedShift.gearVerification,
+        }),
+      }).catch(console.warn);
     }
 
     // 3. Update courier participations total earnings

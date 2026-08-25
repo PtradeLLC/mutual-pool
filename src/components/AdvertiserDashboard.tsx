@@ -880,7 +880,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-[11px]">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>GPS + Photo Check</span>
+                            <span>{shift.gearVerificationStatus === 'VERIFIED' ? 'Gear Verified & Paid' : 'GPS + Photo Check'}</span>
                           </div>
                           {shift.complianceScore !== undefined && (
                             <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">

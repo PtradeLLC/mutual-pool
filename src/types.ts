@@ -305,7 +305,8 @@ export interface AuditLogEntry {
     | 'HARDSHIP_APPROVED'
     | 'HARDSHIP_REPAID'
     | 'HARDSHIP_REJECTED'
-    | 'CAMPAIGN_AGREEMENT_RECORDED';
+    | 'CAMPAIGN_AGREEMENT_RECORDED'
+    | 'COURIER_GEAR_VERIFIED_PAYOUT';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
@@ -567,6 +568,43 @@ export interface ActiveShiftSession {
   };
 }
 
+export type GearVerificationStatus = 'PENDING_VERIFICATION' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED';
+
+export interface VisionVerificationResult {
+  matched: boolean;
+  confidenceScore: number;
+  detectedBrand: string;
+  expectedBrand: string;
+  matchedCampaignTitle?: string;
+  gearItemsDetected?: string[];
+  visualFindings: string;
+  decisionReason: string;
+  status: 'VERIFIED' | 'REJECTED';
+  modelUsed?: string;
+  comparedAt?: string;
+}
+
+export interface CourierGearItemCheck {
+  itemName: string;
+  isEquipped: boolean;
+  photoUrl?: string;
+}
+
+export interface CourierGearVerification {
+  id: string;
+  shiftId: string;
+  courierId: string;
+  campaignId: string;
+  verifiedAt?: string;
+  status: GearVerificationStatus;
+  gearItems: CourierGearItemCheck[];
+  overallPhotoUrl?: string;
+  checklistCompleted: boolean;
+  complianceScore: number; // 0-100
+  verifiedBy?: string;
+  visionResult?: VisionVerificationResult;
+}
+
 export interface CampaignShiftLog {
   id: string;
   campaignId: string;
@@ -587,6 +625,10 @@ export interface CampaignShiftLog {
   courierPayoutEarned: number;
   verifiedGps: boolean;
   verifiedPhoto: boolean;
+  gearVerificationStatus?: GearVerificationStatus;
+  gearVerification?: CourierGearVerification;
+  payoutStatus?: 'PENDING_GEAR_VERIFICATION' | 'PROCESSING' | 'PAID' | 'WITHHELD';
+  payoutTransferId?: string;
   spotChecks?: PhotoSpotCheck[];
   spotChecksCount?: number;
   spotChecksVerified?: number;
