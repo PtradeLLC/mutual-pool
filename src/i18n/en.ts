@@ -4,7 +4,7 @@ export const en = {
   'nav.about': 'About',
   'nav.rules': 'Rules',
   'nav.contact': 'Contact',
-  'nav.advertise': 'Advertise with Us',
+  'nav.advertise': 'Advertise',
   'nav.advertiseShort': 'Advertise',
   'nav.advertiseAmbassador': 'Advertise with Us (Brand Ambassador)',
   'nav.submitPerks': 'Submit Benefits & Perks Offer',
@@ -284,7 +284,7 @@ export const en = {
 
   // Footer & Notices
   'footer.allRightsReserved': 'Chris Bitoye Ventures. All rights reserved.',
-  'footer.howItWorksAndRules': 'How It Works & Rules',
+  'footer.howItWorksAndRules': 'Rules',
   'footer.rights': 'All rights reserved.',
   'footer.fdicNotice': 'Funds in active MutualPool savings cycles are held in trust at FDIC-insured partner institutions (pass-through insurance up to $250,000 per member). MutualPool is a financial technology platform, not a bank.',
   'footer.privacy': 'Privacy Policy',
