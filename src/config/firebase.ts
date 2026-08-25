@@ -13,20 +13,19 @@ import { getStorage, Storage } from 'firebase-admin/storage';
 // local development convenience and can be deleted once env vars are set
 // in Vercel.
 function loadOptionalLocalConfig(): { projectId?: string; storageBucket?: string } {
-  if (process.env.VERCEL) return {}; // never attempt this in production/serverless
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const local = require('../../firebase-applet-config.json');
     return { projectId: local?.projectId, storageBucket: local?.storageBucket };
   } catch {
-    return {};
+    return { projectId: 'gen-lang-client-0970051758' };
   }
 }
 
-let app: App;
-let db: Firestore;
-let auth: Auth;
-let storage: Storage;
+let app: App | null = null;
+let db: Firestore | null = null;
+let auth: Auth | null = null;
+let storage: Storage | null = null;
 
 export function initializeFirebase(): void {
   try {
@@ -39,13 +38,8 @@ export function initializeFirebase(): void {
         : undefined;
 
       const localConfig = loadOptionalLocalConfig();
-      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || localConfig.projectId;
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || localConfig.projectId || 'gen-lang-client-0970051758';
       const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || localConfig.storageBucket;
-
-      if (!projectId) {
-        console.warn('[Firebase Admin Init Warning] No FIREBASE_PROJECT_ID set — server Firestore/Auth/Storage admin features will be disabled.');
-        return;
-      }
 
       if (serviceAccount) {
         app = initializeApp({
@@ -54,7 +48,7 @@ export function initializeFirebase(): void {
           storageBucket,
         });
       } else {
-        // Use default credentials if available
+        // Use default credentials / project if available
         app = initializeApp({
           projectId,
           storageBucket,
@@ -62,38 +56,38 @@ export function initializeFirebase(): void {
       }
     }
     
-    auth = getAuth(app);
-    db = getFirestore(app);
-    storage = getStorage(app);
-    
-    // Configure Firestore settings
-    db.settings({
-      ignoreUndefinedProperties: true,
-    });
+    if (app) {
+      try { auth = getAuth(app); } catch {}
+      try { 
+        db = getFirestore(app);
+        db.settings({ ignoreUndefinedProperties: true });
+      } catch {}
+      try { storage = getStorage(app); } catch {}
+    }
   } catch (err) {
-    console.warn('[Firebase Admin Init Warning] Unable to initialize Firebase Admin with default credentials:', err);
+    // Graceful fallback for environments without GCP default credentials
   }
 }
 
-export function getAuthAdmin(): Auth {
+export function getAuthAdmin(): Auth | null {
   if (!auth) {
     initializeFirebase();
   }
-  return auth;
+  return auth || null;
 }
 
-export function getDb(): Firestore {
+export function getDb(): Firestore | null {
   if (!db) {
     initializeFirebase();
   }
-  return db;
+  return db || null;
 }
 
-export function getStorageAdmin(): Storage {
+export function getStorageAdmin(): Storage | null {
   if (!storage) {
     initializeFirebase();
   }
-  return storage;
+  return storage || null;
 }
 
 // Helper to convert Firestore Timestamp to ISO string

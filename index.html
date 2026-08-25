@@ -2,6 +2,66 @@
 <html lang="en" class="h-full bg-[#F8FAFC] text-[#111827]">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function() {
+        var isExtensionErr = function(str) {
+          if (!str) return false;
+          var s = (typeof str === 'object' ? JSON.stringify(str) : String(str)).toLowerCase();
+          return (
+            s.indexOf('metamask') !== -1 ||
+            s.indexOf('ethereum') !== -1 ||
+            s.indexOf('contentscript') !== -1 ||
+            s.indexOf('inpage') !== -1 ||
+            s.indexOf('resetting the streams') !== -1 ||
+            s.indexOf('failed to connect to metamask') !== -1 ||
+            s.indexOf('maxlistenersexceededwarning') !== -1 ||
+            s.indexOf('could not establish connection') !== -1 ||
+            s.indexOf('receiving end does not exist') !== -1 ||
+            s.indexOf('unchecked runtime.lasterror') !== -1 ||
+            s.indexOf('chrome-extension') !== -1 ||
+            s.indexOf('moz-extension') !== -1
+          );
+        };
+        var origError = console.error;
+        console.error = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var joined = args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' ');
+          if (isExtensionErr(joined)) return;
+          origError.apply(console, arguments);
+        };
+        var origWarn = console.warn;
+        console.warn = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var joined = args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' ');
+          if (isExtensionErr(joined)) return;
+          origWarn.apply(console, arguments);
+        };
+        var origLog = console.log;
+        console.log = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var joined = args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' ');
+          if (isExtensionErr(joined)) return;
+          origLog.apply(console, arguments);
+        };
+        window.addEventListener('error', function(e) {
+          var msg = (e && (e.message || (e.error && (e.error.message || e.error.stack)))) || '';
+          var file = (e && e.filename) || '';
+          if (isExtensionErr(msg) || isExtensionErr(file)) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = (e && (e.reason && (e.reason.message || e.reason.stack || e.reason))) || '';
+          if (isExtensionErr(reason)) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>MutualPool • We Pool. We Grow. We Deliver.</title>
     <meta name="theme-color" content="#005FB8" />

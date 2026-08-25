@@ -46,6 +46,34 @@ const PORT = 3000;
 const PODS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'pods_data.json');
 const USERS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'users_data.json');
 
+function safeWriteFile(filePath: string, data: string): void {
+  try {
+    fs.writeFileSync(filePath, data, 'utf8');
+  } catch {
+    try {
+      const tmpPath = path.join('/tmp', path.basename(filePath));
+      fs.writeFileSync(tmpPath, data, 'utf8');
+    } catch {
+      // Quietly ignore in read-only serverless
+    }
+  }
+}
+
+function safeReadFile(filePath: string): string | null {
+  try {
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath, 'utf8');
+    }
+  } catch {}
+  try {
+    const tmpPath = path.join('/tmp', path.basename(filePath));
+    if (fs.existsSync(tmpPath)) {
+      return fs.readFileSync(tmpPath, 'utf8');
+    }
+  } catch {}
+  return null;
+}
+
 function sanitizeForServerFirestore(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj;
   const clean: any = Array.isArray(obj) ? [] : {};
@@ -139,8 +167,8 @@ function isDemoPodServer(p: any): boolean {
 function loadPodsFromDisk(): Pod[] {
   const map = new Map<string, Pod>();
   try {
-    if (fs.existsSync(PODS_FILE)) {
-      const raw = fs.readFileSync(PODS_FILE, 'utf8');
+    const raw = safeReadFile(PODS_FILE);
+    if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         for (const p of parsed) {
@@ -160,7 +188,7 @@ function loadPodsFromDisk(): Pod[] {
 function savePodsToDisk() {
   try {
     const cleanPods = pods.filter(p => p && p.id);
-    fs.writeFileSync(PODS_FILE, JSON.stringify(cleanPods, null, 2), 'utf8');
+    safeWriteFile(PODS_FILE, JSON.stringify(cleanPods, null, 2));
   } catch (err) {
     console.error('Error saving pods_data.json:', err);
   }
@@ -218,11 +246,10 @@ async function syncPodsFromFirestore(): Promise<Pod[]> {
     }
     pods = Array.from(map.values());
     try {
-      fs.writeFileSync(PODS_FILE, JSON.stringify(pods, null, 2), 'utf8');
+      safeWriteFile(PODS_FILE, JSON.stringify(pods, null, 2));
     } catch (e) {
       // quiet catch
     }
-    console.log('[Server] syncPodsFromFirestore loaded total pods:', pods.length, pods.map(p => ({ id: p.id, name: p.name, status: p.status })));
   } catch (err: any) {
     if (err?.code === 5 || (typeof err?.message === 'string' && err.message.includes('NOT_FOUND'))) {
       // Quietly fallback
@@ -235,8 +262,8 @@ async function syncPodsFromFirestore(): Promise<Pod[]> {
 
 function loadUsersFromDisk(): User[] {
   try {
-    if (fs.existsSync(USERS_FILE)) {
-      const raw = fs.readFileSync(USERS_FILE, 'utf8');
+    const raw = safeReadFile(USERS_FILE);
+    if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         const map = new Map<string, User>();
@@ -255,7 +282,7 @@ function loadUsersFromDisk(): User[] {
 
 function saveUsersToDisk() {
   try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+    safeWriteFile(USERS_FILE, JSON.stringify(users, null, 2));
   } catch (err) {
     console.error('Error saving users_data.json:', err);
   }
@@ -269,8 +296,8 @@ const NOTIFICATIONS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd()
 
 function loadNotificationsFromDisk(): AppNotification[] {
   try {
-    if (fs.existsSync(NOTIFICATIONS_FILE)) {
-      const raw = fs.readFileSync(NOTIFICATIONS_FILE, 'utf8');
+    const raw = safeReadFile(NOTIFICATIONS_FILE);
+    if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
@@ -318,7 +345,7 @@ function loadNotificationsFromDisk(): AppNotification[] {
 
 function saveNotificationsToDisk() {
   try {
-    fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2), 'utf8');
+    safeWriteFile(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2));
   } catch (err) {
     console.error('Error saving notifications_data.json:', err);
   }
@@ -355,7 +382,7 @@ async function syncNotificationsFromFirestore(): Promise<AppNotification[]> {
       });
       notifications = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       try {
-        fs.writeFileSync(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2), 'utf8');
+        safeWriteFile(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2));
       } catch (e) {}
     }
   } catch (err) {}
@@ -368,8 +395,8 @@ const SWAP_REQUESTS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd()
 
 function loadSwapRequestsFromDisk(): SwapRequest[] {
   try {
-    if (fs.existsSync(SWAP_REQUESTS_FILE)) {
-      const raw = fs.readFileSync(SWAP_REQUESTS_FILE, 'utf8');
+    const raw = safeReadFile(SWAP_REQUESTS_FILE);
+    if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
     }
@@ -381,7 +408,7 @@ function loadSwapRequestsFromDisk(): SwapRequest[] {
 
 function saveSwapRequestsToDisk() {
   try {
-    fs.writeFileSync(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2), 'utf8');
+    safeWriteFile(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2));
   } catch (err) {
     console.error('Error saving swap_requests_data.json:', err);
   }
@@ -418,7 +445,7 @@ async function syncSwapRequestsFromFirestore(): Promise<SwapRequest[]> {
       });
       swapRequests = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       try {
-        fs.writeFileSync(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2), 'utf8');
+        safeWriteFile(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2));
       } catch (e) {}
     }
   } catch (err) {}
@@ -994,34 +1021,42 @@ export function isServerlessRuntime(): boolean {
   );
 }
 
-// Standard Express body parsing middlewares (non-blocking, serverless-compatible)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Safe body guard middleware for pre-parsed string/Buffer or empty bodies
+// Serverless & Standard Express body parsing middlewares
 app.use((req, res, next) => {
   if (res.headersSent) return next();
 
-  if (req.body !== undefined && req.body !== null) {
-    if (typeof req.body === 'string' && req.body.trim().length > 0) {
-      try {
-        req.body = JSON.parse(req.body);
-      } catch {
-        // ignore JSON parse error
-      }
-    } else if (Buffer.isBuffer(req.body)) {
-      try {
-        req.body = JSON.parse(req.body.toString('utf-8'));
-      } catch {
-        // ignore JSON parse error
-      }
-    }
+  // If already parsed as object by platform (e.g. Vercel), skip re-reading stream
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) && Object.keys(req.body).length > 0) {
+    return next();
   }
 
-  if (!req.body || typeof req.body !== 'object') {
-    req.body = {};
+  // GET/HEAD/OPTIONS requests don't need body parsing stream listeners
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    if (!req.body || typeof req.body !== 'object') {
+      req.body = {};
+    }
+    return next();
   }
-  next();
+
+  express.json({ limit: '10mb' })(req, res, () => {
+    express.urlencoded({ extended: true, limit: '10mb' })(req, res, () => {
+      if (req.body !== undefined && req.body !== null) {
+        if (typeof req.body === 'string' && req.body.trim().length > 0) {
+          try {
+            req.body = JSON.parse(req.body);
+          } catch {}
+        } else if (Buffer.isBuffer(req.body)) {
+          try {
+            req.body = JSON.parse(req.body.toString('utf-8'));
+          } catch {}
+        }
+      }
+      if (!req.body || typeof req.body !== 'object') {
+        req.body = {};
+      }
+      next();
+    });
+  });
 });
 
 // Enable CORS and OPTIONS preflight for all routes
