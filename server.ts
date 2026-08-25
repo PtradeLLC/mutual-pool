@@ -846,19 +846,32 @@ function addAuditLog(
 }
 
 function getHeaderValue(req: Request, headerName: string): string | undefined {
-  const value = req.headers[headerName];
+  if (!req || !req.headers) return undefined;
+  const lowerName = headerName.toLowerCase();
+  const value = req.headers[lowerName] !== undefined ? req.headers[lowerName] : req.headers[headerName];
   if (Array.isArray(value)) {
     return value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
   }
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === 'string' ? value : (value !== undefined && value !== null ? String(value) : undefined);
 }
 
 function getQueryValue(req: Request, key: string): string | undefined {
-  const value = req.query[key];
-  if (Array.isArray(value)) {
-    return value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  if (!req) return undefined;
+  if (req.query && req.query[key] !== undefined) {
+    const value = req.query[key];
+    if (Array.isArray(value)) {
+      return value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+    return typeof value === 'string' ? value : String(value);
   }
-  return typeof value === 'string' ? value : undefined;
+  try {
+    if (req.url && req.url.includes('?')) {
+      const u = new URL(req.url, 'http://localhost');
+      const param = u.searchParams.get(key);
+      if (param !== null) return param;
+    }
+  } catch {}
+  return undefined;
 }
 
 function getHeaderNumber(req: Request, headerName: string): number | undefined {
@@ -3881,8 +3894,8 @@ const ADVERTISER_INQUIRIES_FILE = path.join(process.env.VERCEL ? '/tmp' : proces
 
 function loadAdvertiserInquiries(): any[] {
   try {
-    if (fs.existsSync(ADVERTISER_INQUIRIES_FILE)) {
-      const data = fs.readFileSync(ADVERTISER_INQUIRIES_FILE, 'utf-8');
+    const data = safeReadFile(ADVERTISER_INQUIRIES_FILE);
+    if (data) {
       return JSON.parse(data);
     }
   } catch (err) {
@@ -3893,7 +3906,7 @@ function loadAdvertiserInquiries(): any[] {
 
 function saveAdvertiserInquiries(inquiries: any[]) {
   try {
-    fs.writeFileSync(ADVERTISER_INQUIRIES_FILE, JSON.stringify(inquiries, null, 2), 'utf-8');
+    safeWriteFile(ADVERTISER_INQUIRIES_FILE, JSON.stringify(inquiries, null, 2));
   } catch (err) {
     console.error('Failed to save advertiser inquiries:', err);
   }

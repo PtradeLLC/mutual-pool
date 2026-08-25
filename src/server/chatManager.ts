@@ -6,6 +6,34 @@ import { ChatMessage, ChatThread, ChatParticipant, User, Pod } from '../types';
 
 const CHATS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'chats_data.json');
 
+function safeWriteFile(filePath: string, data: string): void {
+  try {
+    fs.writeFileSync(filePath, data, 'utf8');
+  } catch {
+    try {
+      const tmpPath = path.join('/tmp', path.basename(filePath));
+      fs.writeFileSync(tmpPath, data, 'utf8');
+    } catch {
+      // Quietly ignore in read-only serverless
+    }
+  }
+}
+
+function safeReadFile(filePath: string): string | null {
+  try {
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath, 'utf8');
+    }
+  } catch {}
+  try {
+    const tmpPath = path.join('/tmp', path.basename(filePath));
+    if (fs.existsSync(tmpPath)) {
+      return fs.readFileSync(tmpPath, 'utf8');
+    }
+  } catch {}
+  return null;
+}
+
 interface StoredChatData {
   threads: ChatThread[];
   messages: ChatMessage[];
@@ -25,8 +53,8 @@ function getOnlineUserIds(): string[] {
 
 function loadChatDataFromDisk(): StoredChatData {
   try {
-    if (fs.existsSync(CHATS_FILE)) {
-      const raw = fs.readFileSync(CHATS_FILE, 'utf8');
+    const raw = safeReadFile(CHATS_FILE);
+    if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.threads) && Array.isArray(parsed.messages)) {
         return parsed;
@@ -42,7 +70,7 @@ function loadChatDataFromDisk(): StoredChatData {
 
 function saveChatDataToDisk() {
   try {
-    fs.writeFileSync(CHATS_FILE, JSON.stringify({ threads, messages }, null, 2), 'utf8');
+    safeWriteFile(CHATS_FILE, JSON.stringify({ threads, messages }, null, 2));
   } catch (err) {
     console.error('[ChatManager] Error saving chats_data.json:', err);
   }
