@@ -23,7 +23,7 @@ export const en = {
 
   // Hero Section
   'hero.badge': 'Built for DoorDash, Uber, Lyft, Instacart & Amazon Flex Drivers and more',
-  'hero.title': 'Cash pool, Perks & Benefits built for Gig & Trade workers',
+  'hero.title': 'Cash pools, Perks & Benefits built for Gig & Trade workers',
   'hero.subtitle': 'Pool weekly cash deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.',
   'hero.startPodFree': 'Start a Pod Free',
   'hero.goToDashboard': 'Go to Dashboard',
