@@ -171,15 +171,101 @@ export default function App() {
     // 1. Add shift to campaignShifts
     handleAddNewShift(completedShift);
 
-    // 2. Credit Stripe Treasury balance of current user immediately
+    // 2. Calculate supplemental wage payout & check for missed weekly pod deposits
     if (currentUser) {
       const payout = completedShift.courierPayoutEarned || 65;
+      let newBalance = (currentUser.treasury?.balanceUsd || 0) + payout;
+      const totalPayouts = (currentUser.treasury?.totalPayoutsReceivedUsd || 0) + payout;
+
+      // Check if user has active pods with missed / delinquent deposits
+      const activeDelinquentPods = allPods.filter(
+        p => p.status === 'ACTIVE' && p.members?.some(m => m.userId === currentUser.id && (m.delinquencyStatus === 'DELINQUENT' || m.delinquencyStatus === 'GRACE_PERIOD'))
+      );
+
+      let updatedPods = [...allPods];
+      const autoDeductMessages: string[] = [];
+
+      for (const delinqPod of activeDelinquentPods) {
+        const requiredDeposit = delinqPod.depositTier || 20;
+
+        if (newBalance >= requiredDeposit) {
+          // Full deposit deducted from account balance
+          newBalance -= requiredDeposit;
+          updatedPods = updatedPods.map(p => {
+            if (p.id === delinqPod.id) {
+              const updatedP = {
+                ...p,
+                currentWeeklyCollected: (p.currentWeeklyCollected || 0) + requiredDeposit,
+                members: p.members.map(m => m.userId === currentUser.id ? { ...m, delinquencyStatus: 'CLEAN' as const } : m),
+              };
+              savePodToFirestore(updatedP).catch(console.error);
+              return updatedP;
+            }
+            return p;
+          });
+
+          autoDeductMessages.push(`💳 $${requiredDeposit.toFixed(2)} full weekly deposit auto-deducted from your wage earnings for "${delinqPod.name}". Delinquency cleared!`);
+
+          // Sync with server
+          fetch(`/api/pods/${delinqPod.id}/recover-missed-deposit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+            body: JSON.stringify({ memberUserId: currentUser.id, actionChoice: 'COVER_GAP' }),
+          }).catch(console.warn);
+
+        } else {
+          // Account balance is insufficient: deduct available, Welcome Match covers remainder, remove member, list publicly
+          const balanceDeducted = Math.max(0, newBalance);
+          newBalance = 0;
+          const remainder = requiredDeposit - balanceDeducted;
+          const availableWM = delinqPod.contingencyBufferUsd || 0;
+          const wmCovered = Math.min(remainder, availableWM);
+
+          updatedPods = updatedPods.map(p => {
+            if (p.id === delinqPod.id) {
+              const remainingMembers = p.members.filter(m => m.userId !== currentUser.id).map((m, idx) => ({ ...m, rotationIndex: idx }));
+              const updatedP = {
+                ...p,
+                currentWeeklyCollected: (p.currentWeeklyCollected || 0) + requiredDeposit,
+                contingencyBufferUsd: Math.max(0, availableWM - wmCovered),
+                members: remainingMembers,
+                memberCount: remainingMembers.length,
+                podType: 'OPEN_POD' as const,
+                isPrioritizedForReplacement: true,
+                replacementVacanciesCount: (p.replacementVacanciesCount || 0) + 1,
+              };
+              savePodToFirestore(updatedP).catch(console.error);
+              return updatedP;
+            }
+            return p;
+          });
+
+          autoDeductMessages.push(`⚠️ $${balanceDeducted.toFixed(2)} deducted from balance & $${wmCovered.toFixed(2)} remainder covered by Welcome Match Reserve. Due to insufficient funds, you were removed from "${delinqPod.name}" and the pod is now publicly listed for a replacement.`);
+
+          // Sync with server
+          fetch(`/api/pods/${delinqPod.id}/recover-missed-deposit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+            body: JSON.stringify({ memberUserId: currentUser.id, actionChoice: 'COVER_GAP' }),
+          }).catch(console.warn);
+        }
+      }
+
+      if (activeDelinquentPods.length > 0) {
+        setAllPods(updatedPods);
+        try {
+          localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updatedPods));
+        } catch {
+          // silent
+        }
+      }
+
       const updatedUser: User = {
         ...currentUser,
         treasury: {
           ...currentUser.treasury,
-          balanceUsd: (currentUser.treasury?.balanceUsd || 0) + payout,
-          totalPayoutsReceivedUsd: (currentUser.treasury?.totalPayoutsReceivedUsd || 0) + payout,
+          balanceUsd: newBalance,
+          totalPayoutsReceivedUsd: totalPayouts,
         },
       };
       setCurrentUser(updatedUser);

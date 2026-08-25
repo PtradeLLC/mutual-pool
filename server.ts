@@ -1043,7 +1043,7 @@ app.get(['/api/health', '/health'], (req, res) => {
 
 function normalizeApiUrl(req: express.Request): string {
   try {
-    // 1. Check path parameter from req.query or req.url
+    // 1. Check path parameter from req.query or req.url (Vercel serverless rewrite)
     let pathParam: string | null = null;
     if (req.query && typeof req.query.path === 'string' && req.query.path.trim()) {
       pathParam = req.query.path.trim();
@@ -1054,24 +1054,32 @@ function normalizeApiUrl(req: express.Request): string {
 
     if (pathParam) {
       const clean = pathParam.startsWith('/') ? pathParam : '/' + pathParam;
-      return clean.startsWith('/api') ? clean : `/api${clean}`;
+      const basePath = clean.startsWith('/api') ? clean : `/api${clean}`;
+      const queryIdx = req.url.indexOf('?');
+      if (queryIdx !== -1) {
+        const queryParams = new URLSearchParams(req.url.slice(queryIdx + 1));
+        queryParams.delete('path');
+        const qs = queryParams.toString();
+        return qs ? `${basePath}?${qs}` : basePath;
+      }
+      return basePath;
     }
 
     // 2. Check x-forwarded-uri, x-invoke-path, x-now-route-matches
     const fwd = req.headers['x-forwarded-uri'] || req.headers['x-invoke-path'] || req.headers['x-now-route-matches'];
     const fwdStr = Array.isArray(fwd) ? fwd[0] : fwd;
-    if (typeof fwdStr === 'string' && fwdStr.includes('/api/') && !fwdStr.startsWith('/api/index')) {
-      return fwdStr.split('?')[0];
+    if (typeof fwdStr === 'string' && (fwdStr.includes('/api/') || fwdStr.endsWith('/api') || fwdStr.startsWith('/api')) && !fwdStr.startsWith('/api/index')) {
+      return fwdStr;
     }
 
     // 3. Check req.originalUrl
-    if (req.originalUrl && req.originalUrl.includes('/api/') && !req.originalUrl.startsWith('/api/index')) {
-      return req.originalUrl.split('?')[0];
+    if (req.originalUrl && (req.originalUrl.includes('/api/') || req.originalUrl.startsWith('/api')) && !req.originalUrl.startsWith('/api/index')) {
+      return req.originalUrl;
     }
 
     // 4. Check req.url if already valid API route
-    if (req.url && req.url.includes('/api/') && !req.url.startsWith('/api/index')) {
-      return req.url.split('?')[0];
+    if (req.url && (req.url.includes('/api/') || req.url.startsWith('/api')) && !req.url.startsWith('/api/index')) {
+      return req.url;
     }
   } catch (err) {
     console.error('[URL Normalization Error]', err);
@@ -3652,52 +3660,185 @@ app.use((req, res, next) => {
     res.json({ received: true, eventType });
   });
 
-  // 16. Operations Admin: Delinquency & Webhook Triggers
-  app.post('/api/admin/delinquency/handle', (req: Request, res: Response) => {
+  // 16. Operations & Member Recovery: Delinquency & Missed Deposit Auto-Deduction Engine
+  app.post(['/api/admin/delinquency/handle', '/api/pods/:podId/recover-missed-deposit'], (req: Request, res: Response) => {
     const user = getCurrentUser(req);
-    if (!user) return res.status(401).json({ error: 'Unauthorized: Admin user required' });
-    const { podId, memberUserId, actionChoice } = req.body; // actionChoice: 'GRACE_PERIOD' | 'COVER_GAP' | 'REMOVE'
+    if (!user) return res.status(401).json({ error: 'Unauthorized: User session required' });
+    const podId = req.params.podId || req.body.podId;
+    const { memberUserId, actionChoice = 'COVER_GAP' } = req.body; // actionChoice: 'GRACE_PERIOD' | 'COVER_GAP' | 'REMOVE'
 
     const pod = pods.find(p => p.id === podId);
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
     const member = pod.members.find(m => m.userId === memberUserId);
-    if (!member) return res.status(404).json({ error: 'Member not found' });
+    if (!member) return res.status(404).json({ error: 'Member not found in this pod' });
+
+    const memberUser = users.find(u => u.id === memberUserId);
+    const requiredDeposit = pod.depositTier || 20;
+
+    let outcome = 'RESOLVED';
+    let balanceDeducted = 0;
+    let welcomeMatchUsed = 0;
+    let removedFromPod = false;
+    let podListedPublicly = false;
 
     if (actionChoice === 'GRACE_PERIOD') {
       member.delinquencyStatus = 'GRACE_PERIOD';
-    } else if (actionChoice === 'COVER_GAP') {
-      member.delinquencyStatus = 'CLEAN';
+      outcome = 'GRACE_PERIOD_GRANTED';
 
-      // Check if pod has a First-Cycle Contingency Buffer available
-      if (pod.contingencyBufferUsd && pod.contingencyBufferUsd > 0) {
-        const coverAmount = Math.min(pod.depositTier, pod.contingencyBufferUsd);
-        pod.contingencyBufferUsd -= coverAmount;
-        pod.currentWeeklyCollected += pod.depositTier;
+      addAuditLog(
+        pod.id,
+        user.id,
+        user.displayName,
+        'DELINQUENCY_HANDLED',
+        `Granted 24-hour grace period to ${member.displayName} for missed deposit in pod "${pod.name}".`,
+        { memberUserId, actionChoice }
+      );
+    } else if (actionChoice === 'REMOVE') {
+      // Direct removal
+      pod.members = pod.members.filter(m => m.userId !== memberUserId);
+      pod.memberCount = pod.members.length;
+      pod.members.forEach((m, idx) => { m.rotationIndex = idx; });
+      pod.podType = 'OPEN_POD';
+      pod.isPrioritizedForReplacement = true;
+      pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+      removedFromPod = true;
+      podListedPublicly = true;
+      outcome = 'MEMBER_REMOVED';
+
+      addAuditLog(
+        pod.id,
+        user.id,
+        user.displayName,
+        'MEMBER_REMOVED',
+        `Removed member ${member.displayName} from pod "${pod.name}" per mutual agreement. Pod is now publicly listed as Open Pod with replacement priority.`,
+        { memberUserId, actionChoice, remainingMembers: pod.memberCount }
+      );
+    } else if (actionChoice === 'COVER_GAP') {
+      // Step 1: Check account balance (Stripe Treasury / daily wage supplement earnings)
+      const currentBalance = memberUser?.treasury?.balanceUsd || 0;
+
+      if (currentBalance >= requiredDeposit) {
+        // Case A: Account balance is SUFFICIENT to cover full deposit
+        balanceDeducted = requiredDeposit;
+        if (memberUser && memberUser.treasury) {
+          memberUser.treasury.balanceUsd = Math.max(0, memberUser.treasury.balanceUsd - requiredDeposit);
+        }
+        pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
+        member.delinquencyStatus = 'CLEAN';
+        outcome = 'FULL_BALANCE_DEDUCTED';
+
+        // Record deposit
+        const newDeposit: Deposit = {
+          id: `dep_autodeduct_${Date.now()}`,
+          membershipId: member.id,
+          podId: pod.id,
+          cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
+          userId: member.userId,
+          userName: member.displayName,
+          amount: requiredDeposit,
+          stripePaymentId: `pi_autodeduct_wage_${Date.now()}`,
+          status: 'COMPLETE',
+          createdAt: new Date().toISOString(),
+        };
+        deposits.unshift(newDeposit);
+
+        addAuditLog(
+          pod.id,
+          user.id,
+          user.displayName,
+          'DEPOSIT_COMPLETED',
+          `💳 Full missed deposit of $${requiredDeposit.toFixed(2)} auto-deducted directly from ${member.displayName}'s account balance. Delinquency resolved and member remains active in pod "${pod.name}".`,
+          { memberUserId, balanceDeducted, remainingBalance: memberUser?.treasury?.balanceUsd }
+        );
+
+        createNotification({
+          userId: member.userId,
+          type: 'DEPOSIT_DUE',
+          title: 'Weekly Deposit Auto-Deducted',
+          message: `$${requiredDeposit.toFixed(2)} full weekly deposit was successfully deducted from your account balance for pod "${pod.name}". Your rotation standing is CLEAN.`,
+          podId: pod.id,
+        });
+      } else {
+        // Case B: Account balance is INSUFFICIENT to cover full deposit
+        // Available balance is deducted first, then Welcome Match Credited covers the remainder
+        balanceDeducted = Math.max(0, currentBalance);
+        if (memberUser && memberUser.treasury) {
+          memberUser.treasury.balanceUsd = 0;
+        }
+
+        const remainder = requiredDeposit - balanceDeducted;
+        const availableWelcomeMatch = pod.contingencyBufferUsd || 0;
+        welcomeMatchUsed = Math.min(remainder, availableWelcomeMatch);
+        pod.contingencyBufferUsd = Math.max(0, availableWelcomeMatch - welcomeMatchUsed);
+        pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
+
+        // Record deposit with split metadata
+        const newDeposit: Deposit = {
+          id: `dep_split_${Date.now()}`,
+          membershipId: member.id,
+          podId: pod.id,
+          cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
+          userId: member.userId,
+          userName: member.displayName,
+          amount: requiredDeposit,
+          stripePaymentId: `pi_split_wm_${Date.now()}`,
+          status: 'COMPLETE',
+          createdAt: new Date().toISOString(),
+        };
+        deposits.unshift(newDeposit);
+
+        // ENFORCEMENT: Welcome Match Credited kicked in due to insufficient user balance
+        // The user must be taken off the Pod due to missed payment/deposit, and Pod is publicly listed.
+        pod.members = pod.members.filter(m => m.userId !== memberUserId);
+        pod.memberCount = pod.members.length;
+        pod.members.forEach((m, idx) => { m.rotationIndex = idx; });
+        pod.podType = 'OPEN_POD';
+        pod.isPrioritizedForReplacement = true;
+        pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+        removedFromPod = true;
+        podListedPublicly = true;
+        outcome = 'WELCOME_MATCH_REMAINDER_APPLIED_MEMBER_REMOVED';
 
         addAuditLog(
           pod.id,
           user.id,
           user.displayName,
           'CONTINGENCY_BUFFER_USED',
-          `🛡️ Covered $${pod.depositTier.toFixed(2)} missed deposit gap for ${member.displayName} using pod's Mutual Pool First-Cycle Contingency Buffer. Remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}.`,
-          { coveredMemberUserId: memberUserId, coverAmount, remainingBuffer: pod.contingencyBufferUsd }
+          `🛡️ Missed Deposit Resolution: $${balanceDeducted.toFixed(2)} deducted from ${member.displayName}'s balance; remainder $${welcomeMatchUsed.toFixed(2)} covered by Welcome Match Contingency Reserve (remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}). Due to insufficient funds default, ${member.displayName} was removed from pod "${pod.name}", and the pod is now publicly listed as an Open Pod with replacement priority.`,
+          {
+            memberUserId,
+            balanceDeducted,
+            welcomeMatchUsed,
+            remainingBuffer: pod.contingencyBufferUsd,
+            removedFromPod: true,
+            podListedPublicly: true,
+          }
         );
-      } else {
-        pod.currentWeeklyCollected += pod.depositTier;
+
+        createNotification({
+          userId: member.userId,
+          type: 'STATUS_CHANGE',
+          title: 'Removed from Pod - Insufficient Balance',
+          message: `Your account balance ($${balanceDeducted.toFixed(2)}) was insufficient for your $${requiredDeposit.toFixed(2)} deposit in "${pod.name}". The remaining $${welcomeMatchUsed.toFixed(2)} was covered by the Welcome Match Reserve. You have been removed from the rotation and the pod is now publicly listed for a replacement.`,
+          podId: pod.id,
+        });
       }
     }
 
-    addAuditLog(
-      pod.id,
-      user.id,
-      user.displayName,
-      'DELINQUENCY_HANDLED',
-      `Admin handled missed deposit for ${member.displayName}: Action selected = "${actionChoice}".`,
-      { memberUserId, actionChoice }
-    );
+    savePodsToDisk();
+    saveUsersToDisk();
 
-    res.json({ success: true, member, pod });
+    res.json({
+      success: true,
+      outcome,
+      balanceDeducted,
+      welcomeMatchUsed,
+      removedFromPod,
+      podListedPublicly,
+      pod,
+      remainingBufferUsd: pod.contingencyBufferUsd,
+    });
   });
 
 // --- ADVERTISER / BRAND PARTNER CAMPAIGN INQUIRIES ---

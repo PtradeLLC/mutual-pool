@@ -254,6 +254,8 @@ export type NotificationType =
   | 'POD_JOINED' 
   | 'PAYOUT_READY' 
   | 'DEPOSIT_REMINDER' 
+  | 'DEPOSIT_DUE'
+  | 'STATUS_CHANGE'
   | 'GENERAL';
 
 export interface AppNotification {
@@ -291,6 +293,7 @@ export interface AuditLogEntry {
     | 'USER_REGISTERED'
     | 'WEBHOOK_EVENT'
     | 'DELINQUENCY_HANDLED'
+    | 'MEMBER_REMOVED'
     | 'TREASURY_WITHDRAWAL'
     | 'PERK_CREATED'
     | 'PERK_UPDATED'

@@ -2,10 +2,10 @@ import React from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 
 export const PRESET_PERK_IMAGES = [
-  { label: 'Auto Care', url: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=700&auto=format&fit=crop&q=80' },
+  { label: 'Auto Care', url: 'https://images.unsplash.com/photo-1487754180451-c456f719a1fc?w=700&auto=format&fit=crop&q=80' },
   { label: 'Healthcare', url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=700&auto=format&fit=crop&q=80' },
   { label: 'Legal Aid', url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=700&auto=format&fit=crop&q=80' },
-  { label: 'Gas Station', url: 'https://images.unsplash.com/photo-1527018601619-a508a2be00be?w=700&auto=format&fit=crop&q=80' },
+  { label: 'Gas Station', url: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=700&auto=format&fit=crop&q=80' },
   { label: 'Phone & Tech', url: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=700&auto=format&fit=crop&q=80' },
   { label: 'Tax Service', url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=700&auto=format&fit=crop&q=80' },
   { label: 'Restaurants', url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=700&auto=format&fit=crop&q=80' },

@@ -54,6 +54,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   // Partner Ad Campaign Agreement Modal States (For Pod Creator right before Active status)
   const [showCampaignAgreementModal, setShowCampaignAgreementModal] = useState(false);
   const [submittingAgreement, setSubmittingAgreement] = useState(false);
+  const [recoveringMemberId, setRecoveringMemberId] = useState<string | null>(null);
 
   const fetchHardshipRequests = async () => {
     try {
@@ -461,6 +462,41 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       setActionError(err instanceof Error ? err.message : 'Payout withdrawal failed');
     } finally {
       setWithdrawingPayout(false);
+    }
+  };
+
+  // Recover Missed Deposit: Deduct from Account Balance & Welcome Match Fallback
+  const handleRecoverMissedDeposit = async (memberUserId: string, memberName: string) => {
+    setRecoveringMemberId(memberUserId);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/recover-missed-deposit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+        },
+        body: JSON.stringify({
+          memberUserId,
+          actionChoice: 'COVER_GAP',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Recovery failed');
+
+      if (data.removedFromPod) {
+        setActionSuccess(`⚠️ Insufficient Balance: $${(data.balanceDeducted || 0).toFixed(2)} deducted from balance, remainder $${(data.welcomeMatchUsed || 0).toFixed(2)} covered by Welcome Match Reserve. ${memberName} was removed from pod due to missed deposit default, and "${pod.name}" is now publicly listed as an Open Pod with replacement priority.`);
+      } else {
+        setActionSuccess(`💳 Full $${(data.balanceDeducted || pod.depositTier).toFixed(2)} deposit auto-deducted directly from ${memberName}'s account balance. Delinquency resolved and standing is now CLEAN.`);
+      }
+      onRefreshPod();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Missed deposit recovery failed');
+    } finally {
+      setRecoveringMemberId(null);
     }
   };
 
@@ -1001,6 +1037,16 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                             YOU
                           </span>
                         )}
+                        {member.delinquencyStatus === 'DELINQUENT' && (
+                          <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200 animate-pulse">
+                            MISSED DEPOSIT ($+{pod.depositTier})
+                          </span>
+                        )}
+                        {member.delinquencyStatus === 'GRACE_PERIOD' && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200">
+                            GRACE PERIOD
+                          </span>
+                        )}
                         {isCurrentTurn && (
                           <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[10px] font-bold animate-pulse">
                             THIS WEEK'S RECIPIENT
@@ -1019,6 +1065,18 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    {(member.delinquencyStatus === 'DELINQUENT' || member.delinquencyStatus === 'GRACE_PERIOD') && (isCreator || isCurrentUserMember || currentUser.isAdmin || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || currentUser.role === 'Admin') && (
+                      <button
+                        type="button"
+                        onClick={() => handleRecoverMissedDeposit(member.userId, member.displayName)}
+                        disabled={recoveringMemberId === member.userId}
+                        className="px-2 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] shadow-2xs cursor-pointer flex items-center gap-1 transition-colors disabled:opacity-50"
+                        title="Deduct deposit from member account balance. If balance is insufficient, Welcome Match covers remainder and member is removed & pod is publicly listed."
+                      >
+                        {recoveringMemberId === member.userId ? 'Deducting...' : '⚡ Auto-Deduct / WM Fallback'}
+                      </button>
+                    )}
+
                     {!isCurrentUserMember && (
                       <button
                         type="button"

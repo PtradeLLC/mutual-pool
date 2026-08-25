@@ -61,8 +61,9 @@ We know "who gets picked" is the most important part of this — here's exactly 
 ## If a payment is missed
 
 - A missed weekly deposit is flagged immediately and the member is marked delinquent.
-- Your pod's agreement (signed by every member when the pod locks) spells out what happens next: whether the pod covers the gap, the cycle is delayed, or the member is removed — this is decided by your pod, not by us, and is set before your first cycle begins.
-- Repeated missed payments affect your ability to join or create pods in the future, including Open Pods.
+- Upon wage payment or delinquency resolution, the full deposit amount is deducted directly from the member's account balance.
+- If the account balance is not enough to cover the full deposit, the **Welcome Match Credited / First-Cycle Contingency Reserve** kicks in to cover the remainder.
+- Once the Welcome Match covers the difference due to insufficient balance, the member is removed from the Pod due to missed payment default, and the Pod is publicly listed as an Open Pod to allow a verified replacement driver to join.
 
 ## The pod agreement
 

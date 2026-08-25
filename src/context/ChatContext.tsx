@@ -149,11 +149,27 @@ export const ChatProvider: React.FC<{
   }, [currentUserId]);
 
   // WebSocket Connection Lifecycle
+  const retryCountRef = useRef(0);
+
   useEffect(() => {
     let isMounted = true;
 
+    const isServerlessHost = typeof window !== 'undefined' && (
+      window.location.hostname.includes('vercel.app') ||
+      window.location.hostname.includes('now.sh')
+    );
+
     const connectWebSocket = () => {
+      if (isServerlessHost) {
+        return;
+      }
+
       if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
+      // If hosting environment does not support persistent WebSockets (e.g. serverless proxy), stop aggressive retries
+      if (retryCountRef.current > 3) {
         return;
       }
 
@@ -165,6 +181,7 @@ export const ChatProvider: React.FC<{
 
         ws.onopen = () => {
           if (!isMounted) return;
+          retryCountRef.current = 0;
           setIsConnected(true);
           // Authenticate with server
           ws.send(JSON.stringify({
@@ -262,8 +279,11 @@ export const ChatProvider: React.FC<{
         ws.onclose = () => {
           if (!isMounted) return;
           wsRef.current = null;
-          // Reconnect with 4s delay
-          reconnectTimeoutRef.current = window.setTimeout(connectWebSocket, 4000);
+          retryCountRef.current += 1;
+          if (retryCountRef.current <= 4) {
+            const delay = Math.min(20000, 2000 * Math.pow(2, retryCountRef.current));
+            reconnectTimeoutRef.current = window.setTimeout(connectWebSocket, delay);
+          }
         };
 
         ws.onerror = () => {
@@ -272,7 +292,7 @@ export const ChatProvider: React.FC<{
           }
         };
       } catch (err) {
-        console.warn('[ChatContext] WS Connection Error:', err);
+        // Fall back to REST polling gracefully
       }
     };
 

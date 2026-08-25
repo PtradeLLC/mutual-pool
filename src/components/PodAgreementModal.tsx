@@ -143,9 +143,9 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
           </section>
 
           <section>
-            <h4 className="font-bold text-[#111827] text-sm mb-1">4. Missed Deposit & Delinquency Handling Policy</h4>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">4. Missed Deposit, Account Balance Deduction & Welcome Match Policy</h4>
             <p>
-              Weekly deposits close on scheduled cycle cutoffs. Members who fail to deposit are marked DELINQUENT with a 24-hour grace window. If unresolved, pod admins or pod vote will determine whether to cover the gap from pod reserve funds, delay the cycle payout, or remove the delinquent member per terms.
+              Weekly deposits close on scheduled cycle cutoffs. Upon payment or delinquency recovery, the full deposit amount is deducted directly from the member's account balance (supplemental gig earnings/Treasury). If the member's balance is insufficient, the <strong>Welcome Match Credited / First-Cycle Contingency Reserve</strong> covers the remainder. Once the Welcome Match kicks in due to insufficient user balance, the member is automatically removed from the Pod due to missed deposit default, and the Pod is publicly listed as an Open Pod with high replacement priority to fill the vacant spot.
             </p>
           </section>
 

@@ -81,9 +81,15 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Action failed');
+      if (!res.ok) throw new Error(data.message || data.error || 'Action failed');
 
-      setDelinquencyResult(`Action "${actionChoice}" executed for selected member.`);
+      if (data.removedFromPod) {
+        setDelinquencyResult(`⚠️ Insufficient Balance: $${(data.balanceDeducted || 0).toFixed(2)} deducted from balance, remainder $${(data.welcomeMatchUsed || 0).toFixed(2)} covered by Welcome Match Reserve. Member was removed from Pod due to missed deposit default, and Pod is now publicly listed as Open Pod with replacement priority.`);
+      } else if (data.outcome === 'FULL_BALANCE_DEDUCTED') {
+        setDelinquencyResult(`💳 Full deposit of $${(data.balanceDeducted || 0).toFixed(2)} auto-deducted directly from member's account balance. Delinquency resolved and member remains active in pod.`);
+      } else {
+        setDelinquencyResult(`Action "${actionChoice}" executed for selected member.`);
+      }
       onRefreshData();
     } catch (err: unknown) {
       setDelinquencyResult(err instanceof Error ? err.message : 'Action failed');
@@ -214,9 +220,9 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
                 onChange={(e) => setActionChoice(e.target.value as 'GRACE_PERIOD' | 'COVER_GAP' | 'REMOVE')}
                 className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
               >
+                <option value="COVER_GAP">Auto-Deduct from Balance / Welcome Match Fallback</option>
                 <option value="GRACE_PERIOD">Grant 24-Hour Grace Period</option>
-                <option value="COVER_GAP">Cover Deposit Gap from Platform Reserve</option>
-                <option value="REMOVE">Remove Delinquent Member per Agreement</option>
+                <option value="REMOVE">Remove Member Directly per Agreement</option>
               </select>
             </div>
 

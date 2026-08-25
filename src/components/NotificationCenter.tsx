@@ -39,7 +39,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch('/api/notifications', {
+      const params = new URLSearchParams({
+        userId: currentUser.id,
+        userEmail: currentUser.email || '',
+        userName: currentUser.displayName || '',
+      });
+      const res = await fetch(`/api/notifications?${params.toString()}`, {
         headers: {
           'x-user-id': currentUser.id,
           'x-user-email': currentUser.email || '',
@@ -51,8 +56,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       }
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
+    } catch {
+      // Graceful fallback during offline or startup
     }
   };
 

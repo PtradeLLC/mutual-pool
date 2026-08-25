@@ -389,9 +389,9 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
             </h4>
             <ul className="space-y-1.5 text-[#374151] list-disc list-inside text-[11px]">
               <li>A missed weekly deposit is flagged immediately and the member is marked delinquent with a 24-hour grace window.</li>
-              <li><strong>First-Cycle Contingency Buffer:</strong> For new pods, the platform-funded Welcome Match buffer (equal to 100% of the deposit tier) automatically covers missed deposit gaps during Cycle 1 to ensure payout continuity.</li>
-              <li>Your pod's signed agreement spells out backup rules if the buffer is exhausted: whether remaining members cover the gap, payout is adjusted, or delinquent members are replaced.</li>
-              <li>Repeated missed payments affect your ability to join or create pods in the future, including Open Pods.</li>
+              <li>Upon wage earnings or recovery, the full deposit amount is deducted directly from the member's account balance.</li>
+              <li>If the balance is insufficient to cover the full deposit, the <strong>Welcome Match Credited / First-Cycle Contingency Reserve</strong> covers the remainder.</li>
+              <li>Once the Welcome Match kicks in due to insufficient user balance, the member is removed from the Pod due to missed payment default, and the Pod is publicly listed as an Open Pod for a replacement driver.</li>
             </ul>
           </div>
 
