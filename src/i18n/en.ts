@@ -44,7 +44,7 @@ export const en = {
   'hero.featureSafeDepositsTitle': 'FDIC Pass-Through',
   'hero.featureSafeDepositsDesc': 'Insured deposits up to $250k',
   'hero.featurePerksBenefitsTitle': 'Driver Perks & Merch',
-  'hero.featurePerksBenefitsDesc': 'Discounts and partner rewards',
+  'hero.featurePerksBenefitsDesc': 'Discounts and rewards',
   'hero.featureEmergencySwapTitle': 'Emergency Voting',
   'hero.featureEmergencySwapDesc': 'Peer payout rotation swaps',
 
