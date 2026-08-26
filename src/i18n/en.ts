@@ -1009,7 +1009,7 @@ export const en = {
   'aboutModal.badge': 'Company & Mission',
   'aboutModal.title': 'About MutualPool',
   'aboutModal.builtByDrivers': 'Built Specifically For Gig & Trade workers',
-  'aboutModal.missionText': 'MutualPool was founded to solve a critical issue faced by 15+ million independent delivery and ride-share workers: unpredictable cash flow and unexpected vehicle repair costs that can instantly wipe out a week\'s earnings.',
+  'aboutModal.missionText': 'MutualPool was founded to solve a critical issue faced by 15+ million independent delivery and ride-share workers: unpredictable cash flow and unexpected repair costs that can instantly wipe out a week\'s earnings.',
   'aboutModal.fdicTitle': 'Pass-Through FDIC',
   'aboutModal.fdicDesc': 'Partnered with Stripe Treasury to provide pass-through FDIC insurance up to $250,000 per driver account.',
   'aboutModal.roscaTitle': '0% Interest ROSCAs',
