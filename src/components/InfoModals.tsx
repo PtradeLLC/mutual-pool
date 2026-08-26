@@ -123,6 +123,26 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
   const { t } = useTranslation();
   if (!isOpen) return null;
 
+  const categories = [
+    { key: 'howItWorksModal.cat_healthcare' },
+    { key: 'howItWorksModal.cat_dental' },
+    { key: 'howItWorksModal.cat_vision' },
+    { key: 'howItWorksModal.cat_retirement' },
+    { key: 'howItWorksModal.cat_training' },
+    { key: 'howItWorksModal.cat_legal' },
+    { key: 'howItWorksModal.cat_mental' },
+    { key: 'howItWorksModal.cat_financial' },
+    { key: 'howItWorksModal.cat_discounts' },
+    { key: 'howItWorksModal.cat_entertainment' },
+    { key: 'howItWorksModal.cat_restaurants' },
+    { key: 'howItWorksModal.cat_hotels' },
+    { key: 'howItWorksModal.cat_retail' },
+    { key: 'howItWorksModal.cat_insurance' },
+    { key: 'howItWorksModal.cat_scholarships' },
+    { key: 'howItWorksModal.cat_family' },
+    { key: 'howItWorksModal.cat_emergency' }
+  ] as const;
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl relative text-[#111827] my-auto max-h-[82vh] overflow-y-auto space-y-8">
@@ -156,38 +176,38 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 font-black text-sm text-emerald-950">
               <Sparkles className="w-5 h-5 text-emerald-600 fill-emerald-600/30 shrink-0" />
-              <span>Founding Member Welcome Match & First-Cycle Contingency Buffer</span>
+              <span>{t('howItWorksModal.welcomeMatchBannerTitle')}</span>
             </div>
             <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-700 text-white uppercase tracking-wider">
-              100% Platform Funded
+              {t('howItWorksModal.welcomeMatchBannerBadge')}
             </span>
           </div>
           <p className="text-emerald-900 leading-relaxed text-xs">
-            To build immediate platform trust and de-risk early savings cycles, Mutual Pool puts its own treasury funds behind your pod creation.
+            {t('howItWorksModal.welcomeMatchBannerDesc')}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] pt-1">
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
-              <strong className="text-emerald-950 block font-bold">🎁 100% First Deposit Match</strong>
+              <strong className="text-emerald-950 block font-bold">{t('howItWorksModal.welcomeMatchCard1Title')}</strong>
               <p className="text-emerald-800">
-                When a verified KYC member creates their first pod, Mutual Pool matches 100% of their selected deposit tier.
+                {t('howItWorksModal.welcomeMatchCard1Desc')}
               </p>
             </div>
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
-              <strong className="text-emerald-950 block font-bold">🛡️ Pod Contingency Buffer</strong>
+              <strong className="text-emerald-950 block font-bold">{t('howItWorksModal.welcomeMatchCard2Title')}</strong>
               <p className="text-emerald-800">
-                The match goes directly into your pod's non-withdrawable <strong>First-Cycle Contingency Buffer</strong> to cover any missed member deposits.
+                {t('howItWorksModal.welcomeMatchCard2Desc')}
               </p>
             </div>
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
-              <strong className="text-emerald-950 block font-bold">🔒 Fair & Secure Rules</strong>
+              <strong className="text-emerald-950 block font-bold">{t('howItWorksModal.welcomeMatchCard3Title')}</strong>
               <p className="text-emerald-800">
-                Gated behind verified KYC identity. Limited to 1 lifetime match per account to prevent gaming or pod farming.
+                {t('howItWorksModal.welcomeMatchCard3Desc')}
               </p>
             </div>
             <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/80 space-y-1">
-              <strong className="text-emerald-950 block font-bold">🏦 Direct Treasury Backing</strong>
+              <strong className="text-emerald-950 block font-bold">{t('howItWorksModal.welcomeMatchCard4Title')}</strong>
               <p className="text-emerald-800">
-                Funded entirely from Mutual Pool marketing/treasury budget — never from other members' deposits.
+                {t('howItWorksModal.welcomeMatchCard4Desc')}
               </p>
             </div>
           </div>
@@ -197,10 +217,10 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-lg font-extrabold text-[#111827]">
             <Users className="w-5 h-5 text-[#005FB8]" />
-            <h3>The Two Kinds of Pods</h3>
+            <h3>{t('howItWorksModal.twoKindsTitle')}</h3>
           </div>
           <p className="text-xs text-[#6B7280]">
-            Every pod is one of two types. You choose which one when you create it.
+            {t('howItWorksModal.twoKindsSubtitle')}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -210,17 +230,17 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
               <div className="flex items-center justify-between">
                 <span className="font-bold text-[#005FB8] text-sm flex items-center gap-1.5">
                   <Lock className="w-4 h-4" />
-                  <span>🔒 Trusted Circle</span>
+                  <span>{t('howItWorksModal.trustedCircleTitle')}</span>
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#005FB8]">Default</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#005FB8]">{t('howItWorksModal.trustedCircleBadge')}</span>
               </div>
               <p className="text-[#374151] leading-relaxed">
-                A Trusted Circle is built from people you already know — contacts from your phone, email, or social invites. When you create a pod, we check which of your contacts are already members and invite the rest to join.
+                {t('howItWorksModal.trustedCircleDesc')}
               </p>
               <ul className="space-y-1.5 text-[#4B5563] list-disc list-inside text-[11px]">
-                <li>Only people you invite can join.</li>
-                <li>If your circle doesn't fill the pod within your set invite window, you can choose to open remaining spots to verified members outside your circle, or keep waiting.</li>
-                <li><strong>Best for:</strong> Friends, family, coworkers, people from your delivery hub or driver group — anyone you'd trust to show up every week.</li>
+                <li>{t('howItWorksModal.trustedCircleBullet1')}</li>
+                <li>{t('howItWorksModal.trustedCircleBullet2')}</li>
+                <li><strong>{t('howItWorksModal.bestForLabel')}</strong> {t('howItWorksModal.trustedCircleBullet3')}</li>
               </ul>
             </div>
 
@@ -229,18 +249,18 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
               <div className="flex items-center justify-between">
                 <span className="font-bold text-[#111827] text-sm flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-[#005FB8]" />
-                  <span>🌐 Open Pod</span>
+                  <span>{t('howItWorksModal.openPodTitle')}</span>
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-[#374151]">Automated Match</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-[#374151]">{t('howItWorksModal.openPodBadge')}</span>
               </div>
               <p className="text-[#374151] leading-relaxed">
-                An Open Pod is open to any verified member on the platform looking for a pod at that size and deposit tier.
+                {t('howItWorksModal.openPodDesc')}
               </p>
               <ul className="space-y-1.5 text-[#4B5563] list-disc list-inside text-[11px]">
-                <li>Matching is automatic — we fill your pod with verified members based on availability.</li>
-                <li>Every member you're matched with has completed identity verification, and you can see their track record before the pod locks.</li>
-                <li>Requires having completed at least one full Trusted Circle cycle first with no missed payments.</li>
-                <li><strong>Best for:</strong> Members who don't have 20+ people in their network yet, or who want a pod to fill faster.</li>
+                <li>{t('howItWorksModal.openPodBullet1')}</li>
+                <li>{t('howItWorksModal.openPodBullet2')}</li>
+                <li>{t('howItWorksModal.openPodBullet3')}</li>
+                <li><strong>{t('howItWorksModal.bestForLabel')}</strong> {t('howItWorksModal.openPodBullet4')}</li>
               </ul>
             </div>
 
@@ -251,49 +271,49 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
         <div className="space-y-3 pt-2">
           <div className="flex items-center gap-2 text-lg font-extrabold text-[#111827]">
             <Layers className="w-5 h-5 text-[#005FB8]" />
-            <h3>How Pods Work</h3>
+            <h3>{t('howItWorksModal.howPodsWorkTitle')}</h3>
           </div>
 
           <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-2.5 text-xs">
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Pool Creation:</strong> Any member can create a pod.
+                <strong>{t('howItWorksModal.poolCreationLabel')}</strong> {t('howItWorksModal.poolCreationDesc')}
               </div>
             </div>
 
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Starting size:</strong> New accounts can create pods at the 20-member or 50-member size to start.
+                <strong>{t('howItWorksModal.startingSizeLabel')}</strong> {t('howItWorksModal.startingSizeDesc')}
               </div>
             </div>
 
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Starting deposit tiers:</strong> New pods can be created at the $5, $10, or $20 deposit tier to start.
+                <strong>{t('howItWorksModal.startingTiersLabel')}</strong> {t('howItWorksModal.startingTiersDesc')}
               </div>
             </div>
 
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Growing your limits:</strong> Larger pod sizes (100, 500, 1,000, 5,000, 10,000 members) and higher deposit tiers ($50, $100) unlock after you've completed a full pod cycle successfully, with no missed payments, over at least 3 months.
+                <strong>{t('howItWorksModal.growingLimitsLabel')}</strong> {t('howItWorksModal.growingLimitsDesc')}
               </div>
             </div>
 
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <strong>One tier per pod:</strong> Every member in a pod deposits the same amount, on the same schedule. You can't mix deposit tiers within a single pod.
+                <strong>{t('howItWorksModal.oneTierLabel')}</strong> {t('howItWorksModal.oneTierDesc')}
               </div>
             </div>
 
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Invitations:</strong> Pod creators invite members via contacts, shareable links, or social media (Trusted Circle), or the pod fills automatically (Open Pod).
+                <strong>{t('howItWorksModal.invitationsLabel')}</strong> {t('howItWorksModal.invitationsDesc')}
               </div>
             </div>
           </div>
@@ -303,47 +323,47 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
         <div className="space-y-3 pt-2">
           <div className="flex items-center gap-2 text-lg font-extrabold text-[#111827]">
             <ShieldCheck className="w-5 h-5 text-emerald-600" />
-            <h3>How Your Money is Held</h3>
+            <h3>{t('howItWorksModal.moneyHeldTitle')}</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5">
               <h4 className="font-bold text-[#111827] flex items-center gap-1.5">
                 <Lock className="w-4 h-4 text-emerald-600" />
-                <span>Individually Held Accounts</span>
+                <span>{t('howItWorksModal.individuallyHeldTitle')}</span>
               </h4>
               <p className="text-[#374151] text-[11px] leading-relaxed">
-                Your deposits sit in your own individually held account, not in one shared pot controlled by another person. No single member ever holds or controls anyone else's money.
+                {t('howItWorksModal.individuallyHeldDesc')}
               </p>
             </div>
 
             <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5">
               <h4 className="font-bold text-[#111827] flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>FDIC Pass-Through Insurance</span>
+                <span>{t('howItWorksModal.fdicTitle')}</span>
               </h4>
               <p className="text-[#374151] text-[11px] leading-relaxed">
-                Funds held in your account are eligible for FDIC pass-through insurance up to $250,000 per member through Stripe Treasury banking partners.
+                {t('howItWorksModal.fdicDesc')}
               </p>
             </div>
 
             <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5">
               <h4 className="font-bold text-[#111827] flex items-center gap-1.5">
                 <Lock className="w-4 h-4 text-emerald-600" />
-                <span>Locked Once Deposited</span>
+                <span>{t('howItWorksModal.lockedOnceTitle')}</span>
               </h4>
               <p className="text-[#374151] text-[11px] leading-relaxed">
-                Once you deposit into a cycle, that deposit can't be withdrawn or canceled. It's released automatically to that week's recipient.
+                {t('howItWorksModal.lockedOnceDesc')}
               </p>
             </div>
 
             <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5">
               <h4 className="font-bold text-[#111827] flex items-center gap-1.5">
                 <Scale className="w-4 h-4 text-emerald-600" />
-                <span>No Interest (0% Fee)</span>
+                <span>{t('howItWorksModal.noInterestTitle')}</span>
               </h4>
               <p className="text-[#374151] text-[11px] leading-relaxed">
-                Deposits don't earn interest. Every dollar you put in comes back to you as your full payout when it's your turn — no more, no less.
+                {t('howItWorksModal.noInterestDesc')}
               </p>
             </div>
           </div>
@@ -353,28 +373,28 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
         <div className="space-y-3 pt-2">
           <div className="flex items-center gap-2 text-lg font-extrabold text-[#111827]">
             <Clock className="w-5 h-5 text-[#005FB8]" />
-            <h3>How Payout Order Works</h3>
+            <h3>{t('howItWorksModal.payoutOrderTitle')}</h3>
           </div>
 
           <p className="text-xs text-[#4B5563]">
-            We know "who gets picked" is the most important part of this — here's exactly how it works, with no randomness involved once your pod is locked in.
+            {t('howItWorksModal.payoutOrderSubtitle')}
           </p>
 
           <ul className="space-y-2 text-xs text-[#374151]">
             <li className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-1">
-              <strong>Order is set once, when your pod locks</strong> (i.e., when it reaches full membership). We randomize the order one time, and that becomes the fixed schedule for the entire cycle.
+              <strong>{t('howItWorksModal.payoutOrderItem1Prefix')}</strong> {t('howItWorksModal.payoutOrderItem1')}
             </li>
             <li className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-1">
-              <strong>Every week, the full pool goes to whoever is next in that fixed order.</strong> There's no re-drawing, no weekly lottery, and no chance involved after your pod locks — you'll always know roughly when your turn is coming.
+              <strong>{t('howItWorksModal.payoutOrderItem2Prefix')}</strong> {t('howItWorksModal.payoutOrderItem2')}
             </li>
             <li className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-1">
-              <strong>Once you've received your payout, you're not eligible again</strong> until every other member of your pod has had their turn.
+              <strong>{t('howItWorksModal.payoutOrderItem3Prefix')}</strong> {t('howItWorksModal.payoutOrderItem3')}
             </li>
             <li className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-1">
-              <strong>Need your turn moved up?</strong> You can request early payout for a documented emergency. Requests go through a review process — either a pod-wide vote or an admin review — and every decision is logged and visible to the pod.
+              <strong>{t('howItWorksModal.payoutOrderItem4Prefix')}</strong> {t('howItWorksModal.payoutOrderItem4')}
             </li>
             <li className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-1">
-              <strong>Want to trade spots?</strong> Two members can agree to swap their positions in the order at any time, no review needed — just mutual consent.
+              <strong>{t('howItWorksModal.payoutOrderItem5Prefix')}</strong> {t('howItWorksModal.payoutOrderItem5')}
             </li>
           </ul>
         </div>
@@ -385,31 +405,31 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
           <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
             <h4 className="font-bold text-[#111827] flex items-center gap-1.5 text-sm">
               <AlertCircle className="w-4 h-4 text-amber-600" />
-              <span>If a Payment is Missed</span>
+              <span>{t('howItWorksModal.missedPaymentTitle')}</span>
             </h4>
             <ul className="space-y-1.5 text-[#374151] list-disc list-inside text-[11px]">
-              <li>A missed weekly deposit is flagged immediately and the member is marked delinquent with a 24-hour grace window.</li>
-              <li>Upon wage earnings or recovery, the full deposit amount is deducted directly from the member's account balance.</li>
-              <li>If the balance is insufficient to cover the full deposit, the <strong>Welcome Match Credited / First-Cycle Contingency Reserve</strong> covers the remainder.</li>
-              <li>Once the Welcome Match kicks in due to insufficient user balance, the member is removed from the Pod due to missed payment default, and the Pod is publicly listed as an Open Pod for a replacement driver.</li>
+              <li>{t('howItWorksModal.missedPaymentBullet1')}</li>
+              <li>{t('howItWorksModal.missedPaymentBullet2')}</li>
+              <li>{t('howItWorksModal.missedPaymentBullet3')}</li>
+              <li>{t('howItWorksModal.missedPaymentBullet4')}</li>
             </ul>
           </div>
 
           <div className="p-4 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
             <h4 className="font-bold text-[#111827] flex items-center gap-1.5 text-sm">
               <FileText className="w-4 h-4 text-[#005FB8]" />
-              <span>The Pod Agreement</span>
+              <span>{t('howItWorksModal.agreementTitle')}</span>
             </h4>
             <p className="text-[#374151] text-[11px]">
-              Before any pod locks and its first cycle begins, every member reviews and signs a plain-language agreement covering:
+              {t('howItWorksModal.agreementDesc')}
             </p>
             <ul className="space-y-1 text-[#374151] list-disc list-inside text-[11px]">
-              <li>The fixed payout order and how it was set</li>
-              <li>No guaranteed return and no interest</li>
-              <li>Welcome Match rules and First-Cycle Contingency Buffer governance</li>
-              <li>How reprioritization requests and slot swaps work</li>
-              <li>What happens if someone misses a payment</li>
-              <li>A link to the current insurance disclosure</li>
+              <li>{t('howItWorksModal.agreementBullet1')}</li>
+              <li>{t('howItWorksModal.agreementBullet2')}</li>
+              <li>{t('howItWorksModal.agreementBullet3')}</li>
+              <li>{t('howItWorksModal.agreementBullet4')}</li>
+              <li>{t('howItWorksModal.agreementBullet5')}</li>
+              <li>{t('howItWorksModal.agreementBullet6')}</li>
             </ul>
           </div>
 
@@ -419,25 +439,20 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
         <div className="space-y-3 pt-2">
           <div className="flex items-center gap-2 text-lg font-extrabold text-[#111827]">
             <Gift className="w-5 h-5 text-amber-600" />
-            <h3>Perks & Benefits</h3>
+            <h3>{t('howItWorksModal.perksTitle')}</h3>
           </div>
 
           <p className="text-xs text-[#4B5563]">
-            Being a member gets you more than access to your pod — it also unlocks a marketplace of real-world benefits built for delivery riders and drivers.
+            {t('howItWorksModal.perksSubtitle')}
           </p>
 
           <div className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-3 text-xs">
             <div>
-              <h4 className="font-bold text-[#111827] mb-2">Browse & Search Categories:</h4>
+              <h4 className="font-bold text-[#111827] mb-2">{t('howItWorksModal.categoriesHeader')}</h4>
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  'Healthcare', 'Dental', 'Vision', 'Retirement plans', 'Training opportunities', 
-                  'Legal assistance', 'Mental health resources', 'Financial services', 'Discounts', 
-                  'Entertainment offers', 'Restaurants', 'Hotels', 'Retail savings', 
-                  'Insurance programs', 'Scholarships', 'Family benefits', 'Emergency assistance'
-                ].map((cat) => (
-                  <span key={cat} className="px-2.5 py-1 rounded-md bg-white border border-[#DDE1E6] text-[11px] text-[#374151] font-medium shadow-2xs">
-                    {cat}
+                {categories.map((cat) => (
+                  <span key={cat.key} className="px-2.5 py-1 rounded-md bg-white border border-[#DDE1E6] text-[11px] text-[#374151] font-medium shadow-2xs">
+                    {t(cat.key)}
                   </span>
                 ))}
               </div>
@@ -445,16 +460,16 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-200 text-[11px]">
               <div>
-                <strong>Where they come from:</strong> Some perks are added directly by our team; others are submitted by outside partners and reviewed before they go live, so you can trust that everything listed is legitimate.
+                <strong>{t('howItWorksModal.perksSourceLabel')}</strong> {t('howItWorksModal.perksSourceDesc')}
               </div>
               <div>
-                <strong>Eligibility:</strong> Most perks are open to all verified members. Some may require a bit more — like having completed a full pod cycle — and we'll always show you exactly what's needed before you try to redeem.
+                <strong>{t('howItWorksModal.perksEligibilityLabel')}</strong> {t('howItWorksModal.perksEligibilityDesc')}
               </div>
               <div>
-                <strong>How to redeem:</strong> Find a perk, tap redeem, and depending on the offer you'll get a promo code, a direct link, or a voucher. Your redemption history is saved so you can find it again anytime.
+                <strong>{t('howItWorksModal.perksRedeemLabel')}</strong> {t('howItWorksModal.perksRedeemDesc')}
               </div>
               <div>
-                <strong>New perks added regularly:</strong> We're always adding new categories and partners. Member requests directly shape what we add next.
+                <strong>{t('howItWorksModal.perksNewRegularlyLabel')}</strong> {t('howItWorksModal.perksNewRegularlyDesc')}
               </div>
             </div>
           </div>
