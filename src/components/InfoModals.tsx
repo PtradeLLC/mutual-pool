@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Logo } from './Logo';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/LanguageContext';
 import { 
   X, ShieldCheck, Users, Heart, Award, CheckCircle2, 
   HelpCircle, Scale, Clock, Lock, AlertCircle, Phone, 

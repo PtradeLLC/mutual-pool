@@ -3,6 +3,7 @@ import { User, AdCampaign, CampaignShiftLog, isAdvertiserOrAdmin } from '../type
 import { Logo } from './Logo';
 import { AdvertiserDashboard } from './AdvertiserDashboard';
 import { INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from '../data/initialData';
+import { useTranslation } from '../i18n/LanguageContext';
 import { 
   Megaphone, ShieldCheck, Sparkles, TrendingUp, Users, DollarSign, 
   MapPin, CheckCircle2, ArrowRight, Clock, Award, BarChart3, 
@@ -28,73 +29,58 @@ interface AdvertiserPageProps {
 }
 
 const METRO_MARKETS = [
-  { id: 'nyc', name: 'New York City (Manhattan & Brooklyn)', activeCouriers: '3,200+', dailyFootTraffic: '4.8M+' },
-  { id: 'la', name: 'Los Angeles & Santa Monica', activeCouriers: '2,800+', dailyFootTraffic: '3.9M+' },
-  { id: 'chicago', name: 'Chicago (Loop & River North)', activeCouriers: '1,950+', dailyFootTraffic: '2.7M+' },
-  { id: 'miami', name: 'Miami & South Beach', activeCouriers: '1,400+', dailyFootTraffic: '2.1M+' },
-  { id: 'sf', name: 'San Francisco & Bay Area', activeCouriers: '1,650+', dailyFootTraffic: '2.3M+' },
-  { id: 'austin', name: 'Austin & Downtown Tech Corridor', activeCouriers: '950+', dailyFootTraffic: '1.4M+' },
-  { id: 'atlanta', name: 'Atlanta (Buckhead & Midtown)', activeCouriers: '1,200+', dailyFootTraffic: '1.8M+' },
-  { id: 'national', name: 'National Multi-Market Fleet (Top 15 Cities)', activeCouriers: '14,000+', dailyFootTraffic: '22M+' },
-];
+  { id: 'nyc', nameKey: 'advertiser.market_nyc', activeCouriers: '3,200+', dailyFootTraffic: '4.8M+' },
+  { id: 'la', nameKey: 'advertiser.market_la', activeCouriers: '2,800+', dailyFootTraffic: '3.9M+' },
+  { id: 'chicago', nameKey: 'advertiser.market_chicago', activeCouriers: '1,950+', dailyFootTraffic: '2.7M+' },
+  { id: 'miami', nameKey: 'advertiser.market_miami', activeCouriers: '1,400+', dailyFootTraffic: '2.1M+' },
+  { id: 'sf', nameKey: 'advertiser.market_sf', activeCouriers: '1,650+', dailyFootTraffic: '2.3M+' },
+  { id: 'austin', nameKey: 'advertiser.market_austin', activeCouriers: '950+', dailyFootTraffic: '1.4M+' },
+  { id: 'atlanta', nameKey: 'advertiser.market_atlanta', activeCouriers: '1,200+', dailyFootTraffic: '1.8M+' },
+  { id: 'national', nameKey: 'advertiser.market_national', activeCouriers: '14,000+', dailyFootTraffic: '22M+' },
+] as const;
 
 const GEAR_ITEMS = [
   {
     id: 'hoodie',
-    name: 'Heavyweight Streetwear Hoodie',
-    placement: 'Front Chest Logo + Full Back Banner + Right Sleeve',
-    material: '450 GSM Ultra-Durable Cotton Fleece',
-    visibility: 'High (360° Street Level)',
-    recommendedFor: 'Fall, Winter & Spring High-Impact Brand Launches',
+    nameKey: 'advertiser.gear_hoodie_name',
+    placementKey: 'advertiser.gear_hoodie_placement',
+    materialKey: 'advertiser.gear_hoodie_material',
+    visibilityKey: 'advertiser.gear_hoodie_visibility',
+    recommendedForKey: 'advertiser.gear_hoodie_recommendedFor',
   },
   {
     id: 'tshirt',
-    name: 'High-Visibility Performance Tee / Jersey',
-    placement: 'Chest Emblem + Back Motto + Left & Right Sleeves',
-    material: 'Moisture-Wicking Breathable Poly-Cotton Blend',
-    visibility: 'Maximum Summer Route Exposure',
-    recommendedFor: 'Warm Weather & Fast Delivery Couriers',
+    nameKey: 'advertiser.gear_tshirt_name',
+    placementKey: 'advertiser.gear_tshirt_placement',
+    materialKey: 'advertiser.gear_tshirt_material',
+    visibilityKey: 'advertiser.gear_tshirt_visibility',
+    recommendedForKey: 'advertiser.gear_tshirt_recommendedFor',
   },
   {
     id: 'delivery_bag',
-    name: 'Insulated Commercial Delivery Backpack',
-    placement: 'Triple-Sided Reflective Waterproof Brand Print',
-    material: '600D Waterproof Ballistic Nylon with Thermal Lining',
-    visibility: 'Dominant Walking & Bike Eye-Level Billboard',
-    recommendedFor: 'Food, Grocery & Retail Delivery Platforms',
+    nameKey: 'advertiser.gear_delivery_bag_name',
+    placementKey: 'advertiser.gear_delivery_bag_placement',
+    materialKey: 'advertiser.gear_delivery_bag_material',
+    visibilityKey: 'advertiser.gear_delivery_bag_visibility',
+    recommendedForKey: 'advertiser.gear_delivery_bag_recommendedFor',
   },
   {
     id: 'cap_beanie',
-    name: 'Reflective Safety Cap & Knitted Beanie',
-    placement: 'Front Embroidered 3D Brand Badge',
-    material: 'Reflective Threaded Cotton / Acrylic Knit',
-    visibility: 'High-Density Pickup & Dropoff Eye Contact',
-    recommendedFor: 'Year-Round Add-On Campaign Accessory',
+    nameKey: 'advertiser.gear_cap_beanie_name',
+    placementKey: 'advertiser.gear_cap_beanie_placement',
+    materialKey: 'advertiser.gear_cap_beanie_material',
+    visibilityKey: 'advertiser.gear_cap_beanie_visibility',
+    recommendedForKey: 'advertiser.gear_cap_beanie_recommendedFor',
   },
-];
+] as const;
 
 const FAQS = [
-  {
-    q: 'How does MutualPool verify that couriers are actually wearing our partner gear?',
-    a: 'We combine route GPS shift activity with regular in-app photographic check-ins at delivery pickups and drops. Daily wage payments ($55–$75/day) are released to couriers only after qualifying route activity is recorded during active campaign hours.',
-  },
-  {
-    q: 'How long does it take to manufacture and fulfill campaign apparel for our fleet?',
-    a: 'Turnaround for standard campaign apparel (hoodies, tees, caps, delivery bags) is typically 10 to 14 business days from artwork approval to courier doorstep delivery.',
-  },
-  {
-    q: 'Can we target specific neighborhoods or delivery platforms?',
-    a: 'Yes! You can target specific metropolitan areas (e.g. Lower Manhattan, West Hollywood, Downtown Chicago) and courier delivery types (Bike/E-bike, Scooter, Foot, Car).',
-  },
-  {
-    q: 'Where do our sponsorship funds go?',
-    a: "65% of campaign sponsorship funds are credited directly to verified couriers' Stripe Treasury accounts as daily supplemental earnings ($55–$75/day). The remaining 35% is invested into custom high-durability gear manufacturing, fulfillment, GPS verification, and operational overhead.",
-  },
-  {
-    q: 'What is the minimum campaign commitment?',
-    a: 'Campaigns start at 25 courier ambassadors for a minimum 2-week active run, scaling all the way up to multi-city enterprise deployments with 1,000+ couriers.',
-  },
-];
+  { qKey: 'advertiser.faq1_q', aKey: 'advertiser.faq1_a' },
+  { qKey: 'advertiser.faq2_q', aKey: 'advertiser.faq2_a' },
+  { qKey: 'advertiser.faq3_q', aKey: 'advertiser.faq3_a' },
+  { qKey: 'advertiser.faq4_q', aKey: 'advertiser.faq4_a' },
+  { qKey: 'advertiser.faq5_q', aKey: 'advertiser.faq5_a' },
+] as const;
 
 export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   currentUser,
@@ -106,6 +92,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   onOpenAuth,
   initialTab = 'media-kit',
 }) => {
+  const { t, formatCurrency, language } = useTranslation();
   const isAuthenticated = !!(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
   const canAccessMetrics = isAdvertiserOrAdmin(currentUser);
 
@@ -123,7 +110,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   }, [canAccessMetrics, pageViewMode]);
 
   // Campaign Calculator State
-  const [selectedMarket, setSelectedMarket] = useState(METRO_MARKETS[0].id);
+  const [selectedMarket, setSelectedMarket] = useState<string>(METRO_MARKETS[0].id);
   const [courierCount, setCourierCount] = useState<number>(100);
   const [durationWeeks, setDurationWeeks] = useState<number>(4);
   const [selectedGear, setSelectedGear] = useState<string>('hoodie');
@@ -167,7 +154,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   const handleSubmitInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.brandName.trim() || !formData.contactEmail.trim()) {
-      setErrorMsg('Please provide your brand name and a valid business email.');
+      setErrorMsg(t('advertiser.formError'));
       return;
     }
 
@@ -221,7 +208,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               title="Return to previous view"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
+              <span>{t('advertiser.back')}</span>
             </button>
             <div className="h-4 w-px bg-slate-200 hidden sm:block" />
             <div className="flex items-center gap-2">
@@ -245,7 +232,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 }`}
               >
                 <Calculator className="w-3.5 h-3.5" />
-                <span>Media Kit & Proposal Builder</span>
+                <span>{t('advertiser.tabMediaKit')}</span>
               </button>
 
               <button
@@ -262,7 +249,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 title="View live campaign analytics & courier fleet shifts"
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>Campaign Metrics Dashboard</span>
+                <span>{t('advertiser.tabMetrics')}</span>
               </button>
             </div>
           )}
@@ -275,7 +262,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors border border-slate-300 flex items-center gap-1.5 cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5 text-slate-700" />
-                <span>Sign In</span>
+                <span>{t('advertiser.signIn')}</span>
               </button>
             )}
 
@@ -291,7 +278,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Sponsor Fleet</span>
+                <span>{t('advertiser.sponsorFleet')}</span>
               </button>
             ) : (
               <a
@@ -299,7 +286,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
               >
                 <Megaphone className="w-4 h-4" />
-                <span>Launch a Campaign</span>
+                <span>{t('advertiser.launchCampaign')}</span>
               </a>
             )}
           </div>
@@ -333,19 +320,19 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
           <div className="text-center max-w-3xl mx-auto space-y-4 mb-12">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-extrabold tracking-wide uppercase">
               <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>Turn Delivery Fleets into High-Impact Streetwear Billboards</span>
+              <span>{t('advertiser.heroBadge')}</span>
             </div>
 
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-slate-950 tracking-tight uppercase leading-none">
-              Partner Promo Apparel
+              {t('advertiser.heroTitle')}
             </h1>
 
             <p className="text-base sm:text-xl text-slate-700 font-semibold leading-relaxed">
-              Built for Gig Workers. Powered by Partnerships.
+              {t('advertiser.heroSubtitle')}
             </p>
 
             <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              Equip thousands of active gig delivery couriers with premium streetwear apparel and insulated gear. Capture millions of organic, high-frequency impressions across high-density metro downtowns while directly supporting working couriers.
+              {t('advertiser.heroDesc')}
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -353,14 +340,14 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 href="#launch-form"
                 className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm tracking-wide transition-all shadow-md shadow-amber-500/20 flex items-center gap-2"
               >
-                <span>Request Media Kit & Quote</span>
+                <span>{t('advertiser.requestMediaKit')}</span>
                 <ArrowRight className="w-4 h-4" />
               </a>
               <a
                 href="#calculator"
                 className="px-5 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-bold text-sm transition-all shadow-xs"
               >
-                Estimate Campaign Reach
+                {t('advertiser.estimateReach')}
               </a>
             </div>
           </div>
@@ -373,14 +360,14 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight uppercase">
-                    Partner Promo Apparel
+                    {t('advertiser.heroTitle')}
                   </h2>
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-                    Official Kit v1.0
+                    {t('advertiser.showcaseBadge')}
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                  Built for Gig Workers. Powered by Partnerships.
+                  {t('advertiser.heroSubtitle')}
                 </p>
               </div>
 
@@ -393,7 +380,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     previewTab === 'full' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
                   }`}
                 >
-                  All 3 Views
+                  {t('advertiser.all3Views')}
                 </button>
                 <button
                   type="button"
@@ -402,7 +389,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     previewTab === 'front' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
                   }`}
                 >
-                  Front View
+                  {t('advertiser.frontView')}
                 </button>
                 <button
                   type="button"
@@ -411,7 +398,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     previewTab === 'back' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
                   }`}
                 >
-                  Back View
+                  {t('advertiser.backView')}
                 </button>
                 <button
                   type="button"
@@ -420,7 +407,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     previewTab === 'sleeve' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
                   }`}
                 >
-                  Sleeve Detail
+                  {t('advertiser.sleeveDetail')}
                 </button>
               </div>
             </div>
@@ -433,7 +420,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="md:col-span-5 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
                   <div className="absolute top-4 left-4 z-10">
                     <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
-                      Front View
+                      {t('advertiser.panel1Badge')}
                     </span>
                   </div>
                   <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
@@ -446,10 +433,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   </div>
                   <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
                     <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                      Chest Print & Brand Emblem
+                      {t('advertiser.panel1Title')}
                     </div>
                     <p className="text-xs text-slate-200 font-medium">
-                      High-contrast typography: <span className="text-white font-semibold">"FUELED BY HUSTLE. POWERED BY COMMUNITY."</span> with Partner Co-Branding.
+                      {t('advertiser.panel1Desc')}
                     </p>
                   </div>
                 </div>
@@ -458,7 +445,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="md:col-span-4 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
                   <div className="absolute top-4 left-4 z-10">
                     <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
-                      Back View
+                      {t('advertiser.panel2Badge')}
                     </span>
                   </div>
                   <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
@@ -471,10 +458,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   </div>
                   <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
                     <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                      Back Banner & Feature Badges
+                      {t('advertiser.panel2Title')}
                     </div>
                     <p className="text-xs text-slate-200 font-medium">
-                      Bold Gold Header: <span className="text-white font-semibold">"TODAY WE DELIVER. TOMORROW WE WIN."</span> with Local Brands & Zero Fees icons.
+                      {t('advertiser.panel2Desc')}
                     </p>
                   </div>
                 </div>
@@ -483,7 +470,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="md:col-span-3 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
                   <div className="absolute top-4 left-4 z-10">
                     <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
-                      Sleeve Detail
+                      {t('advertiser.panel3Badge')}
                     </span>
                   </div>
                   <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
@@ -496,10 +483,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   </div>
                   <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
                     <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                      Right Arm Call-To-Action
+                      {t('advertiser.panel3Title')}
                     </div>
                     <p className="text-xs text-slate-200 font-medium">
-                      Vertical Megaphone Print: <span className="text-white font-semibold">"ADVERTISE WITH US"</span> with custom QR or promo code options.
+                      {t('advertiser.panel3Desc')}
                     </p>
                   </div>
                 </div>
@@ -509,24 +496,24 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden border border-slate-200 bg-slate-950">
                 <img src={promoFrontImg} alt="Front View" className="w-full object-cover aspect-3/4" />
                 <div className="p-4 bg-slate-900 text-center">
-                  <h3 className="font-bold text-white text-base">FRONT VIEW: Chest Graphic & Co-Brand Placement</h3>
-                  <p className="text-xs text-slate-300 mt-1">High-visibility chest branding visible on every pickup and handoff.</p>
+                  <h3 className="font-bold text-white text-base">{t('advertiser.frontViewDetailTitle')}</h3>
+                  <p className="text-xs text-slate-300 mt-1">{t('advertiser.frontViewDetailDesc')}</p>
                 </div>
               </div>
             ) : previewTab === 'back' ? (
               <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden border border-slate-200 bg-slate-950">
                 <img src={promoBackImg} alt="Back View" className="w-full object-cover aspect-3/4" />
                 <div className="p-4 bg-slate-900 text-center">
-                  <h3 className="font-bold text-white text-base">BACK VIEW: Street-Level Billboard Banner</h3>
-                  <p className="text-xs text-slate-300 mt-1">Visible to pedestrians, drivers, and riders across dense metropolitan traffic.</p>
+                  <h3 className="font-bold text-white text-base">{t('advertiser.backViewDetailTitle')}</h3>
+                  <p className="text-xs text-slate-300 mt-1">{t('advertiser.backViewDetailDesc')}</p>
                 </div>
               </div>
             ) : (
               <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden border border-slate-200 bg-slate-950">
                 <img src={promoSleeveImg} alt="Sleeve Detail" className="w-full object-cover aspect-3/4" />
                 <div className="p-4 bg-slate-900 text-center">
-                  <h3 className="font-bold text-white text-base">SLEEVE DETAIL: High-Contrast Campaign Callout</h3>
-                  <p className="text-xs text-slate-300 mt-1">Eye-level visibility whenever couriers handle orders, handlebars, and smartphones.</p>
+                  <h3 className="font-bold text-white text-base">{t('advertiser.sleeveViewDetailTitle')}</h3>
+                  <p className="text-xs text-slate-300 mt-1">{t('advertiser.sleeveViewDetailDesc')}</p>
                 </div>
               </div>
             )}
@@ -534,20 +521,20 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             {/* Quick Metrics Bar Under Showcase */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200">
               <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200 text-center">
-                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Avg Daily Shifts</div>
-                <div className="text-lg font-black text-slate-900 mt-0.5">8 - 11 Hours</div>
+                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{t('advertiser.avgDailyShifts')}</div>
+                <div className="text-lg font-black text-slate-900 mt-0.5">{t('advertiser.avgDailyShiftsVal')}</div>
               </div>
               <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200 text-center">
-                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Daily Impressions</div>
-                <div className="text-lg font-black text-amber-600 mt-0.5">1,450+ / Courier</div>
+                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{t('advertiser.dailyImpressions')}</div>
+                <div className="text-lg font-black text-amber-600 mt-0.5">{t('advertiser.dailyImpressionsVal')}</div>
               </div>
               <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200 text-center">
-                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Courier Daily Payout</div>
-                <div className="text-lg font-black text-emerald-600 mt-0.5">$55 - $75 / Day</div>
+                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{t('advertiser.courierDailyPayout')}</div>
+                <div className="text-lg font-black text-emerald-600 mt-0.5">{t('advertiser.courierDailyPayoutVal')}</div>
               </div>
               <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200 text-center">
-                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Effective CPM</div>
-                <div className="text-lg font-black text-[#005FB8] mt-0.5">$8.50 - $14.50</div>
+                <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{t('advertiser.effectiveCpm')}</div>
+                <div className="text-lg font-black text-[#005FB8] mt-0.5">{t('advertiser.effectiveCpmVal')}</div>
               </div>
             </div>
 
@@ -559,10 +546,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
       <section className="py-16 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
           <h2 className="text-2xl sm:text-4xl font-black uppercase text-slate-950 tracking-tight">
-            Why Street-Level Courier Sponsorship Beats Traditional Ads
+            {t('advertiser.whyTitle')}
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Standard billboards stay static. Couriers navigate restaurant corridors, high-density residential towers, and downtown financial districts at pedestrian eye level.
+            {t('advertiser.whyDesc')}
           </p>
         </div>
 
@@ -571,9 +558,9 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#005FB8]">
               <Eye className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Un-skippable Street Visibility</h3>
+            <h3 className="text-lg font-bold text-slate-900">{t('advertiser.prop1Title')}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              No ad blockers. No banner blindness. Your brand is worn naturally by authentic local couriers entering high-traffic restaurants, building lobbies, and metro elevators hundreds of times a day.
+              {t('advertiser.prop1Desc')}
             </p>
           </div>
 
@@ -581,9 +568,9 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
               <ShieldCheck className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">GPS Route Verification & Quality</h3>
+            <h3 className="text-lg font-bold text-slate-900">{t('advertiser.prop2Title')}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Every payout is backed by verified active route activity and in-app photo confirmations. You only pay for active, verified campaign delivery shifts.
+              {t('advertiser.prop2Desc')}
             </p>
           </div>
 
@@ -591,9 +578,9 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
               <HeartHandshake className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Direct Social & Community Impact</h3>
+            <h3 className="text-lg font-bold text-slate-900">{t('advertiser.prop3Title')}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Earnings go directly to hardworking gig workers through Stripe Treasury, helping them build emergency savings.
+              {t('advertiser.prop3Desc')}
             </p>
           </div>
         </div>
@@ -605,13 +592,13 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
           
           <div className="text-center max-w-2xl mx-auto space-y-3 mb-10">
             <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-bold uppercase tracking-wider">
-              Interactive Planning Tool
+              {t('advertiser.calcBadge')}
             </span>
             <h2 className="text-2xl sm:text-4xl font-black uppercase text-slate-950 tracking-tight">
-              Campaign Reach & Budget Estimator
+              {t('advertiser.calcTitle')}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600">
-              Select your target market, ambassador fleet size, and duration to model real-world delivery impressions and worker earnings.
+              {t('advertiser.calcDesc')}
             </p>
           </div>
 
@@ -623,7 +610,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               {/* Market Selection */}
               <div>
                 <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                  1. Select Target Metropolitan Market
+                  {t('advertiser.calcStep1')}
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {METRO_MARKETS.map(market => (
@@ -638,11 +625,11 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       }`}
                     >
                       <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                        <span>{market.name}</span>
+                        <span>{t(market.nameKey)}</span>
                         {selectedMarket === market.id && <Check className="w-3.5 h-3.5 text-[#005FB8]" />}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1">
-                        Active Fleet: <span className="text-slate-800 font-semibold">{market.activeCouriers}</span>
+                        {t('advertiser.calcActiveFleet')} <span className="text-slate-800 font-semibold">{market.activeCouriers}</span>
                       </div>
                     </button>
                   ))}
@@ -653,10 +640,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                    2. Courier Ambassador Fleet Size
+                    {t('advertiser.calcStep2')}
                   </label>
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono font-bold">
-                    {courierCount} Active Couriers
+                    {t('advertiser.calcActiveCouriers', { count: courierCount })}
                   </span>
                 </div>
                 <input
@@ -669,17 +656,17 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#005FB8]"
                 />
                 <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
-                  <span>25 (Pilot)</span>
-                  <span>100 (Metro Standard)</span>
-                  <span>250 (Dominant)</span>
-                  <span>500+ (City Takeover)</span>
+                  <span>{t('advertiser.calcPilot')}</span>
+                  <span>{t('advertiser.calcStandard')}</span>
+                  <span>{t('advertiser.calcDominant')}</span>
+                  <span>{t('advertiser.calcTakeover')}</span>
                 </div>
               </div>
 
               {/* Duration Selector */}
               <div>
                 <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                  3. Campaign Duration
+                  {t('advertiser.calcStep3')}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {[2, 4, 8, 12].map(weeks => (
@@ -693,7 +680,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                           : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
                       }`}
                     >
-                      {weeks} Weeks
+                      {t('advertiser.calcWeeks', { weeks })}
                     </button>
                   ))}
                 </div>
@@ -702,7 +689,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               {/* Apparel Gear Package */}
               <div>
                 <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                  4. Primary Promotional Apparel Item
+                  {t('advertiser.calcStep4')}
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {GEAR_ITEMS.map(item => (
@@ -716,8 +703,8 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                           : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
-                      <div className="text-xs font-bold text-slate-900">{item.name}</div>
-                      <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{item.placement}</div>
+                      <div className="text-xs font-bold text-slate-900">{t(item.nameKey)}</div>
+                      <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{t(item.placementKey)}</div>
                     </button>
                   ))}
                 </div>
@@ -730,45 +717,45 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               
               <div className="border-b border-slate-200 pb-4">
                 <div className="text-xs font-bold text-amber-700 uppercase tracking-wide">
-                  Projected Campaign Impact
+                  {t('advertiser.summaryBadge')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-black text-slate-950 mt-1">
-                  Estimated Performance Summary
+                  {t('advertiser.summaryTitle')}
                 </h3>
               </div>
 
               <div className="space-y-4">
                 
                 <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-slate-200">
-                  <div className="text-xs text-slate-500 font-medium">Estimated Street-Level Impressions</div>
+                  <div className="text-xs text-slate-500 font-medium">{t('advertiser.summaryImpressions')}</div>
                   <div className="text-3xl font-black text-amber-600 font-mono mt-1">
-                    {totalImpressions.toLocaleString('en-US')}+
+                    {totalImpressions.toLocaleString()}+
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
-                    Based on {activeDays} active shift days × {courierCount} couriers
+                    {t('advertiser.summaryImpressionsSub', { days: activeDays, couriers: courierCount })}
                   </div>
                 </div>
 
                 <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-slate-200">
-                  <div className="text-xs text-slate-500 font-medium">Direct Gig Worker Earnings Paid</div>
+                  <div className="text-xs text-slate-500 font-medium">{t('advertiser.summaryEarnings')}</div>
                   <div className="text-2xl font-black text-emerald-600 font-mono mt-1">
-                    ${totalCourierEarningsGenerated.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatCurrency ? formatCurrency(totalCourierEarningsGenerated) : `$${totalCourierEarningsGenerated.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
-                    65% credited to verified delivery couriers via Stripe Treasury (remainder invested in custom gear & operations)
+                    {t('advertiser.summaryEarningsSub')}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200">
-                    <div className="text-[10px] text-slate-500 uppercase font-bold">Estimated Cost</div>
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">{t('advertiser.summaryCost')}</div>
                     <div className="text-lg font-black text-slate-900 font-mono mt-0.5">
-                      ${estimatedCampaignCost.toLocaleString('en-US')}
+                      {formatCurrency ? formatCurrency(estimatedCampaignCost) : `$${estimatedCampaignCost.toLocaleString()}`}
                     </div>
                   </div>
 
                   <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200">
-                    <div className="text-[10px] text-slate-500 uppercase font-bold">Effective CPM</div>
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">{t('advertiser.summaryCpm')}</div>
                     <div className="text-lg font-black text-[#005FB8] font-mono mt-0.5">
                       ${effectiveCpm}
                     </div>
@@ -780,7 +767,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-start gap-2">
                 <Sparkles className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
                 <span>
-                  Includes turnkey apparel production, custom screen printing, doorstep fulfillment, GPS shift tracking, and compliance management.
+                  {t('advertiser.summaryNote')}
                 </span>
               </div>
 
@@ -788,7 +775,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 href="#launch-form"
                 className="w-full py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm text-center block transition-all shadow-md shadow-blue-500/25 cursor-pointer"
               >
-                Lock In This Campaign Proposal
+                {t('advertiser.summaryLockIn')}
               </a>
 
             </div>
@@ -802,13 +789,13 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
       <section className="py-16 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
           <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase tracking-wider">
-            Premium Garments & Gear
+            {t('advertiser.catalogBadge')}
           </span>
           <h2 className="text-2xl sm:text-4xl font-black uppercase text-slate-950 tracking-tight">
-            Designed for Durability & Maximum Eye-Level Impact
+            {t('advertiser.catalogTitle')}
           </h2>
           <p className="text-xs sm:text-sm text-slate-600">
-            We manufacture commercial-grade streetwear and all-weather gear that gig workers proudly wear on every shift.
+            {t('advertiser.catalogDesc')}
           </p>
         </div>
 
@@ -822,16 +809,16 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-amber-600 font-bold">
                   0{idx + 1}
                 </div>
-                <h3 className="font-bold text-slate-900 text-base leading-snug">{gear.name}</h3>
+                <h3 className="font-bold text-slate-900 text-base leading-snug">{t(gear.nameKey)}</h3>
                 <div className="text-xs text-slate-600 space-y-1">
-                  <p><strong className="text-slate-800">Placement:</strong> {gear.placement}</p>
-                  <p><strong className="text-slate-800">Material:</strong> {gear.material}</p>
-                  <p><strong className="text-slate-800">Visibility:</strong> {gear.visibility}</p>
+                  <p><strong className="text-slate-800">{t('advertiser.gearPlacement')}</strong> {t(gear.placementKey)}</p>
+                  <p><strong className="text-slate-800">{t('advertiser.gearMaterial')}</strong> {t(gear.materialKey)}</p>
+                  <p><strong className="text-slate-800">{t('advertiser.gearVisibility')}</strong> {t(gear.visibilityKey)}</p>
                 </div>
               </div>
               <div className="pt-3 border-t border-slate-200">
                 <span className="text-[11px] text-amber-700 font-bold block">
-                  Best For: {gear.recommendedFor}
+                  {t('advertiser.gearBestFor')} {t(gear.recommendedForKey)}
                 </span>
               </div>
             </div>
@@ -845,13 +832,13 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
           
           <div className="text-center space-y-3 mb-10">
             <span className="px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold uppercase tracking-wider">
-              Get Started in Under 24 Hours
+              {t('advertiser.formBadge')}
             </span>
             <h2 className="text-2xl sm:text-4xl font-black uppercase text-slate-950 tracking-tight">
-              Launch Your Partner Campaign
+              {t('advertiser.formTitle')}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto">
-              Submit your brand details below to receive a custom media plan, digital apparel mockup, and fleet deployment schedule.
+              {t('advertiser.formDesc')}
             </p>
           </div>
 
@@ -861,9 +848,12 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h3 className="text-2xl font-black text-slate-950">Campaign Inquiry Received!</h3>
+                <h3 className="text-2xl font-black text-slate-950">{t('advertiser.successTitle')}</h3>
                 <p className="text-sm text-slate-700 max-w-md mx-auto leading-relaxed">
-                  Thank you, <strong className="text-slate-950">{formData.contactName || 'Partner'}</strong>. Our Brand Partnerships Director will reach out to <strong className="text-[#005FB8]">{formData.contactEmail}</strong> within 1 business day with your custom campaign mockup and media kit.
+                  {t('advertiser.successDesc', { 
+                    name: formData.contactName || 'Partner',
+                    email: formData.contactEmail
+                  })}
                 </p>
                 <div className="pt-4 flex justify-center gap-3">
                   <button
@@ -883,14 +873,14 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     }}
                     className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors cursor-pointer border border-slate-300"
                   >
-                    Submit Another Inquiry
+                    {t('advertiser.submitAnother')}
                   </button>
                   <button
                     type="button"
                     onClick={onBack}
                     className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors cursor-pointer"
                   >
-                    Return to App
+                    {t('advertiser.returnToApp')}
                   </button>
                 </div>
               </div>
@@ -907,13 +897,13 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Brand / Company Name <span className="text-rose-500">*</span>
+                      {t('advertiser.brandNameLabel')} <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       name="brandName"
                       required
-                      placeholder="e.g. Acme Tech, Red Bull, Local Brewery"
+                      placeholder={t('advertiser.brandNamePlaceholder')}
                       value={formData.brandName}
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
@@ -922,12 +912,12 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Website URL
+                      {t('advertiser.websiteUrlLabel')}
                     </label>
                     <input
                       type="url"
                       name="websiteUrl"
-                      placeholder="https://yourbrand.com"
+                      placeholder={t('advertiser.websiteUrlPlaceholder')}
                       value={formData.websiteUrl}
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
@@ -938,13 +928,13 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Contact Name <span className="text-rose-500">*</span>
+                      {t('advertiser.contactNameLabel')} <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       name="contactName"
                       required
-                      placeholder="Your Full Name"
+                      placeholder={t('advertiser.contactNamePlaceholder')}
                       value={formData.contactName}
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
@@ -953,13 +943,13 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Business Email <span className="text-rose-500">*</span>
+                      {t('advertiser.businessEmailLabel')} <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="email"
                       name="contactEmail"
                       required
-                      placeholder="name@company.com"
+                      placeholder={t('advertiser.businessEmailPlaceholder')}
                       value={formData.contactEmail}
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
@@ -968,12 +958,12 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Phone Number
+                      {t('advertiser.phoneLabel')}
                     </label>
                     <input
                       type="tel"
                       name="contactPhone"
-                      placeholder="(555) 000-0000"
+                      placeholder={t('advertiser.phonePlaceholder')}
                       value={formData.contactPhone}
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
@@ -984,7 +974,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Primary Campaign Objective
+                      {t('advertiser.objectiveLabel')}
                     </label>
                     <select
                       name="campaignObjective"
@@ -992,17 +982,17 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
                     >
-                      <option value="Brand Awareness & Street Dominance">Brand Awareness & Street Dominance</option>
-                      <option value="Product Launch or Promo Code Blitz">Product Launch or Promo Code Blitz</option>
-                      <option value="App Downloads & QR Drive">App Downloads & QR Drive</option>
-                      <option value="Corporate Social Responsibility & Gig Support">CSR & Direct Gig Worker Support</option>
-                      <option value="Event Sponsorship / Festival Activation">Event Sponsorship / Festival Activation</option>
+                      <option value="Brand Awareness & Street Dominance">{t('advertiser.obj1')}</option>
+                      <option value="Product Launch or Promo Code Blitz">{t('advertiser.obj2')}</option>
+                      <option value="App Downloads & QR Drive">{t('advertiser.obj3')}</option>
+                      <option value="Corporate Social Responsibility & Gig Support">{t('advertiser.obj4')}</option>
+                      <option value="Event Sponsorship / Festival Activation">{t('advertiser.obj5')}</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Estimated Campaign Budget
+                      {t('advertiser.budgetLabel')}
                     </label>
                     <select
                       name="budgetRange"
@@ -1010,22 +1000,22 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
                     >
-                      <option value="Under $5,000 (Pilot 25 Couriers)">Under $5,000 (Pilot 25 Couriers)</option>
-                      <option value="$5,000 - $15,000 (50 - 100 Couriers)">$5,000 - $15,000 (50 - 100 Couriers)</option>
-                      <option value="$15,000 - $50,000 (Multi-City Fleet)">$15,000 - $50,000 (Multi-City Fleet)</option>
-                      <option value="$50,000+ (National Enterprise Takeover)">$50,000+ (National Enterprise Takeover)</option>
+                      <option value="Under $5,000 (Pilot 25 Couriers)">{t('advertiser.budget1')}</option>
+                      <option value="$5,000 - $15,000 (50 - 100 Couriers)">{t('advertiser.budget2')}</option>
+                      <option value="$15,000 - $50,000 (Multi-City Fleet)">{t('advertiser.budget3')}</option>
+                      <option value="$50,000+ (National Enterprise Takeover)">{t('advertiser.budget4')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Custom Notes or Brand Design Requirements
+                    {t('advertiser.notesLabel')}
                   </label>
                   <textarea
                     name="notes"
                     rows={3}
-                    placeholder="Tell us about your target launch dates, creative concepts, specific cities, or promotional offers..."
+                    placeholder={t('advertiser.notesPlaceholder')}
                     value={formData.notes}
                     onChange={handleFormChange}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
@@ -1043,10 +1033,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     ) : (
                       <Send className="w-4 h-4" />
                     )}
-                    <span>{isSubmitting ? 'Submitting Proposal Request...' : 'Submit Campaign Inquiry'}</span>
+                    <span>{isSubmitting ? t('advertiser.submitting') : t('advertiser.submitBtn')}</span>
                   </button>
                   <p className="text-[11px] text-center text-slate-500 mt-2">
-                    No upfront payment required. We will send you a digital mockup and media deck within 24 hours.
+                    {t('advertiser.noUpfront')}
                   </p>
                 </div>
 
@@ -1061,10 +1051,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
       <section className="py-16 px-4 sm:px-6 max-w-4xl mx-auto">
         <div className="text-center space-y-3 mb-10">
           <span className="px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
-            Brand Partner FAQ
+            {t('advertiser.faqBadge')}
           </span>
           <h2 className="text-2xl sm:text-3xl font-black uppercase text-slate-950 tracking-tight">
-            Frequently Asked Questions
+            {t('advertiser.faqTitle')}
           </h2>
         </div>
 
@@ -1073,10 +1063,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-start gap-2">
                 <span className="text-[#005FB8] font-mono">Q.</span>
-                <span>{faq.q}</span>
+                <span>{t(faq.qKey)}</span>
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 mt-2 pl-5 leading-relaxed">
-                {faq.a}
+                {t(faq.aKey)}
               </p>
             </div>
           ))}
@@ -1092,7 +1082,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             <Logo size="sm" />
           </div>
           <div>
-            © {new Date().getFullYear()} Chris Bitoye Ventures. All rights reserved.
+            © {new Date().getFullYear()} Chris Bitoye Ventures. {t('advertiser.rightsReserved')}
           </div>
         </div>
       </footer>
@@ -1100,3 +1090,4 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
     </div>
   );
 };
+
