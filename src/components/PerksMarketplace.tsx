@@ -653,6 +653,30 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  const getCategoryLabel = (category: PerkCategory | 'All'): string => {
+    const key = `perks.category.${category}` as any;
+    const translated = t(key);
+    return translated !== key ? translated : category;
+  };
+
+  const getPerkTitle = (perk: Perk): string => {
+    const key = `perks.initial.${perk.id}.title` as any;
+    const translated = t(key);
+    return translated !== key ? translated : perk.title;
+  };
+
+  const getPerkDesc = (perk: Perk): string => {
+    const key = `perks.initial.${perk.id}.desc` as any;
+    const translated = t(key);
+    return translated !== key ? translated : perk.description;
+  };
+
+  const getPerkBadge = (perk: Perk): string => {
+    const key = `perks.initial.${perk.id}.badge` as any;
+    const translated = t(key);
+    return translated !== key ? translated : perk.valueBadge;
+  };
+
   return (
     <div className="space-y-6">
       
@@ -697,7 +721,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               }`}
             >
               <Building2 className="w-4 h-4 text-emerald-600" />
-              <span>Partner Offers Portal {mySubmittedOffers.length > 0 && `(${mySubmittedOffers.length})`}</span>
+              <span>{mySubmittedOffers.length > 0 ? t('perks.partnerOffersPortalWithCount', { count: mySubmittedOffers.length }) : t('perks.partnerOffersPortal')}</span>
             </button>
 
             {isAdmin && (
@@ -708,7 +732,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 }`}
               >
                 <Sparkles className="w-4 h-4 text-amber-600" />
-                <span>Admin Benefits CMS {pendingCount > 0 && `(${pendingCount} Pending)`}</span>
+                <span>{pendingCount > 0 ? t('perks.adminBenefitsCmsPending', { count: pendingCount }) : t('perks.adminBenefitsCms')}</span>
               </button>
             )}
           </div>
@@ -722,10 +746,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <div>
               <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-600" />
-                <span>Partner Portal & Benefit Offers Performance Dashboard</span>
+                <span>{t('perks.partnerDashboard.title')}</span>
               </h3>
               <p className="text-[11px] text-[#6B7280]">
-                Track approval status, active views, and total member redemptions for your submitted perk offers.
+                {t('perks.partnerDashboard.subtitle')}
               </p>
             </div>
 
@@ -742,38 +766,38 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Submit New Benefit Offer</span>
+              <span>{t('perks.partnerDashboard.submitNewOffer')}</span>
             </button>
           </div>
 
           {/* Metrics summary */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <span className="text-[10px] uppercase font-bold text-blue-800 block">Total Submitted</span>
-              <span className="text-lg font-bold text-[#005FB8] font-mono">{mySubmittedOffers.length} Offers</span>
+              <span className="text-[10px] uppercase font-bold text-blue-800 block">{t('perks.partnerDashboard.totalSubmitted')}</span>
+              <span className="text-lg font-bold text-[#005FB8] font-mono">{t('perks.partnerDashboard.offersCount', { count: mySubmittedOffers.length })}</span>
             </div>
             <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-              <span className="text-[10px] uppercase font-bold text-amber-800 block">Pending Admin Review</span>
+              <span className="text-[10px] uppercase font-bold text-amber-800 block">{t('perks.partnerDashboard.pendingAdminReview')}</span>
               <span className="text-lg font-bold text-amber-900 font-mono">
-                {mySubmittedOffers.filter(p => p.status === 'PENDING').length} Pending
+                {t('perks.partnerDashboard.pendingCount', { count: mySubmittedOffers.filter(p => p.status === 'PENDING').length })}
               </span>
             </div>
             <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
-              <span className="text-[10px] uppercase font-bold text-emerald-800 block">Active Live Offers</span>
+              <span className="text-[10px] uppercase font-bold text-emerald-800 block">{t('perks.partnerDashboard.activeLiveOffers')}</span>
               <span className="text-lg font-bold text-emerald-900 font-mono">
-                {mySubmittedOffers.filter(p => p.status === 'APPROVED').length} Active
+                {t('perks.partnerDashboard.activeCount', { count: mySubmittedOffers.filter(p => p.status === 'APPROVED').length })}
               </span>
             </div>
             <div className="bg-rose-50 p-3 rounded-lg border border-rose-200">
-              <span className="text-[10px] uppercase font-bold text-rose-800 block">Suspended (Hidden)</span>
+              <span className="text-[10px] uppercase font-bold text-rose-800 block">{t('perks.partnerDashboard.suspendedHidden')}</span>
               <span className="text-lg font-bold text-rose-900 font-mono">
-                {mySubmittedOffers.filter(p => p.status === 'SUSPENDED').length} Suspended
+                {t('perks.partnerDashboard.suspendedCount', { count: mySubmittedOffers.filter(p => p.status === 'SUSPENDED').length })}
               </span>
             </div>
             <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-              <span className="text-[10px] uppercase font-bold text-purple-800 block">Member Claims</span>
+              <span className="text-[10px] uppercase font-bold text-purple-800 block">{t('perks.partnerDashboard.memberClaims')}</span>
               <span className="text-lg font-bold text-purple-900 font-mono">
-                {mySubmittedOffers.reduce((acc, p) => acc + (p.redeemedCount || 0), 0)} Claims
+                {t('perks.partnerDashboard.claimsCount', { count: mySubmittedOffers.reduce((acc, p) => acc + (p.redeemedCount || 0), 0) })}
               </span>
             </div>
           </div>
@@ -783,19 +807,19 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <table className="w-full text-left text-xs text-[#111827]">
               <thead className="bg-gray-100 text-[#4B5563] text-[10.5px] uppercase font-bold border-b border-gray-200">
                 <tr>
-                  <th className="p-3">Offer Title & Partner</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3">Discount Badge</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Redeemed Claims</th>
-                  <th className="p-3 text-right">Partner Controls</th>
+                  <th className="p-3">{t('perks.table.offerTitlePartner')}</th>
+                  <th className="p-3">{t('perks.table.category')}</th>
+                  <th className="p-3">{t('perks.table.discountBadge')}</th>
+                  <th className="p-3">{t('perks.table.status')}</th>
+                  <th className="p-3">{t('perks.table.redeemedClaims')}</th>
+                  <th className="p-3 text-right">{t('perks.table.partnerControls')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {mySubmittedOffers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-4 text-center text-gray-500 text-xs">
-                      No perk offers submitted yet. Click "Submit Benefits & Perks" to submit your first offer to Mutual Pool members!
+                      {t('perks.partnerDashboard.empty')}
                     </td>
                   </tr>
                 ) : (
@@ -806,7 +830,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                           {p.imageUrl ? (
                             <img
                               src={p.imageUrl}
-                              alt={p.title}
+                              alt={getPerkTitle(p)}
                               className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
                               referrerPolicy="no-referrer"
                             />
@@ -823,7 +847,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                             </div>
                           )}
                           <div>
-                            <div className="font-bold text-[#111827]">{p.title}</div>
+                            <div className="font-bold text-[#111827]">{getPerkTitle(p)}</div>
                             <div className="text-[11px] text-gray-500 font-medium">
                               {p.provider} {p.partnerEmail && `(${p.partnerEmail})`}
                             </div>
@@ -832,11 +856,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                       </td>
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded bg-blue-50 text-[#005FB8] text-[10px] font-bold border border-blue-200">
-                          {p.category}
+                          {getCategoryLabel(p.category)}
                         </span>
                       </td>
                       <td className="p-3 font-mono font-bold text-green-700">
-                        {p.valueBadge}
+                        {getPerkBadge(p)}
                       </td>
                       <td className="p-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
@@ -846,23 +870,23 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                           'bg-gray-100 text-gray-800 border border-gray-300'
                         }`}>
                           {p.status === 'SUSPENDED' && <EyeOff className="w-3 h-3 text-rose-700 inline shrink-0" />}
-                          {p.status === 'APPROVED' ? 'APPROVED & LIVE' : 
-                           p.status === 'PENDING' ? 'PENDING REVIEW' : 
-                           p.status === 'SUSPENDED' ? 'SUSPENDED (HIDDEN)' : 'REJECTED'}
+                          {p.status === 'APPROVED' ? t('perks.status.approvedLive') : 
+                           p.status === 'PENDING' ? t('perks.status.pendingReview') : 
+                           p.status === 'SUSPENDED' ? t('perks.status.suspendedHidden') : t('perks.status.rejected')}
                         </span>
                       </td>
                       <td className="p-3 font-mono font-bold text-gray-700">
-                        {p.redeemedCount || 0} claims
+                        {p.redeemedCount || 0} {t('perks.action.claimsUnit')}
                       </td>
                       <td className="p-3 text-right space-x-2 shrink-0">
                         {p.status === 'APPROVED' && (
                           <button
                             onClick={() => handleQuickStatusChange(p.id, 'SUSPENDED')}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
-                            title="Suspend this perk offer to temporarily remove it from public member view"
+                            title={t('perks.action.suspendTooltip')}
                           >
                             <PauseCircle className="w-3.5 h-3.5 text-rose-700" />
-                            <span>Suspend Listing</span>
+                            <span>{t('perks.action.suspendListing')}</span>
                           </button>
                         )}
 
@@ -870,20 +894,20 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                           <button
                             onClick={() => handleQuickStatusChange(p.id, 'APPROVED')}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
-                            title="Reactivate and republish this perk offer for public members"
+                            title={t('perks.action.activateTooltip')}
                           >
                             <PlayCircle className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>Reactivate Listing</span>
+                            <span>{t('perks.action.activateListing')}</span>
                           </button>
                         )}
 
                         <button
                           onClick={() => openEditModal(p)}
                           className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-[11px] transition-colors cursor-pointer inline-flex items-center gap-1 border border-gray-300"
-                          title="Edit Partner Offer Details"
+                          title={t('perks.action.editTooltip')}
                         >
                           <Pencil className="w-3.5 h-3.5 text-gray-600" />
-                          <span className="hidden sm:inline">Edit</span>
+                          <span className="hidden sm:inline">{t('perks.action.edit')}</span>
                         </button>
                       </td>
                     </tr>
@@ -902,43 +926,43 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <div>
               <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-amber-600" />
-                <span>Site Admin Benefits & Partner Management CMS</span>
+                <span>{t('perks.adminCms.title')}</span>
               </h3>
               <p className="text-[11px] text-[#6B7280]">
-                Add verified site partners, review community submissions, edit offer discount codes, or remove obsolete perks.
+                {t('perks.adminCms.subtitle')}
               </p>
             </div>
 
             <button
               onClick={() => { resetForm(); setShowAddPartnerModal(true); }}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs shrink-0"
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Add Official Verified Partner</span>
+              <span>{t('perks.adminCms.addPartnerBtn')}</span>
             </button>
           </div>
 
           {/* Admin Metrics Row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
-              <span className="text-[10px] uppercase font-bold text-emerald-800 block">Active Marketplace Deals</span>
-              <span className="text-lg font-bold text-emerald-900 font-mono">{approvedCount} Perks</span>
+              <span className="text-[10px] uppercase font-bold text-emerald-800 block">{t('perks.adminCms.activeMarketplaceDeals')}</span>
+              <span className="text-lg font-bold text-emerald-900 font-mono">{t('perks.adminCms.perksCount', { count: approvedCount })}</span>
             </div>
 
             <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-              <span className="text-[10px] uppercase font-bold text-amber-800 block">Pending Submissions</span>
-              <span className="text-lg font-bold text-amber-900 font-mono">{pendingCount} Awaiting</span>
+              <span className="text-[10px] uppercase font-bold text-amber-800 block">{t('perks.adminCms.pendingSubmissions')}</span>
+              <span className="text-lg font-bold text-amber-900 font-mono">{t('perks.adminCms.awaitingCount', { count: pendingCount })}</span>
             </div>
 
             <div className="bg-rose-50 p-3 rounded-lg border border-rose-200">
-              <span className="text-[10px] uppercase font-bold text-rose-800 block">Rejected/Archived</span>
-              <span className="text-lg font-bold text-rose-900 font-mono">{rejectedCount} Inactive</span>
+              <span className="text-[10px] uppercase font-bold text-rose-800 block">{t('perks.adminCms.rejectedArchived')}</span>
+              <span className="text-lg font-bold text-rose-900 font-mono">{t('perks.adminCms.inactiveCount', { count: rejectedCount })}</span>
             </div>
 
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <span className="text-[10px] uppercase font-bold text-blue-800 block">Total Member Redemptions</span>
+              <span className="text-[10px] uppercase font-bold text-blue-800 block">{t('perks.adminCms.totalRedemptions')}</span>
               <span className="text-lg font-bold text-[#005FB8] font-mono">
-                {allAdminPerks.reduce((acc, p) => acc + (p.redeemedCount || 0), 0)} Redemptions
+                {t('perks.adminCms.redemptionsCount', { count: allAdminPerks.reduce((acc, p) => acc + (p.redeemedCount || 0), 0) })}
               </span>
             </div>
           </div>
@@ -950,17 +974,17 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 <button
                   key={st}
                   onClick={() => setAdminStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-md font-bold text-[11px] shrink-0 transition-colors ${
+                  className={`px-3 py-1.5 rounded-md font-bold text-[11px] shrink-0 transition-colors cursor-pointer ${
                     adminStatusFilter === st
                       ? 'bg-slate-900 text-white shadow-xs'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
                   }`}
                 >
-                  {st === 'ALL' && `All (${allAdminPerks.length})`}
-                  {st === 'APPROVED' && `Active (${approvedCount})`}
-                  {st === 'PENDING' && `Pending (${pendingCount})`}
-                  {st === 'SUSPENDED' && `Suspended (${suspendedCount})`}
-                  {st === 'REJECTED' && `Rejected (${rejectedCount})`}
+                  {st === 'ALL' && t('perks.adminCms.filterAll', { count: allAdminPerks.length })}
+                  {st === 'APPROVED' && t('perks.adminCms.filterActive', { count: approvedCount })}
+                  {st === 'PENDING' && t('perks.adminCms.filterPending', { count: pendingCount })}
+                  {st === 'SUSPENDED' && t('perks.adminCms.filterSuspended', { count: suspendedCount })}
+                  {st === 'REJECTED' && t('perks.adminCms.filterRejected', { count: rejectedCount })}
                 </button>
               ))}
             </div>
@@ -969,7 +993,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               type="text"
               value={adminSearch}
               onChange={(e) => setAdminSearch(e.target.value)}
-              placeholder="Search partner or title..."
+              placeholder={t('perks.adminCms.searchPlaceholder')}
               className="w-full sm:w-64 bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
             />
           </div>
@@ -979,19 +1003,19 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <table className="w-full text-left text-xs text-[#111827]">
               <thead className="bg-gray-100 text-[#4B5563] text-[10.5px] uppercase font-bold border-b border-gray-200">
                 <tr>
-                  <th className="p-3">Partner & Offer Title</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3">Value Badge</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Redeemed</th>
-                  <th className="p-3 text-right">Admin Actions</th>
+                  <th className="p-3">{t('perks.table.offerTitlePartner')}</th>
+                  <th className="p-3">{t('perks.table.category')}</th>
+                  <th className="p-3">{t('perks.table.discountBadge')}</th>
+                  <th className="p-3">{t('perks.table.status')}</th>
+                  <th className="p-3">{t('perks.table.redeemedClaims')}</th>
+                  <th className="p-3 text-right">{t('perks.table.adminActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredAdminPerks.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-4 text-center text-gray-500 text-xs">
-                      No partner perks found matching filter criteria.
+                      {t('perks.adminCms.noPerksFound')}
                     </td>
                   </tr>
                 ) : (
@@ -1002,7 +1026,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                           {p.imageUrl ? (
                             <img
                               src={p.imageUrl}
-                              alt={p.title}
+                              alt={getPerkTitle(p)}
                               className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
                               referrerPolicy="no-referrer"
                             />
@@ -1019,9 +1043,9 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                             </div>
                           )}
                           <div>
-                            <div className="font-bold text-[#111827]">{p.title}</div>
+                            <div className="font-bold text-[#111827]">{getPerkTitle(p)}</div>
                             <div className="text-[11px] text-gray-500 font-medium">
-                              Provider: <strong className="text-[#005FB8]">{p.provider}</strong>
+                              {t('perks.adminCms.providerLabel')}: <strong className="text-[#005FB8]">{p.provider}</strong>
                               {p.partnerEmail && ` • ${p.partnerEmail}`}
                             </div>
                           </div>
@@ -1030,12 +1054,12 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded bg-blue-50 text-[#005FB8] text-[10px] font-bold border border-blue-200">
-                          {p.category}
+                          {getCategoryLabel(p.category)}
                         </span>
                       </td>
 
                       <td className="p-3 font-mono font-bold text-green-700">
-                        {p.valueBadge}
+                        {getPerkBadge(p)}
                       </td>
 
                       <td className="p-3">
@@ -1055,8 +1079,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                       <td className="p-3 text-right space-x-1 shrink-0">
                         <button
                           onClick={() => openEditModal(p)}
-                          className="p-1.5 rounded bg-gray-100 hover:bg-gray-200 text-slate-700 font-semibold text-[11px] transition-colors"
-                          title="Edit Partner Offer Details"
+                          className="p-1.5 rounded bg-gray-100 hover:bg-gray-200 text-slate-700 font-semibold text-[11px] transition-colors cursor-pointer"
+                          title={t('perks.action.editTooltip')}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -1064,8 +1088,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                         {p.status !== 'APPROVED' && (
                           <button
                             onClick={() => handleQuickStatusChange(p.id, 'APPROVED')}
-                            className="p-1.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-[11px] transition-colors"
-                            title="Approve & Publish to Marketplace"
+                            className="p-1.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-[11px] transition-colors cursor-pointer"
+                            title={t('perks.adminCms.approveTooltip')}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           </button>
@@ -1074,8 +1098,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                         {p.status !== 'REJECTED' && (
                           <button
                             onClick={() => handleQuickStatusChange(p.id, 'REJECTED')}
-                            className="p-1.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold text-[11px] transition-colors"
-                            title="Reject/Archive Offer"
+                            className="p-1.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold text-[11px] transition-colors cursor-pointer"
+                            title={t('perks.adminCms.rejectTooltip')}
                           >
                             <XCircle className="w-3.5 h-3.5" />
                           </button>
@@ -1083,8 +1107,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
                         <button
                           onClick={() => handleDeletePerk(p.id, p.title)}
-                          className="p-1.5 rounded bg-rose-100 hover:bg-rose-200 text-rose-700 font-semibold text-[11px] transition-colors"
-                          title="Delete Partner Offer"
+                          className="p-1.5 rounded bg-rose-100 hover:bg-rose-200 text-rose-700 font-semibold text-[11px] transition-colors cursor-pointer"
+                          title={t('perks.adminCms.deleteTooltip')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1117,13 +1141,13 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer ${
                 selectedCategory === cat
                   ? 'bg-[#005FB8] text-white shadow-xs'
                   : 'bg-white text-[#4B5563] border border-[#DDE1E6] hover:bg-gray-50'
               }`}
             >
-              {cat}
+              {getCategoryLabel(cat)}
             </button>
           ))}
         </div>
@@ -1141,7 +1165,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               {perk.imageUrl ? (
                 <img
                   src={perk.imageUrl}
-                  alt={perk.title}
+                  alt={getPerkTitle(perk)}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   referrerPolicy="no-referrer"
                 />
@@ -1156,11 +1180,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               {/* Floating Badges */}
               <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2 z-10">
                 <span className="px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-xs text-[#005FB8] text-[10px] font-bold shadow-xs border border-blue-100">
-                  {perk.category}
+                  {getCategoryLabel(perk.category)}
                 </span>
 
                 <span className="px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
-                  {perk.valueBadge}
+                  {getPerkBadge(perk)}
                 </span>
               </div>
             </div>
@@ -1183,16 +1207,16 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                     </div>
                   )}
                   <span className="text-[11px] font-semibold text-slate-600 truncate">
-                    Provided by {perk.provider}
+                    {t('perks.card.providedBy', { provider: perk.provider })}
                   </span>
                 </div>
 
                 <h3 className="text-sm font-bold text-[#111827] mb-1.5 leading-snug line-clamp-2">
-                  {perk.title}
+                  {getPerkTitle(perk)}
                 </h3>
 
                 <p className="text-xs text-[#4B5563] leading-relaxed line-clamp-2 mb-3">
-                  {perk.description}
+                  {getPerkDesc(perk)}
                 </p>
               </div>
 
@@ -1219,7 +1243,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-md w-full overflow-hidden shadow-2xl relative text-[#111827]">
             <button
               onClick={() => setSelectedPerkForRedeem(null)}
-              className="absolute top-3 right-3 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors z-20"
+              className="absolute top-3 right-3 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors z-20 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1229,14 +1253,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               <div className="h-32 w-full relative bg-slate-100 overflow-hidden">
                 <img
                   src={selectedPerkForRedeem.imageUrl}
-                  alt={selectedPerkForRedeem.title}
+                  alt={getPerkTitle(selectedPerkForRedeem)}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-2.5 left-4 right-4 text-white">
                   <span className="px-2 py-0.5 rounded bg-emerald-500/90 text-[10px] font-bold uppercase tracking-wider">
-                    {selectedPerkForRedeem.valueBadge}
+                    {getPerkBadge(selectedPerkForRedeem)}
                   </span>
                 </div>
               </div>
@@ -1257,13 +1281,13 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   </div>
                 )}
                 <div>
-                  <h3 className="text-base font-bold text-[#111827] leading-snug">Benefit Redeemed!</h3>
-                  <p className="text-xs text-[#6B7280]">{selectedPerkForRedeem.title}</p>
+                  <h3 className="text-base font-bold text-[#111827] leading-snug">{t('perks.modal.redeemedTitle')}</h3>
+                  <p className="text-xs text-[#6B7280]">{getPerkTitle(selectedPerkForRedeem)}</p>
                 </div>
               </div>
 
               <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] text-center space-y-3 mb-5">
-                <span className="text-xs text-[#6B7280] block">Your Exclusive Redemption Voucher / Code:</span>
+                <span className="text-xs text-[#6B7280] block">{t('perks.modal.exclusiveCode')}</span>
 
                 {selectedPerkForRedeem.redemptionType === 'CODE' && (
                   <div className="flex items-center justify-center gap-2">
@@ -1272,7 +1296,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                     </span>
                     <button
                       onClick={() => copyToClipboard(selectedPerkForRedeem.redemptionData)}
-                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
                     >
                       {copiedCode ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
                     </button>
@@ -1286,14 +1310,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
                   >
-                    <span>Open Partner Link</span>
+                    <span>{t('perks.modal.openPartnerLink')}</span>
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
 
                 {selectedPerkForRedeem.redemptionType === 'VOUCHER' && (
                   <div className="p-3 bg-gray-100 text-slate-950 rounded-lg font-mono text-xs font-bold tracking-widest border border-gray-300">
-                    BARCODE: {selectedPerkForRedeem.redemptionData}
+                    {t('perks.modal.barcodeLabel', { data: selectedPerkForRedeem.redemptionData })}
                   </div>
                 )}
               </div>
@@ -1303,7 +1327,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   onClick={() => setSelectedPerkForRedeem(null)}
                   className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold text-xs border border-gray-300 cursor-pointer"
                 >
-                  Close
+                  {t('modal.close')}
                 </button>
               </div>
             </div>
@@ -1335,10 +1359,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
             <h3 className="text-lg font-bold text-[#111827] mb-1 flex items-center gap-2">
               <Gift className="w-5 h-5 text-emerald-600" />
-              <span>Submit Benefits & Perks Offer</span>
+              <span>{t('perks.form.submitTitle')}</span>
             </h3>
             <p className="text-xs text-gray-500 mb-4">
-              Partners and public businesses can submit exclusive discount offers for gig workers. Admin will review and approve submissions before publication.
+              {t('perks.form.submitSubtitle')}
             </p>
 
             {actionSuccessMsg && (
@@ -1350,117 +1374,117 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
             <form onSubmit={handleSubmitPerk} className="space-y-3 text-xs">
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Perk Offer Title *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.offerTitle')}</label>
                 <input
                   type="text"
                   required
                   value={submitTitle}
                   onChange={(e) => setSubmitTitle(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="e.g. Free Oil Change & 20% Off Brake Services"
+                  placeholder={t('perks.form.offerTitlePlaceholder')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Company / Partner Name *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.partnerName')}</label>
                   <input
                     type="text"
                     required
                     value={submitProvider}
                     onChange={(e) => setSubmitProvider(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. Meineke Car Care"
+                    placeholder={t('perks.form.partnerNamePlaceholder')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Contact Email *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.contactEmail')}</label>
                   <input
                     type="email"
                     required
                     value={submitPartnerEmail}
                     onChange={(e) => setSubmitPartnerEmail(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="partner@business.com"
+                    placeholder={t('perks.form.contactEmailPlaceholder')}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Category *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.category')}</label>
                   <select
                     value={submitCategory}
                     onChange={(e) => setSubmitCategory(e.target.value as PerkCategory)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
                     {CATEGORIES.filter(c => c !== 'All').map(c => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>{getCategoryLabel(c)}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Discount / Value Badge *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.discountBadge')}</label>
                   <input
                     type="text"
                     required
                     value={submitBadge}
                     onChange={(e) => setSubmitBadge(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. 20% OFF or $0 DEDUCTIBLE"
+                    placeholder={t('perks.form.discountBadgePlaceholder')}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Offer Description & Value for Members *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.description')}</label>
                 <textarea
                   rows={2}
                   required
                   value={submitDesc}
                   onChange={(e) => setSubmitDesc(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="Describe the benefit details, discount terms, and how it helps delivery riders / drivers."
+                  placeholder={t('perks.form.descriptionPlaceholder')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Redemption Type</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.redemptionType')}</label>
                   <select
                     value={submitRedeemType}
                     onChange={(e) => setSubmitRedeemType(e.target.value as PerkRedemptionType)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
-                    <option value="CODE">Promo Code</option>
-                    <option value="LINK">Partner Website Link</option>
-                    <option value="VOUCHER">Voucher Barcode</option>
+                    <option value="CODE">{t('perks.form.typeCode')}</option>
+                    <option value="LINK">{t('perks.form.typeLink')}</option>
+                    <option value="VOUCHER">{t('perks.form.typeVoucher')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Code or Website Link *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.codeOrLink')}</label>
                   <input
                     type="text"
                     required
                     value={submitRedeemData}
                     onChange={(e) => setSubmitRedeemData(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. MEINEKE20 or https://partner.com/deal"
+                    placeholder={t('perks.form.codeOrLinkPlaceholder')}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Partner Notes for Admin (Optional)</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.partnerNotes')}</label>
                 <textarea
                   rows={2}
                   value={submitPartnerNotes}
                   onChange={(e) => setSubmitPartnerNotes(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="Special instructions, contact details, or notes for the Mutual Pool admin review team."
+                  placeholder={t('perks.form.partnerNotesPlaceholder')}
                 />
               </div>
 
@@ -1483,9 +1507,9 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                     className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 shrink-0 cursor-pointer"
                   />
                   <label htmlFor="marketplaceCreateAccount" className="cursor-pointer">
-                    <strong className="block font-bold text-emerald-900">Establish Partner Account during submission</strong>
+                    <strong className="block font-bold text-emerald-900">{t('perks.form.createAccountLabel')}</strong>
                     <span className="text-emerald-800">
-                      Creates a Mutual Pool Partner Account with your contact email so you can log in, track real-time approval status, view member redemption stats, and manage submitted offers anytime.
+                      {t('perks.form.createAccountDesc')}
                     </span>
                   </label>
                 </div>
@@ -1497,14 +1521,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   onClick={() => setShowSubmitModal(false)}
                   className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300 cursor-pointer"
                 >
-                  Cancel
+                  {t('modal.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitLoading}
                   className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
                 >
-                  {submitLoading ? 'Submitting...' : 'Submit Benefit Offer for Review'}
+                  {submitLoading ? t('perks.form.submitting') : t('perks.form.submitButton')}
                 </button>
               </div>
             </form>
@@ -1518,16 +1542,16 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-xl w-full p-6 shadow-2xl relative text-[#111827] max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowAddPartnerModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-2 mb-1">
               <Building2 className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-lg font-bold text-[#111827]">Add Official Verified Partner Offer</h3>
+              <h3 className="text-lg font-bold text-[#111827]">{t('perks.adminAdd.title')}</h3>
             </div>
-            <p className="text-xs text-gray-500 mb-4">Directly onboard and publish a partner benefit for all verified members.</p>
+            <p className="text-xs text-gray-500 mb-4">{t('perks.adminAdd.subtitle')}</p>
 
             {actionSuccessMsg && (
               <div className="p-3 bg-green-50 border border-green-200 text-green-900 rounded-lg text-xs mb-4 font-medium">
@@ -1537,131 +1561,131 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
             <form onSubmit={handleAddOfficialPartner} className="space-y-3 text-xs">
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Partner / Provider Name *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.partnerName')}</label>
                 <input
                   type="text"
                   required
                   value={submitProvider}
                   onChange={(e) => setSubmitProvider(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="e.g. Stride Health / Jiffy Lube"
+                  placeholder={t('perks.adminAdd.partnerNamePlaceholder')}
                 />
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Offer Title *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.offerTitle')}</label>
                 <input
                   type="text"
                   required
                   value={submitTitle}
                   onChange={(e) => setSubmitTitle(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="e.g. Free Dental Cleaning + $150 Annual Subsidy"
+                  placeholder={t('perks.adminAdd.offerTitlePlaceholder')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Category *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.category')}</label>
                   <select
                     value={submitCategory}
                     onChange={(e) => setSubmitCategory(e.target.value as PerkCategory)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
                     {CATEGORIES.filter(c => c !== 'All').map(c => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>{getCategoryLabel(c)}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Value Badge Text *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.valueBadge')}</label>
                   <input
                     type="text"
                     required
                     value={submitBadge}
                     onChange={(e) => setSubmitBadge(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. 25% OFF or $0 Deductible"
+                    placeholder={t('perks.adminAdd.valueBadgePlaceholder')}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Offer Description *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.description')}</label>
                 <textarea
                   rows={3}
                   required
                   value={submitDesc}
                   onChange={(e) => setSubmitDesc(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="Explain benefits, partner terms, and how drivers redeem..."
+                  placeholder={t('perks.adminAdd.descriptionPlaceholder')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Redemption Method *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.redemptionMethod')}</label>
                   <select
                     value={submitRedeemType}
                     onChange={(e) => setSubmitRedeemType(e.target.value as PerkRedemptionType)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
-                    <option value="CODE">Promo Code</option>
-                    <option value="LINK">Partner Portal URL</option>
-                    <option value="VOUCHER">Barcode Voucher</option>
-                    <option value="PARTNER_API">Direct API Integration</option>
+                    <option value="CODE">{t('perks.form.typeCode')}</option>
+                    <option value="LINK">{t('perks.adminAdd.typeUrl')}</option>
+                    <option value="VOUCHER">{t('perks.form.typeVoucher')}</option>
+                    <option value="PARTNER_API">{t('perks.adminAdd.typeApi')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Code / URL / Data *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.codeUrlData')}</label>
                   <input
                     type="text"
                     required
                     value={submitRedeemData}
                     onChange={(e) => setSubmitRedeemData(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. PARTNER2026 or https://partner.com/signup"
+                    placeholder={t('perks.adminAdd.codeUrlDataPlaceholder')}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Partner Rep Email (Optional)</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.partnerEmail')}</label>
                   <input
                     type="email"
                     value={submitPartnerEmail}
                     onChange={(e) => setSubmitPartnerEmail(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="partner@company.com"
+                    placeholder={t('perks.adminAdd.partnerEmailPlaceholder')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Publish Status</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.publishStatus')}</label>
                   <select
                     value={submitStatus}
                     onChange={(e) => setSubmitStatus(e.target.value as PerkStatus)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
-                    <option value="APPROVED">APPROVED (Active Immediately)</option>
-                    <option value="PENDING">PENDING (Hold for Review)</option>
-                    <option value="SUSPENDED">SUSPENDED (Partner Suspended / Hidden)</option>
-                    <option value="REJECTED">REJECTED (Inactive)</option>
+                    <option value="APPROVED">{t('perks.adminAdd.statusApproved')}</option>
+                    <option value="PENDING">{t('perks.adminAdd.statusPending')}</option>
+                    <option value="SUSPENDED">{t('perks.adminAdd.statusSuspended')}</option>
+                    <option value="REJECTED">{t('perks.adminAdd.statusRejected')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Internal Admin Partner Notes</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.adminNotes')}</label>
                 <input
                   type="text"
                   value={submitPartnerNotes}
                   onChange={(e) => setSubmitPartnerNotes(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="Contract terms, account rep contact, renewal date..."
+                  placeholder={t('perks.adminAdd.adminNotesPlaceholder')}
                 />
               </div>
 
@@ -1678,16 +1702,16 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 <button
                   type="button"
                   onClick={() => setShowAddPartnerModal(false)}
-                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300"
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300 cursor-pointer"
                 >
-                  Cancel
+                  {t('modal.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitLoading}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors shadow-xs"
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors shadow-xs cursor-pointer"
                 >
-                  Publish Partner Offer
+                  {t('perks.adminAdd.publishButton')}
                 </button>
               </div>
             </form>
@@ -1701,16 +1725,16 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-xl w-full p-6 shadow-2xl relative text-[#111827] max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setEditingPerk(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-2 mb-1">
               <Pencil className="w-5 h-5 text-[#005FB8]" />
-              <h3 className="text-lg font-bold text-[#111827]">Edit Partner Perk Offer</h3>
+              <h3 className="text-lg font-bold text-[#111827]">{t('perks.adminEdit.title')}</h3>
             </div>
-            <p className="text-xs text-gray-500 mb-4">Modify partner name, promo codes, description, or activation status.</p>
+            <p className="text-xs text-gray-500 mb-4">{t('perks.adminEdit.subtitle')}</p>
 
             {actionSuccessMsg && (
               <div className="p-3 bg-green-50 border border-green-200 text-green-900 rounded-lg text-xs mb-4 font-medium">
@@ -1720,7 +1744,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
             <form onSubmit={handleSaveEditPerk} className="space-y-3 text-xs">
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Partner / Provider Name *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.partnerName')}</label>
                 <input
                   type="text"
                   required
@@ -1731,7 +1755,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Offer Title *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.offerTitle')}</label>
                 <input
                   type="text"
                   required
@@ -1743,20 +1767,20 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Category *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.category')}</label>
                   <select
                     value={submitCategory}
                     onChange={(e) => setSubmitCategory(e.target.value as PerkCategory)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
                     {CATEGORIES.filter(c => c !== 'All').map(c => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>{getCategoryLabel(c)}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Value Badge Text *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.valueBadge')}</label>
                   <input
                     type="text"
                     required
@@ -1768,7 +1792,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Offer Description *</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.form.description')}</label>
                 <textarea
                   rows={3}
                   required
@@ -1780,21 +1804,21 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Redemption Method *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.redemptionMethod')}</label>
                   <select
                     value={submitRedeemType}
                     onChange={(e) => setSubmitRedeemType(e.target.value as PerkRedemptionType)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
-                    <option value="CODE">Promo Code</option>
-                    <option value="LINK">Partner Portal URL</option>
-                    <option value="VOUCHER">Barcode Voucher</option>
-                    <option value="PARTNER_API">Direct API Integration</option>
+                    <option value="CODE">{t('perks.form.typeCode')}</option>
+                    <option value="LINK">{t('perks.adminAdd.typeUrl')}</option>
+                    <option value="VOUCHER">{t('perks.form.typeVoucher')}</option>
+                    <option value="PARTNER_API">{t('perks.adminAdd.typeApi')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Code / URL / Data *</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.codeUrlData')}</label>
                   <input
                     type="text"
                     required
@@ -1807,7 +1831,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Partner Email</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.partnerEmail')}</label>
                   <input
                     type="email"
                     value={submitPartnerEmail}
@@ -1817,22 +1841,22 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 </div>
 
                 <div>
-                  <label className="block text-[#111827] font-semibold mb-1">Status</label>
+                  <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.publishStatus')}</label>
                   <select
                     value={submitStatus}
                     onChange={(e) => setSubmitStatus(e.target.value as PerkStatus)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
                   >
-                    <option value="APPROVED">APPROVED (Published)</option>
-                    <option value="PENDING">PENDING (Review Queue)</option>
-                    <option value="SUSPENDED">SUSPENDED (Partner Suspended / Hidden)</option>
-                    <option value="REJECTED">REJECTED (Archived/Inactive)</option>
+                    <option value="APPROVED">{t('perks.adminAdd.statusApproved')}</option>
+                    <option value="PENDING">{t('perks.adminAdd.statusPending')}</option>
+                    <option value="SUSPENDED">{t('perks.adminAdd.statusSuspended')}</option>
+                    <option value="REJECTED">{t('perks.adminAdd.statusRejected')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[#111827] font-semibold mb-1">Internal Admin Partner Notes</label>
+                <label className="block text-[#111827] font-semibold mb-1">{t('perks.adminAdd.adminNotes')}</label>
                 <input
                   type="text"
                   value={submitPartnerNotes}
@@ -1854,16 +1878,16 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 <button
                   type="button"
                   onClick={() => setEditingPerk(null)}
-                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300"
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold border border-gray-300 cursor-pointer"
                 >
-                  Cancel
+                  {t('modal.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitLoading}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold transition-colors shadow-xs"
+                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold transition-colors shadow-xs cursor-pointer"
                 >
-                  Save Changes
+                  {t('modal.save')}
                 </button>
               </div>
             </form>

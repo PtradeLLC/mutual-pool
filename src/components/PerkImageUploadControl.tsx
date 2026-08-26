@@ -1,5 +1,6 @@
 import React from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export const PRESET_PERK_IMAGES = [
   { label: 'Auto Care', url: 'https://images.unsplash.com/photo-1487754180451-c456f719a1fc?w=700&auto=format&fit=crop&q=80' },
@@ -39,6 +40,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
   setLogoUrl,
   onLogoUrlChange,
 }) => {
+  const { t } = useTranslation();
   const handleImageUrlChange = onImageUrlChange || setImageUrl || (() => {});
   const handleLogoUrlChange = onLogoUrlChange || setLogoUrl || (() => {});
   return (
@@ -48,7 +50,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
         <div className="flex items-center justify-between mb-1.5">
           <label className="block text-[#111827] font-semibold text-xs flex items-center gap-1.5">
             <ImageIcon className="w-3.5 h-3.5 text-[#005FB8]" />
-            <span>Perk Cover Photo / Banner (Optional)</span>
+            <span>{t('perks.imageUpload.coverPhotoLabel')}</span>
           </label>
           {imageUrl && (
             <button
@@ -57,7 +59,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
               className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer inline-flex items-center gap-1"
             >
               <X className="w-3 h-3" />
-              <span>Remove Photo</span>
+              <span>{t('perks.imageUpload.removePhoto')}</span>
             </button>
           )}
         </div>
@@ -71,7 +73,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
               referrerPolicy="no-referrer"
             />
             <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold">
-              Cover Preview
+              {t('perks.imageUpload.coverPreview')}
             </div>
           </div>
         )}
@@ -79,7 +81,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
         <div className="space-y-1.5">
           <label className="flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-slate-300 hover:border-[#005FB8] rounded-lg bg-white cursor-pointer transition-colors text-slate-700 text-xs font-medium">
             <Upload className="w-4 h-4 text-[#005FB8]" />
-            <span>Upload Image File (PNG, JPG, WebP)</span>
+            <span>{t('perks.imageUpload.uploadFile')}</span>
             <input
               type="file"
               accept="image/*"
@@ -103,14 +105,14 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
             type="url"
             value={imageUrl.startsWith('data:') ? '' : imageUrl}
             onChange={(e) => handleImageUrlChange(e.target.value)}
-            placeholder="Or paste public image URL: https://..."
+            placeholder={t('perks.imageUpload.orPasteUrl')}
             className="w-full bg-white border border-gray-300 rounded-lg p-2 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
           />
 
           {/* Presets */}
           <div>
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-              1-Click Photo Presets:
+              {t('perks.imageUpload.photoPresets')}
             </span>
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
               {PRESET_PERK_IMAGES.map((preset, idx) => (
@@ -132,7 +134,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
       <div className="pt-2.5 border-t border-slate-200">
         <div className="flex items-center justify-between mb-1.5">
           <label className="block text-[#111827] font-semibold text-xs">
-            Brand / Provider Logo (Optional)
+            {t('perks.imageUpload.brandLogoLabel')}
           </label>
           {logoUrl && (
             <button
@@ -141,7 +143,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
               className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer inline-flex items-center gap-1"
             >
               <X className="w-3 h-3" />
-              <span>Remove Logo</span>
+              <span>{t('perks.imageUpload.removeLogo')}</span>
             </button>
           )}
         </div>
@@ -164,7 +166,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
             <div className="flex items-center gap-1.5">
               <label className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 border border-dashed border-slate-300 hover:border-[#005FB8] rounded-lg bg-white cursor-pointer transition-colors text-slate-700 text-xs font-medium">
                 <Upload className="w-3.5 h-3.5 text-[#005FB8]" />
-                <span>Upload Logo File</span>
+                <span>{t('perks.imageUpload.uploadLogo')}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -189,7 +191,7 @@ export const PerkImageUploadControl: React.FC<PerkImageUploadControlProps> = ({
               type="url"
               value={logoUrl.startsWith('data:') ? '' : logoUrl}
               onChange={(e) => handleLogoUrlChange(e.target.value)}
-              placeholder="Or paste logo URL..."
+              placeholder={t('perks.imageUpload.orPasteLogoUrl')}
               className="w-full bg-white border border-gray-300 rounded-lg p-1.5 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
             />
           </div>
