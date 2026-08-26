@@ -16,6 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { AdCampaign } from '../types';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -90,6 +91,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   onClose,
   onCreateCampaign,
 }) => {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [brandName, setBrandName] = useState('');
   const [brandColor, setBrandColor] = useState('#005FB8');
@@ -163,17 +165,17 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     e.preventDefault();
 
     if (!title.trim() || !brandName.trim()) {
-      setErrorMsg('Please provide a campaign title and brand name.');
+      setErrorMsg(t('campaigns.create.errTitleBrand'));
       return;
     }
 
     if (selectedPlatforms.length === 0) {
-      setErrorMsg('Please select at least one supported delivery platform.');
+      setErrorMsg(t('campaigns.create.errPlatform'));
       return;
     }
 
     if (dailyPayout < 20) {
-      setErrorMsg('Daily payout must be at least $20/day.');
+      setErrorMsg(t('campaigns.create.errPayout'));
       return;
     }
 
@@ -203,7 +205,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
       status,
       impressionsTarget: impressionsTarget || (maxCouriersTarget * 1450 * durationWeeks * 6),
       currentImpressions: 0,
-      payoutTerms: `65% ($${dailyPayout}/day) credited daily to verified couriers via Stripe Treasury upon GPS verified shifts.`,
+      payoutTerms: `65% (${dailyPayout}/day) credited daily to verified couriers via Stripe Treasury upon GPS verified shifts.`,
     };
 
     onCreateCampaign(newCampaign);
@@ -222,9 +224,9 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
             </div>
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
-                Admin Campaign Studio
+                {t('campaigns.create.studioBadge')}
               </span>
-              <h2 className="text-xl font-black text-slate-950 mt-0.5">Create New Ad Campaign</h2>
+              <h2 className="text-xl font-black text-slate-950 mt-0.5">{t('campaigns.create.title')}</h2>
             </div>
           </div>
           <button
@@ -249,7 +251,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           {/* Quick Preset Selection */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-2">
-              ⚡ Quick Fill from Brand Templates (Optional)
+              {t('campaigns.create.quickFill')}
             </label>
             <div className="flex flex-wrap gap-2">
               {PRESET_BRANDS.map(preset => (
@@ -270,7 +272,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Campaign Title <span className="text-rose-500">*</span>
+                {t('campaigns.create.campaignTitle')} <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -284,7 +286,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Brand / Sponsor Name <span className="text-rose-500">*</span>
+                {t('campaigns.create.brandName')} <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -301,7 +303,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Target Metro Market <span className="text-rose-500">*</span>
+                {t('campaigns.create.targetMetro')} <span className="text-rose-500">*</span>
               </label>
               <select
                 value={targetMetro}
@@ -316,7 +318,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Brand Theme Accent Color
+                {t('campaigns.create.brandColor')}
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -339,7 +341,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Brand Logo URL (Optional)
+                {t('campaigns.create.brandLogo')}
               </label>
               <input
                 type="url"
@@ -352,7 +354,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Banner / Promo Visual URL (Optional)
+                {t('campaigns.create.bannerUrl')}
               </label>
               <input
                 type="url"
@@ -367,7 +369,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           {/* Description */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Campaign Description & Street Vision <span className="text-rose-500">*</span>
+              {t('campaigns.create.description')} <span className="text-rose-500">*</span>
             </label>
             <textarea
               required
@@ -383,13 +385,13 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-slate-200 space-y-4">
             <div className="text-xs font-bold text-purple-900 uppercase tracking-wide flex items-center gap-1.5">
               <DollarSign className="w-4 h-4 text-emerald-600" />
-              <span>Courier Compensation & Fleet Target</span>
+              <span>{t('campaigns.create.compensationTitle')}</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Daily Payout Rate ($55 - $75)
+                  {t('campaigns.create.dailyPayout')}
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-sm font-bold text-slate-400">$</span>
@@ -405,33 +407,33 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                   <span className="absolute right-3 top-2.5 text-xs text-slate-500">/day</span>
                 </div>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  ~${(dailyPayout * 6).toLocaleString()}/week (6 shifts)
+                  {t('campaigns.create.dailyPayoutHelp', { amount: (dailyPayout * 6).toLocaleString() })}
                 </span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Campaign Duration
+                  {t('campaigns.create.duration')}
                 </label>
                 <select
                   value={durationWeeks}
                   onChange={e => setDurationWeeks(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 font-bold"
                 >
-                  <option value={2}>2 Weeks (Pilot)</option>
-                  <option value={4}>4 Weeks (Standard)</option>
-                  <option value={6}>6 Weeks (Extended)</option>
-                  <option value={8}>8 Weeks (Takeover)</option>
-                  <option value={12}>12 Weeks (Quarterly)</option>
+                  <option value={2}>{t('campaigns.create.durationOption', { weeks: 2, label: 'Pilot' })}</option>
+                  <option value={4}>{t('campaigns.create.durationOption', { weeks: 4, label: 'Standard' })}</option>
+                  <option value={6}>{t('campaigns.create.durationOption', { weeks: 6, label: 'Extended' })}</option>
+                  <option value={8}>{t('campaigns.create.durationOption', { weeks: 8, label: 'Takeover' })}</option>
+                  <option value={12}>{t('campaigns.create.durationOption', { weeks: 12, label: 'Quarterly' })}</option>
                 </select>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  {durationWeeks * 6} active delivery shifts
+                  {t('campaigns.create.durationHelp', { count: durationWeeks * 6 })}
                 </span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Fleet Size (Couriers)
+                  {t('campaigns.create.fleetSize')}
                 </label>
                 <input
                   type="number"
@@ -443,7 +445,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                   className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-sm font-mono font-bold text-slate-900"
                 />
                 <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  Max capacity for this run
+                  {t('campaigns.create.fleetHelp')}
                 </span>
               </div>
             </div>
@@ -452,7 +454,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           {/* Delivery Platforms Multi-Select */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-2">
-              Supported Delivery Platforms <span className="text-rose-500">*</span>
+              {t('campaigns.create.platforms')} <span className="text-rose-500">*</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {PLATFORM_OPTIONS.map(plat => {
@@ -478,7 +480,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           {/* Apparel & Gear Included */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Turnkey Apparel & Gear Kit Included
+              {t('campaigns.create.apparelKit')}
             </label>
             <div className="space-y-2 mb-2">
               {gearList.map((item, idx) => (
@@ -500,7 +502,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="Add gear item (e.g. Branded Cap, LED Bike Flag)..."
+                placeholder={t('campaigns.create.gearPlaceholder')}
                 value={newGearItem}
                 onChange={e => setNewGearItem(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddGear(); } }}
@@ -512,7 +514,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                 className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add</span>
+                <span>{t('campaigns.create.addBtn')}</span>
               </button>
             </div>
           </div>
@@ -520,7 +522,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           {/* Requirements List */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Courier Qualification Requirements
+              {t('campaigns.create.requirements')}
             </label>
             <div className="space-y-2 mb-2">
               {requirementsList.map((req, idx) => (
@@ -542,7 +544,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="Add requirement (e.g. Minimum 20 deliveries/week)..."
+                placeholder={t('campaigns.create.reqPlaceholder')}
                 value={newRequirement}
                 onChange={e => setNewRequirement(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddRequirement(); } }}
@@ -554,7 +556,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                 className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add</span>
+                <span>{t('campaigns.create.addBtn')}</span>
               </button>
             </div>
           </div>
@@ -563,21 +565,21 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Initial Campaign Status
+                {t('campaigns.create.status')}
               </label>
               <select
                 value={status}
                 onChange={e => setStatus(e.target.value as 'recruiting' | 'active')}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 font-bold"
               >
-                <option value="recruiting">Recruiting (Open for Courier Applications)</option>
-                <option value="active">Active (Live Shift Logging)</option>
+                <option value="recruiting">{t('campaigns.create.statusRecruiting')}</option>
+                <option value="active">{t('campaigns.create.statusActive')}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Target Launch Start Date
+                {t('campaigns.create.launchDate')}
               </label>
               <input
                 type="date"
@@ -595,14 +597,14 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
               onClick={onClose}
               className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
             >
-              Cancel
+              {t('campaigns.create.btnCancel')}
             </button>
             <button
               type="submit"
               className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-md shadow-purple-500/25 flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Publish Ad Campaign</span>
+              <span>{t('campaigns.create.btnPublish')}</span>
             </button>
           </div>
 

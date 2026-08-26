@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, AdCampaign, CampaignShiftLog, isAdvertiserOrAdmin } from '../types';
 import { Logo } from './Logo';
 import { AdvertiserDashboard } from './AdvertiserDashboard';
+import { LanguageSelector } from './LanguageSelector';
 import { INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from '../data/initialData';
 import { useTranslation } from '../i18n/LanguageContext';
 import { 
@@ -255,6 +256,8 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
           )}
 
           <div className="flex items-center gap-2">
+            <LanguageSelector />
+
             {!isAuthenticated && onOpenAuth && (
               <button
                 type="button"

@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { AdCampaign, User, CourierCampaignParticipation } from '../types';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface CampaignEnrollmentModalProps {
   campaign: AdCampaign;
@@ -29,6 +30,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
   onClose,
   onApplySuccess,
 }) => {
+  const { t } = useTranslation();
   const [step, setStep] = useState<'agreement' | 'shipping' | 'success'>('agreement');
   
   // Agreement terms
@@ -52,7 +54,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
   const handleNextToShipping = (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreedTerms || !agreedGps || !agreedAuthenticity) {
-      setErrorMsg('Please review and check all compliance requirements to proceed.');
+      setErrorMsg(t('campaigns.enroll.errorCompliance'));
       return;
     }
     setErrorMsg(null);
@@ -62,7 +64,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
   const handleFinalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!streetAddress || !city || !state || !zipCode) {
-      setErrorMsg('Please provide a complete shipping address for your free gear kit delivery.');
+      setErrorMsg(t('campaigns.enroll.errorShipping'));
       return;
     }
 
@@ -106,7 +108,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
         <div className="bg-[#F8FAFC] border-b border-slate-200 px-6 py-5 flex items-center justify-between shrink-0">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-              Brand Ambassador Program
+              {t('campaigns.enroll.programBadge')}
             </span>
             <h2 className="text-xl font-black text-slate-950 mt-1">{campaign.title}</h2>
             <p className="text-xs text-slate-500 font-semibold">{campaign.brandName} • {campaign.targetMetro}</p>
@@ -123,15 +125,15 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
         {/* Step Indicator */}
         <div className="px-6 py-3 bg-white border-b border-slate-100 flex items-center gap-2 text-xs">
           <span className={`font-bold px-2 py-0.5 rounded-md ${step === 'agreement' ? 'bg-[#005FB8] text-white' : 'bg-emerald-100 text-emerald-800'}`}>
-            1. Sponsor Terms
+            {t('campaigns.enroll.step1')}
           </span>
           <span className="text-slate-300">→</span>
           <span className={`font-bold px-2 py-0.5 rounded-md ${step === 'shipping' ? 'bg-[#005FB8] text-white' : 'bg-slate-100 text-slate-600'}`}>
-            2. Free Apparel Sizing & Shipping
+            {t('campaigns.enroll.step2')}
           </span>
           <span className="text-slate-300">→</span>
           <span className={`font-bold px-2 py-0.5 rounded-md ${step === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-            3. Confirmation
+            {t('campaigns.enroll.step3')}
           </span>
         </div>
 
@@ -143,14 +145,14 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
             <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center justify-between">
               <div>
                 <div className="text-xs text-emerald-800 font-bold uppercase tracking-wider">
-                  Daily Supplemental Ambassador Payout
+                  {t('campaigns.enroll.dailyPayoutTitle')}
                 </div>
                 <div className="text-2xl font-black text-emerald-700 font-mono mt-0.5">
-                  ${campaign.dailyPayout}.00 <span className="text-xs font-sans text-emerald-900">/ active shift</span>
+                  ${campaign.dailyPayout}.00 <span className="text-xs font-sans text-emerald-900">{t('campaigns.enroll.perActiveShift')}</span>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs text-slate-500">Estimated Weekly</div>
+                <div className="text-xs text-slate-500">{t('campaigns.enroll.estimatedWeekly')}</div>
                 <div className="text-base font-bold text-slate-900 font-mono">
                   ~${campaign.weeklyEstimatedEarnings}.00/wk
                 </div>
@@ -160,7 +162,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
             {/* Campaign Rules & Requirements */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Brand Ambassador Commitments
+                {t('campaigns.enroll.commitmentsTitle')}
               </h3>
               <div className="space-y-2 text-xs text-slate-600">
                 {campaign.requirements.map((req, idx) => (
@@ -176,7 +178,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
             <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-slate-200 space-y-2">
               <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <Truck className="w-4 h-4 text-[#005FB8]" />
-                <span>Turnkey Campaign Apparel Shipped to Your Doorstep:</span>
+                <span>{t('campaigns.enroll.turnkeyApparel')}</span>
               </div>
               <div className="flex flex-wrap gap-1.5 text-xs">
                 {campaign.gearRequired.map((gear, idx) => (
@@ -197,7 +199,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
                   className="mt-0.5 w-4 h-4 rounded text-[#005FB8] focus:ring-[#005FB8]"
                 />
                 <span className="text-slate-700">
-                  I agree to wear the provided brand apparel and insulated bag during all active delivery shifts for the {campaign.durationWeeks}-week campaign duration.
+                  {t('campaigns.enroll.termAgreeGear', { weeks: campaign.durationWeeks })}
                 </span>
               </label>
 
@@ -209,7 +211,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
                   className="mt-0.5 w-4 h-4 rounded text-[#005FB8] focus:ring-[#005FB8]"
                 />
                 <span className="text-slate-700">
-                  I agree to shift verification via delivery route check-ins and standard GPS location confirmation to validate active brand impressions.
+                  {t('campaigns.enroll.termAgreeGps')}
                 </span>
               </label>
 
@@ -221,7 +223,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
                   className="mt-0.5 w-4 h-4 rounded text-[#005FB8] focus:ring-[#005FB8]"
                 />
                 <span className="text-slate-700">
-                  I acknowledge that daily earnings ($55–$75/day) are disbursed directly via Stripe Treasury settlement upon daily shift completion.
+                  {t('campaigns.enroll.termAgreeEarnings')}
                 </span>
               </label>
             </div>
@@ -239,14 +241,14 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
                 onClick={onClose}
                 className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
               >
-                Cancel
+                {t('campaigns.enroll.btnCancel')}
               </button>
               <button
                 type="button"
                 onClick={handleNextToShipping}
                 className="px-6 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
               >
-                <span>Continue to Sizing & Shipping</span>
+                <span>{t('campaigns.enroll.btnContinue')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -260,12 +262,12 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
             
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                1. Select Custom Apparel Sizes
+                {t('campaigns.enroll.sectionSizes')}
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Thermal Jacket Size
+                    {t('campaigns.enroll.jacketSize')}
                   </label>
                   <select
                     value={jacketSize}
@@ -283,7 +285,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Jersey / Shirt Size
+                    {t('campaigns.enroll.shirtSize')}
                   </label>
                   <select
                     value={shirtSize}
@@ -304,17 +306,17 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
             <div className="space-y-3 pt-3 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  2. Free Home Delivery Address
+                  {t('campaigns.enroll.sectionShipping')}
                 </h3>
-                <span className="text-[10px] text-emerald-600 font-bold">100% Free Shipping</span>
+                <span className="text-[10px] text-emerald-600 font-bold">{t('campaigns.enroll.freeShippingBadge')}</span>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Street Address</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('campaigns.enroll.streetAddress')}</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 1420 N Milwaukee Ave, Apt 3B"
+                  placeholder={t('campaigns.enroll.streetPlaceholder')}
                   value={streetAddress}
                   onChange={e => setStreetAddress(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:ring-2 focus:ring-[#005FB8]"
@@ -323,7 +325,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">City</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('campaigns.enroll.city')}</label>
                   <input
                     type="text"
                     required
@@ -333,7 +335,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">State</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('campaigns.enroll.state')}</label>
                   <input
                     type="text"
                     required
@@ -343,7 +345,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Zip Code</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('campaigns.enroll.zip')}</label>
                   <input
                     type="text"
                     required
@@ -357,7 +359,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Delivery Alert Phone (SMS tracking)
+                  {t('campaigns.enroll.phone')}
                 </label>
                 <input
                   type="tel"
@@ -382,14 +384,14 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
                 onClick={() => setStep('agreement')}
                 className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
               >
-                Back to Terms
+                {t('campaigns.enroll.btnBack')}
               </button>
               <button
                 type="submit"
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Confirm Enrollment & Ship Gear</span>
+                <span>{t('campaigns.enroll.btnConfirmEnroll')}</span>
               </button>
             </div>
 
@@ -404,24 +406,24 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-2xl font-black text-slate-950">You're Enrolled as an Ambassador!</h3>
+              <h3 className="text-2xl font-black text-slate-950">{t('campaigns.enroll.successTitle')}</h3>
               <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-                Your custom <strong>{campaign.brandName}</strong> apparel and gear kit are being processed for priority delivery to <strong>{streetAddress}, {city}</strong>.
+                {t('campaigns.enroll.successDesc', { brand: campaign.brandName, address: `${streetAddress}, ${city}` })}
               </p>
             </div>
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 max-w-md mx-auto text-left space-y-2 text-xs">
               <div className="flex justify-between text-slate-600">
-                <span>Daily Wage Supplement:</span>
+                <span>{t('campaigns.enroll.successWage')}</span>
                 <strong className="text-emerald-600 font-mono font-bold">${campaign.dailyPayout}/day</strong>
               </div>
               <div className="flex justify-between text-slate-600">
-                <span>Gear Delivery Status:</span>
-                <strong className="text-blue-600 font-bold">Processing & Pack</strong>
+                <span>{t('campaigns.enroll.successGearStatus')}</span>
+                <strong className="text-blue-600 font-bold">{t('campaigns.enroll.successProcessing')}</strong>
               </div>
               <div className="flex justify-between text-slate-600">
-                <span>Verification:</span>
-                <strong className="text-slate-800 font-bold">GPS + Delivery Check-in</strong>
+                <span>{t('campaigns.enroll.successVerification')}</span>
+                <strong className="text-slate-800 font-bold">{t('campaigns.enroll.successVerificationVal')}</strong>
               </div>
             </div>
 
@@ -430,7 +432,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
               onClick={onClose}
               className="px-6 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-colors cursor-pointer"
             >
-              Return to Campaign Hub
+              {t('campaigns.enroll.btnReturn')}
             </button>
           </div>
         )}

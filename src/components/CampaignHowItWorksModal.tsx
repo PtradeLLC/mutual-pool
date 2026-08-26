@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, ArrowRight, Sparkles, Users, Shirt, DollarSign, CheckCircle2 } from 'lucide-react';
 import { Logo } from './Logo';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface CampaignHowItWorksModalProps {
   isOpen: boolean;
@@ -15,6 +16,8 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
   onStartPod,
   isAuthUser = false,
 }) => {
+  const { t } = useTranslation();
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -67,20 +70,20 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
             <Logo size="sm" />
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5 text-[#005FB8]" />
-              Courier Campaign Guide
+              {t('campaigns.howItWorks.badge')}
             </span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-950 tracking-tight">
-            How It Works
+            {t('campaigns.howItWorks.title')}
           </h1>
 
           <h3 className="text-lg sm:text-xl font-bold text-[#005FB8]">
-            Turn Your Everyday Deliveries Into Daily Earnings.
+            {t('campaigns.howItWorks.subtitle')}
           </h3>
 
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-            Getting started is simple. Build your Pod to activate this service, get equipped with campaign gear from our brand partners, and earn by wearing it while you make the deliveries you already make.
+            {t('campaigns.howItWorks.intro')}
           </p>
         </div>
 
@@ -92,20 +95,20 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
                 <Users className="w-4 h-4" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                01 — Start Your Pod
+                {t('campaigns.howItWorks.step1Title')}
               </h3>
             </div>
             <span className="text-xs font-mono font-bold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
-              Step 1
+              {t('campaigns.howItWorks.step1Tag')}
             </span>
           </div>
 
           <p className="text-sm font-bold text-slate-900">
-            Build your crew. Start for free.
+            {t('campaigns.howItWorks.step1Tagline')}
           </p>
 
           <p className="text-sm text-slate-600 leading-relaxed">
-            Create a Pod at no cost and invite your friends, family, and fellow couriers to join. Once your Pod reaches its required maximum size and is activated, you're ready for the next step.
+            {t('campaigns.howItWorks.step1Desc')}
           </p>
 
           <div className="pt-1">
@@ -115,7 +118,7 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
               onClick={handleStartPodClick}
               className="inline-flex items-center gap-1.5 text-sm font-bold text-[#005FB8] hover:text-[#004C93] hover:underline cursor-pointer group"
             >
-              <span>Start a Pod</span>
+              <span>{t('campaigns.howItWorks.step1Btn')}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
@@ -131,25 +134,25 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
                 <Shirt className="w-4 h-4" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                02 — Select Campaigns &amp; Get Gear
+                {t('campaigns.howItWorks.step2Title')}
               </h3>
             </div>
             <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-100/70 px-2.5 py-0.5 rounded-full">
-              Step 2
+              {t('campaigns.howItWorks.step2Tag')}
             </span>
           </div>
 
           <p className="text-sm font-bold text-slate-900">
-            Your Pod fills. You choose campaigns.
+            {t('campaigns.howItWorks.step2Tagline')}
           </p>
 
           <p className="text-sm text-slate-600 leading-relaxed">
-            Once your Pod reaches its required maximum size and is activated, you can select which brand partner campaigns you'd like to participate in. We'll send you custom campaign apparel and promotional gear from our brand partners with zero upfront cost.
+            {t('campaigns.howItWorks.step2Desc')}
           </p>
 
           <div className="pt-1 flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200/70 w-fit">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Pod activated. Campaigns unlocked.</span>
+            <span>{t('campaigns.howItWorks.step2Badge')}</span>
           </div>
         </div>
 
@@ -163,25 +166,25 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
                 <DollarSign className="w-4 h-4" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                03 — Wear It. Ride. Get Paid.
+                {t('campaigns.howItWorks.step3Title')}
               </h3>
             </div>
             <span className="text-xs font-mono font-bold text-amber-800 bg-amber-100/70 px-2.5 py-0.5 rounded-full">
-              Step 3
+              {t('campaigns.howItWorks.step3Tag')}
             </span>
           </div>
 
           <p className="text-sm font-bold text-slate-900">
-            Turn your route into a paycheck.
+            {t('campaigns.howItWorks.step3Tagline')}
           </p>
 
           <p className="text-sm text-slate-600 leading-relaxed">
-            Wear the campaign clothing while you're out making your regular delivery routes. As you wear the gear and complete your qualifying delivery days, you earn a daily payout.
+            {t('campaigns.howItWorks.step3Desc')}
           </p>
 
           <div className="pt-1 p-3 rounded-xl bg-amber-50/80 border border-amber-200/80">
             <p className="text-xs sm:text-sm font-bold text-amber-950">
-              No extra stops. No extra effort. Just get paid for the routes you're already running.
+              {t('campaigns.howItWorks.step3Callout')}
             </p>
           </div>
         </div>
@@ -192,10 +195,10 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
         <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-6 sm:p-7 space-y-4 shadow-xl">
           <div className="space-y-1.5">
             <h3 className="text-lg sm:text-xl font-extrabold text-white">
-              Your Route. Your Gear. Your Earnings.
+              {t('campaigns.howItWorks.bottomTitle')}
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Start a Pod today, rally your crew, and turn the miles you're already riding into another way to earn.
+              {t('campaigns.howItWorks.bottomDesc')}
             </p>
           </div>
 
@@ -205,7 +208,7 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
             onClick={handleStartPodClick}
             className="w-full py-3.5 px-6 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm sm:text-base transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer"
           >
-            <span>{isAuthUser ? 'Go to Create Pod →' : 'Start a Pod for Free →'}</span>
+            <span>{isAuthUser ? t('campaigns.howItWorks.startPodAuth') : t('campaigns.howItWorks.startPodFree')}</span>
           </button>
         </div>
 

@@ -29,6 +29,7 @@ import { AdCampaign, User, CourierCampaignParticipation, isAdvertiserOrAdmin, Ac
 import { CampaignEnrollmentModal } from './CampaignEnrollmentModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 import { ActiveShiftModal } from './ActiveShiftModal';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface CampaignsPageProps {
   currentUser: User | null;
@@ -59,6 +60,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   onOpenCreateCampaign,
   onStartPod,
 }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMetro, setSelectedMetro] = useState('all');
   const [selectedPlatform, setSelectedPlatform] = useState('all');
@@ -127,19 +129,19 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 shadow-2xs">
               <Sparkles className="w-3.5 h-3.5 fill-amber-600 text-amber-600" />
-              <span>Earn $55 – $75 / Day Extra</span>
+              <span>{t('campaigns.badge.earnExtra')}</span>
             </span>
             <span className="text-xs text-slate-500 font-semibold">
-              Free Turnkey Apparel & Gear Included
+              {t('campaigns.badge.freeGear')}
             </span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight leading-tight">
-            Brand Ambassador Ad Campaigns
+            {t('campaigns.hero.title')}
           </h1>
 
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
-            Get paid guaranteed daily wage supplements simply by wearing partner brand apparel and carrying insulated gear while completing your normal DoorDash, UberEats, or Instacart shifts.
+            {t('campaigns.hero.desc')}
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-3">
@@ -149,7 +151,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors border border-slate-200 shadow-2xs flex items-center gap-2 cursor-pointer"
             >
               <HelpCircle className="w-4 h-4 text-amber-500" />
-              <span>How Courier Payouts Work</span>
+              <span>{t('campaigns.btn.howItWorks')}</span>
             </button>
 
             {isAdvertiserOrAdmin(currentUser) ? (
@@ -159,7 +161,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
               >
                 <BarChart3 className="w-4 h-4" />
-                <span>Advertiser Portal & Metrics</span>
+                <span>{t('campaigns.btn.advertiserPortal')}</span>
               </button>
             ) : (
               <button
@@ -168,7 +170,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
               >
                 <Megaphone className="w-4 h-4" />
-                <span>Advertise with Us</span>
+                <span>{t('campaigns.btn.advertiseWithUs')}</span>
               </button>
             )}
 
@@ -179,7 +181,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Create Campaign (Admin)</span>
+                <span>{t('campaigns.btn.createCampaignAdmin')}</span>
               </button>
             )}
           </div>
@@ -188,20 +190,20 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
         {/* Quick Highlights Grid */}
         <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-slate-200 text-xs">
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Daily Net Earnings</div>
-            <div className="text-base sm:text-lg font-black text-amber-700 font-mono mt-0.5">$55 – $75 / day</div>
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">{t('campaigns.stats.dailyEarnings')}</div>
+            <div className="text-base sm:text-lg font-black text-amber-700 font-mono mt-0.5">{t('campaigns.stats.dailyEarningsVal')}</div>
           </div>
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Payment Channel</div>
-            <div className="text-base sm:text-lg font-black text-slate-950 mt-0.5">Stripe Treasury</div>
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">{t('campaigns.stats.paymentChannel')}</div>
+            <div className="text-base sm:text-lg font-black text-slate-950 mt-0.5">{t('campaigns.stats.paymentChannelVal')}</div>
           </div>
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Verification Method</div>
-            <div className="text-base sm:text-lg font-black text-slate-950 mt-0.5">GPS + Shift Check-in</div>
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">{t('campaigns.stats.verificationMethod')}</div>
+            <div className="text-base sm:text-lg font-black text-slate-950 mt-0.5">{t('campaigns.stats.verificationMethodVal')}</div>
           </div>
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Gear Shipped To</div>
-            <div className="text-base sm:text-lg font-black text-emerald-700 mt-0.5">Your Doorstep 100% Free</div>
+            <div className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">{t('campaigns.stats.gearShippedTo')}</div>
+            <div className="text-base sm:text-lg font-black text-emerald-700 mt-0.5">{t('campaigns.stats.gearShippedToVal')}</div>
           </div>
         </div>
 
@@ -217,14 +219,18 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Shift In Progress</span>
-                <span className="text-xs text-slate-400">• {activeShiftSession.brandName} Fleet</span>
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400">{t('campaigns.activeShift.inProgress')}</span>
+                <span className="text-xs text-slate-400">• {t('campaigns.activeShift.fleet', { brand: activeShiftSession.brandName })}</span>
               </div>
               <h3 className="text-base sm:text-lg font-black text-white mt-0.5">
                 {activeShiftSession.campaignTitle}
               </h3>
               <p className="text-xs text-slate-400">
-                Started {activeShiftSession.startFormatted} • {activeShiftSession.spotChecks.filter(s => s.status === 'VERIFIED').length}/{activeShiftSession.spotChecks.length} Photo Checks Verified
+                {t('campaigns.activeShift.started', {
+                  start: activeShiftSession.startFormatted,
+                  verified: activeShiftSession.spotChecks.filter(s => s.status === 'VERIFIED').length,
+                  total: activeShiftSession.spotChecks.length,
+                })}
               </p>
             </div>
           </div>
@@ -242,7 +248,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
             >
               <Clock className="w-4 h-4" />
-              <span>Open Active Shift Tracker & Prompts</span>
+              <span>{t('campaigns.activeShift.openTracker')}</span>
             </button>
           </div>
         </div>
@@ -257,12 +263,14 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                 <Truck className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-black text-slate-950">My Enrolled Ad Campaigns</h2>
-                <p className="text-xs text-slate-500">Track your gear delivery and active shift verification status</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-950">{t('campaigns.enrolled.title')}</h2>
+                <p className="text-xs text-slate-500">{t('campaigns.enrolled.desc')}</p>
               </div>
             </div>
             <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {userParticipations.length} Active Enrollment{userParticipations.length > 1 ? 's' : ''}
+              {userParticipations.length > 1
+                ? t('campaigns.enrolled.activeBadgePlural', { count: userParticipations.length })
+                : t('campaigns.enrolled.activeBadge', { count: userParticipations.length })}
             </span>
           </div>
 
@@ -283,7 +291,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       </span>
                       <h3 className="font-bold text-slate-900 text-sm mt-1">{part.campaignTitle}</h3>
                       <div className="text-xs text-slate-500 font-mono mt-0.5">
-                        Daily Payout: <strong className="text-emerald-600 font-black">${part.dailyRate}/day</strong>
+                        {t('campaigns.enrolled.dailyPayout')} <strong className="text-emerald-600 font-black">${part.dailyRate}{t('campaigns.enrolled.perDay')}</strong>
                       </div>
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -293,14 +301,14 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
 
                   <div className="grid grid-cols-2 gap-2 text-xs bg-white p-2.5 rounded-xl border border-slate-200">
                     <div>
-                      <div className="text-[10px] text-slate-500">Gear Delivery</div>
+                      <div className="text-[10px] text-slate-500">{t('campaigns.enrolled.gearDelivery')}</div>
                       <div className="font-bold text-slate-800 capitalize flex items-center gap-1 mt-0.5">
                         <Truck className="w-3.5 h-3.5 text-[#005FB8]" />
                         <span>{part.apparelDeliveryStatus}</span>
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-slate-500">Total Earned</div>
+                      <div className="text-[10px] text-slate-500">{t('campaigns.enrolled.totalEarned')}</div>
                       <div className="font-bold text-emerald-600 font-mono mt-0.5">
                         ${part.totalEarningsAccumulated.toFixed(2)}
                       </div>
@@ -309,8 +317,8 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
 
                   {part.apparelShipmentTracking && (
                     <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200">
-                      <span>Tracking: <strong className="text-slate-700 font-mono">{part.apparelShipmentTracking}</strong></span>
-                      <span className="text-emerald-600 font-semibold">Active Ambassador</span>
+                      <span>{t('campaigns.enrolled.tracking')} <strong className="text-slate-700 font-mono">{part.apparelShipmentTracking}</strong></span>
+                      <span className="text-emerald-600 font-semibold">{t('campaigns.enrolled.activeAmbassador')}</span>
                     </div>
                   )}
 
@@ -328,7 +336,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                         className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
                       >
                         <Clock className="w-4 h-4 animate-spin" />
-                        <span>Shift In Progress (Open Live Tracker)</span>
+                        <span>{t('campaigns.enrolled.shiftInProgress')}</span>
                       </button>
                     ) : (
                       <button
@@ -342,7 +350,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                         className="w-full py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                       >
                         <Camera className="w-4 h-4" />
-                        <span>Start Shift Check-In & Earn ${part.dailyRate}</span>
+                        <span>{t('campaigns.enrolled.startShift', { rate: part.dailyRate })}</span>
                       </button>
                     )}
                   </div>
@@ -363,7 +371,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
               type="text"
-              placeholder="Search campaigns by brand, city, requirements, or apparel gear..."
+              placeholder={t('campaigns.search.placeholder')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:bg-white"
@@ -378,7 +386,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               onChange={e => setSelectedMetro(e.target.value)}
               className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#005FB8]"
             >
-              <option value="all">All Metro Markets</option>
+              <option value="all">{t('campaigns.filter.allMetros')}</option>
               {availableMetros.map(metro => (
                 <option key={metro} value={metro}>{metro}</option>
               ))}
@@ -390,7 +398,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               onChange={e => setSelectedPlatform(e.target.value)}
               className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#005FB8]"
             >
-              <option value="all">All Delivery Apps</option>
+              <option value="all">{t('campaigns.filter.allPlatforms')}</option>
               {availablePlatforms.map(plat => (
                 <option key={plat} value={plat}>{plat}</option>
               ))}
@@ -402,9 +410,9 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               onChange={e => setSelectedStatus(e.target.value as any)}
               className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#005FB8]"
             >
-              <option value="all">All Statuses</option>
-              <option value="recruiting">Recruiting Couriers</option>
-              <option value="active">Active Campaigns</option>
+              <option value="all">{t('campaigns.filter.allStatuses')}</option>
+              <option value="recruiting">{t('campaigns.filter.recruiting')}</option>
+              <option value="active">{t('campaigns.filter.active')}</option>
             </select>
 
             {(searchQuery || selectedMetro !== 'all' || selectedPlatform !== 'all' || selectedStatus !== 'all') && (
@@ -418,7 +426,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                 }}
                 className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
               >
-                Reset
+                {t('campaigns.filter.reset')}
               </button>
             )}
           </div>
@@ -430,19 +438,19 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg sm:text-xl font-black text-slate-950">
-            Available Brand Campaigns ({filteredCampaigns.length})
+            {t('campaigns.list.title', { count: filteredCampaigns.length })}
           </h2>
           <span className="text-xs text-slate-500">
-            Spots are limited per metro market
+            {t('campaigns.list.limitedSpots')}
           </span>
         </div>
 
         {filteredCampaigns.length === 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
             <Megaphone className="w-10 h-10 text-slate-400 mx-auto" />
-            <h3 className="text-base font-bold text-slate-900">No campaigns matching your filters</h3>
+            <h3 className="text-base font-bold text-slate-900">{t('campaigns.empty.title')}</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Try adjusting your search criteria or resetting filters to see all available campaigns.
+              {t('campaigns.empty.desc')}
             </p>
             <button
               type="button"
@@ -454,7 +462,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               }}
               className="px-4 py-2 rounded-xl bg-[#005FB8] text-white text-xs font-bold cursor-pointer"
             >
-              Clear Filters
+              {t('campaigns.empty.clearBtn')}
             </button>
           </div>
         ) : (
@@ -490,7 +498,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                             : 'bg-amber-400 text-slate-950'
                         }`}
                       >
-                        {camp.status === 'active' ? 'Active Run' : 'Recruiting'}
+                        {camp.status === 'active' ? t('campaigns.card.statusActive') : t('campaigns.card.statusRecruiting')}
                       </span>
                     </div>
 
@@ -498,17 +506,17 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                     <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">
                       <div>
                         <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">
-                          Guaranteed Courier Payout
+                          {t('campaigns.card.payoutLabel')}
                         </div>
                         <div className="text-2xl font-black font-mono text-white leading-none mt-0.5">
                           ${camp.dailyPayout}
-                          <span className="text-xs font-normal text-slate-300 font-sans ml-1">/ shift</span>
+                          <span className="text-xs font-normal text-slate-300 font-sans ml-1">{t('campaigns.card.perShift')}</span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] text-slate-300">Weekly Estimate</div>
+                        <div className="text-[10px] text-slate-300">{t('campaigns.card.weeklyEstimate')}</div>
                         <div className="text-sm font-bold font-mono text-emerald-400">
-                          ~${camp.weeklyEstimatedEarnings}/wk
+                          {t('campaigns.card.weeklyVal', { amount: camp.weeklyEstimatedEarnings })}
                         </div>
                       </div>
                     </div>
@@ -534,7 +542,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       <div className="bg-[#F8FAFC] p-3 rounded-2xl border border-slate-100 space-y-1.5">
                         <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider flex items-center gap-1">
                           <Shirt className="w-3 h-3 text-[#005FB8]" />
-                          <span>Custom Partner Gear Shipped Free</span>
+                          <span>{t('campaigns.card.gearShippedFree')}</span>
                         </div>
                         <div className="text-xs text-slate-800 font-semibold line-clamp-1">
                           {camp.gearRequired.join(' • ')}
@@ -543,7 +551,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
 
                       {/* Platforms Supported */}
                       <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                        <span className="text-slate-400 font-medium">Platforms:</span>
+                        <span className="text-slate-400 font-medium">{t('campaigns.card.platforms')}</span>
                         {camp.deliveryPlatforms.map((plat, idx) => (
                           <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold">
                             {plat}
@@ -558,18 +566,22 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span className="flex items-center gap-1">
                           <Users className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{spotsLeft} spot{spotsLeft === 1 ? '' : 's'} remaining</span>
+                          <span>
+                            {spotsLeft === 1
+                              ? t('campaigns.card.spotsRemaining', { count: spotsLeft })
+                              : t('campaigns.card.spotsRemainingPlural', { count: spotsLeft })}
+                          </span>
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{camp.durationWeeks} Weeks</span>
+                          <span>{t('campaigns.card.weeks', { count: camp.durationWeeks })}</span>
                         </span>
                       </div>
 
                       {isEnrolled ? (
                         <div className="w-full py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold text-center flex items-center justify-center gap-1.5">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>You Are Enrolled in this Campaign</span>
+                          <span>{t('campaigns.card.alreadyEnrolled')}</span>
                         </div>
                       ) : (
                         <button
@@ -577,7 +589,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                           onClick={() => handleApplyClick(camp)}
                           className="w-full py-2.5 px-4 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer group-hover:shadow-md"
                         >
-                          <span>Apply & Claim Gear ($55–$75/day)</span>
+                          <span>{t('campaigns.card.applyBtn')}</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                       )}

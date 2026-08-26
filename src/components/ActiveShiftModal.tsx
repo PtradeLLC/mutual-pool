@@ -9,6 +9,7 @@ import {
   AdCampaign, ActiveShiftSession, PhotoSpotCheck, CampaignShiftLog, User, 
   CourierGearVerification, VisionVerificationResult 
 } from '../types';
+import { useTranslation } from '../i18n';
 
 interface ActiveShiftModalProps {
   isOpen: boolean;
@@ -31,6 +32,8 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
   onUpdateSession,
   onCompleteShift,
 }) => {
+  const { t } = useTranslation();
+
   // Setup / Start Shift Form State
   const [initialPhoto, setInitialPhoto] = useState<string>('');
   const [selectedPlatform, setSelectedPlatform] = useState<ActiveShiftSession['platform']>(
