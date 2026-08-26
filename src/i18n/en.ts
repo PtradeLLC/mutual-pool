@@ -1018,7 +1018,7 @@ export const en = {
   'aboutModal.perksDesc': 'Negotiated bulk fleet discounts saving members 15-20% on gas, tires, oil changes, and tax prep tools.',
   'aboutModal.fleetCoverageTitle': 'Fleet Integration Coverage',
   'aboutModal.fleetCoverageDesc': 'Our platform supports verified gig workers across all major delivery and rideshare networks:',
-  'aboutModal.hqFooter': 'Headquarters: San Francisco, CA & Remote Fleet Hubs',
+  'aboutModal.hqFooter': 'Headquarters: New York, NY & Remote Fleet Hubs',
   'aboutModal.closeBtn': 'Close',
 
   // How It Works Modal
