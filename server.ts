@@ -15,6 +15,7 @@ import {
 } from './src/data/initialData';
 import { getDb } from './src/config/firebase';
 import { GoogleGenAI, Modality, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import {
   setupWebSocketServer,
   getThreadsForUser,
@@ -39,6 +40,17 @@ function getGeminiClient(): GoogleGenAI | null {
     });
   }
   return geminiClient;
+}
+
+let groqClient: Groq | null = null;
+function getGroqClient(): Groq | null {
+  if (!process.env.GROQ_API_KEY) return null;
+  if (!groqClient) {
+    groqClient = new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    });
+  }
+  return groqClient;
 }
 
 const PORT = 3000;
@@ -2564,6 +2576,8 @@ app.use((req, res, next) => {
         ? campaign.gearRequired 
         : ['Branded Waterproof 45L Delivery Bag', 'Official Partner Thermal Hoodie', 'High-Visibility Reflective Armband'];
 
+      let imageUrlForGroq = typeof courierPhoto === 'string' ? courierPhoto : '';
+
       const client = getGeminiClient();
       if (client && courierPhoto) {
         try {
@@ -2571,6 +2585,7 @@ app.use((req, res, next) => {
 
           // Parse base64 or remote URL
           if (typeof courierPhoto === 'string' && courierPhoto.startsWith('data:image/')) {
+            imageUrlForGroq = courierPhoto;
             const match = courierPhoto.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
             if (match) {
               parts.push({
@@ -2586,10 +2601,12 @@ app.use((req, res, next) => {
               const arrayBuffer = await imgRes.arrayBuffer();
               const buffer = Buffer.from(arrayBuffer);
               const mimeType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
+              const base64Data = buffer.toString('base64');
+              imageUrlForGroq = `data:${mimeType || 'image/jpeg'};base64,${base64Data}`;
               parts.push({
                 inlineData: {
                   mimeType: mimeType || 'image/jpeg',
-                  data: buffer.toString('base64'),
+                  data: base64Data,
                 }
               });
             } catch (fetchErr) {
@@ -2669,7 +2686,88 @@ Output strictly a JSON object conforming to:
           });
 
         } catch (geminiErr: any) {
-          console.warn('Gemini vision evaluation warning, using smart rule evaluator:', geminiErr?.message);
+          console.warn('Gemini vision evaluation warning, trying Groq fallback:', geminiErr?.message);
+        }
+      }
+
+      // Groq Vision Fallback (e.g. qwen/qwen3.6-27b) using GROQ_API_KEY
+      const groq = getGroqClient();
+      if (groq && imageUrlForGroq) {
+        try {
+          const groqPrompt = `You are an AI Vision Verification Auditor for MutualPool Gig Delivery Ad Campaigns.
+Compare the courier's uploaded gear photo against the CURRENT ACTIVE CAMPAIGN in rotation this week.
+
+CONTEXT & ACTIVE ROTATION RULE:
+- Active Campaign in Rotation: "${campaignTitle}"
+- Expected Brand Name: "${expectedBrand}"
+- Brand Colors / Aesthetic: ${campaign.brandColor || 'Official Brand'}
+- Required Campaign Gear Items: ${gearRequired.join(', ')}
+- Description: ${campaign.description || 'Active brand promotional rotation for gig delivery ambassadors.'}
+- Target Metro: ${campaign.targetMetro || 'National'}
+${sampleTag ? `- Photo Metadata / Test Tag: ${sampleTag}` : ''}
+
+CRITICAL VERIFICATION OBJECTIVE:
+- Prevent couriers from uploading gear from OLD EXPIRED CAMPAIGNS (e.g. wearing last week's expired campaign rotation when "${expectedBrand}" is active), competitor brands, or unbranded personal clothes.
+- Check if the apparel, bag, hoodie, jacket, cap, or decals in the photo visually match the CURRENT ACTIVE CAMPAIGN brand ("${expectedBrand}").
+- If the photo exhibits gear or logos from another brand or an expired campaign (or is tagged MISMATCH_EXPIRED_CAMPAIGN), or if it is unbranded civilian clothes (or tagged UNBRANDED), mark matched as false and status as "REJECTED".
+- If the photo matches the active campaign brand ("${expectedBrand}"), mark matched as true and status as "VERIFIED".
+
+Return ONLY a valid JSON object in this exact schema:
+{
+  "matched": boolean,
+  "status": "VERIFIED" | "REJECTED",
+  "confidenceScore": number (between 0 and 100),
+  "detectedBrand": string,
+  "expectedBrand": "${expectedBrand}",
+  "matchedCampaignTitle": "${campaignTitle}",
+  "gearItemsDetected": string[],
+  "visualFindings": string,
+  "decisionReason": string
+}`;
+
+          const completion = await groq.chat.completions.create({
+            model: 'qwen/qwen3.6-27b',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: groqPrompt,
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: imageUrlForGroq,
+                    },
+                  },
+                ],
+              },
+            ],
+            temperature: 0.6,
+            max_completion_tokens: 2048,
+            top_p: 0.95,
+          });
+
+          const rawContent = completion.choices[0]?.message?.content || '';
+          const cleanedContent = rawContent
+            .replace(/<think>[\s\S]*?<\/think>/gi, '')
+            .replace(/```(?:json)?\s*|```/g, '')
+            .trim();
+          
+          if (cleanedContent) {
+            const parsedGroq = JSON.parse(cleanedContent);
+            return res.json({
+              success: true,
+              modelUsed: 'qwen/qwen3.6-27b (Groq Vision Fallback)',
+              comparedAt: new Date().toISOString(),
+              ...parsedGroq,
+              expectedBrand,
+              matchedCampaignTitle: campaignTitle,
+            });
+          }
+        } catch (groqErr: any) {
+          console.warn('Groq vision evaluation fallback warning, using smart rule evaluator:', groqErr?.message);
         }
       }
 
