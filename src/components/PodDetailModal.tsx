@@ -5,6 +5,7 @@ import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { CampaignAdAgreementModal } from './CampaignAdAgreementModal';
 import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { useChat } from '../context/ChatContext';
+import { useTranslation, TranslationKey } from '../i18n';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
   Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare
@@ -29,6 +30,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   onRefreshPod,
   onOpenAgreementModal,
 }) => {
+  const { t, language } = useTranslation();
   const { openPodChat, startDirectChat } = useChat();
   const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>(initialTab);
   const [podLogs, setPodLogs] = useState<AuditLogEntry[]>([]);
@@ -1297,40 +1299,50 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-[#005FB8]" />
-                  <h4 className="font-bold text-[#111827] text-xs">Pod Deposit & Payout Ledger ({podLogs.length})</h4>
+                  <h4 className="font-bold text-[#111827] text-xs">
+                    {t('audit.podLedgerTitle', { count: podLogs.length })}
+                  </h4>
                 </div>
                 <span className="text-[10px] text-gray-500 font-mono">
-                  Pod ID: {pod.id}
+                  {t('audit.podIdLabel')} {pod.id}
                 </span>
               </div>
 
               {podLogs.length === 0 ? (
                 <div className="p-4 bg-white border border-gray-200 rounded-lg text-center text-xs text-gray-500">
-                  No transaction events recorded on this ledger yet. Deposits and weekly payout settlements will be recorded here in real time.
+                  {t('audit.podLedgerEmpty')}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {podLogs.map((log) => (
-                    <div key={log.id} className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 shadow-2xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-blue-50 text-[#005FB8] border border-blue-200">
-                          {log.action}
-                        </span>
-                        <span className="text-[10px] font-mono text-gray-500">
-                          {new Date(log.createdAt).toLocaleString()}
-                        </span>
+                  {podLogs.map((log) => {
+                    const actionKey = `audit.action.${log.action}` as TranslationKey;
+                    const actionLabel = t(actionKey) !== (actionKey as string) ? t(actionKey) : log.action;
+                    const locale = language === 'es' ? 'es-US' : language === 'fr' ? 'fr-FR' : 'en-US';
+
+                    return (
+                      <div key={log.id} className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-blue-50 text-[#005FB8] border border-blue-200">
+                            {actionLabel}
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-500">
+                            {new Date(log.createdAt).toLocaleString(locale)}
+                          </span>
+                        </div>
+                        <p className="text-[#111827] font-medium leading-relaxed">
+                          {log.detail}
+                        </p>
+                        <div className="text-[10px] text-gray-500 flex items-center justify-between pt-1 border-t border-gray-100">
+                          <span>{t('audit.actor')} <strong>{log.actorName}</strong></span>
+                          {Boolean(log.metadata?.stripeTransferId) && (
+                            <span className="font-mono text-[#005FB8]">
+                              {t('audit.refLabel')} {String(log.metadata?.stripeTransferId)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-[#111827] font-medium leading-relaxed">
-                        {log.detail}
-                      </p>
-                      <div className="text-[10px] text-gray-500 flex items-center justify-between pt-1 border-t border-gray-100">
-                        <span>Actor: <strong>{log.actorName}</strong></span>
-                        {Boolean(log.metadata?.stripeTransferId) && (
-                          <span className="font-mono text-[#005FB8]">Ref: {String(log.metadata?.stripeTransferId)}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
