@@ -886,6 +886,15 @@ function getQueryValue(req: Request, key: string): string | undefined {
   return undefined;
 }
 
+function calculateAccountAgeDays(createdAt?: string, fallbackDays: number = 1): number {
+  if (!createdAt) return Math.max(1, fallbackDays || 1);
+  const createdTime = new Date(createdAt).getTime();
+  if (isNaN(createdTime) || createdTime <= 0) return Math.max(1, fallbackDays || 1);
+  const diffMs = Date.now() - createdTime;
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  return Math.max(1, days);
+}
+
 function getHeaderNumber(req: Request, headerName: string): number | undefined {
   const rawValue = getHeaderValue(req, headerName);
   if (!rawValue) return undefined;
@@ -934,6 +943,7 @@ function getCurrentUser(req: Request): User | null {
       const userNameHeader = getHeaderValue(req, 'x-user-name');
       const fallbackName = userNameHeader && userNameHeader !== 'Verified Member' ? userNameHeader : (userEmail.split('@')[0] || 'Mutual Member');
       const profile = getProfileFromHeaders(req);
+      const nowIso = new Date().toISOString();
       found = {
         id: userId,
         email: userEmail,
@@ -941,7 +951,8 @@ function getCurrentUser(req: Request): User | null {
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=005FB8&color=fff&size=200`,
         platform: profile.platform as any,
         role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : (profile.role === 'Admin' ? 'Admin' : profile.role),
-        accountAgeDays: profile.accountAgeDays,
+        createdAt: nowIso,
+        accountAgeDays: calculateAccountAgeDays(nowIso, profile.accountAgeDays),
         kycStatus: profile.kycStatus,
         treasury: {
           stripeAccountId: profile.treasuryStripeAccountId,
@@ -964,6 +975,10 @@ function getCurrentUser(req: Request): User | null {
       users.push(found);
     }
     if (found) {
+      if (!found.createdAt) {
+        found.createdAt = new Date().toISOString();
+      }
+      found.accountAgeDays = calculateAccountAgeDays(found.createdAt, found.accountAgeDays);
       const profile = getProfileFromHeaders(req);
       if (profile.accountAgeDays > (found.accountAgeDays || 0)) {
         found.accountAgeDays = profile.accountAgeDays;
@@ -1180,6 +1195,10 @@ app.use((req, res, next) => {
       if (!syncUser || !syncUser.id) {
         return res.status(400).json({ error: 'Invalid user payload' });
       }
+      if (!syncUser.createdAt) {
+        syncUser.createdAt = new Date().toISOString();
+      }
+      syncUser.accountAgeDays = calculateAccountAgeDays(syncUser.createdAt, syncUser.accountAgeDays);
       const index = users.findIndex(u => u.id === syncUser.id);
       if (index >= 0) {
         users[index] = { ...users[index], ...syncUser };
@@ -1195,6 +1214,11 @@ app.use((req, res, next) => {
 
   app.get(['/api/users', '/users'], (req: Request, res: Response) => {
     try {
+      users.forEach(u => {
+        if (u) {
+          u.accountAgeDays = calculateAccountAgeDays(u.createdAt, u.accountAgeDays);
+        }
+      });
       res.json(users);
     } catch (err) {
       console.error('[/api/users] error:', err);
@@ -1235,6 +1259,7 @@ app.use((req, res, next) => {
     ];
     const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
 
+    const nowIso = new Date().toISOString();
     const newUser: User = {
       id: newUserId,
       displayName,
@@ -1242,8 +1267,9 @@ app.use((req, res, next) => {
       platform: platform || 'DoorDash',
       role: 'DRIVER',
       kycStatus: autoVerifyKyc ? 'VERIFIED' : 'PENDING',
-      kycVerifiedAt: autoVerifyKyc ? new Date().toISOString() : undefined,
-      accountAgeDays: 1,
+      kycVerifiedAt: autoVerifyKyc ? nowIso : undefined,
+      createdAt: nowIso,
+      accountAgeDays: calculateAccountAgeDays(nowIso, 1),
       completedPodsCount: 0,
       avatarUrl: randomAvatar,
       treasury: {
@@ -3748,6 +3774,7 @@ Return ONLY a valid JSON object in this exact schema:
           partnerUser = existing;
         } else {
           const newUserId = `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          const nowIso = new Date().toISOString();
           partnerUser = {
             id: newUserId,
             email: effectiveEmail.toLowerCase(),
@@ -3755,7 +3782,8 @@ Return ONLY a valid JSON object in this exact schema:
             avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(finalProvider)}&background=10B981&color=fff&size=200`,
             platform: 'Partner Provider',
             role: 'RIDER',
-            accountAgeDays: 1,
+            createdAt: nowIso,
+            accountAgeDays: calculateAccountAgeDays(nowIso, 1),
             kycStatus: 'VERIFIED',
             treasury: {
               stripeAccountId: '',

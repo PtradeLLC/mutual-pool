@@ -134,6 +134,7 @@ export const en = {
   'dash.welcomeUser': 'Welcome, {name}',
   'dash.fleetMember': '{platform} Fleet Member',
   'dash.accountTenure': '{count} days account tenure',
+  'dash.accountTenureSingular': '1 day account tenure',
   'dash.fdicBalance': 'FDIC Pass-Through Treasury Balance:',
   'dash.welcomeMatchCredited': '+${amount}.00 Welcome Match Credited',
   'dash.depositFundsInTreasury': 'Deposit Funds in Treasury',

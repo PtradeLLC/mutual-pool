@@ -136,6 +136,7 @@ export const es: Record<TranslationKey, string> = {
   'dash.welcomeUser': 'Bienvenido, {name}',
   'dash.fleetMember': 'Miembro de Flota {platform}',
   'dash.accountTenure': '{count} días de antigüedad',
+  'dash.accountTenureSingular': '1 día de antigüedad',
   'dash.fdicBalance': 'Saldo de Custodia con Seguro FDIC Indirecto:',
   'dash.welcomeMatchCredited': '+${amount}.00 Bono de Bienvenida Acreditado',
   'dash.depositFundsInTreasury': 'Depositar Fondos en Custodia',

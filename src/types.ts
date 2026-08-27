@@ -59,6 +59,17 @@ export interface User {
   hardshipOwedUsd?: number;
   lastHardshipRequestedAt?: string;
   activeHardshipRequestId?: string;
+  createdAt?: string;
+}
+
+export function calculateAccountAgeDays(createdAt?: string, fallbackDays: number = 1): number {
+  if (!createdAt) return Math.max(1, fallbackDays || 1);
+  const createdTime = new Date(createdAt).getTime();
+  if (isNaN(createdTime) || createdTime <= 0) return Math.max(1, fallbackDays || 1);
+  const diffMs = Date.now() - createdTime;
+  // Calculate total elapsed full days, with a minimum of 1 day for active active users
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  return Math.max(1, days);
 }
 
 export type PodSizeTier = 20 | 50 | 100 | 500 | 1000 | 5000 | 10000;

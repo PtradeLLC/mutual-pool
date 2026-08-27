@@ -136,6 +136,7 @@ export const fr: Record<TranslationKey, string> = {
   'dash.welcomeUser': 'Bienvenue, {name}',
   'dash.fleetMember': 'Chauffeur Flotte {platform}',
   'dash.accountTenure': '{count} jours d’ancienneté',
+  'dash.accountTenureSingular': '1 jour d’ancienneté',
   'dash.fdicBalance': 'Solde de Séquestre sous Garantie Bancaire FDIC :',
   'dash.welcomeMatchCredited': '+${amount}.00 Prime de Bienvenue Créditée',
   'dash.depositFundsInTreasury': 'Déposer des Fonds sous Séquestre',

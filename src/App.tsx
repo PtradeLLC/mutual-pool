@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession } from './types';
+import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -488,6 +488,10 @@ export default function App() {
         // Try getting fresh user document from Firestore
         const firestoreUser = await getUserFromFirestore(uId).catch(() => null);
         if (firestoreUser) {
+          if (!firestoreUser.createdAt) {
+            firestoreUser.createdAt = new Date().toISOString();
+          }
+          firestoreUser.accountAgeDays = calculateAccountAgeDays(firestoreUser.createdAt, firestoreUser.accountAgeDays);
           if (firestoreUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' && firestoreUser.role !== 'Admin') {
             firestoreUser.role = 'Admin';
             saveUserToFirestore(firestoreUser).catch(() => {});
@@ -500,6 +504,7 @@ export default function App() {
           if (userRes && userRes.ok) {
             const uData = await userRes.json().catch(() => null);
             if (uData) {
+              uData.accountAgeDays = calculateAccountAgeDays(uData.createdAt, uData.accountAgeDays);
               if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
                 uData.role = 'Admin';
               }
@@ -512,6 +517,7 @@ export default function App() {
         if (userRes && userRes.ok) {
           const uData = await userRes.json().catch(() => null);
           if (uData) {
+            uData.accountAgeDays = calculateAccountAgeDays(uData.createdAt, uData.accountAgeDays);
             if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
               uData.role = 'Admin';
             }
@@ -655,6 +661,17 @@ export default function App() {
               modified = true;
             }
 
+            // Ensure createdAt exists and tenure days is accurately calculated from elapsed time
+            if (!dbUser.createdAt) {
+              dbUser.createdAt = fbUser.metadata?.creationTime || new Date().toISOString();
+              modified = true;
+            }
+            const dynamicAgeDays = calculateAccountAgeDays(dbUser.createdAt, dbUser.accountAgeDays);
+            if (dbUser.accountAgeDays !== dynamicAgeDays) {
+              dbUser.accountAgeDays = dynamicAgeDays;
+              modified = true;
+            }
+
             // Ensure unverified users correctly reflect PENDING KYC status unless verified
             if (dbUser.kycStatus === 'VERIFIED' && !dbUser.kycVerifiedAt && !dbUser.treasury.stripeAccountId) {
               dbUser.kycStatus = 'PENDING';
@@ -677,6 +694,7 @@ export default function App() {
             syncUserWithBackend(dbUser).catch(console.error);
           } else {
             const resolvedName = fbUser.displayName || fbUser.phoneNumber || 'MutualPool Member';
+            const userCreationTime = fbUser.metadata?.creationTime || new Date().toISOString();
             const newUser: User = {
               id: fbUser.uid,
               email: fbUser.email || `${fbUser.uid.substring(0, 8)}@mutualpool.org`,
@@ -684,7 +702,8 @@ export default function App() {
               avatarUrl: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`,
               platform: 'DoorDash',
               role: 'RIDER',
-              accountAgeDays: 1,
+              createdAt: userCreationTime,
+              accountAgeDays: calculateAccountAgeDays(userCreationTime, 1),
               kycStatus: 'PENDING',
               treasury: {
                 stripeAccountId: '',
@@ -1402,7 +1421,9 @@ export default function App() {
                   <Pencil className="w-3 h-3 text-[#005FB8]" />
                 </button>
                 <span className="text-xs font-mono text-[#6B7280]">
-                  {t('dash.accountTenure', { count: activeUser.accountAgeDays })}
+                  {activeUser.accountAgeDays === 1
+                    ? t('dash.accountTenureSingular')
+                    : t('dash.accountTenure', { count: activeUser.accountAgeDays })}
                 </span>
               </div>
               <h2 className="text-2xl font-bold text-[#111827]">

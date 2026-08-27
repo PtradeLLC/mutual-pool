@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { FirebaseError } from 'firebase/app';
 import { db } from './firebase';
-import { User, Pod, Perk, AuditLogEntry, Redemption, isDemoPod } from '../types';
+import { User, Pod, Perk, AuditLogEntry, Redemption, isDemoPod, calculateAccountAgeDays } from '../types';
 import { INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS } from '../data/initialData';
 
 // Helper to strip undefined fields recursively from objects and arrays so Firestore setDoc never throws on undefined values
@@ -95,7 +95,12 @@ export async function getUserFromFirestore(userId: string): Promise<User | null>
   if (!userId || typeof userId !== 'string' || !userId.trim()) return null;
   try {
     const userDoc = await getDoc(doc(db, 'users', userId));
-    return userDoc.exists() ? (userDoc.data() as User) : null;
+    if (!userDoc.exists()) return null;
+    const userData = userDoc.data() as User;
+    if (userData) {
+      userData.accountAgeDays = calculateAccountAgeDays(userData.createdAt, userData.accountAgeDays);
+    }
+    return userData;
   } catch (err) {
     if ((err as any)?.code === 'permission-denied') return null;
     throw wrapError(`getUserFromFirestore(${userId})`, err);
@@ -105,7 +110,12 @@ export async function getUserFromFirestore(userId: string): Promise<User | null>
 export async function saveUserToFirestore(user: User): Promise<void> {
   if (!user || !user.id || typeof user.id !== 'string' || !user.id.trim()) return;
   try {
-    await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(user), { merge: true });
+    const dataToSave = { ...user };
+    if (!dataToSave.createdAt) {
+      dataToSave.createdAt = new Date().toISOString();
+    }
+    dataToSave.accountAgeDays = calculateAccountAgeDays(dataToSave.createdAt, dataToSave.accountAgeDays);
+    await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(dataToSave), { merge: true });
   } catch (err: any) {
     if (err?.code === 'permission-denied' || err?.message?.includes('permission')) {
       console.debug(`saveUserToFirestore(${user.id}) skipped (permission required)`);
@@ -126,7 +136,17 @@ export function subscribeToUser(
   }
   return onSnapshot(
     doc(db, 'users', userId),
-    (docSnap) => callback(docSnap.exists() ? (docSnap.data() as User) : null),
+    (docSnap) => {
+      if (!docSnap.exists()) {
+        callback(null);
+        return;
+      }
+      const u = docSnap.data() as User;
+      if (u) {
+        u.accountAgeDays = calculateAccountAgeDays(u.createdAt, u.accountAgeDays);
+      }
+      callback(u);
+    },
     (err) => onError?.(wrapError(`subscribeToUser(${userId})`, err))
   );
 }

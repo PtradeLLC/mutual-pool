@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, GigPlatform } from '../types';
+import { User, GigPlatform, calculateAccountAgeDays } from '../types';
 import { Logo } from './Logo';
 import { useTranslation } from '../i18n';
 import { 
@@ -120,6 +120,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     if (existing) {
       let modified = false;
+      if (!existing.createdAt) {
+        existing = { ...existing, createdAt: new Date().toISOString() };
+        modified = true;
+      }
+      const dynamicAgeDays = calculateAccountAgeDays(existing.createdAt, existing.accountAgeDays);
+      if (existing.accountAgeDays !== dynamicAgeDays) {
+        existing = { ...existing, accountAgeDays: dynamicAgeDays };
+        modified = true;
+      }
       if (isAdminEmail && existing.role !== 'Admin') {
         existing = { ...existing, role: 'Admin' };
         modified = true;
@@ -143,6 +152,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return existing;
     }
 
+    const nowIso = new Date().toISOString();
     const newUser: User = {
       id: uid,
       email: email || `${uid.substring(0, 8)}@mutualpool.org`,
@@ -150,7 +160,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       avatarUrl: defaultAvatar,
       platform: platform,
       role: isAdminEmail ? 'Admin' : 'RIDER',
-      accountAgeDays: 1,
+      createdAt: nowIso,
+      accountAgeDays: calculateAccountAgeDays(nowIso, 1),
       kycStatus: 'PENDING',
       treasury: {
         stripeAccountId: '',
