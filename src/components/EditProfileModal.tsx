@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { User, GigPlatform, UserRole } from '../types';
-import { X, Camera, User as UserIcon, Upload, Check, Sparkles } from 'lucide-react';
+import { User, GigPlatform, UserRole, calculateAccountAgeDays } from '../types';
+import { X, Camera, User as UserIcon, Upload, Check, Sparkles, Calendar, ShieldCheck } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { saveUserToFirestore } from '../lib/firestoreService';
@@ -22,11 +22,38 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl || '');
   const [platform, setPlatform] = useState<GigPlatform>(currentUser.platform || 'DoorDash');
   const [role, setRole] = useState<UserRole>(currentUser.role || 'RIDER');
+
+  // Compute initial join date string YYYY-MM-DD
+  const getInitialJoinDate = () => {
+    if (currentUser.createdAt) {
+      try {
+        const d = new Date(currentUser.createdAt);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      } catch {}
+    }
+    if (currentUser.accountAgeDays && currentUser.accountAgeDays > 1) {
+      const d = new Date(Date.now() - currentUser.accountAgeDays * 24 * 60 * 60 * 1000);
+      return d.toISOString().split('T')[0];
+    }
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const [joinDate, setJoinDate] = useState<string>(getInitialJoinDate());
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
+
+  const currentComputedTenure = calculateAccountAgeDays(
+    joinDate ? new Date(`${joinDate}T12:00:00Z`).toISOString() : undefined,
+    currentUser.accountAgeDays || 1
+  );
+
+  const handleApplyPresetDays = (daysAgo: number) => {
+    const d = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    setJoinDate(d.toISOString().split('T')[0]);
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -60,6 +87,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
     try {
       const finalAvatar = avatarUrl.trim() || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName || 'User')}&background=005FB8&color=fff&size=300`;
+      const finalCreatedAt = joinDate ? new Date(`${joinDate}T12:00:00Z`).toISOString() : (currentUser.createdAt || new Date().toISOString());
+      const computedTenure = calculateAccountAgeDays(finalCreatedAt, 1);
 
       const updatedUser: User = {
         ...currentUser,
@@ -67,6 +96,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         avatarUrl: finalAvatar,
         platform,
         role,
+        createdAt: finalCreatedAt,
+        accountAgeDays: computedTenure,
       };
 
       // 1. Update Firebase Auth Profile if user is logged in
@@ -102,11 +133,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative">
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative max-h-[90vh] overflow-y-auto">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -117,8 +148,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <UserIcon className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-[#111827]">Edit Profile & Avatar</h3>
-            <p className="text-xs text-[#6B7280]">Update your display picture, name, and gig platform</p>
+            <h3 className="text-lg font-bold text-[#111827]">Edit Profile & Tenure</h3>
+            <p className="text-xs text-[#6B7280]">Update display info, platform role, and member start date</p>
           </div>
         </div>
 
@@ -135,7 +166,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Avatar Preview & File Input */}
           <div className="flex flex-col items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
             <div className="relative group">
@@ -172,10 +203,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               <button
                 type="button"
                 onClick={handleGenerateInitialsAvatar}
-                className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-xs font-semibold text-[#005FB8] flex items-center gap-1.5 shadow-xs transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 text-xs font-semibold text-[#005FB8] flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Generate Initials Avatar</span>
+                <span>Generate Avatar</span>
               </button>
             </div>
           </div>
@@ -204,7 +235,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               required
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="e.g. Chris B"
+              placeholder="e.g. Chris Bitoye"
               className="w-full px-3.5 py-2 text-xs border border-gray-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#005FB8]"
             />
           </div>
@@ -246,6 +277,74 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <option value="Admin">Site Administrator (Admin)</option>
                 <option value="SUPER_ADMIN">Platform Super Admin</option>
               </select>
+            </div>
+          </div>
+
+          {/* Member Tenure & Join Date Section */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-[#005FB8]" />
+                <label className="text-xs font-bold text-[#111827]">
+                  Fleet Member Join Date & Tenure
+                </label>
+              </div>
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-blue-100 text-[#005FB8] border border-blue-200">
+                {currentComputedTenure === 1 ? '1 day tenure' : `${currentComputedTenure} days tenure`}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-[#6B7280] mb-2.5">
+              Set your actual start date to accurately reflect your verified driver tenure on the dashboard.
+            </p>
+
+            <input
+              type="date"
+              value={joinDate}
+              max={new Date().toISOString().split('T')[0]}
+              onChange={(e) => setJoinDate(e.target.value)}
+              className="w-full px-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#005FB8] mb-2 font-mono"
+            />
+
+            {/* Quick Presets */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-gray-500 mr-1">Quick Set:</span>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDays(0)}
+                className="px-2 py-0.5 text-[10px] font-medium bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-colors cursor-pointer"
+              >
+                Today (1d)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDays(30)}
+                className="px-2 py-0.5 text-[10px] font-medium bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-colors cursor-pointer"
+              >
+                1 Month (30d)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDays(90)}
+                className="px-2 py-0.5 text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 rounded-md transition-colors cursor-pointer"
+                title="Unlocks Seasoned Member Pod Privileges"
+              >
+                90d (Seasoned)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDays(180)}
+                className="px-2 py-0.5 text-[10px] font-medium bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-colors cursor-pointer"
+              >
+                6 Mos (180d)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDays(365)}
+                className="px-2 py-0.5 text-[10px] font-medium bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition-colors cursor-pointer"
+              >
+                1 Year (365d)
+              </button>
             </div>
           </div>
 

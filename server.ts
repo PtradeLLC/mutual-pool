@@ -1169,6 +1169,8 @@ app.use((req, res, next) => {
   const normalized = normalizeApiUrl(req);
   if (normalized && normalized !== req.url && !normalized.startsWith('/api/index')) {
     req.url = normalized;
+    delete (req as any)._parsedUrl;
+    delete (req as any)._parsedOriginalUrl;
   }
   next();
 });
@@ -4952,6 +4954,8 @@ export default function handler(req: express.Request, res: express.Response, nex
   const normalized = normalizeApiUrl(req);
   if (normalized && normalized !== req.url && !normalized.startsWith('/api/index')) {
     req.url = normalized;
+    delete (req as any)._parsedUrl;
+    delete (req as any)._parsedOriginalUrl;
   }
 
   if (typeof next === 'function') {
