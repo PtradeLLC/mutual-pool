@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { Building2, CheckCircle2, AlertCircle, X, CreditCard, ShieldCheck, Wallet, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Building2, CheckCircle2, AlertCircle, X, CreditCard, ShieldCheck, Wallet, Sparkles } from 'lucide-react';
 import { saveUserToFirestore } from '../lib/firestoreService';
+import { useLanguage } from '../i18n';
 
 interface StripeBankModalProps {
   user: User;
@@ -10,6 +11,7 @@ interface StripeBankModalProps {
 }
 
 export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose, onBankLinked }) => {
+  const { t } = useLanguage();
   const PRESET_BANKS = [
     'Chase Bank (JPMorgan Chase)',
     'Bank of America',
@@ -57,7 +59,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
   const handleLinkBank = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedBankOption === 'OTHER_CUSTOM' && !customBankName.trim()) {
-      setError('Please enter the name of your financial institution.');
+      setError(t('treasuryModal.errorCustomBankRequired'));
       return;
     }
 
@@ -106,17 +108,17 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
       if (res.ok && data.user) {
         const mergedUser: User = { ...updatedUser, ...data.user, externalBank: updatedUser.externalBank };
         await saveUserToFirestore(mergedUser).catch(() => {});
-        setSuccessMessage(`Bank account linked (${bankDisplayName}) successfully!`);
+        setSuccessMessage(t('treasuryModal.successBankLinked', { bankName: bankDisplayName }));
         onBankLinked(mergedUser);
       } else {
         await saveUserToFirestore(updatedUser).catch(() => {});
-        setSuccessMessage(`Bank account linked (${bankDisplayName}) successfully!`);
+        setSuccessMessage(t('treasuryModal.successBankLinked', { bankName: bankDisplayName }));
         onBankLinked(updatedUser);
       }
     } catch (err: unknown) {
       console.warn('[StripeBankModal] Bank link backend sync failed, applying demo fallback:', err);
       await saveUserToFirestore(updatedUser).catch(() => {});
-      setSuccessMessage(`Bank account linked (${bankDisplayName}) successfully!`);
+      setSuccessMessage(t('treasuryModal.successBankLinked', { bankName: bankDisplayName }));
       onBankLinked(updatedUser);
     } finally {
       setLoading(false);
@@ -182,17 +184,32 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
           },
         };
         await saveUserToFirestore(mergedUser).catch(() => {});
-        setSuccessMessage(`Successfully processed +$${depositAmount}.00 Treasury Deposit! Total charged: $${totalCharged.toFixed(2)} ($${depositAmount}.00 deposit + $${feeAmount.toFixed(2)} 5% platform fee). Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
+        setSuccessMessage(t('treasuryModal.successTopupMsg', {
+          deposit: `$${depositAmount}.00`,
+          total: `$${totalCharged.toFixed(2)}`,
+          fee: `$${feeAmount.toFixed(2)}`,
+          newBalance: `$${newBal.toFixed(2)}`,
+        }));
         onBankLinked(mergedUser);
       } else {
         await saveUserToFirestore(updatedUser).catch(() => {});
-        setSuccessMessage(`Successfully processed +$${depositAmount}.00 Treasury Deposit! Total charged: $${totalCharged.toFixed(2)} ($${depositAmount}.00 deposit + $${feeAmount.toFixed(2)} 5% platform fee). Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
+        setSuccessMessage(t('treasuryModal.successTopupMsg', {
+          deposit: `$${depositAmount}.00`,
+          total: `$${totalCharged.toFixed(2)}`,
+          fee: `$${feeAmount.toFixed(2)}`,
+          newBalance: `$${newBal.toFixed(2)}`,
+        }));
         onBankLinked(updatedUser);
       }
     } catch (err: unknown) {
       console.warn('[StripeBankModal] Treasury topup backend sync failed, applying demo fallback:', err);
       await saveUserToFirestore(updatedUser).catch(() => {});
-      setSuccessMessage(`Successfully processed +$${depositAmount}.00 Treasury Deposit! Total charged: $${totalCharged.toFixed(2)} ($${depositAmount}.00 deposit + $${feeAmount.toFixed(2)} 5% platform fee). Updated Treasury Balance: $${newBal.toFixed(2)} USD.`);
+      setSuccessMessage(t('treasuryModal.successTopupMsg', {
+        deposit: `$${depositAmount}.00`,
+        total: `$${totalCharged.toFixed(2)}`,
+        fee: `$${feeAmount.toFixed(2)}`,
+        newBalance: `$${newBal.toFixed(2)}`,
+      }));
       onBankLinked(updatedUser);
     } finally {
       setLoading(false);
@@ -223,8 +240,8 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
             <Wallet className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-[#111827]">Stripe Treasury & Accounts</h3>
-            <p className="text-xs text-[#6B7280]">FDIC-Insured Pass-Through Treasury Holding & Bank Transfer</p>
+            <h3 className="text-xl font-bold text-[#111827]">{t('treasuryModal.headerTitle')}</h3>
+            <p className="text-xs text-[#6B7280]">{t('treasuryModal.headerSubtitle')}</p>
           </div>
         </div>
 
@@ -240,7 +257,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
             }`}
           >
             <Wallet className="w-4 h-4 text-emerald-600" />
-            <span>Treasury Balance & Deposit</span>
+            <span>{t('treasuryModal.tabTreasuryTopup')}</span>
           </button>
           <button
             type="button"
@@ -252,7 +269,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
             }`}
           >
             <Building2 className="w-4 h-4 text-[#005FB8]" />
-            <span>Link External Bank Account</span>
+            <span>{t('treasuryModal.tabBankLink')}</span>
           </button>
         </div>
 
@@ -280,13 +297,13 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
               </div>
               <div className="relative z-10">
                 <span className="text-emerald-300 text-[10px] font-extrabold uppercase tracking-wider block">
-                  Stripe Treasury Commercial Balance
+                  {t('treasuryModal.commercialBalanceTitle')}
                 </span>
                 <div className="text-3xl font-extrabold font-mono mt-1 text-white">
                   ${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal text-emerald-300">USD</span>
                 </div>
                 <div className="mt-3 pt-2.5 border-t border-emerald-800/80 flex items-center justify-between text-[11px] text-emerald-200">
-                  <span>FDIC Pass-Through Status: <strong>Eligible ($250k)</strong></span>
+                  <span>{t('treasuryModal.fdicStatusLabel')} <strong>{t('treasuryModal.eligible250k')}</strong></span>
                   <span className="font-mono text-[10px] text-emerald-300 bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-700/60">
                     {user.treasury?.stripeFinAccountId || `fa_1xTreasury_${user.id.slice(0, 6)}`}
                   </span>
@@ -299,16 +316,16 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                   <CreditCard className="w-4 h-4 text-emerald-600" />
-                  <span>Deposit Funds to Stripe Treasury</span>
+                  <span>{t('treasuryModal.depositFormTitle')}</span>
                 </h4>
                 <span className="text-[10px] font-mono bg-blue-100 text-[#005FB8] px-2 py-0.5 rounded-full font-bold">
-                  Stripe API
+                  {t('treasuryModal.stripeApiBadge')}
                 </span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
-                  Select Deposit Preset Amount (USD)
+                  {t('treasuryModal.selectPresetAmountLabel')}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {[20, 50, 100, 250].map((amt) => (
@@ -330,7 +347,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Stripe Test Credit Card Number
+                  {t('treasuryModal.testCardNumberLabel')}
                 </label>
                 <input
                   type="text"
@@ -347,28 +364,28 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
                 <button
                   type="button"
                   onClick={() => setCardNumber('4242 4242 4242 4242')}
-                  className="mt-1 text-[10px] text-[#005FB8] hover:underline font-bold"
+                  className="mt-1 text-[10px] text-[#005FB8] hover:underline font-bold cursor-pointer"
                 >
-                  ⚡ Use Official Stripe Test Card (4242 4242 4242 4242)
+                  {t('treasuryModal.useTestCardBtn')}
                 </button>
               </div>
 
               {/* 5% Initial Deposit / Platform Fee Breakdown */}
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 font-mono">
                 <div className="flex justify-between text-slate-700">
-                  <span>Base Treasury Deposit:</span>
+                  <span>{t('treasuryModal.baseDepositLabel')}</span>
                   <span>${topUpAmount}.00</span>
                 </div>
                 <div className="flex justify-between text-[#005FB8]">
-                  <span>Initial Deposit Fee (5% Platform Fee):</span>
+                  <span>{t('treasuryModal.feeLabel')}</span>
                   <span>+${(topUpAmount * 0.05).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-200">
-                  <span>Total Payment Processed:</span>
+                  <span>{t('treasuryModal.totalPaymentLabel')}</span>
                   <span>${(topUpAmount * 1.05).toFixed(2)}</span>
                 </div>
                 <div className="text-[10.5px] text-emerald-700 font-sans pt-0.5">
-                  ✓ Net ${topUpAmount}.00 is credited directly to your Stripe Treasury Balance (5% platform fee is processed separately).
+                  {t('treasuryModal.feeBreakdownNote', { amount: topUpAmount })}
                 </div>
               </div>
 
@@ -378,11 +395,11 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 {loading ? (
-                  <span>Processing Stripe Treasury InboundTransfer...</span>
+                  <span>{t('treasuryModal.processingDeposit')}</span>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Process +${topUpAmount}.00 Treasury Deposit</span>
+                    <span>{t('treasuryModal.processDepositBtn', { amount: topUpAmount })}</span>
                   </>
                 )}
               </button>
@@ -395,8 +412,8 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
           <form onSubmit={handleLinkBank} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1.5 flex items-center justify-between">
-                <span>Select Financial Institution</span>
-                <span className="text-[10px] text-gray-500 font-normal">Supports 10,000+ US Banks & Credit Unions</span>
+                <span>{t('treasuryModal.selectBankLabel')}</span>
+                <span className="text-[10px] text-gray-500 font-normal">{t('treasuryModal.supportsBanksNote')}</span>
               </label>
               <select
                 value={selectedBankOption}
@@ -419,18 +436,18 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
                 <option value="Discover Bank">Discover Bank</option>
                 <option value="SoFi Bank">SoFi Bank</option>
                 <option value="Fidelity Investments">Fidelity Investments</option>
-                <option value="OTHER_CUSTOM">✏️ Other Bank or Credit Union (Type custom name...)</option>
+                <option value="OTHER_CUSTOM">{t('treasuryModal.otherCustomOption')}</option>
               </select>
 
               {selectedBankOption === 'OTHER_CUSTOM' && (
                 <div className="mt-2.5">
                   <label className="block text-[11px] font-bold text-[#005FB8] mb-1">
-                    Type Your Financial Institution Name
+                    {t('treasuryModal.customBankInputLabel')}
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Mercury, Varo Bank, Marcus, Local Credit Union"
+                    placeholder={t('treasuryModal.customBankPlaceholder')}
                     value={customBankName}
                     onChange={(e) => setCustomBankName(e.target.value)}
                     className="w-full bg-blue-50/40 border border-blue-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#005FB8] placeholder-gray-400"
@@ -442,7 +459,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1.5">
-                  Routing Number
+                  {t('treasuryModal.routingNumberLabel')}
                 </label>
                 <input
                   type="text"
@@ -455,22 +472,22 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
 
               <div>
                 <label className="block text-xs font-semibold text-[#111827] mb-1.5">
-                  Account Type
+                  {t('treasuryModal.accountTypeLabel')}
                 </label>
                 <select
                   value={accountType}
                   onChange={(e) => setAccountType(e.target.value as 'CHECKING' | 'SAVINGS')}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
                 >
-                  <option value="CHECKING">Checking Account</option>
-                  <option value="SAVINGS">Savings Account</option>
+                  <option value="CHECKING">{t('treasuryModal.checkingAccount')}</option>
+                  <option value="SAVINGS">{t('treasuryModal.savingsAccount')}</option>
                 </select>
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#111827] mb-1.5">
-                Account Number / Last 4
+                {t('treasuryModal.accountNumberLabel')}
               </label>
               <input
                 type="text"
@@ -483,16 +500,16 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
 
             <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] text-xs text-[#4B5563] flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>256-bit encrypted bank connection via Stripe Financial Connections OAuth.</span>
+              <span>{t('treasuryModal.securityNote')}</span>
             </div>
 
             <div className="pt-2 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold text-xs border border-gray-300 transition-colors"
+                className="px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-[#111827] font-semibold text-xs border border-gray-300 transition-colors cursor-pointer"
               >
-                Cancel
+                {t('treasuryModal.cancelBtn')}
               </button>
               <button
                 type="submit"
@@ -500,11 +517,11 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
                 className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 {loading ? (
-                  <span>Linking Bank Account...</span>
+                  <span>{t('treasuryModal.linkingBankBtn')}</span>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Connect Bank & Enable Withdrawals</span>
+                    <span>{t('treasuryModal.connectBankBtn')}</span>
                   </>
                 )}
               </button>
