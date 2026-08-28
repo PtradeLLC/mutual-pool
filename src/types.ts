@@ -63,13 +63,14 @@ export interface User {
 }
 
 export function calculateAccountAgeDays(createdAt?: string, fallbackDays: number = 1): number {
-  if (!createdAt) return Math.max(1, fallbackDays || 1);
+  const fallback = typeof fallbackDays === 'number' && !isNaN(fallbackDays) && fallbackDays > 0 ? fallbackDays : 1;
+  if (!createdAt) return fallback;
   const createdTime = new Date(createdAt).getTime();
-  if (isNaN(createdTime) || createdTime <= 0) return Math.max(1, fallbackDays || 1);
+  if (isNaN(createdTime) || createdTime <= 0) return fallback;
   const diffMs = Date.now() - createdTime;
-  // Calculate total elapsed full days, with a minimum of 1 day for active active users
+  // Calculate total elapsed full days
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  return Math.max(1, days);
+  return Math.max(fallback, days, 1);
 }
 
 export type PodSizeTier = 20 | 50 | 100 | 500 | 1000 | 5000 | 10000;

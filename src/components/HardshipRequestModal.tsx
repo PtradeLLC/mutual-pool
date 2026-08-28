@@ -19,6 +19,7 @@ import {
   Send
 } from 'lucide-react';
 import { User, Pod, HardshipFundRequest, PodMembership, SwapRequest } from '../types';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface HardshipRequestModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   onRequestSubmitted,
   initialTab = 'hardship',
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'hardship' | 'trade'>(initialTab);
 
   useEffect(() => {
@@ -161,7 +163,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPod) {
-      setErrorMsg('Please join or select an active pod to request hardship coverage.');
+      setErrorMsg(t('hardship.errorJoinPod'));
       return;
     }
 
@@ -185,15 +187,15 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || data.error || 'Failed to submit hardship request.');
+        throw new Error(data.message || data.error || t('hardship.errorGeneral'));
       }
 
-      setSuccessMsg(`Your Financial Hardship Fund request for $${data.depositAmount}.00 was submitted! Request forwarded to Pool Creator (${selectedPod.creatorName}) for approval.`);
+      setSuccessMsg(t('hardship.successMsg', { amount: data.depositAmount, creator: selectedPod.creatorName }));
       setReason('');
       onRequestSubmitted();
       fetchUserRequests();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to submit hardship request.');
+      setErrorMsg(err instanceof Error ? err.message : t('hardship.errorGeneral'));
     } finally {
       setLoading(false);
     }
@@ -241,7 +243,11 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
       const newIndex1 = targetMemberForSwap.rotationIndex;
 
       setSwapSuccessMsg(
-        `Mutual spot swap successfully executed with ${targetMemberForSwap.displayName}! You are now in Slot #${newIndex1 + 1} (Week ${newIndex1 + 1}).`
+        t('hardship.swapSuccessMsg', {
+          name: targetMemberForSwap.displayName,
+          slot: newIndex1 + 1,
+          week: newIndex1 + 1,
+        })
       );
       setTargetMemberForSwap(null);
       onRequestSubmitted();
@@ -286,18 +292,18 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono font-bold uppercase tracking-wider bg-white/20 text-white px-2.5 py-0.5 rounded-full">
-                  Emergency Mutual Safety Net & Spot Trading
+                  {t('hardship.headerTag')}
                 </span>
               </div>
               <h2 className="text-xl font-bold mt-1">
-                {activeTab === 'hardship' ? 'Financial Hardship Fund' : 'Trade Payout Spots (Mutual Swap)'}
+                {activeTab === 'hardship' ? t('hardship.title') : t('hardship.titleTrade')}
               </h2>
             </div>
           </div>
           <p className="text-xs text-blue-100 mt-2 leading-relaxed">
             {activeTab === 'hardship'
-              ? "Request an emergency deposit advance when facing unexpected vehicle repairs or income gaps. The fund covers your weekly deposit into the pool so you don't default."
-              : "Two pod members can agree to swap their payout order positions at any time. No committee review required — execution is instant upon mutual consent."}
+              ? t('hardship.descHardship')
+              : t('hardship.descTrade')}
           </p>
 
           {/* Navigation Tabs */}
@@ -312,7 +318,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
               }`}
             >
               <HeartHandshake className="w-4 h-4" />
-              <span>Financial Hardship Fund</span>
+              <span>{t('hardship.tabHardship')}</span>
             </button>
 
             <button
@@ -325,7 +331,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
               }`}
             >
               <ArrowLeftRight className="w-4 h-4" />
-              <span>Trade Spots (Swap Positions)</span>
+              <span>{t('hardship.tabTrade')}</span>
             </button>
           </div>
         </div>
@@ -339,20 +345,20 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
               <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 text-xs text-blue-950 space-y-2">
                 <h4 className="font-bold text-sm text-[#005FB8] flex items-center gap-1.5">
                   <ShieldAlert className="w-4 h-4 text-[#005FB8]" />
-                  Financial Hardship Policy & Eligibility Rules
+                  {t('hardship.policyTitle')}
                 </h4>
                 <ul className="space-y-1.5 text-blue-900 leading-relaxed list-disc list-inside pl-1">
                   <li>
-                    <strong>3-Month Membership Requirement:</strong> Members are eligible to request hardship assistance after their first <strong>3 months (90 days)</strong> of participating in a pod.
+                    <strong>{t('hardship.rule1Title')}</strong> {t('hardship.rule1Text')}
                   </li>
                   <li>
-                    <strong>4-Month Cooldown Window:</strong> Subsequent hardship requests can be submitted once every <strong>4 months (120 days)</strong>, provided your account is fully paid up.
+                    <strong>{t('hardship.rule2Title')}</strong> {t('hardship.rule2Text')}
                   </li>
                   <li>
-                    <strong>Paid Up Requirement:</strong> Outstanding hardship balances must be paid off in full ($0.00 balance owed) before submitting a subsequent request.
+                    <strong>{t('hardship.rule3Title')}</strong> {t('hardship.rule3Text')}
                   </li>
                   <li>
-                    <strong>Disbursement & 7% Service Fee:</strong> System disburses your weekly deposit tier directly into the pool. A 7% service fee applies to the payoff balance.
+                    <strong>{t('hardship.rule4Title')}</strong> {t('hardship.rule4Text')}
                   </li>
                 </ul>
               </div>
@@ -360,7 +366,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
               {/* Current Eligibility Status Cards */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase text-[#4B5563] tracking-wider">Your Eligibility Status</h4>
+                  <h4 className="text-xs font-bold uppercase text-[#4B5563] tracking-wider">{t('hardship.eligibilityStatusTitle')}</h4>
                   
                   {/* Simulation Toggle for Easy Demo Testing */}
                   <button
@@ -373,7 +379,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                    <span>{demoBypassTenure ? 'Demo Mode Active (90+ Days Simulated)' : 'Simulate 90+ Day Pod Tenure'}</span>
+                    <span>{demoBypassTenure ? t('hardship.demoModeActive') : t('hardship.simulateTenure')}</span>
                   </button>
                 </div>
 
@@ -384,25 +390,25 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-[#374151] flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-[#005FB8]" />
-                        Pod Tenure
+                        {t('hardship.podTenure')}
                       </span>
                       {meets3MonthTenure ? (
                         <span className="text-emerald-700 font-bold flex items-center gap-0.5 text-[11px]">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> 90+ Days
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t('hardship.days90Plus')}
                         </span>
                       ) : (
                         <span className="text-amber-800 font-bold flex items-center gap-0.5 text-[11px]">
-                          <Clock className="w-3.5 h-3.5" /> Ineligible
+                          <Clock className="w-3.5 h-3.5" /> {t('hardship.ineligible')}
                         </span>
                       )}
                     </div>
                     <div className="text-sm font-extrabold font-mono text-[#111827]">
-                      {tenureDays} / 90 Days
+                      {t('hardship.daysCount', { days: tenureDays })}
                     </div>
                     <p className="text-[11px] text-gray-600 mt-1">
                       {meets3MonthTenure 
-                        ? 'Meets 3-month pod membership requirement.' 
-                        : `Needs ${tenureDaysNeeded} more days of membership.`}
+                        ? t('hardship.tenureMeets')
+                        : t('hardship.tenureNeeds', { count: tenureDaysNeeded })}
                     </p>
                   </div>
 
@@ -411,23 +417,23 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-[#374151] flex items-center gap-1">
                         <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                        Account Status
+                        {t('hardship.accountStatus')}
                       </span>
                       {isPaidUp ? (
                         <span className="text-emerald-700 font-bold flex items-center gap-0.5 text-[11px]">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Paid Up
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t('hardship.paidUp')}
                         </span>
                       ) : (
                         <span className="text-rose-700 font-bold flex items-center gap-0.5 text-[11px]">
-                          <AlertCircle className="w-3.5 h-3.5" /> Balance Owed
+                          <AlertCircle className="w-3.5 h-3.5" /> {t('hardship.balanceOwed')}
                         </span>
                       )}
                     </div>
                     <div className="text-sm font-extrabold font-mono text-[#111827]">
-                      ${(currentUser.hardshipOwedUsd || 0).toFixed(2)} Owed
+                      {t('hardship.owedAmount', { amount: (currentUser.hardshipOwedUsd || 0).toFixed(2) })}
                     </div>
                     <p className="text-[11px] text-gray-600 mt-1">
-                      {isPaidUp ? 'No outstanding hardship balance.' : 'Pay balance before submitting new request.'}
+                      {isPaidUp ? t('hardship.noBalance') : t('hardship.payBalanceMsg')}
                     </p>
                   </div>
 
@@ -436,23 +442,23 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-[#374151] flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-[#005FB8]" />
-                        4-Mo Cooldown
+                        {t('hardship.cooldownTitle')}
                       </span>
                       {meets4MonthCooldown ? (
                         <span className="text-emerald-700 font-bold flex items-center gap-0.5 text-[11px]">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Eligible
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t('hardship.eligible')}
                         </span>
                       ) : (
                         <span className="text-amber-800 font-bold flex items-center gap-0.5 text-[11px]">
-                          <Clock className="w-3.5 h-3.5" /> Cooldown
+                          <Clock className="w-3.5 h-3.5" /> {t('hardship.inCooldown')}
                         </span>
                       )}
                     </div>
                     <div className="text-sm font-extrabold font-mono text-[#111827]">
-                      {meets4MonthCooldown ? 'Ready' : `${cooldownDaysRemaining} Days Left`}
+                      {meets4MonthCooldown ? t('hardship.ready') : t('hardship.daysLeft', { count: cooldownDaysRemaining })}
                     </div>
                     <p className="text-[11px] text-gray-600 mt-1">
-                      {meets4MonthCooldown ? 'Allowed every 4 months once paid up.' : 'Subsequent requests wait 120 days.'}
+                      {meets4MonthCooldown ? t('hardship.cooldownMsgReady') : t('hardship.cooldownMsgWait')}
                     </p>
                   </div>
 
@@ -464,25 +470,25 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                 <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-xs text-amber-900 space-y-1.5">
                   <div className="flex items-center gap-2 font-bold text-amber-950 text-sm">
                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Request Currently Not Eligible</span>
+                    <span>{t('hardship.ineligibleBannerTitle')}</span>
                   </div>
                   <ul className="list-disc list-inside space-y-1 text-amber-800 pl-1">
                     {myPods.length === 0 && (
-                      <li>You must join and participate in an active pod first.</li>
+                      <li>{t('hardship.ineligibleJoinPod')}</li>
                     )}
                     {!meets3MonthTenure && (
                       <li>
-                        Requires completing at least <strong>3 months (90 days)</strong> of pod membership. (Toggle "Simulate 90+ Day Pod Tenure" above for demo testing).
+                        {t('hardship.ineligibleTenureMsg')}
                       </li>
                     )}
                     {!isPaidUp && (
-                      <li>Your account has an outstanding balance of <strong>${(currentUser.hardshipOwedUsd || 0).toFixed(2)}</strong> that must be paid up first.</li>
+                      <li>{t('hardship.ineligibleBalanceMsg', { amount: (currentUser.hardshipOwedUsd || 0).toFixed(2) })}</li>
                     )}
                     {!meets4MonthCooldown && (
-                      <li>Subsequent requests can only be submitted once every <strong>4 months (120 days)</strong>. You have {cooldownDaysRemaining} days remaining.</li>
+                      <li>{t('hardship.ineligibleCooldownMsg', { count: cooldownDaysRemaining })}</li>
                     )}
                     {pendingRequest && (
-                      <li>You already have a pending hardship request submitted for pod <strong>"{pendingRequest.podName}"</strong>.</li>
+                      <li>{t('hardship.ineligiblePendingMsg', { podName: pendingRequest.podName })}</li>
                     )}
                   </ul>
                 </div>
@@ -500,7 +506,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-4 rounded-xl text-xs flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                   <div>
-                    <strong className="block font-bold">Request Submitted Successfully!</strong>
+                    <strong className="block font-bold">{t('hardship.successTitle')}</strong>
                     <p className="mt-0.5">{successMsg}</p>
                   </div>
                 </div>
@@ -512,11 +518,11 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                 {/* Select Pod */}
                 <div>
                   <label className="block text-xs font-bold text-[#374151] mb-1">
-                    Select Active Pod for Hardship Coverage
+                    {t('hardship.selectPodLabel')}
                   </label>
                   {myPods.length === 0 ? (
                     <div className="p-3 bg-gray-100 border border-gray-300 rounded-lg text-xs text-gray-500">
-                      No active pods joined yet. Join a pod first to unlock hardship fund eligibility.
+                      {t('hardship.noPodsWarning')}
                     </div>
                   ) : (
                     <select
@@ -527,7 +533,11 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     >
                       {myPods.map((pod) => (
                         <option key={pod.id} value={pod.id}>
-                          {pod.name} — Weekly Deposit Tier: ${pod.depositTier}.00 ({Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1)} members)
+                          {t('hardship.podOption', {
+                            name: pod.name,
+                            tier: pod.depositTier,
+                            members: Math.max(pod.memberCount || 0, pod.members ? pod.members.length : 0, 1),
+                          })}
                         </option>
                       ))}
                     </select>
@@ -539,24 +549,24 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                   <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2 text-xs">
                     <h5 className="font-bold text-[#111827] flex items-center gap-1.5">
                       <DollarSign className="w-4 h-4 text-[#005FB8]" />
-                      Disbursement & Payoff Terms
+                      {t('hardship.breakdownTitle')}
                     </h5>
                     <div className="grid grid-cols-3 gap-2 pt-1 font-mono">
                       <div className="bg-white p-2.5 rounded-lg border border-gray-200">
-                        <span className="text-[10px] text-gray-500 block uppercase">Weekly Deposit Tier</span>
+                        <span className="text-[10px] text-gray-500 block uppercase">{t('hardship.weeklyDepositTier')}</span>
                         <strong className="text-sm text-[#111827]">${depositTier}.00</strong>
                       </div>
                       <div className="bg-white p-2.5 rounded-lg border border-gray-200">
-                        <span className="text-[10px] text-gray-500 block uppercase">7% Service Fee</span>
+                        <span className="text-[10px] text-gray-500 block uppercase">{t('hardship.serviceFee7')}</span>
                         <strong className="text-sm text-amber-700">+${feeAmount.toFixed(2)}</strong>
                       </div>
                       <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
-                        <span className="text-[10px] text-emerald-800 block uppercase font-bold">Total Payoff Amount</span>
+                        <span className="text-[10px] text-emerald-800 block uppercase font-bold">{t('hardship.totalPayoffAmount')}</span>
                         <strong className="text-sm text-emerald-900 font-extrabold">${totalPayoff.toFixed(2)}</strong>
                       </div>
                     </div>
                     <p className="text-[11px] text-gray-500 italic mt-1">
-                      Upon Creator approval, ${depositTier}.00 is deposited directly into the pool. Your account is placed on hold until the total payoff of ${totalPayoff.toFixed(2)} is repaid.
+                      {t('hardship.breakdownNote', { deposit: depositTier, payoff: totalPayoff.toFixed(2) })}
                     </p>
                   </div>
                 )}
@@ -564,13 +574,13 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                 {/* Reason Textarea */}
                 <div>
                   <label className="block text-xs font-bold text-[#374151] mb-1">
-                    Reason for Emergency Hardship Request
+                    {t('hardship.reasonLabel')}
                   </label>
                   <textarea
                     rows={3}
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="e.g. Unforeseen vehicle repair (alternator failure) requiring immediate funds..."
+                    placeholder={t('hardship.reasonPlaceholder')}
                     disabled={!isEligible}
                     className="w-full px-3.5 py-2 bg-white border border-[#DDE1E6] rounded-xl text-xs text-[#111827] focus:ring-2 focus:ring-[#005FB8] focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-400"
                   />
@@ -583,7 +593,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     onClick={onClose}
                     className="px-4 py-2.5 rounded-xl border border-[#DDE1E6] bg-white hover:bg-gray-50 text-[#374151] font-bold text-xs transition-colors cursor-pointer"
                   >
-                    Close
+                    {t('hardship.closeBtn')}
                   </button>
 
                   <button
@@ -592,7 +602,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <HeartHandshake className="w-4 h-4" />
-                    <span>{loading ? 'Submitting Request...' : 'Submit Hardship Request'}</span>
+                    <span>{loading ? t('hardship.submittingBtn') : t('hardship.submitBtn')}</span>
                   </button>
                 </div>
 
@@ -608,22 +618,21 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
               <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-950 space-y-2">
                 <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
                   <ArrowLeftRight className="w-4.5 h-4.5 text-emerald-700" />
-                  Instant Spot Trading & Mutual Position Swap
+                  {t('hardship.tradePolicyTitle')}
                 </h4>
                 <p className="text-emerald-800 leading-relaxed">
-                  Pod members can trade their payout schedule slots with any willing teammate in the order. 
-                  <strong> No committee or admin review required</strong> — as long as both members mutually consent, position swaps execute instantly!
+                  {t('hardship.tradePolicyDesc')}
                 </p>
               </div>
 
               {/* Select Pod dropdown */}
               <div>
                 <label className="block text-xs font-bold text-[#374151] mb-1">
-                  Select Pod to View & Trade Payout Positions
+                  {t('hardship.selectPodTradeLabel')}
                 </label>
                 {myPods.length === 0 ? (
                   <div className="p-3 bg-gray-100 border border-gray-300 rounded-lg text-xs text-gray-500">
-                    You have not joined any pods yet. Join a pod to view and trade rotation order slots.
+                    {t('hardship.noPodsTradeWarning')}
                   </div>
                 ) : (
                   <select
@@ -638,7 +647,11 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                   >
                     {myPods.map((pod) => (
                       <option key={pod.id} value={pod.id}>
-                        {pod.name} — ${pod.depositTier}/wk ({pod.members?.length || 0} Members)
+                        {t('hardship.podOptionTrade', {
+                          name: pod.name,
+                          tier: pod.depositTier,
+                          members: pod.members?.length || 0,
+                        })}
                       </option>
                     ))}
                   </select>
@@ -657,7 +670,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-4 rounded-xl text-xs flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                   <div>
-                    <strong className="block font-bold">Spot Swap Executed!</strong>
+                    <strong className="block font-bold">{t('hardship.swapSuccessTitle')}</strong>
                     <p className="mt-0.5">{swapSuccessMsg}</p>
                   </div>
                 </div>
@@ -669,11 +682,14 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold uppercase text-[#4B5563] tracking-wider flex items-center gap-1.5">
                       <Users className="w-4 h-4 text-[#005FB8]" />
-                      Current Rotation Order Schedule for "{selectedPod.name}"
+                      {t('hardship.rotationScheduleTitle', { podName: selectedPod.name })}
                     </h4>
                     {currentMember && (
                       <span className="text-xs font-semibold text-[#005FB8] bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-                        Your Slot: #{ (currentMember.rotationIndex ?? 0) + 1 } (Week { (currentMember.rotationIndex ?? 0) + 1 })
+                        {t('hardship.yourSlotBadge', {
+                          slot: (currentMember.rotationIndex ?? 0) + 1,
+                          week: (currentMember.rotationIndex ?? 0) + 1,
+                        })}
                       </span>
                     )}
                   </div>
@@ -721,24 +737,24 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
 
                                   {isSelf && (
                                     <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-md">
-                                      You
+                                      {t('hardship.youTag')}
                                     </span>
                                   )}
 
                                   {/* Single Source of Truth KYC Badge */}
                                   {isKycVerified ? (
                                     <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md flex items-center gap-0.5" title="Identity Verified via Stripe Identity">
-                                      <UserCheck className="w-3 h-3 text-emerald-600" /> KYC Verified
+                                      <UserCheck className="w-3 h-3 text-emerald-600" /> {t('hardship.kycVerified')}
                                     </span>
                                   ) : (
                                     <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded-md flex items-center gap-0.5" title="Identity Verification Pending">
-                                      <ShieldAlert className="w-3 h-3 text-amber-600" /> KYC Pending
+                                      <ShieldAlert className="w-3 h-3 text-amber-600" /> {t('hardship.kycPending')}
                                     </span>
                                   )}
 
                                   {hasReceived && (
                                     <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                                      <CheckCircle2 className="w-3 h-3" /> Payout Received
+                                      <CheckCircle2 className="w-3 h-3" /> {t('hardship.payoutReceived')}
                                     </span>
                                   )}
 
@@ -754,21 +770,21 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                     if (activeSwapReq?.status === 'ACCEPTED') {
                                       return (
                                         <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Trade Accepted
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> {t('hardship.tradeAcceptedBadge')}
                                         </span>
                                       );
                                     }
                                     if (activeSwapReq?.status === 'PENDING') {
                                       return (
                                         <span className="text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                                          <Clock className="w-3 h-3 text-amber-600" /> Awaiting Acceptance
+                                          <Clock className="w-3 h-3 text-amber-600" /> {t('hardship.awaitingAcceptanceBadge')}
                                         </span>
                                       );
                                     }
                                     if (activeSwapReq?.status === 'DECLINED') {
                                       return (
                                         <span className="text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                                          <AlertCircle className="w-3 h-3 text-rose-600" /> Request Declined
+                                          <AlertCircle className="w-3 h-3 text-rose-600" /> {t('hardship.requestDeclinedBadge')}
                                         </span>
                                       );
                                     }
@@ -776,9 +792,9 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   })()}
                                 </div>
                                 <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
-                                  <span>Platform: {member.platform || realUser?.platform || 'Gig Provider'}</span>
+                                  <span>{t('hardship.memberPlatform', { platform: member.platform || realUser?.platform || 'Gig Provider' })}</span>
                                   <span>•</span>
-                                  <span>Scheduled Payout: Week {idx + 1}</span>
+                                  <span>{t('hardship.scheduledPayoutWeek', { week: idx + 1 })}</span>
                                 </div>
                               </div>
                             </div>
@@ -788,7 +804,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                               <div className="flex items-center gap-2">
                                 {hasReceived || currentMemberHasReceived ? (
                                   <span className="text-[11px] text-gray-400 italic bg-gray-100 px-2.5 py-1 rounded-lg">
-                                    Payout Processed
+                                    {t('hardship.payoutProcessedText')}
                                   </span>
                                 ) : (
                                   <>
@@ -810,7 +826,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                       }`}
                                     >
                                       <ArrowLeftRight className="w-3.5 h-3.5" />
-                                      <span>{isSelectedForTrade ? 'Selected' : 'Trade Spot'}</span>
+                                      <span>{isSelectedForTrade ? t('hardship.selectedBtn') : t('hardship.tradeSpotBtn')}</span>
                                     </button>
                                   </>
                                 )}
@@ -853,7 +869,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   }),
                                 });
                                 if (res.ok) {
-                                  setSwapSuccessMsg(`Trade request sent to ${memberName}! They must accept the request in their notification center before the swap can be executed.`);
+                                  setSwapSuccessMsg(t('hardship.swapRequestSentMsg', { name: memberName }));
                                   fetchPodSwapRequests(selectedPod.id);
                                 } else {
                                   const errData = await res.json();
@@ -876,17 +892,17 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   <div>
                                     <h4 className="font-extrabold text-xs text-[#111827]">
                                       {isAccepted
-                                        ? `✓ Trade Request Accepted by ${memberName}`
+                                        ? t('hardship.step1AcceptedTitle', { name: memberName })
                                         : isPending
-                                        ? `⏳ Awaiting Trade Acceptance from ${memberName}`
-                                        : `Step 1: Send Spot Trade Request to ${memberName}`}
+                                        ? t('hardship.step1PendingTitle', { name: memberName })
+                                        : t('hardship.step1Title', { name: memberName })}
                                     </h4>
                                     <p className="text-[11px] text-gray-600">
                                       {isAccepted
-                                        ? `${memberName} has confirmed and accepted your trade request. Click Execute Mutual Spot Swap below to finalize the trade!`
+                                        ? t('hardship.step1AcceptedDesc', { name: memberName })
                                         : isPending
-                                        ? `A trade notification has been sent to ${memberName}. They must click "Accept Trade Request" in their notification center before you can execute.`
-                                        : `Send a formal trade request to ${memberName}. Once accepted by ${memberName}, the Execute Mutual Spot Swap button will unlock.`}
+                                        ? t('hardship.step1PendingDesc', { name: memberName })
+                                        : t('hardship.step1Desc', { name: memberName })}
                                     </p>
                                   </div>
                                 </div>
@@ -909,15 +925,15 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                     return (
                                       <>
                                         <div className="space-y-1">
-                                          <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">Your Current Slot</span>
-                                          <strong className="text-xs text-[#005FB8] block">Slot #{ currentMemberSlot } (Week { currentMemberSlot })</strong>
-                                          <span className="text-[10px] text-emerald-700 block font-sans font-semibold">➔ New Slot: #{ targetMemberSlot } (Week { targetMemberSlot })</span>
+                                          <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{t('hardship.yourCurrentSlot')}</span>
+                                          <strong className="text-xs text-[#005FB8] block">{t('hardship.slotWeekFormat', { slot: currentMemberSlot, week: currentMemberSlot })}</strong>
+                                          <span className="text-[10px] text-emerald-700 block font-sans font-semibold">{t('hardship.newSlotFormat', { slot: targetMemberSlot, week: targetMemberSlot })}</span>
                                         </div>
 
                                         <div className="space-y-1 border-l border-gray-200 pl-3">
-                                          <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{memberName}'s Current Slot</span>
-                                          <strong className="text-xs text-gray-800 block">Slot #{ targetMemberSlot } (Week { targetMemberSlot })</strong>
-                                          <span className="text-[10px] text-[#005FB8] block font-sans font-semibold">➔ New Slot: #{ currentMemberSlot } (Week { currentMemberSlot })</span>
+                                          <span className="text-[10px] uppercase text-gray-400 font-sans block font-bold">{t('hardship.targetCurrentSlot', { name: memberName })}</span>
+                                          <strong className="text-xs text-gray-800 block">{t('hardship.slotWeekFormat', { slot: targetMemberSlot, week: targetMemberSlot })}</strong>
+                                          <span className="text-[10px] text-[#005FB8] block font-sans font-semibold">{t('hardship.newSlotFormat', { slot: currentMemberSlot, week: currentMemberSlot })}</span>
                                         </div>
                                       </>
                                     );
@@ -931,7 +947,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                     disabled={swapLoading}
                                     className="px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
                                   >
-                                    Cancel
+                                    {t('hardship.cancelBtn')}
                                   </button>
 
                                   <div className="flex items-center gap-2">
@@ -943,7 +959,13 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                         className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                                       >
                                         <Send className="w-3.5 h-3.5" />
-                                        <span>{notifyingUserId === memberUserId ? 'Sending...' : isPending ? 'Resend Trade Request' : `Send Trade Request to ${memberName}`}</span>
+                                        <span>
+                                          {notifyingUserId === memberUserId
+                                            ? t('hardship.sendingRequestBtn')
+                                            : isPending
+                                            ? t('hardship.resendTradeRequestBtn')
+                                            : t('hardship.sendTradeRequestBtn', { name: memberName })}
+                                        </span>
                                       </button>
                                     )}
 
@@ -961,12 +983,12 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                       {swapLoading ? (
                                         <>
                                           <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                          <span>Trading Spots...</span>
+                                          <span>{t('hardship.tradingSpotsBtn')}</span>
                                         </>
                                       ) : (
                                         <>
                                           <ArrowLeftRight className="w-3.5 h-3.5" />
-                                          <span>Execute Mutual Spot Swap</span>
+                                          <span>{t('hardship.executeSwapBtn')}</span>
                                         </>
                                       )}
                                     </button>
@@ -989,7 +1011,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                   onClick={onClose}
                   className="px-4 py-2.5 rounded-xl border border-[#DDE1E6] bg-white hover:bg-gray-50 text-[#374151] font-bold text-xs transition-colors cursor-pointer"
                 >
-                  Close
+                  {t('hardship.closeBtn')}
                 </button>
               </div>
 

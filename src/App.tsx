@@ -488,7 +488,13 @@ export default function App() {
         // Try getting fresh user document from Firestore
         const firestoreUser = await getUserFromFirestore(uId).catch(() => null);
         if (firestoreUser) {
-          if (!firestoreUser.createdAt) {
+          if (firestoreUser.accountAgeDays && firestoreUser.accountAgeDays > 1) {
+            const createdTime = firestoreUser.createdAt ? new Date(firestoreUser.createdAt).getTime() : NaN;
+            const elapsed = isNaN(createdTime) ? 0 : Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
+            if (elapsed < firestoreUser.accountAgeDays) {
+              firestoreUser.createdAt = new Date(Date.now() - firestoreUser.accountAgeDays * 24 * 60 * 60 * 1000).toISOString();
+            }
+          } else if (!firestoreUser.createdAt) {
             firestoreUser.createdAt = new Date().toISOString();
           }
           firestoreUser.accountAgeDays = calculateAccountAgeDays(firestoreUser.createdAt, firestoreUser.accountAgeDays);
@@ -504,6 +510,13 @@ export default function App() {
           if (userRes && userRes.ok) {
             const uData = await userRes.json().catch(() => null);
             if (uData) {
+              if (uData.accountAgeDays && uData.accountAgeDays > 1) {
+                const createdTime = uData.createdAt ? new Date(uData.createdAt).getTime() : NaN;
+                const elapsed = isNaN(createdTime) ? 0 : Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
+                if (elapsed < uData.accountAgeDays) {
+                  uData.createdAt = new Date(Date.now() - uData.accountAgeDays * 24 * 60 * 60 * 1000).toISOString();
+                }
+              }
               uData.accountAgeDays = calculateAccountAgeDays(uData.createdAt, uData.accountAgeDays);
               if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
                 uData.role = 'Admin';
@@ -517,6 +530,13 @@ export default function App() {
         if (userRes && userRes.ok) {
           const uData = await userRes.json().catch(() => null);
           if (uData) {
+            if (uData.accountAgeDays && uData.accountAgeDays > 1) {
+              const createdTime = uData.createdAt ? new Date(uData.createdAt).getTime() : NaN;
+              const elapsed = isNaN(createdTime) ? 0 : Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
+              if (elapsed < uData.accountAgeDays) {
+                uData.createdAt = new Date(Date.now() - uData.accountAgeDays * 24 * 60 * 60 * 1000).toISOString();
+              }
+            }
             uData.accountAgeDays = calculateAccountAgeDays(uData.createdAt, uData.accountAgeDays);
             if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
               uData.role = 'Admin';

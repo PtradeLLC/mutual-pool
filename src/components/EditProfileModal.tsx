@@ -25,15 +25,26 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   // Compute initial join date string YYYY-MM-DD
   const getInitialJoinDate = () => {
+    if (currentUser.accountAgeDays && currentUser.accountAgeDays > 1) {
+      if (currentUser.createdAt) {
+        try {
+          const createdTime = new Date(currentUser.createdAt).getTime();
+          if (!isNaN(createdTime)) {
+            const tenureFromCreated = Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
+            if (tenureFromCreated >= currentUser.accountAgeDays) {
+              return new Date(currentUser.createdAt).toISOString().split('T')[0];
+            }
+          }
+        } catch {}
+      }
+      const d = new Date(Date.now() - currentUser.accountAgeDays * 24 * 60 * 60 * 1000);
+      return d.toISOString().split('T')[0];
+    }
     if (currentUser.createdAt) {
       try {
         const d = new Date(currentUser.createdAt);
         if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
       } catch {}
-    }
-    if (currentUser.accountAgeDays && currentUser.accountAgeDays > 1) {
-      const d = new Date(Date.now() - currentUser.accountAgeDays * 24 * 60 * 60 * 1000);
-      return d.toISOString().split('T')[0];
     }
     return new Date().toISOString().split('T')[0];
   };

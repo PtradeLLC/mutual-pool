@@ -887,12 +887,13 @@ function getQueryValue(req: Request, key: string): string | undefined {
 }
 
 function calculateAccountAgeDays(createdAt?: string, fallbackDays: number = 1): number {
-  if (!createdAt) return Math.max(1, fallbackDays || 1);
+  const fallback = typeof fallbackDays === 'number' && !isNaN(fallbackDays) && fallbackDays > 0 ? fallbackDays : 1;
+  if (!createdAt) return fallback;
   const createdTime = new Date(createdAt).getTime();
-  if (isNaN(createdTime) || createdTime <= 0) return Math.max(1, fallbackDays || 1);
+  if (isNaN(createdTime) || createdTime <= 0) return fallback;
   const diffMs = Date.now() - createdTime;
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  return Math.max(1, days);
+  return Math.max(fallback, days, 1);
 }
 
 function getHeaderNumber(req: Request, headerName: string): number | undefined {
@@ -975,14 +976,20 @@ function getCurrentUser(req: Request): User | null {
       users.push(found);
     }
     if (found) {
-      if (!found.createdAt) {
-        found.createdAt = new Date().toISOString();
-      }
-      found.accountAgeDays = calculateAccountAgeDays(found.createdAt, found.accountAgeDays);
       const profile = getProfileFromHeaders(req);
       if (profile.accountAgeDays > (found.accountAgeDays || 0)) {
         found.accountAgeDays = profile.accountAgeDays;
       }
+      if (found.accountAgeDays && found.accountAgeDays > 1) {
+        const createdTime = found.createdAt ? new Date(found.createdAt).getTime() : NaN;
+        const elapsed = isNaN(createdTime) ? 0 : Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
+        if (elapsed < found.accountAgeDays) {
+          found.createdAt = new Date(Date.now() - found.accountAgeDays * 24 * 60 * 60 * 1000).toISOString();
+        }
+      } else if (!found.createdAt) {
+        found.createdAt = new Date().toISOString();
+      }
+      found.accountAgeDays = calculateAccountAgeDays(found.createdAt, found.accountAgeDays);
       if (profile.completedPodsCount > (found.completedPodsCount || 0)) {
         found.completedPodsCount = profile.completedPodsCount;
       }
