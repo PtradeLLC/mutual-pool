@@ -1775,6 +1775,11 @@ app.use((req, res, next) => {
       welcomeMatchAmountUsd: welcomeMatchAmount,
       contingencyBufferUsd: welcomeMatchAmount,
       contingencyBufferInitialUsd: welcomeMatchAmount,
+      stewardshipMode: 'CREATOR_MANAGED',
+      managedBy: 'CREATOR',
+      creatorLastInRotation: true,
+      systemEscrowActive: false,
+      systemEscrowDrawnUsd: 0,
       members: [
         {
           id: creatorMemberId,
@@ -1784,7 +1789,7 @@ app.use((req, res, next) => {
           email: user.email,
           avatarUrl: user.avatarUrl,
           platform: user.platform,
-          rotationIndex: 0,
+          rotationIndex: Number(sizeTier) - 1, // Pod creator is placed in the final rotation slot (Slot #N) by default
           hasReceivedPayout: false,
           delinquencyStatus: 'CLEAN',
           joinedAt: new Date().toISOString(),
@@ -2239,19 +2244,30 @@ app.use((req, res, next) => {
       });
     }
 
-    // Fixed 1-time random shuffle algorithm (Fisher-Yates)
-    const shuffledMembers = [...pod.members];
-    for (let i = shuffledMembers.length - 1; i > 0; i--) {
+    // Separate creator from non-creator members to guarantee creator is assigned to the final rotation slot (skin-in-the-game)
+    const creatorMember = pod.members.find(m => m.userId === pod.createdBy);
+    const nonCreatorMembers = pod.members.filter(m => m.userId !== pod.createdBy);
+
+    // Fixed 1-time random shuffle algorithm (Fisher-Yates) on non-creator members
+    const shuffledNonCreators = [...nonCreatorMembers];
+    for (let i = shuffledNonCreators.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffledMembers[i], shuffledMembers[j]] = [shuffledMembers[j], shuffledMembers[i]];
+      [shuffledNonCreators[i], shuffledNonCreators[j]] = [shuffledNonCreators[j], shuffledNonCreators[i]];
     }
 
-    // Assign permanent rotationIndex
-    shuffledMembers.forEach((m, idx) => {
+    // Assign rotation indices: 0 to N-2 for non-creators
+    shuffledNonCreators.forEach((m, idx) => {
       m.rotationIndex = idx;
     });
 
-    pod.members = shuffledMembers;
+    const finalOrderedMembers: PodMembership[] = [...shuffledNonCreators];
+    if (creatorMember) {
+      creatorMember.rotationIndex = finalOrderedMembers.length; // Final slot (e.g. slot 4 in 5-member pod, slot 19 in 20-member pod)
+      finalOrderedMembers.push(creatorMember);
+    }
+
+    pod.members = finalOrderedMembers;
+    pod.creatorLastInRotation = true;
     pod.status = 'ACTIVE';
     pod.cycleStartDate = new Date().toISOString();
     pod.totalCycles = pod.members.length;
@@ -3084,9 +3100,10 @@ Return ONLY a valid JSON object in this exact schema:
     }
 
     const isCreator = pod.createdBy === user.id;
+    const isAutonomous = pod.stewardshipMode === 'AUTONOMOUS_AI';
     const isAdmin = checkIsAdmin(req);
-    if (!isCreator && !isAdmin) {
-      return res.status(403).json({ error: 'Only the Pool Creator can approve this Financial Hardship Fund request.' });
+    if (!isCreator && !isAdmin && !isAutonomous) {
+      return res.status(403).json({ error: 'Only the Pool Creator or Autonomous AI Custodian can approve this Financial Hardship Fund request.' });
     }
 
     // Step A: System disburses deposit amount into the pool on user's behalf
@@ -3121,6 +3138,26 @@ Return ONLY a valid JSON object in this exact schema:
       targetUser.activeHardshipRequestId = request.id;
     }
 
+    // If the person going on Hardship Inactive Hold is the Creator:
+    // Autonomous AI Custodian / System Stewardship immediately takes over!
+    if (pod.createdBy === request.userId) {
+      pod.stewardshipMode = 'AUTONOMOUS_AI';
+      pod.managedBy = 'SYSTEM_AI';
+      pod.stewardName = '🤖 Lainie (Autonomous System Custodian)';
+      pod.systemEscrowActive = true;
+      pod.creatorDefaultedAt = new Date().toISOString();
+      pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + request.depositAmount;
+
+      addAuditLog(
+        pod.id,
+        'usr_system_escrow_liquidity',
+        '🤖 Lainie (Autonomous System Custodian)',
+        'AUTONOMOUS_STEWARDSHIP_ACTIVATED',
+        `🤖 Pod Creator ${request.userName} entered Financial Hardship Inactive Hold. Autonomous AI Custodian (Lainie) and System Deposits Escrow have assumed full pod management. Weekly payouts and deposits are 100% platform guaranteed.`,
+        { creatorUserId: request.userId, totalPayoffAmount: request.totalPayoffAmount }
+      );
+    }
+
     // Step C: Pool prioritized & made public for replacement prospective member(s) to join
     pod.podType = 'OPEN_POD';
     pod.isPrioritizedForReplacement = true;
@@ -3135,7 +3172,7 @@ Return ONLY a valid JSON object in this exact schema:
       user.id,
       user.displayName,
       'HARDSHIP_APPROVED',
-      `Pool Creator ${user.displayName} APPROVED Financial Hardship Fund for ${request.userName}. System disbursed $${request.depositAmount.toFixed(2)} deposit into pool. User placed on INACTIVE HOLD (Payoff required: $${request.totalPayoffAmount.toFixed(2)} including 7% service fee). Pool prioritized & made public for prospective replacement members.`,
+      `${isAutonomous ? '🤖 Autonomous AI Custodian' : 'Pool Creator ' + user.displayName} APPROVED Financial Hardship Fund for ${request.userName}. System disbursed $${request.depositAmount.toFixed(2)} deposit into pool. User placed on INACTIVE HOLD (Payoff required: $${request.totalPayoffAmount.toFixed(2)} including 7% service fee). Pool prioritized & made public for prospective replacement members.`,
       { requestId: request.id, totalPayoffAmount: request.totalPayoffAmount, depositAmount: request.depositAmount }
     );
 
@@ -4200,6 +4237,14 @@ Return ONLY a valid JSON object in this exact schema:
         const availableWelcomeMatch = pod.contingencyBufferUsd || 0;
         welcomeMatchUsed = Math.min(remainder, availableWelcomeMatch);
         pod.contingencyBufferUsd = Math.max(0, availableWelcomeMatch - welcomeMatchUsed);
+
+        // System Liquidity Escrow Account advances any remaining uncovered gap
+        const systemEscrowUsed = Math.max(0, remainder - welcomeMatchUsed);
+        if (systemEscrowUsed > 0) {
+          pod.systemEscrowActive = true;
+          pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + systemEscrowUsed;
+        }
+
         pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
 
         // Record deposit with split metadata
@@ -4217,7 +4262,10 @@ Return ONLY a valid JSON object in this exact schema:
         };
         deposits.unshift(newDeposit);
 
-        // ENFORCEMENT: Welcome Match Credited kicked in due to insufficient user balance
+        // Check if the defaulting member is the Pod Creator
+        const isCreatorDefaulting = pod.createdBy === memberUserId;
+
+        // ENFORCEMENT: Welcome Match Credited / Escrow kicked in due to insufficient user balance
         // The user must be taken off the Pod due to missed payment/deposit, and Pod is publicly listed.
         pod.members = pod.members.filter(m => m.userId !== memberUserId);
         pod.memberCount = pod.members.length;
@@ -4229,16 +4277,47 @@ Return ONLY a valid JSON object in this exact schema:
         podListedPublicly = true;
         outcome = 'WELCOME_MATCH_REMAINDER_APPLIED_MEMBER_REMOVED';
 
+        if (isCreatorDefaulting) {
+          // Autonomous AI Custodian / System Stewardship immediately takes over
+          pod.stewardshipMode = 'AUTONOMOUS_AI';
+          pod.managedBy = 'SYSTEM_AI';
+          pod.stewardName = '🤖 Lainie (Autonomous System Custodian)';
+          pod.systemEscrowActive = true;
+          pod.creatorDefaultedAt = new Date().toISOString();
+
+          addAuditLog(
+            pod.id,
+            'usr_system_escrow_liquidity',
+            '🤖 Lainie (Autonomous System Custodian)',
+            'AUTONOMOUS_STEWARDSHIP_ACTIVATED',
+            `🛡️ Autonomous AI Custodian Protocol Activated: Pod Creator ${member.displayName} defaulted on deposit and was removed. System Stewardship (Lainie) and the Platform System Deposits Escrow Account have taken over. All weekly deposits and payouts will continue with 100% platform-backed liquidity.`,
+            { creatorUserId: memberUserId, systemEscrowUsed, remainingBuffer: pod.contingencyBufferUsd }
+          );
+
+          // Notify all remaining members that AI Custodian has assumed stewardship
+          pod.members.forEach((m) => {
+            createNotification({
+              userId: m.userId,
+              type: 'STATUS_CHANGE',
+              title: '🤖 Autonomous AI Custodian Active',
+              message: `The Pod Creator defaulted on a deposit. The system (Lainie AI Custodian) has autonomously taken over Pod stewardship. All weekly deposits and payouts are 100% secured by the System Deposits Escrow Account.`,
+              podId: pod.id,
+            });
+          });
+        }
+
         addAuditLog(
           pod.id,
           user.id,
           user.displayName,
           'CONTINGENCY_BUFFER_USED',
-          `🛡️ Missed Deposit Resolution: $${balanceDeducted.toFixed(2)} deducted from ${member.displayName}'s balance; remainder $${welcomeMatchUsed.toFixed(2)} covered by Welcome Match Contingency Reserve (remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}). Due to insufficient funds default, ${member.displayName} was removed from pod "${pod.name}", and the pod is now publicly listed as an Open Pod with replacement priority.`,
+          `🛡️ Missed Deposit Resolution: $${balanceDeducted.toFixed(2)} deducted from ${member.displayName}'s balance; remainder $${welcomeMatchUsed.toFixed(2)} covered by Welcome Match Contingency Reserve ${systemEscrowUsed > 0 ? `+ $${systemEscrowUsed.toFixed(2)} drawn from System Deposits Escrow` : ''} (remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}). Due to insufficient funds default, ${member.displayName} was removed from pod "${pod.name}", and the pod is now publicly listed as an Open Pod with replacement priority.`,
           {
             memberUserId,
             balanceDeducted,
             welcomeMatchUsed,
+            systemEscrowUsed,
+            isCreatorDefaulting,
             remainingBuffer: pod.contingencyBufferUsd,
             removedFromPod: true,
             podListedPublicly: true,
@@ -4267,6 +4346,51 @@ Return ONLY a valid JSON object in this exact schema:
       podListedPublicly,
       pod,
       remainingBufferUsd: pod.contingencyBufferUsd,
+    });
+  });
+
+  // 11. Autonomous / System Escrow Deposit Injection for Vacant or Defaulted Slots
+  app.post(['/api/pods/:id/system-deposit', '/pods/:id/system-deposit'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const pod = await findPodById(req.params.id, user);
+    if (!pod) return res.status(404).json({ error: 'Pod not found' });
+
+    const depositAmount = pod.depositTier || 20;
+    pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + depositAmount;
+    pod.systemEscrowActive = true;
+    pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + depositAmount;
+
+    const sysDeposit: Deposit = {
+      id: `dep_system_escrow_${Date.now()}`,
+      membershipId: `pm_system_escrow_${pod.id}`,
+      podId: pod.id,
+      cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
+      userId: 'usr_system_escrow_liquidity',
+      userName: '🤖 System Deposits Escrow Account',
+      amount: depositAmount,
+      stripePaymentId: `pi_system_escrow_draw_${Date.now()}`,
+      status: 'COMPLETE',
+      createdAt: new Date().toISOString(),
+    };
+    deposits.unshift(sysDeposit);
+
+    addAuditLog(
+      pod.id,
+      'usr_system_escrow_liquidity',
+      '🤖 Lainie (Autonomous System Custodian)',
+      'SYSTEM_ESCROW_DEPOSIT_DISBURSED',
+      `🤖 Disbursed $${depositAmount.toFixed(2)} deposit from Platform System Deposits Escrow Account for Week ${pod.currentCycleWeek}. Total system liquidity advanced to pod: $${pod.systemEscrowDrawnUsd.toFixed(2)}. Payout pot is 100% whole.`,
+      { depositAmount, cycleWeek: pod.currentCycleWeek, totalEscrowDrawn: pod.systemEscrowDrawnUsd }
+    );
+
+    savePodsToDisk();
+
+    res.json({
+      success: true,
+      pod,
+      deposit: sysDeposit,
+      systemEscrowDrawnUsd: pod.systemEscrowDrawnUsd,
+      currentWeeklyCollected: pod.currentWeeklyCollected,
     });
   });
 

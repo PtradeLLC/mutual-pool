@@ -8,7 +8,7 @@ import { useChat } from '../context/ChatContext';
 import { useTranslation, TranslationKey } from '../i18n';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
-  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare
+  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare, Bot, Cpu
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -57,6 +57,26 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [showCampaignAgreementModal, setShowCampaignAgreementModal] = useState(false);
   const [submittingAgreement, setSubmittingAgreement] = useState(false);
   const [recoveringMemberId, setRecoveringMemberId] = useState<string | null>(null);
+  const [injectingEscrow, setInjectingEscrow] = useState(false);
+
+  const handleSystemEscrowDeposit = async () => {
+    setInjectingEscrow(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/system-deposit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to inject system escrow deposit');
+      setActionSuccess('🤖 Platform System Deposits Escrow successfully disbursed deposit into weekly pot!');
+      onRefreshPod();
+    } catch (err: any) {
+      setActionError(err.message || 'System escrow injection failed');
+    } finally {
+      setInjectingEscrow(false);
+    }
+  };
 
   const fetchHardshipRequests = async () => {
     try {
@@ -913,6 +933,54 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             </div>
           )}
 
+          {/* Autonomous AI Custodian & System Deposits Escrow Banner */}
+          {pod.stewardshipMode === 'AUTONOMOUS_AI' && (
+            <div className="p-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white rounded-xl shadow-md border border-purple-400/30 text-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-start sm:items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-400/40 flex items-center justify-center shrink-0">
+                    <Bot className="w-5 h-5 text-purple-300" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-extrabold text-sm text-purple-200">
+                        🤖 Autonomous AI Custodian Active
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500 text-slate-950 uppercase tracking-wider">
+                        100% Platform Protected
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-purple-200/80 leading-relaxed mt-0.5">
+                      Pod stewardship has autonomously transferred to <strong>Lainie (Autonomous System Custodian)</strong>. All weekly deposits and rotation payouts are seamlessly funded and backstopped by the <strong>System Deposits Escrow Account</strong> with zero extra burden on members.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSystemEscrowDeposit}
+                    disabled={injectingEscrow}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Cpu className="w-3.5 h-3.5" />
+                    <span>{injectingEscrow ? 'Disbursing...' : `Disburse System Escrow Deposit ($${pod.depositTier})`}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2.5 border-t border-purple-500/20 flex items-center justify-between flex-wrap gap-2 text-[11px] text-purple-300">
+                <div className="flex items-center gap-4">
+                  <span>Custodian: <strong>{pod.stewardName || '🤖 Lainie AI'}</strong></span>
+                  <span>Escrow Liquidity Advanced: <strong>${(pod.systemEscrowDrawnUsd || 0).toFixed(2)}</strong></span>
+                </div>
+                <div className="text-[10px] text-purple-200/70 font-mono">
+                  Autonomous Protocol v2.0 • Zero Governance Burden
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Partner Ad Campaign Status Banner */}
           {pod.campaignAgreement && (
             <div className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs ${
@@ -1030,8 +1098,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-[#111827] text-sm">{member.displayName}</span>
                         {isPodCreator && (
-                          <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200">
-                            POD CREATOR
+                          <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-purple-700" />
+                            <span>POD CREATOR (Final Rotation Payout • Skin-in-the-Game)</span>
                           </span>
                         )}
                         {isCurrentUserMember && (

@@ -2,7 +2,7 @@ import React from 'react';
 import { Pod, User } from '../types';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
-import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut, MessageSquare } from 'lucide-react';
+import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut, MessageSquare, Bot } from 'lucide-react';
 
 interface PodCardProps {
   pod: Pod;
@@ -133,6 +133,13 @@ export const PodCard: React.FC<PodCardProps> = ({
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-rose-50 text-rose-800 border-rose-200 flex items-center gap-1 animate-pulse">
                 <Sparkles className="w-3 h-3 text-rose-600" />
                 <span>{t('pod.hardshipReplacementSpot')}</span>
+              </span>
+            )}
+
+            {pod.stewardshipMode === 'AUTONOMOUS_AI' && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold border bg-purple-50 text-purple-900 border-purple-300 flex items-center gap-1">
+                <Bot className="w-3 h-3 text-purple-700" />
+                <span>🤖 AI Custodian (Escrow Backed)</span>
               </span>
             )}
           </div>

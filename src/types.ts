@@ -167,6 +167,13 @@ export interface Pod {
   isPrioritizedForReplacement?: boolean;
   replacementVacanciesCount?: number;
   campaignAgreement?: PodCampaignAgreement;
+  stewardshipMode?: 'CREATOR_MANAGED' | 'AUTONOMOUS_AI';
+  managedBy?: 'CREATOR' | 'SYSTEM_AI';
+  stewardName?: string;
+  systemEscrowActive?: boolean;
+  systemEscrowDrawnUsd?: number;
+  creatorDefaultedAt?: string;
+  creatorLastInRotation?: boolean;
 }
 
 export type HardshipRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID_OFF';
@@ -318,7 +325,9 @@ export interface AuditLogEntry {
     | 'HARDSHIP_REPAID'
     | 'HARDSHIP_REJECTED'
     | 'CAMPAIGN_AGREEMENT_RECORDED'
-    | 'COURIER_GEAR_VERIFIED_PAYOUT';
+    | 'COURIER_GEAR_VERIFIED_PAYOUT'
+    | 'AUTONOMOUS_STEWARDSHIP_ACTIVATED'
+    | 'SYSTEM_ESCROW_DEPOSIT_DISBURSED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

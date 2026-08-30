@@ -257,6 +257,11 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
           welcomeMatchAmountUsd: welcomeMatchAmount,
           contingencyBufferUsd: welcomeMatchAmount,
           contingencyBufferInitialUsd: welcomeMatchAmount,
+          stewardshipMode: 'CREATOR_MANAGED',
+          managedBy: 'CREATOR',
+          creatorLastInRotation: true,
+          systemEscrowActive: false,
+          systemEscrowDrawnUsd: 0,
           members: [
             {
               id: creatorMemberId,
@@ -266,7 +271,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               email: currentUserState.email || `${currentUserState.id}@mutualpool.org`,
               avatarUrl: currentUserState.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserState.displayName || 'User')}&background=005FB8&color=fff`,
               platform: currentUserState.platform || 'DoorDash',
-              rotationIndex: 0,
+              rotationIndex: Number(sizeTier) - 1, // Creator is placed in the final rotation slot (Slot #N) by default
               hasReceivedPayout: false,
               delinquencyStatus: 'CLEAN',
               joinedAt: new Date().toISOString(),
@@ -851,6 +856,22 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Creator Skin-in-the-Game Guarantee Banner */}
+              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-xs flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-purple-700" />
+                <div className="space-y-0.5">
+                  <div className="font-bold text-purple-900 flex items-center gap-2">
+                    <span>{t('createPod.skinInGameTitle')}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-purple-200 text-purple-900 border border-purple-300 font-mono">
+                      {t('createPod.skinInGameBadge', { slot: sizeTier })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-purple-800 leading-relaxed">
+                    {t('createPod.skinInGameDesc', { size: sizeTier })}
+                  </p>
                 </div>
               </div>
 
