@@ -803,9 +803,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span className="font-bold">${totalPoolPayout}.00</span>
                 </div>
 
-                <div className="flex justify-between text-rose-200">
-                  <span className="font-sans">{t('calculator.payoutFeeLabel')}</span>
-                  <span>-${(totalPoolPayout * 0.10).toFixed(2)}</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-rose-200">
+                    <span className="font-sans">{t('calculator.payoutFeeLabel')}</span>
+                    <span>-${(totalPoolPayout * 0.10).toFixed(2)}</span>
+                  </div>
+                  <div className="text-[10px] text-blue-200/90 font-sans space-y-0.5 pl-1.5 border-l border-blue-400/50">
+                    <div className="text-emerald-300 font-semibold">
+                      {t('calculator.payoutFeeSplitActive', { reward: (totalPoolPayout * 0.03).toFixed(2) })}
+                    </div>
+                    <div className="text-blue-300/80">
+                      {t('calculator.payoutFeeSplitAutonomous')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Host Incentive Highlight Badge */}
+                <div className="p-2.5 rounded-lg bg-blue-900/60 border border-blue-400/40 text-[11px] font-sans text-blue-100 leading-relaxed">
+                  {t('calculator.creatorIncentivePerk', { reward: (totalPoolPayout * 0.03).toFixed(2) })}
                 </div>
 
                 <div className="flex justify-between border-t border-blue-400/40 pt-2">

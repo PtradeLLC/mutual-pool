@@ -174,6 +174,8 @@ export interface Pod {
   systemEscrowDrawnUsd?: number;
   creatorDefaultedAt?: string;
   creatorLastInRotation?: boolean;
+  creatorHostRewardRate?: number; // 0.03 (3% of gross pool)
+  creatorStewardshipEarningsUsd?: number;
 }
 
 export type HardshipRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID_OFF';
@@ -272,6 +274,7 @@ export type NotificationType =
   | 'HARDSHIP_REJECTED' 
   | 'POD_JOINED' 
   | 'PAYOUT_READY' 
+  | 'PAYOUT_RECEIVED'
   | 'DEPOSIT_REMINDER' 
   | 'DEPOSIT_DUE'
   | 'STATUS_CHANGE'
@@ -327,7 +330,8 @@ export interface AuditLogEntry {
     | 'CAMPAIGN_AGREEMENT_RECORDED'
     | 'COURIER_GEAR_VERIFIED_PAYOUT'
     | 'AUTONOMOUS_STEWARDSHIP_ACTIVATED'
-    | 'SYSTEM_ESCROW_DEPOSIT_DISBURSED';
+    | 'SYSTEM_ESCROW_DEPOSIT_DISBURSED'
+    | 'CREATOR_HOST_REWARD_DISBURSED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

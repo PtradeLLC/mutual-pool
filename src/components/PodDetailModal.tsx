@@ -449,8 +449,15 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       const gross = data.grossPayoutAmount || currentActivePool;
       const fee = data.payoutFee || gross * 0.10;
       const net = data.payoutAmount || (gross - fee);
+      const creatorReward = data.creatorHostReward || 0;
 
-      setActionSuccess(`Week ${pod.currentCycleWeek} Payout executed via Stripe Treasury transfer (${data.stripeTransferId}) to ${data.recipientName}! Gross Pool: $${gross.toFixed(2)} • 10% Payout Fee (-$${fee.toFixed(2)}) -> Net Paid: $${net.toFixed(2)}.`);
+      const rewardNote = creatorReward > 0 
+        ? ` (Includes +$${creatorReward.toFixed(2)} [3%] Host Reward to Creator ${pod.creatorName})`
+        : pod.stewardshipMode === 'AUTONOMOUS_AI' 
+        ? ` (100% of 10% fee directed to System Escrow Liquidity Account)`
+        : '';
+
+      setActionSuccess(`Week ${pod.currentCycleWeek} Payout executed via Stripe Treasury transfer (${data.stripeTransferId}) to ${data.recipientName}! Gross Pool: $${gross.toFixed(2)} • 10% Payout Fee (-$${fee.toFixed(2)})${rewardNote} -> Net Paid to recipient: $${net.toFixed(2)}.`);
       onRefreshPod();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Payout execution failed');
@@ -1100,7 +1107,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                         {isPodCreator && (
                           <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200 flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-purple-700" />
-                            <span>POD CREATOR (Final Rotation Payout • Skin-in-the-Game)</span>
+                            <span>POD CREATOR (Final Rotation • 3% Host Reward: +${(pod.creatorStewardshipEarningsUsd || 0).toFixed(2)})</span>
                           </span>
                         )}
                         {isCurrentUserMember && (
@@ -1295,16 +1302,32 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               </div>
 
               {/* 10% Payout Fee Calculation Breakdown */}
-              <div className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 font-mono">
+              <div className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1.5 font-mono">
                 <div className="flex justify-between text-gray-700">
                   <span>Collective Pool Amount ({memberCount} Members × ${pod.depositTier}):</span>
                   <span>${currentActivePool}.00</span>
                 </div>
-                <div className="flex justify-between text-rose-600">
-                  <span>10% Platform Payout Service Fee:</span>
-                  <span>-${(currentActivePool * 0.10).toFixed(2)}</span>
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-rose-600">
+                    <span>10% Platform Payout Service Fee:</span>
+                    <span>-${(currentActivePool * 0.10).toFixed(2)}</span>
+                  </div>
+                  {pod.stewardshipMode === 'AUTONOMOUS_AI' ? (
+                    <div className="text-[10px] text-purple-700 font-sans pl-2 border-l-2 border-purple-300">
+                      🤖 <strong>100% (-${(currentActivePool * 0.10).toFixed(2)})</strong> directed to System Escrow & Platform Reserves (Autonomous Custodian Active)
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-gray-600 font-sans pl-2 border-l-2 border-emerald-400 space-y-0.5">
+                      <div className="text-emerald-700 font-semibold">
+                        🎉 <strong>+${(currentActivePool * 0.03).toFixed(2)} (3%)</strong> Host Stewardship Reward to Creator ({pod.creatorName})
+                      </div>
+                      <div className="text-gray-500">
+                        🏛️ <strong>-${(currentActivePool * 0.07).toFixed(2)} (7%)</strong> Platform Treasury & Network Reserves
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between font-bold text-emerald-700 pt-1 border-t border-gray-100 text-sm">
+                <div className="flex justify-between font-bold text-emerald-700 pt-1.5 border-t border-gray-100 text-sm">
                   <span>Net Total Paid to User ({currentRecipientMember?.displayName || 'Recipient'}):</span>
                   <span>${(currentActivePool * 0.90).toFixed(2)}</span>
                 </div>

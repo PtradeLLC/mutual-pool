@@ -2485,8 +2485,54 @@ app.use((req, res, next) => {
     const grossPayoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
     
     // Apply 10% payout fee tag (e.g. $400 pool - 10% ($40) = $360 net paid to user)
-    const payoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
-    const netPayoutAmount = grossPayoutAmount - payoutFee;
+    const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
+    const netPayoutAmount = grossPayoutAmount - totalPayoutFee;
+
+    // Creator Host Reward Logic:
+    // When Pod is managed by active Creator (stewardshipMode !== 'AUTONOMOUS_AI'), Creator earns 3% of gross pool (30% of the 10% fee)
+    // as passive host stewardship reward for taking the final rotation slot.
+    // If Autonomous AI Custodian (Lainie) is active, Creator reward is forfeited and full 10% is retained by Platform System Escrow.
+    const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
+    const creatorUser = users.find(u => u.id === pod.createdBy);
+    const isCreatorActiveInPod = pod.members.some(m => m.userId === pod.createdBy);
+
+    let creatorHostReward = 0;
+    let platformFeeRetained = totalPayoutFee;
+
+    if (!isAutonomousAI && creatorUser && isCreatorActiveInPod) {
+      creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100; // 3% of gross pool
+      platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100; // 7% retained by platform
+      
+      // Credit Creator Treasury with 3% host stewardship reward
+      creatorUser.treasury.balanceUsd += creatorHostReward;
+      creatorUser.treasury.totalPayoutsReceivedUsd += creatorHostReward;
+      pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
+
+      // Notify Creator of Host Reward disbursement
+      createNotification({
+        userId: creatorUser.id,
+        type: 'PAYOUT_RECEIVED',
+        title: '🎉 3% Host Stewardship Reward Disbursed',
+        message: `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your Stripe Treasury.`,
+        podId: pod.id,
+      });
+
+      addAuditLog(
+        pod.id,
+        creatorUser.id,
+        creatorUser.displayName,
+        'CREATOR_HOST_REWARD_DISBURSED',
+        `🎉 Disbursed 3% Host Stewardship Reward ($${creatorHostReward.toFixed(2)}) to Pod Creator ${creatorUser.displayName} for Week ${pod.currentCycleWeek} payout. Remaining 7% ($${platformFeeRetained.toFixed(2)}) retained for Platform Treasury.`,
+        { 
+          creatorUserId: creatorUser.id, 
+          creatorHostReward, 
+          platformFeeRetained, 
+          grossPayoutAmount, 
+          totalPayoutFee,
+          weekNumber: pod.currentCycleWeek 
+        }
+      );
+    }
 
     const stripeTransferId = `tr_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 
@@ -2511,12 +2557,15 @@ app.use((req, res, next) => {
       user.id,
       user.displayName,
       'PAYOUT_EXECUTED',
-      `Week ${pod.currentCycleWeek} payout processed via Stripe Treasury (${stripeTransferId}) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${payoutFee.toFixed(2)}. Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's Stripe Treasury account.`,
+      `Week ${pod.currentCycleWeek} payout processed via Stripe Treasury (${stripeTransferId}) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${totalPayoutFee.toFixed(2)} (${creatorHostReward > 0 ? `3% / $${creatorHostReward.toFixed(2)} to Creator Host, 7% / $${platformFeeRetained.toFixed(2)} to Platform` : `100% / $${totalPayoutFee.toFixed(2)} to Platform System Escrow`}). Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's Stripe Treasury account.`,
       { 
         stripeTransferId, 
         recipientId: recipientMember.userId, 
         grossPayoutAmount,
-        payoutFee,
+        payoutFee: totalPayoutFee,
+        creatorHostReward,
+        platformFeeRetained,
+        stewardshipMode: pod.stewardshipMode || 'CREATOR_MANAGED',
         netPayoutAmount, 
         weekNumber: pod.currentCycleWeek,
         payoutClaimStatus: 'EARMARKED_IN_TREASURY'
@@ -2535,11 +2584,17 @@ app.use((req, res, next) => {
       pod.currentCycleWeek += 1;
     }
 
+    savePodsToDisk();
+    saveUsersToDisk();
+
     res.json({
       success: true,
       stripeTransferId,
       grossPayoutAmount,
-      payoutFee,
+      payoutFee: totalPayoutFee,
+      creatorHostReward,
+      platformFeeRetained,
+      creatorStewardshipEarningsUsd: pod.creatorStewardshipEarningsUsd || 0,
       payoutAmount: netPayoutAmount,
       recipientName: recipientMember.displayName,
       payoutClaimStatus: 'EARMARKED_IN_TREASURY',
