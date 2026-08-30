@@ -26,6 +26,7 @@ export interface VoiceAgentProps {
   onOpenHowItWorks: () => void;
   onOpenContact: () => void;
   onOpenAdvertiser: () => void;
+  onOpenFaq?: (category?: string) => void;
 }
 
 interface Message {
@@ -67,6 +68,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
   onOpenHowItWorks,
   onOpenContact,
   onOpenAdvertiser,
+  onOpenFaq,
 }) => {
   const { t, language } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -88,8 +90,8 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       suggestedActions: [
         { label: t('voiceAgent.q1Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q1Query') },
-        { label: t('voiceAgent.q2Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q2Query') },
-        { label: t('voiceAgent.browsePerks'), action: 'NAVIGATE_TAB', tab: 'perks' },
+        { label: t('voiceAgent.q7Label') || '3% Host Rewards', action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q7Query') || 'How does the 3% Creator Host Stewardship Reward work?' },
+        { label: t('voiceAgent.browseFaq') || 'Browse Full FAQ', action: 'OPEN_MODAL', modal: 'FAQ' },
       ],
     },
   ]);
@@ -107,8 +109,8 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             suggestedActions: [
               { label: t('voiceAgent.q1Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q1Query') },
-              { label: t('voiceAgent.q2Label'), action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q2Query') },
-              { label: t('voiceAgent.browsePerks'), action: 'NAVIGATE_TAB', tab: 'perks' },
+              { label: t('voiceAgent.q7Label') || '3% Host Rewards', action: 'SPEAK_EXPLANATION', prompt: t('voiceAgent.q7Query') || 'How does the 3% Creator Host Stewardship Reward work?' },
+              { label: t('voiceAgent.browseFaq') || 'Browse Full FAQ', action: 'OPEN_MODAL', modal: 'FAQ' },
             ],
           },
         ];
@@ -119,11 +121,16 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
 
   const guidedQuestions = [
     { label: t('voiceAgent.q1Label'), query: t('voiceAgent.q1Query') },
+    { label: t('voiceAgent.q7Label'), query: t('voiceAgent.q7Query') },
+    { label: t('voiceAgent.q8Label'), query: t('voiceAgent.q8Query') },
+    { label: t('voiceAgent.q9Label'), query: t('voiceAgent.q9Query') },
+    { label: t('voiceAgent.q10Label'), query: t('voiceAgent.q10Query') },
+    { label: t('voiceAgent.q11Label'), query: t('voiceAgent.q11Query') },
+    { label: t('voiceAgent.q6Label'), query: t('voiceAgent.q6Query') },
     { label: t('voiceAgent.q2Label'), query: t('voiceAgent.q2Query') },
     { label: t('voiceAgent.q3Label'), query: t('voiceAgent.q3Query') },
     { label: t('voiceAgent.q4Label'), query: t('voiceAgent.q4Query') },
     { label: t('voiceAgent.q5Label'), query: t('voiceAgent.q5Query') },
-    { label: t('voiceAgent.q6Label'), query: t('voiceAgent.q6Query') },
   ];
 
   const recognitionRef = useRef<any>(null);
@@ -137,6 +144,19 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen, isMinimized]);
+
+  // Global event listener to open Voice Agent from other components (like FAQ modal)
+  useEffect(() => {
+    const handleOpenVoice = (e: any) => {
+      setIsOpen(true);
+      setIsMinimized(false);
+      if (e?.detail?.prompt) {
+        handleSendQuery(e.detail.prompt);
+      }
+    };
+    window.addEventListener('open-voice-agent', handleOpenVoice);
+    return () => window.removeEventListener('open-voice-agent', handleOpenVoice);
+  }, []);
 
   // Audio Visualizer Loop
   const renderVisualizer = useCallback(() => {
@@ -237,10 +257,11 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       else if (action.target === 'ABOUT') onOpenAbout();
       else if (action.target === 'HOW_IT_WORKS') onOpenHowItWorks();
       else if (action.target === 'CONTACT') onOpenContact();
+      else if (action.target === 'FAQ') onOpenFaq?.();
     } else if (action.type === 'OPEN_ADVERTISER') {
       onOpenAdvertiser();
     }
-  }, [onNavigateTab, onOpenCreatePod, onOpenKyc, onOpenBank, onOpenHardship, onOpenAbout, onOpenHowItWorks, onOpenContact, onOpenAdvertiser]);
+  }, [onNavigateTab, onOpenCreatePod, onOpenKyc, onOpenBank, onOpenHardship, onOpenAbout, onOpenHowItWorks, onOpenContact, onOpenAdvertiser, onOpenFaq]);
 
   // Natural TTS audio playback
   const playResponseAudio = useCallback(async (spokenText: string) => {

@@ -4564,6 +4564,257 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       const isEs = language === 'es';
       const isFr = language === 'fr';
 
+      // 1. Is MutualPool a loan / credit / interest?
+      if (q.includes('loan') || q.includes('credit') || q.includes('interest') || q.includes('debt') || q.includes('préstamo') || q.includes('interés') || q.includes('crédito') || q.includes('deuda') || q.includes('prêt') || q.includes('crédit') || q.includes('dette') || q.includes('intérêt')) {
+        if (isEs) {
+          return {
+            spokenText: "MutualPool no es un préstamo bancario ni una tarjeta de crédito. Tiene 0% de interés, no genera deudas y no requiere historial de crédito. Es ahorro mutuo colaborativo entre repartidores.",
+            displayText: "### 🚫 Cero Intereses, No es un Préstamo Bancario\n\n- **0% Interés y Sin Deudas:** Ahorras con tu propio dinero junto a repartidores verificados.\n- **Sin Verificación de Buró:** No requieres historial de crédito bancario.\n- **Basado en Tandas / Susu:** Modelo cultural de ahorro rotativo modernizado con cuentas bancarias aseguradas por la FDIC.",
+            suggestedActions: [
+              { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "¿Cómo funciona la rotación?", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la rotación fija?" },
+              { label: "Explorar Grupos", action: "NAVIGATE_TAB", tab: "explore-pods" }
+            ],
+            navigationAction: null
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "MutualPool n'est ni un prêt ni une carte de crédit. Il n'y a 0% d'intérêt, aucune dette et aucun contrôle bancaire. C'est de l'épargne rotative entre pairs.",
+            displayText: "### 🚫 0% Intérêt, Pas de Prêt Bancaire\n\n- **0% Intérêt & Aucune Dette :** Vous mutualisez vos économies avec des collègues vérifiés.\n- **Aucun Contrôle de Crédit :** Pas de score bancaire exigé.\n- **Inspiré des Tontines / Susu :** Système d'épargne rotative modernisé avec comptes protégés par la FDIC.",
+            suggestedActions: [
+              { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Rotation fixe", action: "SPEAK_EXPLANATION", prompt: "Comment fonctionne la rotation fixe ?" },
+              { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
+            ],
+            navigationAction: null
+          };
+        }
+        return {
+          spokenText: "MutualPool is not a bank loan or a credit card. There is 0% interest, zero compounding debt, and no credit check. You are pooling your own income with verified gig workers.",
+          displayText: "### 🚫 0% Interest — Not a Bank Loan or Debt\n\n- **Zero Interest & No Compounding Debt:** You pool your own income with verified gig couriers.\n- **No Credit Check:** No minimum FICO or credit score required.\n- **Modernized ROSCA (Tanda / Susu / Pardna):** Members save collectively with FDIC pass-through bank accounts.",
+          suggestedActions: [
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "How rotation works", action: "SPEAK_EXPLANATION", prompt: "How does fixed rotation work?" },
+            { label: "Explore Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
+          ],
+          navigationAction: null
+        };
+      }
+
+      // 2. Creator Host Stewardship Reward (3%) & Skin in the Game
+      if (q.includes('host') || q.includes('creator') || q.includes('skin in the game') || q.includes('3%') || q.includes('last slot') || q.includes('final slot') || q.includes('anfitrión') || q.includes('creador') || q.includes('recompensa') || q.includes('último turno') || q.includes('hôte') || q.includes('créateur') || q.includes('récompense')) {
+        if (isEs) {
+          return {
+            spokenText: "Los Creadores de grupos toman el último turno de cobro como garantía de confianza y reciben una recompensa de anfitrión del 3% en cada desembolso semanal de sus compañeros.",
+            displayText: "### 🌟 Recompensa del Creador (3%) y Compromiso Real\n\n- **Garantía de Confianza:** El Creador se fija en el último turno (#N) para proteger al grupo contra fraudes.\n- **Recompensa del 3%:** Por liderar el grupo, el Creador gana el 3% de cada desembolso semanal (ej. $12/semana en un pozo de $400, sumando $228 en 20 semanas).\n- **Depósito Directo:** Las ganancias se acreditan automáticamente a su saldo de Stripe Treasury.",
+            suggestedActions: [
+              { label: "Crear un Grupo Ahora", action: "OPEN_MODAL", modal: "CREATE_POD" },
+              { label: "Ver FAQ de Creadores", action: "OPEN_MODAL", modal: "FAQ" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Les Créateurs de groupes occupent le dernier tour de versement pour garantir la sécurité et reçoivent une prime d'hôte de 3% sur chaque versement de leurs coéquipiers.",
+            displayText: "### 🌟 Prime d'Hôte Créateur (3%) & Sécurité Totale\n\n- **Engagement Garanti :** Le Créateur est placé au dernier tour (#N) pour éliminer tout risque de désistement précoce.\n- **Prime de Gestion de 3% :** En contrepartie, le Créateur perçoit 3% sur chaque versement hebdomadaire (ex. 12 $/semaine sur un pot de 400 $, soit 228 $ sur 20 semaines).\n- **Crédité sur Treasury :** Versements directs sur votre compte Stripe Treasury.",
+            suggestedActions: [
+              { label: "Créer un Groupe", action: "OPEN_MODAL", modal: "CREATE_POD" },
+              { label: "FAQ Créateurs", action: "OPEN_MODAL", modal: "FAQ" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+          };
+        }
+        return {
+          spokenText: "Pod Creators take the final rotation slot as a skin-in-the-game safety guarantee. In return, they earn a 3% Host Stewardship Reward on every teammate payout, totaling up to $228 in passive earnings.",
+          displayText: "### 🌟 3% Creator Host Stewardship Reward & Skin-in-the-Game\n\n- **Skin-in-the-Game:** The Creator is pinned to the final rotation slot (#N) so they stay committed to the cycle.\n- **3% Host Reward:** The Creator earns 3% on every teammate payout (e.g. $12/payout on a $400 pot $\\rightarrow$ $228 total on a 20-member pod).\n- **Direct Deposit:** Rewards disburse automatically into the Creator's Stripe Treasury wallet.",
+          suggestedActions: [
+            { label: "Create a Pod Now", action: "OPEN_MODAL", modal: "CREATE_POD" },
+            { label: "Read Creator FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+        };
+      }
+
+      // 3. Autonomous AI Custodian Protocol (Lainie AI) & Defaults
+      if (q.includes('custodian') || q.includes('autonomous') || q.includes('lainie') || q.includes('bot') || q.includes('custodia') || q.includes('autónom') || q.includes('gardien') || q.includes('protocole')) {
+        if (isEs) {
+          return {
+            spokenText: "Si el Creador de un grupo sufre un imprevisto o falta a sus depósitos, yo asumo la custodia autónoma del grupo. Administro los pagos automáticamente sin transferir cargas a los miembros.",
+            displayText: "### 🤖 Protocolo de Custodia Autónoma por Lainie AI\n\n- **Toma de Control Inmediata:** Si un Creador tiene problemas, Lainie AI asume la administración completa del grupo.\n- **Cero Carga para los Miembros:** No hay estrés administrativo ni cobros manuales entre compañeros.\n- **Redirección de Fondos:** El 3% del creador se redirige a la Cuenta de Custodia del Sistema para garantizar todos los pagos semanales a tiempo.",
+            suggestedActions: [
+              { label: "Ver FAQ de Custodia", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Si le Créateur d'un groupe fait défaut, je prends le relais en tant que gardienne IA autonome pour assurer les versements sans aucune charge administrative pour les membres.",
+            displayText: "### 🤖 Protocole de Gardienne IA Autonome (Lainie)\n\n- **Prise de Relais Automatique :** En cas d'empêchement du créateur, Lainie AI gère la rotation et les versements.\n- **Zéro Fardeau Administratif :** Aucun stress pour les membres du groupe.\n- **Sécurisation des Versements :** Les frais de gestion sont réaffectés au compte d'entiercement du système pour garantir 100% des paiements.",
+            suggestedActions: [
+              { label: "Voir la FAQ Gardienne", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Mes Groupes", action: "NAVIGATE_TAB", tab: "my-pods" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        return {
+          spokenText: "If a Pod Creator experiences hardship or defaults, I step in as the Autonomous AI Custodian. I manage the pod rotations and weekly payouts automatically with zero administrative burden on members.",
+          displayText: "### 🤖 Autonomous AI Custodian Protocol (Lainie AI)\n\n- **Automated Pod Takeover:** If a Creator defaults, Lainie AI assumes full custodianship of the pod.\n- **Zero Member Burden:** No manual debt collection or administrative stress placed on participating drivers.\n- **System Escrow Backstop:** The Creator forfeits the 3% reward, which is redirected into the System Deposits Escrow to guarantee on-time payouts.",
+          suggestedActions: [
+            { label: "View FAQ on Custodianship", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "Go to My Pods", action: "NAVIGATE_TAB", tab: "my-pods" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      }
+
+      // 4. System Deposits Escrow Account & Missed Payment Safety Net
+      if (q.includes('escrow') || q.includes('system deposit') || q.includes('missed') || q.includes('default') || q.includes('shortfall') || q.includes('garantía') || q.includes('falta') || q.includes('entiercement') || q.includes('retard')) {
+        if (isEs) {
+          return {
+            spokenText: "La Cuenta de Depósitos de Custodia del Sistema es una reserva de liquidez que adelanta depósitos impagos para asegurar que el miembro de turno reciba su desembolso completo a tiempo.",
+            displayText: "### 🛡️ Cuenta de Depósitos de Custodia del Sistema y Protección ante Impagos\n\n1. **Periodo de Gracia de 72 Horas:** Notificaciones automáticas para regularizar depósitos.\n2. **Fondo de Contingencia de Primer Ciclo:** Cubre vacantes iniciales.\n3. **Adelanto del Sistema Escrow:** La plataforma adelanta el depósito faltante para que el receptor de la semana cobre el 100% de su pozo sin demoras.\n4. **Reemplazo de Miembros:** Las vacantes se abren para conductores verificados.",
+            suggestedActions: [
+              { label: "Ver FAQ de Protección", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Fondo de Solidaridad", action: "OPEN_MODAL", modal: "HARDSHIP" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Le Compte d'Entiercement du Système est une réserve centrale qui avance les dépôts manquants afin que le membre du tour reçoive son versement complet dans les délais.",
+            displayText: "### 🛡️ Entiercement du Système & Protection Anti-Défaut\n\n1. **Période de Grâce de 72h :** Rappels sans pénalité pour régulariser les cotisations.\n2. **Buffer de Contingence Cycle 1 :** Prise en charge des imprévus.\n3. **Avance d'Entiercement du Système :** La plateforme avance les fonds manquants pour verser 100% du pot sans retard.\n4. **Remplacement Rapide :** Réattribution du créneau à un chauffeur vérifié.",
+            suggestedActions: [
+              { label: "FAQ Protection & Entiercement", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Fonds de Solidarité", action: "OPEN_MODAL", modal: "HARDSHIP" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        return {
+          spokenText: "The System Deposits Escrow Account is a liquidity reserve that advances missing deposits if a member is late. This guarantees that weekly rotation recipients always get their 100% full payout on time.",
+          displayText: "### 🛡️ System Deposits Escrow Account & Default Protection\n\n1. **72-Hour Grace Period:** Automated reminders to resolve pending deposits without penalty.\n2. **First-Cycle Contingency Buffer:** Welcome match cushions initial cycle delays.\n3. **System Escrow Advance:** MutualPool advances the missing weekly contribution so the recipient gets 100% of their lump sum.\n4. **Verified Replacement:** Delinquent slots are opened to verified gig couriers.",
+          suggestedActions: [
+            { label: "Open FAQ on Escrow", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "Hardship Protection", action: "OPEN_MODAL", modal: "HARDSHIP" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      }
+
+      // 5. Fees (5% Initial Deposit Fee, 10% Payout Service Fee)
+      if (q.includes('fee') || q.includes('cost') || q.includes('charge') || q.includes('5%') || q.includes('10%') || q.includes('comisi') || q.includes('tarifa') || q.includes('cuota') || q.includes('frais') || q.includes('coût')) {
+        if (isEs) {
+          return {
+            spokenText: "Cobramos una tarifa inicial del 5% al configurar tu cuenta Treasury y una tarifa de servicio del 10% sobre los desembolsos. El 3% se destina al Creador del grupo y el 7% a las reservas de la plataforma.",
+            displayText: "### 💳 Estructura Transparente de Tarifas\n\n- **Tarifa de Depósito Inicial (5%):** Solo en tu primer depósito para inicializar tu cuenta bancaria asegurada por la FDIC en Stripe Treasury.\n- **Tarifa de Desembolso (10%):** Deducida al entregar el pozo acumulado (ej. $40 en un pozo de $400 $\\rightarrow$ $360 netos al conductor):\n  - **3%** para el Creador del grupo como Recompensa de Anfitrión.\n  - **7%** para operaciones de la plataforma, reservas de contingencia y cumplimiento FDIC.\n- **0% Intereses:** Cero intereses acumulativos ni cargos ocultos.",
+            suggestedActions: [
+              { label: "Ver FAQ de Tarifas", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Nous appliquons des frais initiaux de 5% à l'ouverture de votre compte Treasury et des frais de service de 10% sur les versements (dont 3% pour le Créateur hôte et 7% pour les réserves de la plateforme).",
+            displayText: "### 💳 Structure Claire des Frais\n\n- **Frais de Dépôt Initial (5%) :** Appliqués uniquement sur la 1ère cotisation pour initialiser le compte Stripe Treasury protégé FDIC.\n- **Frais de Versement (10%) :** Déduits lors de la réception du pot (ex. 40 $ sur un pot de 400 $ $\\rightarrow$ 360 $ nets versés) :\n  - **3%** versés au Créateur du groupe (Prime d'Hôte).\n  - **7%** pour l'infrastructure Treasury, les garanties anti-défaut et la conformité FDIC.\n- **0% Intérêt :** Zéro dette ni frais cachés.",
+            suggestedActions: [
+              { label: "Voir la FAQ Frais", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        return {
+          spokenText: "MutualPool charges a 5% initial deposit setup fee and a 10% Payout Service Fee when you receive your lump sum. 3% goes to the Pod Creator as a Host Reward and 7% funds platform reserves and FDIC compliance.",
+          displayText: "### 💳 Transparent Platform Fee Structure\n\n- **Initial Deposit Fee (5%):** One-time fee on your first deposit to initialize your FDIC-insured Stripe Treasury account.\n- **Payout Service Fee (10%):** Deducted only when the lump-sum pot is disbursed (e.g. $40 fee on a $400 pool $\\rightarrow$ **$360.00 net payout**):\n  - **3%** paid directly to the active Pod Creator as a Host Stewardship Reward.\n  - **7%** funds platform liquidity reserves, First-Cycle buffer, and banking compliance.\n- **Zero Interest:** No predatory loan APRs or compounding balance fees.",
+          suggestedActions: [
+            { label: "Read Fees FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      }
+
+      // 6. Invite Window, Expiration & Flexible Early Launch
+      if (q.includes('invite') || q.includes('expire') || q.includes('window') || q.includes('flexible') || q.includes('early launch') || q.includes('invitaci') || q.includes('expira') || q.includes('lanzamiento') || q.includes('expiration') || q.includes('lancement')) {
+        if (isEs) {
+          return {
+            spokenText: "Al crear un grupo eliges una ventana de invitación de 3 a 30 días. Con el Lanzamiento Flexible, puedes iniciar el ciclo en cuanto se unan 2 o más miembros sin esperar a llenar todos los cupos.",
+            displayText: "### ⏱️ Ventana de Invitación y Lanzamiento Flexible\n\n- **Ventana de Invitación (3, 7, 14, 30 días):** Al vencer, el grupo puede abrirse automáticamente al público o seguir esperando.\n- **Lanzamiento Flexible Anticipado:** ¡No tienes que esperar 20 miembros! Puedes iniciar el ciclo con **2 o más miembros**, y los desembolsos se ajustan dinámicamente.",
+            suggestedActions: [
+              { label: "Crear un Grupo Ahora", action: "OPEN_MODAL", modal: "CREATE_POD" },
+              { label: "Ver FAQ de Grupos", action: "OPEN_MODAL", modal: "FAQ" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Lors de la création d'un groupe, vous choisissez un délai d'invitation de 3 à 30 jours. Grâce au Lancement Flexible, vous pouvez démarrer dès 2 membres sans attendre que le groupe soit complet.",
+            displayText: "### ⏱️ Délai d'Invitation & Lancement Flexible\n\n- **Délai d'Invitation (3, 7, 14, 30 jours) :** À l'expiration, le groupe s'ouvre automatiquement au public ou reste privé.\n- **Lancement Flexible Anticipé :** Démarrez dès **2 membres inscrits** ; les versements hebdomadaires s'adaptent automatiquement au nombre de participants actifs.",
+            suggestedActions: [
+              { label: "Créer un Groupe", action: "OPEN_MODAL", modal: "CREATE_POD" },
+              { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+          };
+        }
+        return {
+          spokenText: "When creating a pod, you set an invite window of 3 to 30 days. With Flexible Early Launch, you can start weekly cycles as soon as 2 or more members join without waiting for all slots to fill.",
+          displayText: "### ⏱️ Invite Windows & Flexible Early Launch\n\n- **Invite Windows (3, 7, 14, or 30 days):** Choose whether to auto-open vacant slots to verified drivers or keep the circle private upon expiration.\n- **Flexible Early Launch:** Creators can launch the pod with **2 or more members**. Payouts scale dynamically to match the active member count.",
+          suggestedActions: [
+            { label: "Create a Pod Now", action: "OPEN_MODAL", modal: "CREATE_POD" },
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+        };
+      }
+
+      // 7. General FAQ query
+      if (q.includes('faq') || q.includes('help') || q.includes('question') || q.includes('rule') || q.includes('ayuda') || q.includes('pregunta') || q.includes('regla') || q.includes('aide') || q.includes('foire aux questions')) {
+        if (isEs) {
+          return {
+            spokenText: "He abierto nuestro Centro de Preguntas Frecuentes. Incluye guías sobre grupos de ahorro, recompensas del 3% para creadores, custodia autónoma por IA, seguro FDIC y campañas para embajadores.",
+            displayText: "### 📚 Centro de Preguntas Frecuentes (FAQ)\n\nHe abierto el Centro de Conocimiento de MutualPool. Puedes explorar:\n- **Conceptos Básicos y Tandas (ROSCAs)**\n- **Recompensas del Creador (3%)**\n- **Depósitos, Desembolsos y Tarifas (10%)**\n- **Custodia Autónoma por Lainie AI y Escrow del Sistema**\n- **Seguridad FDIC ($250,000) y Verificación KYC**\n- **Campañas de Embajadores de Marca**",
+            suggestedActions: [
+              { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Reglas de la Plataforma", action: "OPEN_MODAL", modal: "HOW_IT_WORKS" },
+              { label: "Contactar Soporte", action: "OPEN_MODAL", modal: "CONTACT" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "J'ai ouvert notre Centre de FAQ. Vous y trouverez toutes les réponses sur les groupes d'épargne, la prime créateur de 3%, la gardienne IA, la protection FDIC et les campagnes de marque.",
+            displayText: "### 📚 Centre de Foire Aux Questions (FAQ)\n\nConsultez notre base de connaissances complète :\n- **Principes de Base & Tontines (ROSCAs)**\n- **Primes d'Hôte Créateur (3%)**\n- **Dépôts, Versements & Frais (10%)**\n- **Gardienne IA Autonome & Entiercement du Système**\n- **Sécurité FDIC (250 000 $) & Vérification KYC**\n- **Campagnes Ambassadeurs & Équipements**",
+            suggestedActions: [
+              { label: "Ouvrir la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Règles de la Plateforme", action: "OPEN_MODAL", modal: "HOW_IT_WORKS" },
+              { label: "Contacter le Support", action: "OPEN_MODAL", modal: "CONTACT" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        return {
+          spokenText: "I've opened our FAQ Knowledge Base for you. It covers savings pod mechanics, 3% creator rewards, Autonomous AI Custodianship, FDIC insurance, and brand ambassador shifts.",
+          displayText: "### 📚 FAQ Knowledge Base\n\nI've opened the full Knowledge Base. You can explore:\n- **Basics & Rotating Savings Pods (ROSCAs)**\n- **Creator Host Rewards (3% Stewardship)**\n- **Deposits, Payouts & Platform Fees (10%)**\n- **Autonomous AI Custodian (Lainie AI) & System Escrow**\n- **FDIC Insurance ($250,000) & KYC Security**\n- **Brand Ambassador Campaigns & Vision Verification**",
+          suggestedActions: [
+            { label: "Open Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "View Rules", action: "OPEN_MODAL", modal: "HOW_IT_WORKS" },
+            { label: "Contact Support", action: "OPEN_MODAL", modal: "CONTACT" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      }
+
       if (q.includes('swap') || q.includes('spot') || q.includes('trade') || q.includes('turn') || q.includes('turno') || q.includes('intercamb') || q.includes('tour') || q.includes('échange')) {
         if (isEs) {
           return {
@@ -4666,11 +4917,11 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         };
       }
 
-      if (q.includes('campaign') || q.includes('advertiser') || q.includes('wrap') || q.includes('brand') || q.includes('shift') || q.includes('publicidad') || q.includes('embajador') || q.includes('vehículo') || q.includes('campagne') || q.includes('publicité') || q.includes('ambassadeur')) {
+      if (q.includes('campaign') || q.includes('advertiser') || q.includes('wrap') || q.includes('brand') || q.includes('shift') || q.includes('hoodie') || q.includes('publicidad') || q.includes('embajador') || q.includes('vehículo') || q.includes('campagne') || q.includes('publicité') || q.includes('ambassadeur')) {
         if (isEs) {
           return {
-            spokenText: "Con el programa de Embajadores de Marca, los conductores ganan dinero extra llevando publicidad verificada en su vehículo durante sus turnos de entrega.",
-            displayText: "### 🚗 Campañas de Publicidad y Embajadores de Marca\n\n- Gana de $50 a $150/semana adicionales a tus ingresos de reparto.\n- Registra tus turnos con verificación GPS y fotografía.\n- Depósito directo a tu cuenta protegida por Stripe Treasury.",
+            spokenText: "Con el programa de Embajadores de Marca, los conductores ganan dinero extra llevando indumentaria o publicidad verificada durante sus turnos de entrega, con verificación por IA Vision.",
+            displayText: "### 🚗 Campañas de Publicidad y Embajadores de Marca\n\n- Gana de **$55 a $75/día** adicionales a tus ingresos de reparto.\n- Recibe sudaderas y bolsas térmicas oficiales gratuitas de la marca.\n- Hasta **$50/mes de descuento** en tus aportes a grupos de ahorro.\n- Verificación de turnos por IA Vision (selfie) y seguimiento GPS.",
             suggestedActions: [
               { label: "Ver Campañas Activas", action: "NAVIGATE_TAB", tab: "campaigns" },
               { label: "Portal de Anunciantes", action: "OPEN_ADVERTISER" }
@@ -4680,8 +4931,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Grâce au programme Ambassadeur de Marque, les chauffeurs gagnent un revenu supplémentaire en affichant une publicité sur leur véhicule pendant leurs livraisons.",
-            displayText: "### 🚗 Campagnes Publicitaires Véhicule & Ambassadeurs\n\n- Gagnez 50$ à 150$/semaine en plus de vos courses habituelles.\n- Validez vos créneaux avec géolocalisation et photo.\n- Versement direct sur votre compte Stripe Treasury.",
+            spokenText: "Grâce au programme Ambassadeur de Marque, les chauffeurs gagnent 55$ à 75$/jour en portant les équipements de la marque partenaire, validés par IA Vision.",
+            displayText: "### 🚗 Campagnes Publicitaires Véhicule & Ambassadeurs\n\n- Gagnez **55$ à 75$/jour** en supplément de vos livraisons habituelles.\n- Équipements premium gratuits (sweats, sacs isothermes).\n- Jusqu'à **50$/mois de réduction** sur vos cotisations d'épargne.\n- Validation instantanée par IA Vision (selfie) et GPS.",
             suggestedActions: [
               { label: "Voir les Campagnes", action: "NAVIGATE_TAB", tab: "campaigns" },
               { label: "Portail Annonceurs", action: "OPEN_ADVERTISER" }
@@ -4690,8 +4941,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "Through our Brand Ambassador program, gig drivers earn extra income by displaying verified vehicle wraps or apparel during active delivery shifts. Payouts deposit directly into your Treasury.",
-          displayText: "### 🚗 Brand Ambassador & Vehicle Wrap Campaigns\n\n- Earn $50-$150/week on top of your delivery earnings.\n- Check in for shifts with GPS and photo verification.\n- Direct deposit straight to your FDIC pass-through Treasury balance.",
+          spokenText: "Through our Brand Ambassador program, gig drivers earn an extra $55 to $75 per day by displaying sponsor apparel or vehicle gear during shifts, verified with AI Vision and GPS.",
+          displayText: "### 🚗 Brand Ambassador & Sponsor Campaigns\n\n- Earn **$55-$75/day** in supplemental daily earnings.\n- Receive free premium sponsor apparel (weatherproof hoodies, insulated delivery bags).\n- Get up to **$50/month off** your weekly Pod deposits.\n- Shift verification powered by multimodal AI Vision selfies and GPS tracking.",
           suggestedActions: [
             { label: "View Active Campaigns", action: "NAVIGATE_TAB", tab: "campaigns" },
             { label: "Advertiser Portal", action: "OPEN_ADVERTISER" }
@@ -4767,12 +5018,12 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
 
       if (isEs) {
         return {
-          spokenText: `¡Hola ${userName}! Soy Lainie, tu Guía de IA de MutualPool. Pregúntame sobre cómo funcionan los grupos de ahorro, cómo intercambiar turnos, acceder a ventajas para repartidores o ganar dinero con publicidad en vehículos.`,
-          displayText: `### 🎙️ Asistente de Voz Lainie AI\n\nPuedo orientarte en todas las funciones:\n- **Grupos de Ahorro Rotativo** (Círculos de Confianza vs Grupos Abiertos)\n- **Intercambio de Turnos de Cobro**\n- **Mercado de Ventajas** (Descuentos en talleres, gasolina, impuestos)\n- **Campañas para Embajadores de Marca** (Gana mientras conduces)\n- **Cuenta Stripe Treasury y Protección FDIC**`,
+          spokenText: `¡Hola ${userName}! Soy Lainie, tu Guía de IA de MutualPool. Pregúntame sobre cómo funcionan los grupos de ahorro, recompensas del 3% para creadores, custodia autónoma, seguro FDIC o consulta la FAQ.`,
+          displayText: `### 🎙️ Asistente de Voz Lainie AI (Base de Conocimiento FAQ)\n\nPuedo orientarte en todas las funciones:\n- **Grupos de Ahorro Rotativo (Tandas / Susu)** (0% interés, sin deudas)\n- **Recompensas del Creador (3%) y Compromiso Real (Skin-in-the-Game)**\n- **Custodia Autónoma por IA y Depósitos en Custodia del Sistema**\n- **Cuentas Stripe Treasury y Seguro FDIC ($250,000)**\n- **Mercado de Ventajas y Campañas de Embajadores**`,
           suggestedActions: [
-            { label: "¿Cómo funciona la rotación fija?", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la rotación fija?" },
-            { label: "Explorar Grupos", action: "NAVIGATE_TAB", tab: "explore-pods" },
-            { label: "Ver Ventajas", action: "NAVIGATE_TAB", tab: "perks" }
+            { label: "¿Es MutualPool un préstamo?", action: "SPEAK_EXPLANATION", prompt: "¿Es MutualPool un préstamo o tarjeta de crédito?" },
+            { label: "Recompensa del Creador 3%", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la recompensa de anfitrión del 3%?" },
+            { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" }
           ],
           navigationAction: null
         };
@@ -4780,24 +5031,24 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
 
       if (isFr) {
         return {
-          spokenText: `Bonjour ${userName} ! Je suis Lainie, votre Guide IA MutualPool. Posez-moi des questions sur les groupes d'épargne, les échanges de tours, les avantages ou les campagnes publicitaires sur véhicule.`,
-          displayText: `### 🎙️ Assistant Vocal Lainie AI\n\nJe peux vous guider sur l'ensemble des fonctionnalités :\n- **Groupes d'Épargne Rotative** (Cercles de Confiance vs Groupes Ouverts)\n- **Échanges de Tours de Versement**\n- **Espace Avantages Travailleurs Gig** (Réductions réparations, carburant, impôts)\n- **Campagnes Ambassadeurs de Marque** (Gagnez en roulant)\n- **Compte Stripe Treasury & Garantie FDIC**`,
+          spokenText: `Bonjour ${userName} ! Je suis Lainie, votre Guide IA MutualPool. Posez-moi des questions sur les groupes d'épargne, la prime créateur de 3%, la gardienne IA, la protection FDIC ou consultez la FAQ.`,
+          displayText: `### 🎙️ Assistant Vocal Lainie AI (Base de Connaissances FAQ)\n\nJe peux vous guider sur l'ensemble des fonctionnalités :\n- **Groupes d'Épargne Rotative (Tontines / Susu)** (0% intérêt, sans dette)\n- **Primes d'Hôte Créateur (3%) & Engagement Garanti (Skin-in-the-Game)**\n- **Gardienne IA Autonome (Lainie) & Entiercement du Système**\n- **Comptes Stripe Treasury & Garantie FDIC (250 000 $)**\n- **Espace Avantages & Campagnes Ambassadeurs**`,
           suggestedActions: [
-            { label: "Comment fonctionne la rotation ?", action: "SPEAK_EXPLANATION", prompt: "Comment fonctionne la rotation fixe ?" },
-            { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" },
-            { label: "Voir les Avantages", action: "NAVIGATE_TAB", tab: "perks" }
+            { label: "Est-ce un prêt bancaire ?", action: "SPEAK_EXPLANATION", prompt: "MutualPool est-il un prêt bancaire ou une dette ?" },
+            { label: "Prime Créateur 3%", action: "SPEAK_EXPLANATION", prompt: "Comment fonctionne la prime d'hôte de 3% pour le créateur ?" },
+            { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
           ],
           navigationAction: null
         };
       }
 
       return {
-        spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. You can ask me how savings pods work, how to swap payout spots, how to access gig worker perks, or how to earn with vehicle wrap campaigns.`,
-        displayText: `### 🎙️ MutualPool Voice Assistant\n\nI can help guide you through every feature:\n- **Rotating Savings Pods** (Trusted Circles vs Open Pods)\n- **Spot Swaps & Payout Rotations**\n- **Gig Perks Marketplace** (Discounts on repair, gas, tax prep)\n- **Brand Ambassador Campaigns** (Earn while driving)\n- **Stripe Treasury & FDIC Pass-Through Account**`,
+        spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about how savings pods work, the 3% Creator Host Reward, our Autonomous AI Custodian, FDIC insurance, or explore our FAQ!`,
+        displayText: `### 🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n- **Rotating Savings Pods (ROSCAs / Susu / Tandas)** (0% interest, no loan debt)\n- **Creator Host Rewards (3%) & Skin-in-the-Game Guarantee**\n- **Autonomous AI Custodian Protocol (Lainie) & System Escrow**\n- **Stripe Treasury & FDIC Pass-Through Insurance ($250,000)**\n- **Transparent Fees (5% Setup / 10% Payout Service Fee)**\n- **Brand Ambassador Earnings & Vision Verification**`,
         suggestedActions: [
-          { label: "How does fixed rotation work?", action: "SPEAK_EXPLANATION", prompt: "How does fixed rotation work?" },
-          { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" },
-          { label: "Browse Perks", action: "NAVIGATE_TAB", tab: "perks" }
+          { label: "Is MutualPool a loan?", action: "SPEAK_EXPLANATION", prompt: "Is MutualPool a loan, credit card, or debt?" },
+          { label: "3% Creator Host Reward", action: "SPEAK_EXPLANATION", prompt: "How does the 3% Creator Host Stewardship Reward work?" },
+          { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
         ],
         navigationAction: null
       };
@@ -4814,37 +5065,68 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       ? 'MANDATORY LANGUAGE: The user\'s interface language is French (Français). You MUST generate "spokenText", "displayText", and "suggestedActions[].label" completely in French.'
       : 'MANDATORY LANGUAGE: The user\'s interface language is English. Respond in English.';
 
-    const systemInstruction = `You are "Lainie", the intelligent, friendly on-screen Voice AI Guide for MutualPool (mutualpool.org).
-MutualPool is a collaborative savings and gig economy perks platform built for 1099 couriers, rideshare drivers, and independent workers.
+    const systemInstruction = `You are "Lainie", the intelligent, friendly, and highly knowledgeable on-screen Voice AI Guide for MutualPool (mutualpool.org).
+MutualPool is a collaborative savings and gig economy perks platform built for 1099 couriers, rideshare drivers, and independent gig workers.
+You are directly wired to the comprehensive MutualPool FAQ Knowledge Base.
 
 ${languageInstruction}
 
-Key platform concepts:
-1. Rotating Savings Pods (ROSCAs / Tandas / Susu):
-   - Members contribute a fixed amount weekly (e.g., $50/wk).
-   - Every week, one member receives the full lump-sum pool (e.g., $500 for a 10-person pod).
-   - Trusted Circle Pods: Invite-only for friends, family, or close driver circles.
-   - Open Pods: Public matching for KYC-verified gig workers with reputation scores.
-2. Spot Swaps:
-   - Members can trade payout rotation slots peer-to-peer if an unexpected expense arises.
-   - Requires mutual approval from both parties.
-3. Gig Perks Marketplace:
-   - Exclusive merchant discounts on tires, oil changes (Meineke, Jiffy Lube), roadside assistance, tax filing (TurboTax 1099), and healthcare.
-4. Brand Ambassador Campaigns:
-   - Gig drivers earn supplemental income ($50-$150/week) by displaying sponsor car wraps or apparel during active delivery shifts.
-5. Stripe Treasury:
-   - FDIC pass-through eligible account up to $250,000 holding pooled deposits and instant payouts.
-6. Hardship Fund:
-   - Community emergency protection to cover a deposit during mechanical breakdowns.
+====================================================
+MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
+====================================================
 
-Instructions for your response:
-- Keep "spokenText" concise, conversational, and natural (1-3 sentences) suitable for natural speech synthesis. Avoid markdown symbols in spokenText.
-- Provide clear markdown formatting in "displayText" for the visual transcript.
+1. CATEGORY: BASICS & ROSCAs (TANDAS / SUSU / PARDNA / ARISAN)
+- What is MutualPool? A modernized peer-to-peer Rotating Savings and Credit Association (ROSCA) for gig workers.
+- How Pods Work: Members contribute a fixed weekly deposit (e.g. $20/wk). Each week, one member receives the full collective lump-sum pot (e.g., $400 gross / $360 net for 20 members). Over 20 weeks, all 20 members receive one full lump sum.
+- 0% Interest, 0 Debt, No Credit Checks: MutualPool is NOT a loan, credit card, or bank. There is zero compounding interest, no predatory APR, and no credit score checks.
+- Trusted Circles vs Open Pods:
+  * Trusted Circles (Private): Invite-only for friends, family, or close delivery hub crews via private invite link/code.
+  * Open Pods (Public): Open to all KYC-verified drivers across the network. Creators must have completed 1 full cycle with 100% on-time record to host an Open Pod.
+
+2. CATEGORY: CREATOR HOST REWARDS & SKIN-IN-THE-GAME
+- Skin-in-the-Game Guarantee: The Pod Creator is architecturally pinned to the FINAL rotation slot (Turn #N). This prevents early cash-out fraud and aligns incentives.
+- 3% Host Stewardship Reward: In exchange for hosting and taking the last slot, the Creator earns 3% on every teammate payout (e.g., $12/payout on a $400 pool = $228 in cumulative passive rewards on a 20-member pod), credited directly to their Stripe Treasury balance.
+- Invite Window & Flexible Early Launch:
+  * Invite Windows: 3, 7, 14, or 30 days. Creators choose to auto-open vacant slots to the public or keep waiting upon expiration.
+  * Flexible Early Launch: Creators can launch as soon as 2 or more members join without waiting for all 20 slots. Payouts scale dynamically.
+
+3. CATEGORY: DEPOSITS, PAYOUTS & TRANSPARENT FEES
+- Deposit Collection: Collected weekly via Stripe Treasury balance, Linked Bank ACH (Plaid/Financial Connections), or offset by Brand Campaign daily courier wages.
+- Payout Execution: Net lump sum (90%) is transferred directly into recipient's Stripe Treasury account. Instant OutboundTransfer to external bank. Subsequent rotation weeks NEVER wait or block for bank withdrawals.
+- Fee Structure:
+  * 5% Initial Deposit Fee: Applied only on the 1st deposit to initialize the FDIC-insured Stripe Treasury account.
+  * 10% Payout Service Fee: Deducted on payout (e.g. $40 on $400 pot = $360 net payout). 3% goes to Pod Creator as Host Reward; 7% goes to Platform Treasury, First-Cycle buffer, and FDIC compliance.
+
+4. CATEGORY: AUTONOMOUS AI CUSTODIAN & SYSTEM ESCROW
+- Autonomous AI Custodian Protocol (Lainie AI): If a Creator defaults or experiences hardship, Lainie AI automatically takes over pod administration with zero administrative burden on members. Creator forfeits the 3% reward, which is redirected to the System Escrow.
+- System Deposits Escrow Account: Platform central liquidity reserve that advances weekly deposits for vacant slots or missed payments so rotation recipients always receive 100% full payout on time.
+- Delinquent Member Replacement: After a 72-hour grace period, unpaid slots are opened to verified replacement drivers.
+- Hardship Relief Fund: Emergency bridge protection for members facing vehicle mechanical breakdowns or medical emergencies.
+
+5. CATEGORY: SECURITY, FDIC INSURANCE & KYC VERIFICATION
+- FDIC Pass-Through Insurance: Dedicated Stripe Treasury accounts held at FDIC-insured partner institutions (such as Evolve Bank & Trust or Fifth Third Bank) with pass-through insurance up to $250,000 per member.
+- Stripe Identity KYC: Required under Bank Secrecy Act / AML regulations to prevent duplicate accounts and fraud.
+- Peer Rotation Slot Swaps: Members can request peer-to-peer payout slot swaps with mutual approval and zero fees.
+
+6. CATEGORY: BRAND AMBASSADOR SPONSORSHIP CAMPAIGNS
+- Extra Supplemental Earnings: Couriers earn $55-$75/day in daily wages for displaying sponsor apparel/gear during active shifts.
+- Free Apparel & Gear: Approved drivers get premium weatherproof hoodies and insulated bags.
+- Pod Deposit Discounts: Ambassadors receive up to $50/month off weekly pod contributions.
+- AI Vision & GPS Verification: Shift check-in verified via multimodal camera selfie and GPS route logging.
+
+7. CATEGORY: GIG PERKS MARKETPLACE
+- Merchant Discounts: Savings on tires, oil changes (Meineke, Jiffy Lube), emergency roadside towing, TurboTax 1099 filing, and telehealth.
+
+====================================================
+RESPONSE GUIDELINES:
+====================================================
+- "spokenText": Concise, conversational, warm, and natural (1-3 sentences) suitable for text-to-speech audio. DO NOT include markdown symbols or URLs in spokenText.
+- "displayText": Clear, professional markdown formatting with bold headers and bullet points for the visual transcript.
 - If the user's intent is to view or do something in the app, specify "navigationAction":
   - {"type": "NAVIGATE_TAB", "target": "my-pods" | "explore-pods" | "perks" | "campaigns" | "audit-log" | "admin-ops"}
-  - {"type": "OPEN_MODAL", "target": "CREATE_POD" | "KYC" | "BANK" | "HARDSHIP" | "ABOUT" | "HOW_IT_WORKS" | "CONTACT"}
+  - {"type": "OPEN_MODAL", "target": "FAQ" | "CREATE_POD" | "KYC" | "BANK" | "HARDSHIP" | "ABOUT" | "HOW_IT_WORKS" | "CONTACT"}
   - {"type": "OPEN_ADVERTISER"}
-- Provide 2-3 helpful "suggestedActions" pills for one-tap follow-ups (in the user's selected language: ${lang}).
+- Provide 2-3 helpful "suggestedActions" pills for one-tap follow-ups in the user's language (${lang}).
 
 Current user context:
 - User Name: ${userName}
@@ -4885,29 +5167,29 @@ Output MUST be strictly valid JSON matching this schema:
     console.error('Error generating voice guide response:', err);
     const lang = req.body?.currentContext?.language || 'en';
     const fallback = (lang === 'es') ? {
-      spokenText: "Estoy aquí para ayudarte a usar MutualPool. Puedes explorar grupos de ahorro activos, descubrir ventajas para repartidores o crear tu propio grupo.",
-      displayText: "### 🎙️ Asistente de Voz Lainie AI\n\nPuedo ayudarte con:\n- **Grupos de Ahorro y Turnos de Cobro**\n- **Mercado de Ventajas y Beneficios**\n- **Ganancias como Embajador de Marca**\n- **Cuentas Stripe Treasury y Seguro FDIC**",
+      spokenText: "Estoy aquí para ayudarte a usar MutualPool con nuestra Base de Conocimiento FAQ. Pregúntame sobre tandas, recompensas de creador, custodia por IA, seguro FDIC o abre la FAQ.",
+      displayText: "### 🎙️ Asistente de Voz Lainie AI\n\nPuedo ayudarte con cualquier consulta de nuestra Base de Conocimiento FAQ:\n- **Grupos de Ahorro y Turnos de Cobro**\n- **Recompensas del Creador (3%)**\n- **Custodia Autónoma por IA y Escrow**\n- **Cuentas Stripe Treasury y Seguro FDIC**",
       suggestedActions: [
-        { label: "Explorar Grupos de Ahorro", action: "NAVIGATE_TAB", tab: "explore-pods" },
-        { label: "Ver Ventajas", action: "NAVIGATE_TAB", tab: "perks" }
+        { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
+        { label: "Explorar Grupos de Ahorro", action: "NAVIGATE_TAB", tab: "explore-pods" }
       ],
-      navigationAction: null
+      navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
     } : (lang === 'fr') ? {
-      spokenText: "Je suis là pour vous aider à utiliser MutualPool. Vous pouvez explorer les groupes d'épargne actifs, découvrir les avantages ou créer votre propre groupe.",
-      displayText: "### 🎙️ Assistant Vocal Lainie AI\n\nJe peux vous guider sur :\n- **Groupes d'Épargne & Rotations**\n- **Espace Avantages Travailleurs Gig**\n- **Rémunération Ambassadeurs de Marque**\n- **Comptes Stripe Treasury & Protection FDIC**",
+      spokenText: "Je suis là pour vous guider grâce à notre Base de Connaissances FAQ. Posez-moi des questions sur les tontines, la prime créateur de 3%, la gardienne IA ou ouvrez la FAQ.",
+      displayText: "### 🎙️ Assistant Vocal Lainie AI\n\nJe peux répondre à toutes vos questions depuis la FAQ :\n- **Groupes d'Épargne & Rotations**\n- **Primes d'Hôte Créateur (3%)**\n- **Gardienne IA Autonome & Entiercement**\n- **Comptes Stripe Treasury & Protection FDIC**",
       suggestedActions: [
-        { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" },
-        { label: "Voir les Avantages", action: "NAVIGATE_TAB", tab: "perks" }
+        { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+        { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
       ],
-      navigationAction: null
+      navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
     } : {
-      spokenText: "I'm here to help you navigate MutualPool. You can explore active savings pods, check out merchant perks, or start your own pool anytime.",
-      displayText: "### 🎙️ MutualPool Voice Assistant\n\nI can help guide you through:\n- **Savings Pods & Payout Rotations**\n- **Gig Perks Marketplace**\n- **Brand Ambassador Earnings**\n- **Stripe Treasury & FDIC Accounts**",
+      spokenText: "I'm here to help you using the MutualPool FAQ Knowledge Base. You can ask me about savings pods, 3% creator rewards, Autonomous AI Custodianship, FDIC insurance, or open the FAQ.",
+      displayText: "### 🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI can answer any question from our Knowledge Base:\n- **Rotating Savings Pods & Spot Swaps**\n- **3% Creator Host Rewards & Skin-in-the-Game**\n- **Autonomous AI Custodian & System Escrow**\n- **Stripe Treasury & FDIC Pass-Through ($250,000)**",
       suggestedActions: [
-        { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" },
-        { label: "Browse Perks", action: "NAVIGATE_TAB", tab: "perks" }
+        { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+        { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
       ],
-      navigationAction: null
+      navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
     };
     res.json(fallback);
   }

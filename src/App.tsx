@@ -1947,6 +1947,9 @@ export default function App() {
         onClose={() => setShowFaqModal(false)}
         onOpenContact={() => setShowContactModal(true)}
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+        onOpenVoiceGuide={() => {
+          window.dispatchEvent(new CustomEvent('open-voice-agent'));
+        }}
       />
 
       <ContactUsModal
@@ -2071,6 +2074,7 @@ export default function App() {
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
         onOpenContact={() => setShowContactModal(true)}
         onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
+        onOpenFaq={() => setShowFaqModal(true)}
       />
 
       {/* Real-time in-app chat drawer & floating button - only for authenticated members in dashboard */}

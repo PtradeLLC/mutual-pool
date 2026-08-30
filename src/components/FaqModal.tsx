@@ -12,6 +12,7 @@ interface FaqModalProps {
   onClose: () => void;
   onOpenContact?: () => void;
   onOpenHowItWorks?: () => void;
+  onOpenVoiceGuide?: () => void;
   initialCategory?: string;
 }
 
@@ -39,6 +40,7 @@ export const FaqModal: React.FC<FaqModalProps> = ({
   onClose,
   onOpenContact,
   onOpenHowItWorks,
+  onOpenVoiceGuide,
   initialCategory = 'ALL'
 }) => {
   const { t } = useTranslation();
@@ -598,12 +600,25 @@ export const FaqModal: React.FC<FaqModalProps> = ({
         {/* Footer Support Banner */}
         <div className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="space-y-0.5 text-center sm:text-left">
-            <div className="font-bold text-slate-900">Still have questions?</div>
+            <div className="font-bold text-slate-900 flex items-center gap-1.5 justify-center sm:justify-start">
+              <span>Still have questions?</span>
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-semibold">24/7 AI & Support</span>
+            </div>
             <p className="text-slate-600 text-[11px]">
-              Our driver support fleet team and Voice AI Assistant are available 24/7.
+              {t('voiceAgent.askLainieFaqBanner') || 'Need immediate voice answers? Ask Lainie AI Voice Guide — fully trained on this entire FAQ knowledge base.'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {onOpenVoiceGuide && (
+              <button
+                type="button"
+                onClick={() => { onClose(); onOpenVoiceGuide(); }}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>Ask Lainie AI</span>
+              </button>
+            )}
             {onOpenHowItWorks && (
               <button
                 type="button"
