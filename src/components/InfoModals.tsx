@@ -655,3 +655,5 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
     </div>
   );
 };
+
+export { FaqModal } from './FaqModal';

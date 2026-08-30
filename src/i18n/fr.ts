@@ -5,6 +5,7 @@ export const fr: Record<TranslationKey, string> = {
   'nav.logoTagline': 'Nous mutualisons. Nous progressons. Nous livrons.',
   'nav.about': 'À propos',
   'nav.rules': 'Règles',
+  'nav.faq': 'FAQ',
   'nav.contact': 'Contact',
   'nav.advertise': 'Annoncez avec nous',
   'nav.advertiseShort': 'Publicité',
@@ -694,6 +695,7 @@ export const fr: Record<TranslationKey, string> = {
   // Footer & Notices
   'footer.allRightsReserved': 'Chris Bitoye Ventures. Tous droits réservés.',
   'footer.howItWorksAndRules': 'Comment Ça Marche & Règles',
+  'footer.faq': 'FAQ',
   'footer.rights': 'Tous droits réservés.',
   'footer.fdicNotice': 'Les fonds des cycles d’épargne actifs de MutualPool sont conservés en fiducie auprès d’institutions partenaires assurées par la FDIC (garantie indirecte jusqu’à 250 000 $ par membre). MutualPool est une plateforme de technologie financière, pas une banque.',
   'footer.privacy': 'Politique de Confidentialité',

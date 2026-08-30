@@ -24,6 +24,7 @@ const EditProfileModal = lazy(() => import('./components/EditProfileModal').then
 const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.AboutUsModal })));
 const HowItWorksModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
 const ContactUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
+const FaqModal = lazy(() => import('./components/FaqModal').then((module) => ({ default: module.FaqModal })));
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const CampaignsPage = lazy(() => import('./components/CampaignsPage').then((module) => ({ default: module.CampaignsPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
@@ -43,7 +44,7 @@ import {
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
   Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil,
-  HeartHandshake, DollarSign, AlertTriangle, ExternalLink
+  HeartHandshake, DollarSign, AlertTriangle, ExternalLink, HelpCircle
 } from 'lucide-react';
 import { useTranslation } from './i18n';
 
@@ -363,6 +364,7 @@ export default function App() {
   const [authInitialMode, setAuthInitialMode] = useState<'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE'>('LOGIN');
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
+  const [showFaqModal, setShowFaqModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
   const [showKycModal, setShowKycModal] = useState(false);
@@ -1215,6 +1217,7 @@ export default function App() {
             onLogout={handleLogout}
             onOpenAbout={() => setShowAboutModal(true)}
             onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+            onOpenFaq={() => setShowFaqModal(true)}
             onOpenContact={() => setShowContactModal(true)}
             onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
             onOpenSubmitPerk={() => {
@@ -1246,6 +1249,13 @@ export default function App() {
           <HowItWorksModal
             isOpen={showHowItWorksModal}
             onClose={() => setShowHowItWorksModal(false)}
+          />
+
+          <FaqModal
+            isOpen={showFaqModal}
+            onClose={() => setShowFaqModal(false)}
+            onOpenContact={() => setShowContactModal(true)}
+            onOpenHowItWorks={() => setShowHowItWorksModal(true)}
           />
 
           <ContactUsModal
@@ -1388,6 +1398,7 @@ export default function App() {
         onExitToLanding={() => setViewMode('LANDING')}
         onOpenAbout={() => setShowAboutModal(true)}
         onOpenHowItWorks={() => setShowHowItWorksModal(true)}
+        onOpenFaq={() => setShowFaqModal(true)}
         onOpenContact={() => setShowContactModal(true)}
         onLogout={handleLogout}
         onOpenKycModal={() => setShowKycModal(true)}
@@ -1783,6 +1794,24 @@ export default function App() {
       <footer className="bg-white border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280] mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>{t('dash.allRightsReserved')}</span>
+          <div className="flex items-center gap-4 text-xs font-medium">
+            <button onClick={() => setShowAboutModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              {t('nav.about')}
+            </button>
+            <span>•</span>
+            <button onClick={() => setShowHowItWorksModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              {t('nav.rules')}
+            </button>
+            <span>•</span>
+            <button onClick={() => setShowFaqModal(true)} className="hover:text-[#005FB8] font-bold text-[#005FB8] transition-colors cursor-pointer flex items-center gap-1">
+              <HelpCircle className="w-3.5 h-3.5 text-[#005FB8]" />
+              <span>{t('nav.faq')}</span>
+            </button>
+            <span>•</span>
+            <button onClick={() => setShowContactModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              {t('nav.contact')}
+            </button>
+          </div>
           <span>{t('dash.fdicInsuredFooter')}</span>
         </div>
       </footer>
@@ -1911,6 +1940,13 @@ export default function App() {
       <HowItWorksModal
         isOpen={showHowItWorksModal}
         onClose={() => setShowHowItWorksModal(false)}
+      />
+
+      <FaqModal
+        isOpen={showFaqModal}
+        onClose={() => setShowFaqModal(false)}
+        onOpenContact={() => setShowContactModal(true)}
+        onOpenHowItWorks={() => setShowHowItWorksModal(true)}
       />
 
       <ContactUsModal

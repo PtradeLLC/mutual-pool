@@ -50,6 +50,7 @@ interface LandingPageProps {
   onLogout?: () => void;
   onOpenAbout?: () => void;
   onOpenHowItWorks?: () => void;
+  onOpenFaq?: () => void;
   onOpenContact?: () => void;
   onOpenSubmitPerk?: () => void;
   onOpenAdvertiser?: () => void;
@@ -64,6 +65,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onLogout,
   onOpenAbout,
   onOpenHowItWorks,
+  onOpenFaq,
   onOpenContact,
   onOpenSubmitPerk,
   onOpenAdvertiser,
@@ -1189,6 +1191,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <span>•</span>
             <button onClick={onOpenHowItWorks} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('footer.howItWorksAndRules')}
+            </button>
+            <span>•</span>
+            <button onClick={onOpenFaq} className="hover:text-[#005FB8] font-bold text-[#005FB8] transition-colors cursor-pointer flex items-center gap-1">
+              <HelpCircle className="w-3.5 h-3.5 text-[#005FB8]" />
+              <span>{t('footer.faq')}</span>
             </button>
             <span>•</span>
             <button onClick={onOpenContact} className="hover:text-[#005FB8] transition-colors cursor-pointer">

@@ -27,6 +27,7 @@ interface HeaderProps {
   onExitToLanding?: () => void;
   onOpenAbout?: () => void;
   onOpenHowItWorks?: () => void;
+  onOpenFaq?: () => void;
   onOpenContact?: () => void;
   onLogout?: () => void;
   onOpenKycModal?: () => void;
@@ -51,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   onExitToLanding,
   onOpenAbout,
   onOpenHowItWorks,
+  onOpenFaq,
   onOpenContact,
   onLogout,
   onOpenKycModal,
@@ -414,8 +416,19 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onOpenHowItWorks}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
             >
-              {t('nav.howItWorks')}
+              {t('nav.rules')}
             </button>
+            {onOpenFaq && (
+              <>
+                <span className="text-gray-300">•</span>
+                <button
+                  onClick={onOpenFaq}
+                  className="text-[#005FB8] font-bold hover:underline transition-colors py-1 px-1.5 rounded flex items-center gap-1"
+                >
+                  <span>{t('nav.faq')}</span>
+                </button>
+              </>
+            )}
             <span className="text-gray-300">•</span>
             <button
               onClick={onOpenContact}

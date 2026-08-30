@@ -5,6 +5,7 @@ export const es: Record<TranslationKey, string> = {
   'nav.logoTagline': 'Ahorramos. Crecemos. Entregamos.',
   'nav.about': 'Acerca de',
   'nav.rules': 'Reglas',
+  'nav.faq': 'FAQ',
   'nav.contact': 'Contacto',
   'nav.advertise': 'Anúnciate con Nosotros',
   'nav.advertiseShort': 'Publicidad',
@@ -694,6 +695,7 @@ export const es: Record<TranslationKey, string> = {
   // Footer & Notices
   'footer.allRightsReserved': 'Chris Bitoye Ventures. Todos los derechos reservados.',
   'footer.howItWorksAndRules': 'Cómo Funciona y Reglas',
+  'footer.faq': 'Preguntas Frecuentes',
   'footer.rights': 'Todos los derechos reservados.',
   'footer.fdicNotice': 'Los fondos en ciclos de ahorro activos de MutualPool se mantienen en fideicomiso en instituciones asociadas aseguradas por la FDIC (cobertura indirecta de hasta $250,000 por miembro). MutualPool es una plataforma de tecnología financiera, no un banco.',
   'footer.privacy': 'Política de Privacidad',
