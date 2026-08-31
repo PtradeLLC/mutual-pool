@@ -4920,8 +4920,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       if (q.includes('campaign') || q.includes('advertiser') || q.includes('wrap') || q.includes('brand') || q.includes('shift') || q.includes('hoodie') || q.includes('publicidad') || q.includes('embajador') || q.includes('vehículo') || q.includes('campagne') || q.includes('publicité') || q.includes('ambassadeur')) {
         if (isEs) {
           return {
-            spokenText: "Con el programa de Embajadores de Marca, los conductores ganan dinero extra llevando indumentaria o publicidad verificada durante sus turnos de entrega, con verificación por IA Vision.",
-            displayText: "### 🚗 Campañas de Publicidad y Embajadores de Marca\n\n- Gana de **$55 a $75/día** adicionales a tus ingresos de reparto.\n- Recibe sudaderas y bolsas térmicas oficiales gratuitas de la marca.\n- Hasta **$50/mes de descuento** en tus aportes a grupos de ahorro.\n- Verificación de turnos por IA Vision (selfie) y seguimiento GPS.",
+            spokenText: "Con el programa de Embajadores de Marca, los conductores reciben pagos diarios de $55 a $75 por participar en campañas seleccionadas e indumentaria verificada con IA Vision.",
+            displayText: "### 🚗 Campañas de Publicidad y Embajadores de Marca\n\n- Pagos diarios garantizados de **$55 a $75/día** según las campañas seleccionadas en las que participes.\n- Recibe sudaderas y bolsas térmicas oficiales gratuitas de la marca asociada.\n- Abono diario directo a tu cuenta Stripe Treasury tras verificar el turno.\n- Verificación de turnos por IA Vision (selfie) y seguimiento GPS.",
             suggestedActions: [
               { label: "Ver Campañas Activas", action: "NAVIGATE_TAB", tab: "campaigns" },
               { label: "Portal de Anunciantes", action: "OPEN_ADVERTISER" }
@@ -4931,8 +4931,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Grâce au programme Ambassadeur de Marque, les chauffeurs gagnent 55$ à 75$/jour en portant les équipements de la marque partenaire, validés par IA Vision.",
-            displayText: "### 🚗 Campagnes Publicitaires Véhicule & Ambassadeurs\n\n- Gagnez **55$ à 75$/jour** en supplément de vos livraisons habituelles.\n- Équipements premium gratuits (sweats, sacs isothermes).\n- Jusqu'à **50$/mois de réduction** sur vos cotisations d'épargne.\n- Validation instantanée par IA Vision (selfie) et GPS.",
+            spokenText: "Grâce au programme Ambassadeur de Marque, les coursiers reçoivent une rémunération quotidienne de 55$ à 75$/jour pour chaque campagne sélectionnée validée par IA Vision.",
+            displayText: "### 🚗 Campagnes Publicitaires Véhicule & Ambassadeurs\n\n- Rémunération quotidienne de **55$ à 75$/jour** selon les campagnes sélectionnées auxquelles vous participez.\n- Équipements premium gratuits (sweats, sacs isothermes) offerts par les marques.\n- Versement quotidien direct sur votre compte Stripe Treasury.\n- Validation instantanée par IA Vision (selfie) et GPS.",
             suggestedActions: [
               { label: "Voir les Campagnes", action: "NAVIGATE_TAB", tab: "campaigns" },
               { label: "Portail Annonceurs", action: "OPEN_ADVERTISER" }
@@ -4941,8 +4941,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "Through our Brand Ambassador program, gig drivers earn an extra $55 to $75 per day by displaying sponsor apparel or vehicle gear during shifts, verified with AI Vision and GPS.",
-          displayText: "### 🚗 Brand Ambassador & Sponsor Campaigns\n\n- Earn **$55-$75/day** in supplemental daily earnings.\n- Receive free premium sponsor apparel (weatherproof hoodies, insulated delivery bags).\n- Get up to **$50/month off** your weekly Pod deposits.\n- Shift verification powered by multimodal AI Vision selfies and GPS tracking.",
+          spokenText: "Through our Brand Ambassador program, gig drivers earn daily payouts of $55 to $75 based on selected campaigns they participate in, verified with AI Vision and GPS.",
+          displayText: "### 🚗 Brand Ambassador & Sponsor Campaigns\n\n- Earn **$55-$75/day** in guaranteed daily payouts based on your selected campaigns.\n- Receive free premium sponsor apparel (weatherproof hoodies, insulated delivery bags).\n- Instant daily payouts deposited directly to your Stripe Treasury wallet.\n- Shift verification powered by multimodal AI Vision selfies and GPS tracking.",
           suggestedActions: [
             { label: "View Active Campaigns", action: "NAVIGATE_TAB", tab: "campaigns" },
             { label: "Advertiser Portal", action: "OPEN_ADVERTISER" }
@@ -5109,9 +5109,9 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - Peer Rotation Slot Swaps: Members can request peer-to-peer payout slot swaps with mutual approval and zero fees.
 
 6. CATEGORY: BRAND AMBASSADOR SPONSORSHIP CAMPAIGNS
-- Extra Supplemental Earnings: Couriers earn $55-$75/day in daily wages for displaying sponsor apparel/gear during active shifts.
+- Daily Campaign Earnings: Couriers earn guaranteed daily payouts of $55-$75/day based on active participation in their selected brand campaigns.
 - Free Apparel & Gear: Approved drivers get premium weatherproof hoodies and insulated bags.
-- Pod Deposit Discounts: Ambassadors receive up to $50/month off weekly pod contributions.
+- Direct Stripe Treasury Credit: Daily payouts are deposited directly to courier accounts upon completing shifts.
 - AI Vision & GPS Verification: Shift check-in verified via multimodal camera selfie and GPS route logging.
 
 7. CATEGORY: GIG PERKS MARKETPLACE
