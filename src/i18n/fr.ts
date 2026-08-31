@@ -978,7 +978,7 @@ export const fr: Record<TranslationKey, string> = {
   'voiceAgent.browsePerks': 'Explorer les Avantages',
   'voiceAgent.minimizedActive': 'IA Vocale Active',
   'voiceAgent.welcomeSpoken': 'Bonjour ! Je suis Lainie, votre guide IA vocal MutualPool. Posez-moi vos questions sur les groupes d\'épargne, les échanges de tours, les avantages ou les campagnes publicitaires !',
-  'voiceAgent.welcomeDisplay': '### 👋 Bonjour, je suis Lainie — votre guide IA MutualPool !\n\nJe peux vous guider pas à pas dans l\'utilisation de MutualPool :\n- **Épargne en Groupes** (Rotations hebdomadaires et règles de Tontines/Susu)\n- **Échanges de Tours** (Échangez vos dates de versement en toute sécurité)\n- **Avantages Travailleurs Gig** (Entretien auto, assistance dépannage, réductions d\'impôts)\n- **Rémunération Ambassadeur** (Habillage publicitaire de véhicule)\n- **Compte Stripe Treasury & Protection FDIC**',
+  'voiceAgent.welcomeDisplay': "👋 Bonjour, je suis Lainie — votre guide IA MutualPool !\n\nJe peux vous guider pas à pas dans l'utilisation de MutualPool :\n• Épargne en Groupes (Rotations hebdomadaires et règles de Tontines/Susu)\n• Échanges de Tours (Échangez vos dates de versement en toute sécurité)\n• Avantages Travailleurs Gig (Entretien auto, assistance dépannage, réductions d'impôts)\n• Rémunération Ambassadeur (Habillage publicitaire de véhicule)\n• Compte Stripe Treasury & Protection FDIC",
   'voiceAgent.q1Label': 'Comment fonctionne la rotation ?',
   'voiceAgent.q1Query': 'Comment fonctionne le versement hebdomadaire par rotation dans un groupe d\'épargne ?',
   'voiceAgent.q2Label': 'Comment fonctionnent les échanges ?',

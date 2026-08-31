@@ -978,7 +978,7 @@ export const es: Record<TranslationKey, string> = {
   'voiceAgent.browsePerks': 'Ver Ventajas y Beneficios',
   'voiceAgent.minimizedActive': 'IA de Voz Activa',
   'voiceAgent.welcomeSpoken': '¡Hola! Soy Lainie, tu Guía de IA de Voz de MutualPool. ¡Pregúntame lo que quieras sobre grupos de ahorro, intercambios de turnos, ventajas para repartidores o campañas de publicidad en vehículos!',
-  'voiceAgent.welcomeDisplay': '### 👋 ¡Hola, soy Lainie — tu Guía de IA de MutualPool!\n\nPuedo guiarte paso a paso en el uso de MutualPool:\n- **Ahorro en Grupos** (Rotaciones semanales y reglas de Tandas/Susu)\n- **Intercambio de Turnos** (Cambio seguro de turnos de cobro)\n- **Ventajas para Repartidores** (Mantenimiento automotriz, auxilio vial, descuentos en impuestos)\n- **Ganancias como Embajador** (Publicidad en tu vehículo)\n- **Cuentas Stripe Treasury y Seguro FDIC**',
+  'voiceAgent.welcomeDisplay': '👋 ¡Hola, soy Lainie — tu Guía de IA de MutualPool!\n\nPuedo guiarte paso a paso en el uso de MutualPool:\n• Ahorro en Grupos (Rotaciones semanales y reglas de Tandas/Susu)\n• Intercambio de Turnos (Cambio seguro de turnos de cobro)\n• Ventajas para Repartidores (Mantenimiento automotriz, auxilio vial, descuentos en impuestos)\n• Ganancias como Embajador (Publicidad en tu vehículo)\n• Cuentas Stripe Treasury y Seguro FDIC',
   'voiceAgent.q1Label': '¿Cómo funciona la rotación fija?',
   'voiceAgent.q1Query': '¿Cómo funciona el pago semanal por rotación fija en un grupo de ahorro?',
   'voiceAgent.q2Label': '¿Cómo funcionan los intercambios?',

@@ -56,6 +56,20 @@ const VOICE_OPTIONS = [
   { id: 'Charon', name: 'Charon', description: 'Clear & professional' },
 ];
 
+// Helper to remove markdown syntax marks (###, **, *, __, _) and format as clean plain text
+const cleanVoiceAgentText = (rawText: string): string => {
+  if (!rawText) return '';
+  return rawText
+    .replace(/^#{1,6}\s*/gm, '') // Strip ### and ## headers
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // Strip **bold**
+    .replace(/__([^_]+)__/g, '$1') // Strip __bold__
+    .replace(/\*([^*]+)\*/g, '$1') // Strip *italic*
+    .replace(/_([^_]+)_/g, '$1') // Strip _italic_
+    .replace(/^-\s+/gm, '• ') // Clean bullet points
+    .replace(/`([^`]+)`/g, '$1') // Strip code ticks
+    .trim();
+};
+
 export const VoiceAgent: React.FC<VoiceAgentProps> = ({
   currentUser,
   activeTab,
@@ -322,6 +336,8 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
     setInputText('');
     setIsThinking(true);
 
+    let data: any = null;
+
     try {
       const res = await fetch('/api/ai/voice-guide', {
         method: 'POST',
@@ -340,45 +356,172 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
         }),
       });
 
-      const data = await res.json();
-      setIsThinking(false);
+      if (res.ok) {
+        data = await res.json().catch(() => null);
+      }
+    } catch (fetchErr) {
+      console.warn('Network fetch to /api/ai/voice-guide failed, using intelligent client fallback:', fetchErr);
+    }
 
-      const agentMsg: Message = {
-        id: `agent_${Date.now()}`,
-        sender: 'agent',
-        spokenText: data.spokenText || data.displayText || 'Here is what I found.',
-        displayText: data.displayText || data.spokenText || 'Here is the guide.',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestedActions: data.suggestedActions,
-        navigationAction: data.navigationAction,
-      };
+    // If backend did not return valid data, resolve using client-side knowledge
+    if (!data || (!data.spokenText && !data.displayText)) {
+      const q = trimmed.toLowerCase();
+      const isEs = language === 'es';
+      const isFr = language === 'fr';
+      const userName = currentUser?.displayName || 'Member';
 
-      setMessages(prev => [...prev, agentMsg]);
+      if (
+        q.includes('rosca') || q.includes('tanda') || q.includes('susu') || q.includes('pardna') || 
+        q.includes('arisan') || q.includes('chit fund') || q.includes('mutualpool') || 
+        q.includes('what is') || q.includes('how does a pod work') || q.includes('how do pods work') ||
+        q.includes('how it work') || q.includes('savings pod') || q.includes('qué es') || 
+        q.includes('cómo funciona') || q.includes('grupo de ahorro') || q.includes("qu'est-ce") || 
+        q.includes('comment fonctionne') || q.includes("groupe d'épargne") || q.includes('tontine')
+      ) {
+        data = isEs ? {
+          spokenText: "MutualPool es una Asociación de Ahorro y Crédito Rotativo (ROSCA) entre pares modernizada—conocida mundialmente como tanda o susu. Los miembros aportan un depósito semanal fijo y cada semana uno recibe el pozo acumulado sin intereses ni deudas.",
+          displayText: "🔄 ¿Qué es MutualPool y Cómo Funciona un Grupo de Ahorro (ROSCA)?\n\n• ROSCA Modernizada (Tandas / Susu / Pardna): Modelo cultural de ahorro colaborativo para repartidores y trabajadores independientes.\n• Cómo Funciona: Los miembros aportan un depósito semanal fijo (ej. $20.00/semana). Cada semana, un miembro por rotación recibe el fondo acumulado (ej. $400.00 bruto / $360.00 neto en un grupo de 20).\n• 0% Interés y Sin Deudas: Sin intereses abusivos, sin préstamos bancarios y sin verificación de crédito.\n• Seguridad FDIC y Custodia IA: Cuentas aseguradas con supervisión automática de Lainie AI.",
+          suggestedActions: [
+            { label: "¿Es MutualPool un préstamo?", action: "SPEAK_EXPLANATION", prompt: "¿Es MutualPool un préstamo o tarjeta de crédito?" },
+            { label: "¿Cómo funciona la rotación?", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la rotación fija?" },
+            { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        } : isFr ? {
+          spokenText: "MutualPool est une Association d'Épargne et de Crédit Rotatif (ROSCA ou Tontine) modernisée. Les membres versent une cotisation hebdomadaire fixe et chaque semaine un membre reçoit le pot collectif sans aucun intérêt ni dette.",
+          displayText: "🔄 Qu'est-ce que MutualPool & Comment Fonctionnent les Groupes (ROSCAs / Tontines) ?\n\n• ROSCA / Tontine Modernisée : Modèle d'épargne collective éprouvé, conçu pour les livreurs et travailleurs indépendants.\n• Fonctionnement : Chaque membre verse une cotisation hebdomadaire fixe (ex. 20 $/semaine). Chaque semaine, un membre reçoit le pot collectif (ex. 400 $ brut / 360 $ net pour 20 membres).\n• 0% Intérêt & Aucune Dette : Pas de prêt bancaire, aucun taux d'usure ni contrôle de crédit.\n• Comptes Protégés FDIC & Gardienne IA : Sécurité bancaire maximale supervisée par Lainie AI.",
+          suggestedActions: [
+            { label: "Est-ce un prêt bancaire ?", action: "SPEAK_EXPLANATION", prompt: "MutualPool est-il un prêt bancaire ou une dette ?" },
+            { label: "Rotation fixe", action: "SPEAK_EXPLANATION", prompt: "Comment fonctionne la rotation fixe ?" },
+            { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        } : {
+          spokenText: "MutualPool is a modernized peer-to-peer Rotating Savings and Credit Association, or ROSCA—known globally as a tanda, susu, or pardna. Members make a fixed weekly deposit, and each week one member receives the full collective lump-sum pot with zero interest and no debt.",
+          displayText: "🔄 What is MutualPool & How Rotating Savings Pods (ROSCAs) Work\n\n• Modernized ROSCA (Tanda / Susu / Pardna): A time-tested collaborative savings model built specifically for 1099 couriers and gig workers.\n• How It Works: Members make a fixed weekly deposit (e.g., $20.00/week). Each week, one member in the scheduled rotation receives the collective lump-sum pot (e.g., $400 gross / $360 net for a 20-member pod).\n• 0% Interest & Zero Debt: No bank loan debt, no predatory compounding fees, and no credit checks.\n• FDIC Pass-Through & AI Custodianship: Safe holding accounts with Lainie AI automated escrow protections.",
+          suggestedActions: [
+            { label: "Is MutualPool a loan?", action: "SPEAK_EXPLANATION", prompt: "Is MutualPool a loan, credit card, or debt?" },
+            { label: "How rotation works", action: "SPEAK_EXPLANATION", prompt: "How does fixed rotation work?" },
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      } else if (q.includes('loan') || q.includes('credit') || q.includes('interest') || q.includes('debt') || q.includes('préstamo') || q.includes('interés') || q.includes('crédito') || q.includes('deuda') || q.includes('prêt') || q.includes('crédit') || q.includes('dette') || q.includes('intérêt')) {
+        data = isEs ? {
+          spokenText: "MutualPool no es un préstamo bancario ni una tarjeta de crédito. Tiene 0% de interés, no genera deudas y no requiere historial de crédito.",
+          displayText: "🚫 Cero Intereses, No es un Préstamo Bancario\n\n• 0% Interés y Sin Deudas: Ahorras con tu propio dinero junto a repartidores verificados.\n• Sin Verificación de Buró: No requieres historial de crédito bancario.\n• Basado en Tandas / Susu: Modelo cultural de ahorro rotativo modernizado con cuentas bancarias aseguradas por la FDIC.",
+          suggestedActions: [
+            { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "Explorar Grupos", action: "NAVIGATE_TAB", tab: "explore-pods" }
+          ],
+          navigationAction: null
+        } : isFr ? {
+          spokenText: "MutualPool n'est ni un prêt ni une carte de crédit. Il n'y a 0% d'intérêt, aucune dette et aucun contrôle bancaire.",
+          displayText: "🚫 0% Intérêt, Pas de Prêt Bancaire\n\n• 0% Intérêt & Aucune Dette : Vous mutualisez vos économies avec des collègues vérifiés.\n• Aucun Contrôle de Crédit : Pas de score bancaire exigé.\n• Inspiré des Tontines / Susu : Système d'épargne rotative modernisé avec comptes protégés par la FDIC.",
+          suggestedActions: [
+            { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
+          ],
+          navigationAction: null
+        } : {
+          spokenText: "MutualPool is not a bank loan or a credit card. There is 0% interest, zero compounding debt, and no credit check.",
+          displayText: "🚫 0% Interest — Not a Bank Loan or Debt\n\n• Zero Interest & No Compounding Debt: You pool your own income with verified gig couriers.\n• No Credit Check: No minimum FICO or credit score required.\n• Modernized ROSCA (Tanda / Susu / Pardna): Members save collectively with FDIC pass-through bank accounts.",
+          suggestedActions: [
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "Explore Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
+          ],
+          navigationAction: null
+        };
+      } else if (q.includes('host') || q.includes('creator') || q.includes('skin in the game') || q.includes('3%') || q.includes('last slot') || q.includes('anfitrión') || q.includes('creador') || q.includes('recompensa') || q.includes('hôte') || q.includes('créateur') || q.includes('prime')) {
+        data = isEs ? {
+          spokenText: "Los Creadores de grupos toman el último turno de cobro como garantía de confianza y reciben una recompensa de anfitrión del 3% en cada desembolso semanal de sus compañeros.",
+          displayText: "🌟 Recompensa del Creador (3%) y Compromiso Real\n\n• Garantía de Confianza: El Creador se fija en el último turno (#N) para proteger al grupo contra fraudes.\n• Recompensa del 3%: Por liderar el grupo, el Creador gana el 3% de cada desembolso semanal (ej. $12/semana en un pozo de $400, sumando $228 en 20 semanas).\n• Depósito Directo: Las ganancias se acreditan automáticamente a su saldo de Stripe Treasury.",
+          suggestedActions: [
+            { label: "Crear un Grupo Ahora", action: "OPEN_MODAL", modal: "CREATE_POD" },
+            { label: "Ver FAQ de Creadores", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+        } : isFr ? {
+          spokenText: "Les Créateurs de groupes occupent le dernier tour de versement pour garantir la sécurité et reçoivent une prime d'hôte de 3% sur chaque versement de leurs coéquipiers.",
+          displayText: "🌟 Prime d'Hôte Créateur (3%) & Sécurité Totale\n\n• Engagement Garanti : Le Créateur est placé au dernier tour (#N) pour éliminer tout risque de désistement précoce.\n• Prime de Gestion de 3% : En contrepartie, le Créateur perçoit 3% sur chaque versement hebdomadaire (ex. 12 $/semaine sur un pot de 400 $, soit 228 $ sur 20 semaines).\n• Crédité sur Treasury : Versements directs sur votre compte Stripe Treasury.",
+          suggestedActions: [
+            { label: "Créer un Groupe", action: "OPEN_MODAL", modal: "CREATE_POD" },
+            { label: "FAQ Créateurs", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+        } : {
+          spokenText: "Pod Creators take the final rotation slot as a skin-in-the-game safety guarantee. In return, they earn a 3% Host Stewardship Reward on every teammate payout, totaling up to $228 in passive earnings.",
+          displayText: "🌟 3% Creator Host Stewardship Reward & Skin-in-the-Game\n\n• Skin-in-the-Game: The Creator is pinned to the final rotation slot (#N) so they stay committed to the cycle.\n• 3% Host Reward: The Creator earns 3% on every teammate payout (e.g. $12/payout on a $400 pot → $228 total on a 20-member pod).\n• Direct Deposit: Rewards disburse automatically into the Creator's Stripe Treasury wallet.",
+          suggestedActions: [
+            { label: "Create a Pod Now", action: "OPEN_MODAL", modal: "CREATE_POD" },
+            { label: "Read Creator FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
+        };
+      } else {
+        data = isEs ? {
+          spokenText: `¡Hola ${userName}! Soy Lainie, tu Guía de IA de MutualPool. Pregúntame sobre cómo funcionan los grupos de ahorro, recompensas del 3% para creadores, custodia autónoma, seguro FDIC o consulta la FAQ.`,
+          displayText: `🎙️ Asistente de Voz Lainie AI (Base de Conocimiento FAQ)\n\nPuedo orientarte en todas las funciones:\n• Grupos de Ahorro Rotativo (Tandas / Susu / ROSCA) (0% interés, sin deudas)\n• Recompensas del Creador (3%) y Compromiso Real (Skin-in-the-Game)\n• Custodia Autónoma por IA y Depósitos en Custodia del Sistema\n• Cuentas Stripe Treasury y Seguro FDIC ($250,000)\n• Mercado de Ventajas y Campañas de Embajadores`,
+          suggestedActions: [
+            { label: "¿Qué es MutualPool y ROSCA?", action: "SPEAK_EXPLANATION", prompt: "¿Qué es MutualPool y cómo funciona un Grupo de Ahorro?" },
+            { label: "¿Es MutualPool un préstamo?", action: "SPEAK_EXPLANATION", prompt: "¿Es MutualPool un préstamo o tarjeta de crédito?" },
+            { label: "Recompensa del Creador 3%", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la recompensa de anfitrión del 3%?" },
+            { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: null
+        } : isFr ? {
+          spokenText: `Bonjour ${userName} ! Je suis Lainie, votre Guide IA MutualPool. Posez-moi des questions sur les groupes d'épargne, la prime créateur de 3%, la gardienne IA, la protection FDIC ou consultez la FAQ.`,
+          displayText: `🎙️ Assistant Vocal Lainie AI (Base de Connaissances FAQ)\n\nJe peux vous guider sur l'ensemble des fonctionnalités :\n• Groupes d'Épargne Rotative (Tontines / Susu / ROSCA) (0% intérêt, sans dette)\n• Primes d'Hôte Créateur (3%) & Engagement Garanti (Skin-in-the-Game)\n• Gardienne IA Autonome (Lainie) & Entiercement du Système\n• Comptes Stripe Treasury & Garantie FDIC (250 000 $)\n• Espace Avantages & Campagnes Ambassadeurs`,
+          suggestedActions: [
+            { label: "Qu'est-ce que ROSCA / Tontine ?", action: "SPEAK_EXPLANATION", prompt: "Qu'est-ce que MutualPool et comment fonctionne un groupe d'épargne ?" },
+            { label: "Est-ce un prêt bancaire ?", action: "SPEAK_EXPLANATION", prompt: "MutualPool est-il un prêt bancaire ou une dette ?" },
+            { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: null
+        } : {
+          spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about how savings pods work, the 3% Creator Host Reward, our Autonomous AI Custodian, FDIC insurance, or explore our FAQ!`,
+          displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Stripe Treasury & FDIC Pass-Through Insurance ($250,000)\n• Transparent Fees (5% Setup / 10% Payout Service Fee)\n• Brand Ambassador Earnings & Vision Verification`,
+          suggestedActions: [
+            { label: "What is a ROSCA / Pod?", action: "SPEAK_EXPLANATION", prompt: "What is MutualPool and how does a Mutual Savings Pod work?" },
+            { label: "Is MutualPool a loan?", action: "SPEAK_EXPLANATION", prompt: "Is MutualPool a loan, credit card, or debt?" },
+            { label: "3% Creator Host Reward", action: "SPEAK_EXPLANATION", prompt: "How does the 3% Creator Host Stewardship Reward work?" },
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: null
+        };
+      }
+    }
 
-      // Play natural voice
-      if (data.spokenText) {
+    setIsThinking(false);
+
+    const agentMsg: Message = {
+      id: `agent_${Date.now()}`,
+      sender: 'agent',
+      spokenText: data.spokenText || data.displayText || 'Here is what I found.',
+      displayText: data.displayText || data.spokenText || 'Here is the guide.',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      suggestedActions: data.suggestedActions,
+      navigationAction: data.navigationAction,
+    };
+
+    setMessages(prev => [...prev, agentMsg]);
+
+    // Play natural voice safely
+    if (data.spokenText) {
+      try {
         playResponseAudio(data.spokenText);
+      } catch (audioErr) {
+        console.warn('Audio playback error:', audioErr);
       }
+    }
 
-      // Auto-trigger navigation if explicitly directed
-      if (data.navigationAction) {
+    // Auto-trigger navigation if explicitly directed
+    if (data.navigationAction) {
+      try {
         executeNavigation(data.navigationAction);
+      } catch (navErr) {
+        console.warn('Navigation action error:', navErr);
       }
-    } catch (err) {
-      console.error('Error communicating with Voice AI:', err);
-      setIsThinking(false);
-      const errorMsg: Message = {
-        id: `agent_${Date.now()}`,
-        sender: 'agent',
-        spokenText: t('voiceAgent.connectionErrorSpoken'),
-        displayText: `### ⚠️ ${t('voiceAgent.connectionErrorTitle')}\n\n${t('voiceAgent.connectionErrorDesc')}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestedActions: [
-          { label: t('voiceAgent.explorePods'), action: 'NAVIGATE_TAB', tab: 'explore-pods' },
-          { label: t('voiceAgent.browsePerks'), action: 'NAVIGATE_TAB', tab: 'perks' },
-        ],
-      };
-      setMessages(prev => [...prev, errorMsg]);
     }
   };
 
@@ -657,8 +800,8 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                           : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
                       }`}
                     >
-                      <div className="whitespace-pre-line prose prose-sm max-w-none prose-p:my-1 prose-headings:my-1 prose-headings:text-slate-900 font-sans">
-                        {msg.displayText}
+                      <div className={`whitespace-pre-line text-xs sm:text-sm leading-relaxed font-sans ${msg.sender === 'user' ? 'text-white' : 'text-slate-800'}`}>
+                        {cleanVoiceAgentText(msg.displayText)}
                       </div>
 
                       {msg.sender === 'agent' && msg.spokenText && (

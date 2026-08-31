@@ -976,7 +976,7 @@ export const en = {
   'voiceAgent.browsePerks': 'Browse Perks Marketplace',
   'voiceAgent.minimizedActive': 'Voice AI Active',
   'voiceAgent.welcomeSpoken': "Hi there! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about savings pods, spot swaps, gig perks, or vehicle wrap campaigns!",
-  'voiceAgent.welcomeDisplay': "### 👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n- **Saving in Pods** (Weekly rotations & Susu/Tanda rules)\n- **Spot Swaps** (Trading payout turns safely)\n- **Gig Perks** (Auto maintenance, roadside assistance, tax discounts)\n- **Brand Ambassador Earnings** (Vehicle wraps for gig drivers)\n- **Stripe Treasury & FDIC Pass-Through**",
+  'voiceAgent.welcomeDisplay': "👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n• Saving in Pods (Weekly rotations & Susu/Tanda rules)\n• Spot Swaps (Trading payout turns safely)\n• Gig Perks (Auto maintenance, roadside assistance, tax discounts)\n• Brand Ambassador Earnings (Vehicle wraps for gig drivers)\n• Stripe Treasury & FDIC Pass-Through",
   'voiceAgent.q1Label': 'How does fixed rotation work?',
   'voiceAgent.q1Query': 'How does the fixed weekly rotation payout work in a savings pod?',
   'voiceAgent.q2Label': 'How do Spot Swaps work?',
