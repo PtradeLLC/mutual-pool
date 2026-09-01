@@ -11,7 +11,8 @@ import {
   Calendar, Layers, Shirt, Send, Check, Phone, Mail, Building, 
   Globe, HelpCircle, ChevronRight, Eye, RefreshCw, Star, HeartHandshake,
   Download, ArrowLeft, Zap, Filter, LayoutDashboard, Calculator, Plus,
-  Lock, LogIn
+  Lock, LogIn, Store, QrCode, Navigation, Compass, CheckSquare, Tag,
+  BadgePercent, Percent
 } from 'lucide-react';
 
 import promoFrontImg from '../assets/images/promo_hoodie_front_1786902471783.jpg';
@@ -38,6 +39,52 @@ const METRO_MARKETS = [
   { id: 'austin', nameKey: 'advertiser.market_austin', activeCouriers: '950+', dailyFootTraffic: '1.4M+' },
   { id: 'atlanta', nameKey: 'advertiser.market_atlanta', activeCouriers: '1,200+', dailyFootTraffic: '1.8M+' },
   { id: 'national', nameKey: 'advertiser.market_national', activeCouriers: '14,000+', dailyFootTraffic: '22M+' },
+] as const;
+
+// Hyperlocal Neighborhoods for Small Businesses
+const HYPERLOCAL_NEIGHBORHOODS = [
+  { id: 'hood_west_loop', nameKey: 'advertiser.hood_west_loop', metro: 'Chicago, IL', activeFleet: '65 verified couriers' },
+  { id: 'hood_les_ev', nameKey: 'advertiser.hood_les_ev', metro: 'New York, NY', activeFleet: '120 verified couriers' },
+  { id: 'hood_wburg', nameKey: 'advertiser.hood_wburg', metro: 'Brooklyn, NY', activeFleet: '85 verified couriers' },
+  { id: 'hood_wicker', nameKey: 'advertiser.hood_wicker', metro: 'Chicago, IL', activeFleet: '50 verified couriers' },
+  { id: 'hood_sm_venice', nameKey: 'advertiser.hood_sm_venice', metro: 'Los Angeles, CA', activeFleet: '75 verified couriers' },
+  { id: 'hood_austin_dt', nameKey: 'advertiser.hood_austin_dt', metro: 'Austin, TX', activeFleet: '40 verified couriers' },
+  { id: 'hood_midtown_atl', nameKey: 'advertiser.hood_midtown_atl', metro: 'Atlanta, GA', activeFleet: '45 verified couriers' },
+  { id: 'hood_custom', nameKey: 'advertiser.hood_custom', metro: 'Direct Storefront Matching', activeFleet: 'Dynamic GPS radius' },
+] as const;
+
+// SMB Micro-Tier Duration Options
+const SMB_DURATIONS = [
+  { id: '1day', labelKey: 'advertiser.duration1Day', days: 1, ratePerDay: 150, subtitle: 'Grand Opening / 1-Day Peak' },
+  { id: 'weekend', labelKey: 'advertiser.durationWeekend', days: 3, ratePerDay: 125, subtitle: 'Fri – Sun Dining Surge' },
+  { id: '1week', labelKey: 'advertiser.duration1Week', days: 6, ratePerDay: 100, subtitle: '6 Active Delivery Days' },
+  { id: '2week', labelKey: 'advertiser.duration2Week', days: 12, ratePerDay: 95, subtitle: '12 Active Days ($95/day)' },
+] as const;
+
+// SMB Fleet Options
+const SMB_FLEET_OPTIONS = [
+  { count: 5, labelKey: 'advertiser.calcSmb5', desc: '1–2 primary delivery corridors passing your storefront' },
+  { count: 10, labelKey: 'advertiser.calcSmb10', desc: 'Full neighborhood saturation during lunch & dinner rushes' },
+  { count: 15, labelKey: 'advertiser.calcSmb15', desc: 'Multi-corridor blitz for high-volume local restaurants' },
+  { count: 25, labelKey: 'advertiser.calcSmb25', desc: 'District-wide coverage spanning adjacent zip codes' },
+] as const;
+
+// SMB Hardware & Co-sponsorship
+const SMB_HARDWARE_OPTIONS = [
+  {
+    id: 'modular_sleeve',
+    nameKey: 'advertiser.gearModularSleeveName',
+    descKey: 'advertiser.gearModularSleeveDesc',
+    rateDiscount: 0,
+    badge: 'Amortized Hardware • $0 Setup',
+  },
+  {
+    id: 'dual_sponsor',
+    nameKey: 'advertiser.gearDualSponsorName',
+    descKey: 'advertiser.gearDualSponsorDesc',
+    rateDiscount: 25, // $25 discount per courier/day when sharing bag with a non-competing merchant
+    badge: 'Save $25/day per courier',
+  },
 ] as const;
 
 const GEAR_ITEMS = [
@@ -110,7 +157,17 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
     }
   }, [canAccessMetrics, pageViewMode]);
 
-  // Campaign Calculator State
+  // Campaign Calculator Tier Mode: 'smb' | 'enterprise' (Default to SMB for accessible self-serve micro-tiers)
+  const [campaignTier, setCampaignTier] = useState<'smb' | 'enterprise'>('smb');
+
+  // SMB Calculator State
+  const [smbNeighborhood, setSmbNeighborhood] = useState<string>(HYPERLOCAL_NEIGHBORHOODS[0].id);
+  const [smbFleetCount, setSmbFleetCount] = useState<number>(10);
+  const [smbDurationId, setSmbDurationId] = useState<string>('1week');
+  const [smbHardwareId, setSmbHardwareId] = useState<string>('modular_sleeve');
+  const [customZipCode, setCustomZipCode] = useState<string>('');
+
+  // Enterprise Calculator State
   const [selectedMarket, setSelectedMarket] = useState<string>(METRO_MARKETS[0].id);
   const [courierCount, setCourierCount] = useState<number>(100);
   const [durationWeeks, setDurationWeeks] = useState<number>(4);
@@ -125,25 +182,53 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
     contactPhone: '',
     websiteUrl: '',
     campaignObjective: 'Brand Awareness & Street Dominance',
-    budgetRange: '$10,000 - $25,000',
+    budgetRange: '$500 - $1,500 (Hyperlocal 5–10 Couriers • Weekend/1-Week)',
     notes: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Math Calculations for Calculator
-  // Courier Net Take-Home: $55 - $75 / day ($65 average net take-home)
-  // This represents 65% of the total sponsorship budget, with the remaining 35% allocated to custom gear, fulfillment & operations.
-  const activeDays = durationWeeks * 6;
-  const dailyImpressionsPerCourier = 1450;
-  const totalImpressions = courierCount * dailyImpressionsPerCourier * activeDays;
-  const estimatedCourierDailyPayout = 65; // Average net take-home: $55 - $75 / day
-  const totalCourierEarningsGenerated = courierCount * estimatedCourierDailyPayout * activeDays;
-  // Since courier payouts = 65% of budget, total campaign sponsorship = courier earnings / 0.65 (plus custom gear unit cost)
-  const operationsAndGearCost = (totalCourierEarningsGenerated / 0.65) * 0.35 + (courierCount * 45);
-  const estimatedCampaignCost = totalCourierEarningsGenerated + operationsAndGearCost;
-  const effectiveCpm = ((estimatedCampaignCost / totalImpressions) * 1000).toFixed(2);
+  // Economic Model Calculations
+  // SMB Micro-Tier Math
+  const selectedSmbDuration = SMB_DURATIONS.find(d => d.id === smbDurationId) || SMB_DURATIONS[2];
+  const selectedSmbHardware = SMB_HARDWARE_OPTIONS.find(h => h.id === smbHardwareId) || SMB_HARDWARE_OPTIONS[0];
+  const smbActiveDays = selectedSmbDuration.days;
+  const smbDailyRatePerCourier = Math.max(70, selectedSmbDuration.ratePerDay - selectedSmbHardware.rateDiscount);
+  const smbTotalCost = smbFleetCount * smbDailyRatePerCourier * smbActiveDays;
+  
+  // 65% of the daily rate goes directly to the courier as a verified gig stipend ($65 - $97.50 / day)
+  const smbCourierDailyPayout = smbDailyRatePerCourier * 0.65;
+  const smbTotalCourierEarnings = smbFleetCount * smbCourierDailyPayout * smbActiveDays;
+  
+  // 35% platform gross margin covers amortized clear sleeve hardware ($3.50/insert), GPS route matching & QR attribution
+  const smbPlatformGrossProfit = smbTotalCost - smbTotalCourierEarnings;
+  
+  // Hyperlocal impressions: ~1,600 high-density neighborhood impressions per courier shift
+  const smbDailyImpressionsPerCourier = 1600;
+  const smbTotalImpressions = smbFleetCount * smbDailyImpressionsPerCourier * smbActiveDays;
+  const smbEffectiveCpm = ((smbTotalCost / smbTotalImpressions) * 1000).toFixed(2);
+  const smbEstimatedQrScans = Math.round(smbFleetCount * smbActiveDays * 32);
+
+  // Enterprise Tier Math
+  const enterpriseActiveDays = durationWeeks * 6;
+  const enterpriseDailyImpressionsPerCourier = 1450;
+  const enterpriseTotalImpressions = courierCount * enterpriseDailyImpressionsPerCourier * enterpriseActiveDays;
+  const enterpriseCourierDailyPayout = 65; // Average net take-home
+  const enterpriseTotalCourierEarnings = courierCount * enterpriseCourierDailyPayout * enterpriseActiveDays;
+  const enterpriseOpsAndGearCost = (enterpriseTotalCourierEarnings / 0.65) * 0.35 + (courierCount * 45);
+  const enterpriseTotalCost = enterpriseTotalCourierEarnings + enterpriseOpsAndGearCost;
+  const enterpriseEffectiveCpm = ((enterpriseTotalCost / enterpriseTotalImpressions) * 1000).toFixed(2);
+
+  // Active Display Figures based on current selected tier
+  const isSmb = campaignTier === 'smb';
+  const displayCost = isSmb ? smbTotalCost : enterpriseTotalCost;
+  const displayImpressions = isSmb ? smbTotalImpressions : enterpriseTotalImpressions;
+  const displayEarnings = isSmb ? smbTotalCourierEarnings : enterpriseTotalCourierEarnings;
+  const displayPlatformProfit = isSmb ? smbPlatformGrossProfit : (enterpriseTotalCost - enterpriseTotalCourierEarnings);
+  const displayCpm = isSmb ? smbEffectiveCpm : enterpriseEffectiveCpm;
+  const displayActiveDays = isSmb ? smbActiveDays : enterpriseActiveDays;
+  const displayCourierCount = isSmb ? smbFleetCount : courierCount;
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({
@@ -593,7 +678,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
       <section id="calculator" className="py-16 px-4 sm:px-6 bg-[#F8FAFC] border-y border-slate-200">
         <div className="max-w-7xl mx-auto">
           
-          <div className="text-center max-w-2xl mx-auto space-y-3 mb-10">
+          <div className="text-center max-w-2xl mx-auto space-y-3 mb-8">
             <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#005FB8] text-xs font-bold uppercase tracking-wider">
               {t('advertiser.calcBadge')}
             </span>
@@ -605,122 +690,348 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             </p>
           </div>
 
+          {/* Tier Switcher: Self-Serve Hyperlocal SMB vs. Metro Enterprise */}
+          <div className="max-w-2xl mx-auto mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 p-1.5 bg-slate-200/75 rounded-2xl gap-1.5 border border-slate-300 shadow-inner">
+              <button
+                type="button"
+                onClick={() => {
+                  setCampaignTier('smb');
+                  setFormData(prev => ({
+                    ...prev,
+                    budgetRange: '$500 - $1,500 (Hyperlocal 5–10 Couriers • Weekend/1-Week)',
+                  }));
+                }}
+                className={`py-3 px-4 rounded-xl text-left transition-all cursor-pointer flex items-center gap-3 ${
+                  campaignTier === 'smb'
+                    ? 'bg-white text-slate-950 shadow-md font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  campaignTier === 'smb' ? 'bg-amber-100 text-amber-900' : 'bg-slate-200 text-slate-500'
+                }`}>
+                  <Store className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-slate-950 flex items-center gap-1.5">
+                    {t('advertiser.tierSmb')}
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">
+                      Self-Serve
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-normal">
+                    {t('advertiser.tierSmbSubtitle')}
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCampaignTier('enterprise');
+                  setFormData(prev => ({
+                    ...prev,
+                    budgetRange: '$15,000 - $50,000 (Multi-City Fleet)',
+                  }));
+                }}
+                className={`py-3 px-4 rounded-xl text-left transition-all cursor-pointer flex items-center gap-3 ${
+                  campaignTier === 'enterprise'
+                    ? 'bg-white text-slate-950 shadow-md font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  campaignTier === 'enterprise' ? 'bg-blue-100 text-blue-900' : 'bg-slate-200 text-slate-500'
+                }`}>
+                  <Building className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-slate-950">
+                    {t('advertiser.tierEnterprise')}
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-normal">
+                    {t('advertiser.tierEnterpriseSubtitle')}
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
             {/* Calculator Controls (7 cols) */}
             <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
               
-              {/* Market Selection */}
-              <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                  {t('advertiser.calcStep1')}
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {METRO_MARKETS.map(market => (
-                    <button
-                      key={market.id}
-                      type="button"
-                      onClick={() => setSelectedMarket(market.id)}
-                      className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                        selectedMarket === market.id
-                          ? 'bg-blue-50/80 border-[#005FB8] text-slate-950 shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
-                      }`}
-                    >
-                      <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                        <span>{t(market.nameKey)}</span>
-                        {selectedMarket === market.id && <Check className="w-3.5 h-3.5 text-[#005FB8]" />}
+              {/* Conditional Controls: SMB vs Enterprise */}
+              {isSmb ? (
+                <>
+                  {/* Step 1: Hyperlocal Neighborhood / Radius */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                        {t('advertiser.calcStep1Smb')}
+                      </label>
+                      <span className="text-[11px] text-blue-700 font-semibold flex items-center gap-1">
+                        <Compass className="w-3.5 h-3.5" /> 2-Mile Courier Corridors
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {HYPERLOCAL_NEIGHBORHOODS.map(hood => (
+                        <button
+                          key={hood.id}
+                          type="button"
+                          onClick={() => setSmbNeighborhood(hood.id)}
+                          className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
+                            smbNeighborhood === hood.id
+                              ? 'bg-amber-50/80 border-amber-500 text-slate-950 shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                            <span>{t(hood.nameKey)}</span>
+                            {smbNeighborhood === hood.id && <Check className="w-3.5 h-3.5 text-amber-700" />}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                            <span>{hood.metro}</span>
+                            <span className="text-slate-800 font-semibold">{hood.activeFleet}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {smbNeighborhood === 'hood_custom' && (
+                      <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Enter Storefront Address or Target Zip Codes:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g., 94103 (Mission District) or 123 Main St, Austin TX"
+                          value={customZipCode}
+                          onChange={(e) => setCustomZipCode(e.target.value)}
+                          className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#005FB8]"
+                        />
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        {t('advertiser.calcActiveFleet')} <span className="text-slate-800 font-semibold">{market.activeCouriers}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                    )}
+                  </div>
 
-              {/* Fleet Size Slider */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                    {t('advertiser.calcStep2')}
-                  </label>
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono font-bold">
-                    {t('advertiser.calcActiveCouriers', { count: courierCount })}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="25"
-                  max="500"
-                  step="25"
-                  value={courierCount}
-                  onChange={(e) => setCourierCount(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#005FB8]"
-                />
-                <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
-                  <span>{t('advertiser.calcPilot')}</span>
-                  <span>{t('advertiser.calcStandard')}</span>
-                  <span>{t('advertiser.calcDominant')}</span>
-                  <span>{t('advertiser.calcTakeover')}</span>
-                </div>
-              </div>
+                  {/* Step 2: SMB Fleet Size Options (5 - 25 Couriers) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                        {t('advertiser.calcStep2Smb')}
+                      </label>
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-mono font-bold">
+                        {smbFleetCount} Couriers Selected
+                      </span>
+                    </div>
 
-              {/* Duration Selector */}
-              <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                  {t('advertiser.calcStep3')}
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[2, 4, 8, 12].map(weeks => (
-                    <button
-                      key={weeks}
-                      type="button"
-                      onClick={() => setDurationWeeks(weeks)}
-                      className={`py-2.5 px-2 rounded-xl text-center border font-bold text-xs transition-all cursor-pointer ${
-                        durationWeeks === weeks
-                          ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm font-black'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
-                      }`}
-                    >
-                      {t('advertiser.calcWeeks', { weeks })}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {SMB_FLEET_OPTIONS.map(opt => (
+                        <button
+                          key={opt.count}
+                          type="button"
+                          onClick={() => setSmbFleetCount(opt.count)}
+                          className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
+                            smbFleetCount === opt.count
+                              ? 'bg-amber-50/80 border-amber-500 text-slate-950 shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                            <span>{t(opt.labelKey)}</span>
+                            {smbFleetCount === opt.count && <Check className="w-3.5 h-3.5 text-amber-700" />}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-1 leading-snug">
+                            {opt.desc}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Apparel Gear Package */}
-              <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                  {t('advertiser.calcStep4')}
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {GEAR_ITEMS.map(item => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedGear(item.id)}
-                      className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                        selectedGear === item.id
-                          ? 'bg-blue-50/80 border-[#005FB8] text-slate-950'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="text-xs font-bold text-slate-900">{t(item.nameKey)}</div>
-                      <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{t(item.placementKey)}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                  {/* Step 3: SMB Duration (Daily / Weekend / Weekly) */}
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                      {t('advertiser.calcStep3Smb')}
+                    </label>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {SMB_DURATIONS.map(dur => (
+                        <button
+                          key={dur.id}
+                          type="button"
+                          onClick={() => setSmbDurationId(dur.id)}
+                          className={`p-2.5 rounded-xl text-center border font-bold transition-all cursor-pointer ${
+                            smbDurationId === dur.id
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm font-black'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="text-xs">{t(dur.labelKey)}</div>
+                          <div className="text-[10px] font-normal mt-0.5 opacity-80">{dur.subtitle}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Step 4: Modular Hardware & Foot-Traffic Tracking */}
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                      {t('advertiser.calcStep4Smb')}
+                    </label>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {SMB_HARDWARE_OPTIONS.map(hw => (
+                        <button
+                          key={hw.id}
+                          type="button"
+                          onClick={() => setSmbHardwareId(hw.id)}
+                          className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
+                            smbHardwareId === hw.id
+                              ? 'bg-amber-50/80 border-amber-500 text-slate-950'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs font-bold text-slate-900">{t(hw.nameKey)}</div>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              {hw.badge}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-1 leading-snug">
+                            {t(hw.descKey)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Enterprise Mode Controls */
+                <>
+                  {/* Market Selection */}
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                      {t('advertiser.calcStep1Enterprise')}
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {METRO_MARKETS.map(market => (
+                        <button
+                          key={market.id}
+                          type="button"
+                          onClick={() => setSelectedMarket(market.id)}
+                          className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
+                            selectedMarket === market.id
+                              ? 'bg-blue-50/80 border-[#005FB8] text-slate-950 shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                            <span>{t(market.nameKey)}</span>
+                            {selectedMarket === market.id && <Check className="w-3.5 h-3.5 text-[#005FB8]" />}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-1">
+                            {t('advertiser.calcActiveFleet')} <span className="text-slate-800 font-semibold">{market.activeCouriers}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Fleet Size Slider */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                        {t('advertiser.calcStep2Enterprise')}
+                      </label>
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-mono font-bold">
+                        {t('advertiser.calcActiveCouriers', { count: courierCount })}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="25"
+                      max="500"
+                      step="25"
+                      value={courierCount}
+                      onChange={(e) => setCourierCount(Number(e.target.value))}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#005FB8]"
+                    />
+                    <div className="flex justify-between text-[11px] text-slate-500 font-mono mt-1">
+                      <span>{t('advertiser.calcPilot')}</span>
+                      <span>{t('advertiser.calcStandard')}</span>
+                      <span>{t('advertiser.calcDominant')}</span>
+                      <span>{t('advertiser.calcTakeover')}</span>
+                    </div>
+                  </div>
+
+                  {/* Duration Selector */}
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                      {t('advertiser.calcStep3Enterprise')}
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[2, 4, 8, 12].map(weeks => (
+                        <button
+                          key={weeks}
+                          type="button"
+                          onClick={() => setDurationWeeks(weeks)}
+                          className={`py-2.5 px-2 rounded-xl text-center border font-bold text-xs transition-all cursor-pointer ${
+                            durationWeeks === weeks
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm font-black'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                          }`}
+                        >
+                          {t('advertiser.calcWeeks', { weeks })}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Apparel Gear Package */}
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                      {t('advertiser.calcStep4Enterprise')}
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {GEAR_ITEMS.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setSelectedGear(item.id)}
+                          className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
+                            selectedGear === item.id
+                              ? 'bg-blue-50/80 border-[#005FB8] text-slate-950'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="text-xs font-bold text-slate-900">{t(item.nameKey)}</div>
+                          <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{t(item.placementKey)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
             </div>
 
-            {/* Live Campaign ROI Summary Card (5 cols) */}
+            {/* Live Campaign ROI & Economics Card (5 cols) */}
             <div className="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-md">
               
               <div className="border-b border-slate-200 pb-4">
-                <div className="text-xs font-bold text-amber-700 uppercase tracking-wide">
-                  {t('advertiser.summaryBadge')}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">
+                    {t('advertiser.summaryBadge')}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                    isSmb ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
+                  }`}>
+                    {isSmb ? 'Hyperlocal SMB Tier' : 'Metro Enterprise Tier'}
+                  </span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-black text-slate-950 mt-1">
                   {t('advertiser.summaryTitle')}
@@ -729,38 +1040,69 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
 
               <div className="space-y-4">
                 
+                {/* Total Street Impressions */}
                 <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-slate-200">
                   <div className="text-xs text-slate-500 font-medium">{t('advertiser.summaryImpressions')}</div>
                   <div className="text-3xl font-black text-amber-600 font-mono mt-1">
-                    {totalImpressions.toLocaleString()}+
+                    {displayImpressions.toLocaleString()}+
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
-                    {t('advertiser.summaryImpressionsSub', { days: activeDays, couriers: courierCount })}
+                    {t('advertiser.summaryImpressionsSub', { days: displayActiveDays, couriers: displayCourierCount })}
                   </div>
                 </div>
 
+                {/* Direct Courier Earnings */}
                 <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-slate-200">
-                  <div className="text-xs text-slate-500 font-medium">{t('advertiser.summaryEarnings')}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500 font-medium">{t('advertiser.summaryEarnings')}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                      65% Payout
+                    </span>
+                  </div>
                   <div className="text-2xl font-black text-emerald-600 font-mono mt-1">
-                    {formatCurrency ? formatCurrency(totalCourierEarningsGenerated) : `$${totalCourierEarningsGenerated.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                    {formatCurrency ? formatCurrency(displayEarnings) : `$${displayEarnings.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
                     {t('advertiser.summaryEarningsSub')}
                   </div>
                 </div>
 
+                {/* Additional Stats: Estimated QR Scans & Platform Margin */}
+                {isSmb && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200">
+                      <div className="text-[10px] text-emerald-800 uppercase font-bold flex items-center gap-1">
+                        <QrCode className="w-3 h-3 text-emerald-600" /> {t('advertiser.summaryEstimatedQrScans')}
+                      </div>
+                      <div className="text-base font-black text-emerald-950 font-mono mt-0.5">
+                        ~{smbEstimatedQrScans.toLocaleString()} scans
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-200">
+                      <div className="text-[10px] text-blue-800 uppercase font-bold flex items-center gap-1">
+                        <Percent className="w-3 h-3 text-blue-600" /> Platform Margin
+                      </div>
+                      <div className="text-base font-black text-blue-950 font-mono mt-0.5">
+                        35% (${Math.round(smbPlatformGrossProfit).toLocaleString()})
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cost and CPM */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200">
                     <div className="text-[10px] text-slate-500 uppercase font-bold">{t('advertiser.summaryCost')}</div>
                     <div className="text-lg font-black text-slate-900 font-mono mt-0.5">
-                      {formatCurrency ? formatCurrency(estimatedCampaignCost) : `$${estimatedCampaignCost.toLocaleString()}`}
+                      {formatCurrency ? formatCurrency(displayCost) : `$${displayCost.toLocaleString()}`}
                     </div>
                   </div>
 
                   <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200">
                     <div className="text-[10px] text-slate-500 uppercase font-bold">{t('advertiser.summaryCpm')}</div>
                     <div className="text-lg font-black text-[#005FB8] font-mono mt-0.5">
-                      ${effectiveCpm}
+                      ${displayCpm}
                     </div>
                   </div>
                 </div>
@@ -770,19 +1112,77 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-start gap-2">
                 <Sparkles className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
                 <span>
-                  {t('advertiser.summaryNote')}
+                  {isSmb ? t('advertiser.summaryNoteSmb') : t('advertiser.summaryNoteEnterprise')}
                 </span>
               </div>
 
               <a
                 href="#launch-form"
+                onClick={() => {
+                  if (isSmb) {
+                    const foundHood = HYPERLOCAL_NEIGHBORHOODS.find(h => h.id === smbNeighborhood);
+                    const hoodLabel = foundHood ? t(foundHood.nameKey) : 'Hyperlocal 2-Mile Radius';
+                    setFormData(prev => ({
+                      ...prev,
+                      budgetRange: smbTotalCost < 1500 
+                        ? '$500 - $1,500 (Hyperlocal 5–10 Couriers • Weekend/1-Week)'
+                        : '$1,500 - $3,500 (Neighborhood Blitz 15–25 Couriers)',
+                      notes: `Hyperlocal Micro-Tier: ${smbFleetCount} couriers, ${selectedSmbDuration.subtitle}, Neighborhood: ${smbNeighborhood === 'hood_custom' ? customZipCode || 'Custom Storefront' : hoodLabel}`,
+                    }));
+                  }
+                }}
                 className="w-full py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm text-center block transition-all shadow-md shadow-blue-500/25 cursor-pointer"
               >
-                {t('advertiser.summaryLockIn')}
+                {isSmb ? t('advertiser.summaryLockInSmb') : t('advertiser.summaryLockInEnterprise')}
               </a>
 
             </div>
 
+          </div>
+
+          {/* Educational Explainer: The Hyperlocal Small Business Economics */}
+          <div className="mt-12 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-950">Why the Hyperlocal Micro-Tier Makes Economic Sense</h3>
+                <p className="text-xs text-slate-500">How small businesses achieve high-density impressions and positive ROI with zero production overhead</p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                65% Courier Wages • 35% Platform Margin
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+                  <Navigation className="w-5 h-5" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm">Natural Courier Corridors</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  A local pizzeria doesn't need 100 couriers across the whole city. 5–15 delivery couriers already pick up 15–25 food orders per day directly within your 2-mile radius, circling your neighborhood during lunch and dinner.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm">Amortized Modular Hardware</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Instead of paying $1,000+ for custom screen-printed textile runs, we utilize weather-proof modular backpack clear-window billboard sleeves with synthetic inserts ($3.50/unit amortized), eliminating upfront setup costs.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-900 flex items-center justify-center font-bold">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm">Measurable QR Foot-Traffic</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Every courier billboard includes high-contrast, scannable QR codes and unique neighborhood promo codes, driving direct local foot-traffic and trackable customer redemptions right to your register.
+                </p>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -1003,10 +1403,20 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       onChange={handleFormChange}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005FB8] focus:border-[#005FB8]"
                     >
-                      <option value="Under $5,000 (Pilot 25 Couriers)">{t('advertiser.budget1')}</option>
-                      <option value="$5,000 - $15,000 (50 - 100 Couriers)">{t('advertiser.budget2')}</option>
-                      <option value="$15,000 - $50,000 (Multi-City Fleet)">{t('advertiser.budget3')}</option>
-                      <option value="$50,000+ (National Enterprise Takeover)">{t('advertiser.budget4')}</option>
+                      <optgroup label="Hyperlocal Small Business Micro-Tiers">
+                        <option value="$500 - $1,500 (Hyperlocal 5–10 Couriers • Weekend/1-Week)">
+                          $500 – $1,500 ({t('advertiser.budgetSmb1')})
+                        </option>
+                        <option value="$1,500 - $3,500 (Neighborhood Blitz 15–25 Couriers)">
+                          $1,500 – $3,500 ({t('advertiser.budgetSmb2')})
+                        </option>
+                      </optgroup>
+                      <optgroup label="Metro Enterprise & Multi-City Campaigns">
+                        <option value="Under $5,000 (Pilot 25 Couriers)">{t('advertiser.budget1')}</option>
+                        <option value="$5,000 - $15,000 (50 - 100 Couriers)">{t('advertiser.budget2')}</option>
+                        <option value="$15,000 - $50,000 (Multi-City Fleet)">{t('advertiser.budget3')}</option>
+                        <option value="$50,000+ (National Enterprise Takeover)">{t('advertiser.budget4')}</option>
+                      </optgroup>
                     </select>
                   </div>
                 </div>
