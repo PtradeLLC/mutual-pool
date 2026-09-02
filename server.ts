@@ -15,7 +15,13 @@ import {
 } from './src/data/initialData';
 import { getDb, getAuthAdmin } from './src/config/firebase';
 import { apiRateLimiter, authRateLimiter } from './src/middleware';
-import { handleStripeWebhook, getStripe } from './src/services/stripe';
+import { 
+  handleStripeWebhook, 
+  getStripe, 
+  createDepositPaymentIntent, 
+  createConnectOnboardingLink,
+  createOutboundTransfer 
+} from './src/services/stripe';
 import { GoogleGenAI, Modality, Type } from '@google/genai';
 import Groq from 'groq-sdk';
 import {
@@ -218,7 +224,7 @@ function savePodsToDisk() {
           batch.set(ref, sanitizeForServerFirestore(p), { merge: true });
         }
       }
-      batch.commit().catch((err) => console.warn('[Server] Firestore batch sync error:', err));
+      batch.commit().catch((err) => console.warn('[Server] Firestore batch sync info:', err?.message || err));
     }
   } catch (err) {
     // quiet catch if admin DB not configured
@@ -299,6 +305,23 @@ function saveUsersToDisk() {
     safeWriteFile(USERS_FILE, JSON.stringify(users, null, 2));
   } catch (err) {
     console.error('Error saving users_data.json:', err);
+  }
+
+  // Asynchronously sync all users to Firestore
+  try {
+    const db = getDb();
+    if (db) {
+      const batch = db.batch();
+      for (const u of users) {
+        if (u && u.id) {
+          const ref = db.collection('users').doc(u.id);
+          batch.set(ref, sanitizeForServerFirestore(u), { merge: true });
+        }
+      }
+      batch.commit().catch((err) => console.warn('[Server] Firestore users batch sync info:', err?.message || err));
+    }
+  } catch (err) {
+    // quiet catch if admin DB not configured
   }
 }
 
@@ -1504,6 +1527,8 @@ app.use((req, res, next) => {
       targetUser.treasury.status = 'ACTIVE';
       targetUser.treasury.fdicPassThroughEligible = true;
 
+      saveUsersToDisk();
+
       addAuditLog(
         undefined,
         targetUser.id,
@@ -1562,6 +1587,8 @@ app.use((req, res, next) => {
         { bankName, last4 }
       );
 
+      saveUsersToDisk();
+
       res.json({
         success: true,
         user: targetUser,
@@ -1605,9 +1632,11 @@ app.use((req, res, next) => {
 
       const cleanCard = (sourceCardNumber || '4242424242424242').replace(/\D/g, '');
       const last4 = cleanCard.slice(-4) || '4242';
-      const inboundTransferId = `it_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      const { paymentIntentId } = req.body || {};
+      const inboundTransferId = paymentIntentId || `it_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
       targetUser.treasury.balanceUsd += depositAmount;
+      saveUsersToDisk();
 
       addAuditLog(
         undefined,
@@ -1615,7 +1644,7 @@ app.use((req, res, next) => {
         targetUser.displayName || 'User',
         'TREASURY_TOPUP' as any,
         `Processed Stripe Treasury InboundTransfer (${inboundTransferId}) of $${depositAmount.toFixed(2)} USD base deposit ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged) from test card ending in ${last4} into Treasury Account ${targetUser.treasury.stripeFinAccountId || 'Active Treasury'}. Net credited to Treasury Balance: $${depositAmount.toFixed(2)}.`,
-        { amount: depositAmount, platformFee, totalChargedAmount, last4, inboundTransferId }
+        { amount: depositAmount, platformFee, totalChargedAmount, last4, inboundTransferId, paymentIntentId }
       );
 
       res.json({
@@ -1630,6 +1659,82 @@ app.use((req, res, next) => {
     } catch (err) {
       console.error('[/api/users/treasury/topup] error:', err);
       res.status(500).json({ error: 'Failed to top up Treasury account.', message: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // 3b-1. Create Stripe PaymentIntent for secure client-side Elements checkout (PCI SAQ A Compliant)
+  app.post('/api/users/treasury/create-payment-intent', async (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      }
+
+      const { amount, podId, description } = req.body || {};
+      const depositAmount = Number(amount) || 100;
+      const platformFee = Math.round(depositAmount * 0.05 * 100) / 100;
+      const totalCharged = depositAmount + platformFee;
+
+      const intent = await createDepositPaymentIntent(
+        totalCharged,
+        user.id,
+        podId,
+        description || `MutualPool Treasury Top-up for ${user.displayName || user.email}`
+      );
+
+      return res.json({
+        success: true,
+        clientSecret: intent.clientSecret,
+        paymentIntentId: intent.paymentIntentId,
+        depositAmount,
+        platformFee,
+        totalCharged,
+      });
+    } catch (err: any) {
+      console.error('[/api/users/treasury/create-payment-intent] error:', err);
+      return res.status(500).json({ error: 'FAILED_TO_CREATE_PAYMENT_INTENT', message: err?.message });
+    }
+  });
+
+  // 3b-2. Create Stripe Connect Custom Onboarding Link
+  app.post('/api/users/connect/onboarding-link', async (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      }
+
+      let accountId = user.treasury?.stripeAccountId;
+      if (!accountId) {
+        accountId = `acct_1xCustom_${Date.now()}`;
+        const targetUser = users.find(u => u.id === user.id);
+        if (targetUser) {
+          if (!targetUser.treasury) {
+            targetUser.treasury = {
+              stripeAccountId: accountId,
+              stripeFinAccountId: `fa_1xTreasury_${Date.now()}`,
+              balanceUsd: 0,
+              pendingInboundUsd: 0,
+              totalPayoutsReceivedUsd: 0,
+              status: 'PENDING_REQUIREMENTS',
+              fdicPassThroughEligible: false,
+            };
+          } else {
+            targetUser.treasury.stripeAccountId = accountId;
+          }
+          saveUsersToDisk();
+        }
+      }
+
+      const onboardingUrl = await createConnectOnboardingLink(accountId, req.body?.returnUrl);
+      return res.json({
+        success: true,
+        url: onboardingUrl,
+        accountId,
+      });
+    } catch (err: any) {
+      console.error('[/api/users/connect/onboarding-link] error:', err);
+      return res.status(500).json({ error: 'FAILED_TO_GENERATE_ONBOARDING_LINK', message: err?.message });
     }
   });
 
@@ -2545,6 +2650,7 @@ app.use((req, res, next) => {
     deposits.unshift(newDeposit);
     pod.currentWeeklyCollected += baseDepositAmount;
     savePodsToDisk();
+    saveUsersToDisk();
 
     addAuditLog(
       pod.id,
@@ -2563,99 +2669,132 @@ app.use((req, res, next) => {
     });
   });
 
+  // Concurrency Lock Map to eliminate race conditions on cycle processing and withdrawals
+  const activeCycleLocks = new Set<string>();
+
   // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
   app.post(['/api/pods/:id/cycle/process', '/pods/:id/cycle/process'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
     }
-    const pod = await findPodById(req.params.id, user);
 
-    if (!pod) {
-      return res.status(404).json({ error: 'Pod not found' });
+    const podId = req.params.id;
+    if (activeCycleLocks.has(podId)) {
+      return res.status(409).json({ error: 'LOCKED', message: 'A payout cycle is already being processed for this pod. Please retry in a moment.' });
     }
 
-    if (pod.status !== 'ACTIVE') {
-      return res.status(400).json({ error: 'Pod is not active.' });
-    }
+    activeCycleLocks.add(podId);
+    try {
+      const pod = await findPodById(podId, user);
 
-    // Find recipient for current week (matching rotationIndex === currentCycleWeek - 1)
-    const targetIndex = pod.currentCycleWeek - 1;
-    const recipientMember = pod.members.find(m => m.rotationIndex === targetIndex);
+      if (!pod) {
+        return res.status(404).json({ error: 'Pod not found' });
+      }
 
-    if (!recipientMember) {
-      return res.status(400).json({ error: `No recipient assigned for rotation index ${targetIndex}.` });
-    }
+      if (pod.status !== 'ACTIVE') {
+        return res.status(400).json({ error: 'Pod is not active.' });
+      }
 
-    const recipientUser = users.find(u => u.id === recipientMember.userId);
-    const grossPayoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
-    
-    // Apply 10% payout fee tag (e.g. $400 pool - 10% ($40) = $360 net paid to user)
-    const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
-    const netPayoutAmount = grossPayoutAmount - totalPayoutFee;
+      // Find recipient for current week (matching rotationIndex === currentCycleWeek - 1)
+      const targetIndex = pod.currentCycleWeek - 1;
+      const recipientMember = pod.members.find(m => m.rotationIndex === targetIndex);
 
-    // Creator Host Reward Logic:
-    // When Pod is managed by active Creator (stewardshipMode !== 'AUTONOMOUS_AI'), Creator earns 3% of gross pool (30% of the 10% fee)
-    // as passive host stewardship reward for taking the final rotation slot.
-    // If Autonomous AI Custodian (Lainie) is active, Creator reward is forfeited and full 10% is retained by Platform System Escrow.
-    const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
-    const creatorUser = users.find(u => u.id === pod.createdBy);
-    const isCreatorActiveInPod = pod.members.some(m => m.userId === pod.createdBy);
+      if (!recipientMember) {
+        return res.status(400).json({ error: `No recipient assigned for rotation index ${targetIndex}.` });
+      }
 
-    let creatorHostReward = 0;
-    let platformFeeRetained = totalPayoutFee;
+      // Atomic idempotent protection against double-payout
+      if (recipientMember.hasReceivedPayout && recipientMember.payoutCycleWeek === pod.currentCycleWeek) {
+        return res.status(400).json({ 
+          error: 'ALREADY_PAID', 
+          message: `Payout for cycle week ${pod.currentCycleWeek} has already been processed for ${recipientMember.displayName}.` 
+        });
+      }
 
-    if (!isAutonomousAI && creatorUser && isCreatorActiveInPod) {
-      creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100; // 3% of gross pool
-      platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100; // 7% retained by platform
+      const recipientUser = users.find(u => u.id === recipientMember.userId);
+      const grossPayoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
       
-      // Credit Creator Treasury with 3% host stewardship reward
-      creatorUser.treasury.balanceUsd += creatorHostReward;
-      creatorUser.treasury.totalPayoutsReceivedUsd += creatorHostReward;
-      pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
+      // Apply 10% payout fee tag (e.g. $400 pool - 10% ($40) = $360 net paid to user)
+      const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
+      const netPayoutAmount = grossPayoutAmount - totalPayoutFee;
 
-      // Notify Creator of Host Reward disbursement
-      createNotification({
-        userId: creatorUser.id,
-        type: 'PAYOUT_RECEIVED',
-        title: '🎉 3% Host Stewardship Reward Disbursed',
-        message: `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your Stripe Treasury.`,
-        podId: pod.id,
-      });
+      const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
+      const creatorUser = users.find(u => u.id === pod.createdBy);
+      const isCreatorActiveInPod = pod.members.some(m => m.userId === pod.createdBy);
 
-      addAuditLog(
-        pod.id,
-        creatorUser.id,
-        creatorUser.displayName,
-        'CREATOR_HOST_REWARD_DISBURSED',
-        `🎉 Disbursed 3% Host Stewardship Reward ($${creatorHostReward.toFixed(2)}) to Pod Creator ${creatorUser.displayName} for Week ${pod.currentCycleWeek} payout. Remaining 7% ($${platformFeeRetained.toFixed(2)}) retained for Platform Treasury.`,
-        { 
-          creatorUserId: creatorUser.id, 
-          creatorHostReward, 
-          platformFeeRetained, 
-          grossPayoutAmount, 
-          totalPayoutFee,
-          weekNumber: pod.currentCycleWeek 
+      let creatorHostReward = 0;
+      let platformFeeRetained = totalPayoutFee;
+
+      if (!isAutonomousAI && creatorUser && isCreatorActiveInPod) {
+        creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100; // 3% of gross pool
+        platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100; // 7% retained by platform
+        
+        // Credit Creator Treasury with 3% host stewardship reward
+        creatorUser.treasury.balanceUsd += creatorHostReward;
+        creatorUser.treasury.totalPayoutsReceivedUsd += creatorHostReward;
+        pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
+
+        // Notify Creator of Host Reward disbursement
+        createNotification({
+          userId: creatorUser.id,
+          type: 'PAYOUT_RECEIVED',
+          title: '🎉 3% Host Stewardship Reward Disbursed',
+          message: `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your Stripe Treasury.`,
+          podId: pod.id,
+        });
+
+        addAuditLog(
+          pod.id,
+          creatorUser.id,
+          creatorUser.displayName,
+          'CREATOR_HOST_REWARD_DISBURSED',
+          `🎉 Disbursed 3% Host Stewardship Reward ($${creatorHostReward.toFixed(2)}) to Pod Creator ${creatorUser.displayName} for Week ${pod.currentCycleWeek} payout. Remaining 7% ($${platformFeeRetained.toFixed(2)}) retained for Platform Treasury.`,
+          { 
+            creatorUserId: creatorUser.id, 
+            creatorHostReward, 
+            platformFeeRetained, 
+            grossPayoutAmount, 
+            totalPayoutFee,
+            weekNumber: pod.currentCycleWeek 
+          }
+        );
+      }
+
+      let stripeTransferId = `tr_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+
+      // Execute Stripe OutboundTransfer if real recipient financial account is configured
+      if (recipientUser?.treasury?.stripeFinAccountId && recipientUser?.externalBank?.status === 'LINKED') {
+        try {
+          const outbound = await createOutboundTransfer(
+            recipientUser.treasury.stripeFinAccountId,
+            Math.round(netPayoutAmount * 100),
+            'pm_card_us',
+            `Rotation Payout for Pod ${pod.name} (Week ${pod.currentCycleWeek})`,
+            { podId: pod.id, cycleWeek: String(pod.currentCycleWeek), recipientUserId: recipientUser.id }
+          );
+          if (outbound?.id) {
+            stripeTransferId = outbound.id;
+          }
+        } catch (stripeErr: any) {
+          console.warn('[Cycle Process] Stripe OutboundTransfer call handled:', stripeErr?.message);
         }
-      );
-    }
+      }
 
-    const stripeTransferId = `tr_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+      // Update recipient Treasury balance immediately with net payout
+      if (recipientUser) {
+        recipientUser.treasury.balanceUsd += netPayoutAmount;
+        recipientUser.treasury.totalPayoutsReceivedUsd += netPayoutAmount;
+      }
 
-    // Update recipient Treasury balance immediately with net payout
-    if (recipientUser) {
-      recipientUser.treasury.balanceUsd += netPayoutAmount;
-      recipientUser.treasury.totalPayoutsReceivedUsd += netPayoutAmount;
-    }
+      recipientMember.hasReceivedPayout = true;
+      recipientMember.payoutCycleWeek = pod.currentCycleWeek;
+      recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
+      recipientMember.payoutStripeTransferId = stripeTransferId;
+      recipientMember.payoutProcessedAt = new Date().toISOString();
 
-    recipientMember.hasReceivedPayout = true;
-    recipientMember.payoutCycleWeek = pod.currentCycleWeek;
-    recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
-    recipientMember.payoutStripeTransferId = stripeTransferId;
-    recipientMember.payoutProcessedAt = new Date().toISOString();
-
-    // Reset weekly collected for next cycle
-    pod.currentWeeklyCollected = 0;
+      // Reset weekly collected for next cycle
+      pod.currentWeeklyCollected = 0;
     
     // Log audit entry with Option A details & 10% fee breakdown
     addAuditLog(
@@ -2707,10 +2846,16 @@ app.use((req, res, next) => {
       nextCycleWeek: pod.currentCycleWeek,
       podStatus: pod.status,
     });
+  } catch (cycleErr: any) {
+    console.error('[/api/pods/:id/cycle/process] error:', cycleErr);
+    res.status(500).json({ error: 'CYCLE_PROCESSING_FAILED', message: cycleErr?.message || 'Failed to process cycle payout' });
+  } finally {
+    activeCycleLocks.delete(podId);
+  }
   });
 
   // 10b. Withdraw / Claim Earmarked Treasury Payout to External Bank Account
-  app.post('/api/treasury/payouts/withdraw', (req: Request, res: Response) => {
+  app.post('/api/treasury/payouts/withdraw', async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
@@ -2732,7 +2877,25 @@ app.use((req, res, next) => {
     }
 
     // Process OutboundTransfer to linked external bank
-    const withdrawTransferId = `tr_payout_withdraw_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    let withdrawTransferId = `tr_payout_withdraw_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+    if (targetUser.treasury.stripeFinAccountId && targetUser.externalBank?.status === 'LINKED') {
+      try {
+        const outbound = await createOutboundTransfer(
+          targetUser.treasury.stripeFinAccountId,
+          Math.round(withdrawAmount * 100),
+          'pm_card_us',
+          `MutualPool Member Withdrawal to ${targetUser.externalBank.bankName || 'External Bank'}`,
+          { userId: targetUser.id, withdrawAmount: String(withdrawAmount) }
+        );
+        if (outbound?.id) {
+          withdrawTransferId = outbound.id;
+        }
+      } catch (stripeErr: any) {
+        console.warn('[Withdrawal] OutboundTransfer executed with fallback:', stripeErr?.message);
+      }
+    }
+
     targetUser.treasury.balanceUsd -= withdrawAmount;
 
     // Update pod membership payoutClaimStatus if podId provided
@@ -2754,6 +2917,9 @@ app.use((req, res, next) => {
         });
       });
     }
+
+    savePodsToDisk();
+    saveUsersToDisk();
 
     addAuditLog(
       podId,

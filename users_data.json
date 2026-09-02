@@ -1,0 +1,60 @@
+[
+  {
+    "id": "usr_header_verified_001",
+    "email": "header@example.com",
+    "displayName": "Header Verified User",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Header%20Verified%20User&background=005FB8&color=fff&size=200",
+    "platform": "Uber Eats",
+    "role": "RIDER",
+    "createdAt": "2026-09-02T16:34:01.479Z",
+    "accountAgeDays": 365,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 0,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 0,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 1,
+    "welcomeMatchReceived": true,
+    "welcomeMatchAmountUsd": 20
+  },
+  {
+    "id": "usr_verified_101",
+    "email": "usr_veri@mutualpool.org",
+    "displayName": "usr_veri",
+    "avatarUrl": "https://ui-avatars.com/api/?name=usr_veri&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-09-02T16:35:53.122Z",
+    "accountAgeDays": 1,
+    "kycStatus": "PENDING",
+    "treasury": {
+      "stripeAccountId": "acct_1xCustom_1788366961537",
+      "stripeFinAccountId": "",
+      "balanceUsd": 75,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 0,
+      "fdicPassThroughEligible": false,
+      "status": "UNINITIALIZED"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 0
+  }
+]

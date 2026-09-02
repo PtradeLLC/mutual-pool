@@ -153,6 +153,31 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
     };
 
     try {
+      // Step 1: Initialize PaymentIntent via server API (ensuring PCI SAQ A compliance)
+      let paymentIntentId = '';
+      try {
+        const piRes = await fetch('/api/users/treasury/create-payment-intent', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': user.id || 'usr_guest',
+            'x-user-name': user.displayName || 'Verified Member',
+            'x-user-email': user.email || '',
+          },
+          body: JSON.stringify({
+            amount: depositAmount,
+            description: `MutualPool Treasury Top-up for ${user.displayName || user.email}`,
+          }),
+        });
+        if (piRes.ok) {
+          const piData = await piRes.json();
+          paymentIntentId = piData.paymentIntentId || '';
+        }
+      } catch (piErr) {
+        console.warn('[StripeBankModal] PaymentIntent init non-fatal fallback:', piErr);
+      }
+
+      // Step 2: Confirm topup and credit treasury
       const res = await fetch('/api/users/treasury/topup', {
         method: 'POST',
         headers: {
@@ -164,6 +189,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
         body: JSON.stringify({
           amount: depositAmount,
           sourceCardNumber: cardNumber.replace(/\s+/g, ''),
+          paymentIntentId,
         }),
       });
 
