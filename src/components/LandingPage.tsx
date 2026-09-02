@@ -8,7 +8,9 @@ import { WatchVideoModal } from './WatchVideoModal';
 import { AppStoreModal } from './AppStoreModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 import { LanguageSelector } from './LanguageSelector';
+import { CountrySelector } from './CountrySelector';
 import { useTranslation } from '../i18n';
+import { useCountry } from '../context/CountryContext';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
@@ -72,6 +74,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 }) => {
   const isAuthUser = Boolean(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
   const { t, formatCurrency } = useTranslation();
+  const { country, formatAmount } = useCountry();
 
   const handleActionOrAuth = (
     mode: 'LOGIN' | 'REGISTER' = 'LOGIN',
@@ -319,6 +322,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* Right Action CTAs & Mobile/Tablet Burger Button */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Country & Currency Selector */}
+            <CountrySelector />
+
             {/* Language Selector */}
             <LanguageSelector />
 
@@ -425,6 +431,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </div>
             )}
+
+            {/* Regional Country Selector in Drawer */}
+            <CountrySelector variant="drawer" />
 
             {/* Language Selector in Drawer */}
             <LanguageSelector variant="drawer" />
@@ -1183,7 +1192,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* FOOTER */}
       <footer className="bg-[#F8FAFC] border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280]">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">         
-          <span>© {new Date().getFullYear()} {t('footer.allRightsReserved')}</span>
+          <span>© {new Date().getFullYear()} {country.regulations.legalEntityName}. {t('footer.allRightsReserved')}</span>
           <div className="flex items-center gap-4 text-xs font-medium">
             <button onClick={onOpenAbout} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('nav.about')}
@@ -1210,6 +1219,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </>
             )}
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 mt-3 pt-3 border-t border-gray-200/60 text-[11px] text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-left">
+            <span className="text-sm">{country.flag}</span>
+            <span>
+              <strong>{country.countryName} Market ({country.currency.code}):</strong> {country.regulations.regulatoryNotice}
+            </span>
+          </div>
+          <div className="shrink-0 text-gray-400">
+            Regulated under {country.regulations.regulatoryBody.split('/')[0].trim()}
           </div>
         </div>
       </footer>

@@ -3,7 +3,9 @@ import { User, Pod, isAdvertiserOrAdmin } from '../types';
 import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
 import { LanguageSelector } from './LanguageSelector';
+import { CountrySelector } from './CountrySelector';
 import { useTranslation } from '../i18n';
+import { useCountry } from '../context/CountryContext';
 import { useChat } from '../context/ChatContext';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
@@ -62,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const { t } = useTranslation();
+  const { country } = useCountry();
   const { openChat, totalUnreadCount, isConnected } = useChat();
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' || Boolean(currentUser.isAdmin);
 
@@ -86,13 +89,16 @@ export const Header: React.FC<HeaderProps> = ({
             <Logo size="md" />
             <div className="hidden sm:block">
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#005FB8] border border-blue-200">
-                Stripe Treasury
+                {country.payment.providerDisplayName.split('(')[0].trim()}
               </span>
             </div>
           </div>
 
           {/* User Status Bar & Switcher */}
           <div className="flex items-center gap-2 sm:gap-3">
+
+            {/* Country & Currency Selector */}
+            <CountrySelector />
 
             {/* Language Selector */}
             <LanguageSelector />

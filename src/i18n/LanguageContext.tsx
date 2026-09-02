@@ -3,6 +3,7 @@ import { SupportedLanguage, SUPPORTED_LANGUAGES, LanguageInfo } from './types';
 import { en, TranslationKey } from './en';
 import { es } from './es';
 import { fr } from './fr';
+import { formatCurrency as formatCountryCurrency } from '../services/currency/currencyService';
 
 const translationsMap: Record<SupportedLanguage, Record<TranslationKey, string>> = {
   en,
@@ -91,12 +92,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const formatCurrency = (amount: number): string => {
     try {
-      const locale = language === 'es' ? 'es-US' : language === 'fr' ? 'fr-CA' : 'en-US';
-      return new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: 'USD',
-        maximumFractionDigits: 0,
-      }).format(amount);
+      const savedCountry = typeof localStorage !== 'undefined' ? localStorage.getItem('mutualpool_active_country') : null;
+      return formatCountryCurrency(amount, savedCountry || 'US', { maximumFractionDigits: 0 });
     } catch {
       return `$${amount.toLocaleString()}`;
     }

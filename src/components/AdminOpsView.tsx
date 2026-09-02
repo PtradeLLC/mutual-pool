@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { User, Pod } from '../types';
-import { Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight } from 'lucide-react';
+import { useCountry } from '../context/CountryContext';
+import { SUPPORTED_COUNTRIES } from '../config/countries';
+import { Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, Building2, Smartphone, ExternalLink, Shield } from 'lucide-react';
 
 interface AdminOpsViewProps {
   currentUser: User;
@@ -15,6 +17,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
   allPods,
   onRefreshData,
 }) => {
+  const { country, countryCode, setCountry, isStandalone } = useCountry();
   const [webhookType, setWebhookType] = useState('treasury.outbound_transfer.posted');
   const [webhookPayload, setWebhookPayload] = useState('{\n  "amount": 40000,\n  "currency": "usd",\n  "status": "posted"\n}');
   const [firingWebhook, setFiringWebhook] = useState(false);
@@ -252,6 +255,119 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* Multi-Country Domain Architecture & Market Control Panel */}
+      <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+          <div>
+            <div className="flex items-center gap-2 text-[#111827] font-bold text-sm">
+              <Globe className="w-4 h-4 text-[#005FB8]" />
+              <span>Multi-Country Domain Architecture & Isolated Market Context</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Single codebase powering country-specific domains (myapp.com, myapp.uk, myapp.ng, myapp.nl) with dynamic PWA manifests and standalone in-app switching.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 font-medium">Active Market:</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-[#005FB8] font-bold text-xs">
+              <span>{country.flag}</span>
+              <span>{country.countryName} ({country.currency.code})</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Live Market Simulation Tabs for Admin */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-gray-700">Simulate Domain Context:</span>
+          {SUPPORTED_COUNTRIES.map((c) => {
+            const isCurrent = countryCode === c.countryCode;
+            return (
+              <button
+                key={c.countryCode}
+                type="button"
+                onClick={() => setCountry(c.countryCode)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isCurrent
+                    ? 'bg-[#005FB8] text-white border-[#005FB8] shadow-xs'
+                    : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
+                }`}
+              >
+                <span>{c.flag}</span>
+                <span>{c.primaryDomain}</span>
+                <span className={`text-[10px] font-mono px-1 rounded ${isCurrent ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                  {c.currency.code}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Country Registry Details Table */}
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-[10px] tracking-wider border-b border-gray-200">
+              <tr>
+                <th className="px-3 py-2.5">Region</th>
+                <th className="px-3 py-2.5">Primary Domain</th>
+                <th className="px-3 py-2.5">Currency & Locale</th>
+                <th className="px-3 py-2.5">Payment Rails</th>
+                <th className="px-3 py-2.5">Regulatory Authority</th>
+                <th className="px-3 py-2.5">PWA Manifest Name</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {SUPPORTED_COUNTRIES.map((c) => {
+                const isSelected = countryCode === c.countryCode;
+                return (
+                  <tr key={c.countryCode} className={isSelected ? 'bg-blue-50/50 font-medium' : 'hover:bg-gray-50/50'}>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{c.flag}</span>
+                        <span className="font-bold text-gray-900">{c.countryName}</span>
+                        {isSelected && (
+                          <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.2 rounded">
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap font-mono text-gray-700">
+                      {c.primaryDomain}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="font-mono font-bold text-blue-700">{c.currency.code} ({c.currency.symbol})</span>
+                      <span className="text-gray-400 ml-1">· {c.defaultLocale}</span>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-700">
+                      {c.payment.providerDisplayName.split('(')[0].trim()}
+                    </td>
+                    <td className="px-3 py-2.5 max-w-xs truncate text-gray-600" title={c.regulations.regulatoryBody}>
+                      {c.regulations.regulatoryBody}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-800 font-semibold">
+                      {c.pwa.name}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* PWA & Standalone Mode Isolation Notice */}
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-600 flex items-start gap-2">
+          <Smartphone className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <div>
+            <div className="font-semibold text-gray-800">
+              App Store & PWA Origin Isolation Guard {isStandalone ? '(Installed Mode Active)' : '(Web Browser Mode)'}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              In installed PWA or native App Store wrappers, external domain hops (e.g. from myapp.com to myapp.ng) are strictly intercepted to execute seamless in-app context switching. This preserves the standalone window experience and prevents the OS from opening a secondary browser tab.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Pod Delinquency & System Escrow Ledger Table */}

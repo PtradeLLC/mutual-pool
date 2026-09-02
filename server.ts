@@ -14,7 +14,9 @@ import {
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
 } from './src/data/initialData';
 import { getDb, getAuthAdmin } from './src/config/firebase';
-import { apiRateLimiter, authRateLimiter } from './src/middleware';
+import { apiRateLimiter, authRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
+import { SUPPORTED_COUNTRIES, US_CONFIG } from './src/config/countries';
+import { PaymentProviderFactory } from './src/services/payments/factory';
 import { 
   handleStripeWebhook, 
   getStripe, 
@@ -1150,6 +1152,63 @@ app.use((req, res, next) => {
   next();
 });
 
+// Attach Server-Side Country Context (derived strictly from host / domain)
+app.use(countryContextMiddleware);
+
+// Dynamic Web App Manifest - Adapts name, short_name, scope, and description based on incoming country domain
+app.get(['/manifest.json', '/site.webmanifest'], (req: Request, res: Response) => {
+  const country = req.country || US_CONFIG;
+  const manifest = {
+    id: `/?country=${country.countryCode}`,
+    name: country.pwa.name,
+    short_name: country.pwa.shortName,
+    description: country.pwa.description,
+    icons: [
+      {
+        src: '/android-chrome-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/android-chrome-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/android-chrome-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+    theme_color: country.pwa.themeColor,
+    background_color: country.pwa.backgroundColor,
+    display: 'standalone',
+    start_url: '/',
+    scope: '/',
+  };
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.json(manifest);
+});
+
+// Country configuration endpoints
+app.get('/api/country/current', (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    country: req.country || US_CONFIG,
+  });
+});
+
+app.get('/api/country/all', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    countries: SUPPORTED_COUNTRIES,
+  });
+});
+
 // Rate limiting middleware
 app.use('/api/', apiRateLimiter);
 app.use(['/api/users/login', '/api/users/register', '/api/users/switch'], authRateLimiter);
@@ -1664,18 +1723,46 @@ app.use((req, res, next) => {
   });
 
   // 3b-1. Create Stripe PaymentIntent for secure client-side Elements checkout (PCI SAQ A Compliant)
-  app.post('/api/users/treasury/create-payment-intent', async (req: Request, res: Response) => {
+  app.post('/api/users/treasury/create-payment-intent', validateCountryCurrency, async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
         return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
       }
 
+      const country = req.country || US_CONFIG;
       const { amount, podId, description } = req.body || {};
       const depositAmount = Number(amount) || 100;
-      const platformFee = Math.round(depositAmount * 0.05 * 100) / 100;
+      const feePercentage = country.payment.payoutFeePercentage || 0.05;
+      const platformFee = Math.round(depositAmount * feePercentage * 100) / 100;
       const totalCharged = depositAmount + platformFee;
 
+      // In non-US countries or when country-specific provider is active
+      if (country.countryCode !== 'US') {
+        const provider = PaymentProviderFactory.getProvider(country);
+        const providerIntent = await provider.createDepositIntent({
+          amountMinorUnits: Math.round(depositAmount * 100),
+          currency: country.currency.code,
+          userId: user.id,
+          userEmail: user.email,
+          podId,
+          description: description || `${country.countryName} Pod Deposit for ${user.displayName || user.email}`,
+        });
+
+        return res.json({
+          success: true,
+          provider: provider.providerId,
+          clientSecret: providerIntent.clientSecret,
+          redirectUrl: providerIntent.redirectUrl,
+          paymentIntentId: providerIntent.paymentIntentId,
+          currency: country.currency.code,
+          depositAmount,
+          platformFee,
+          totalCharged,
+        });
+      }
+
+      // Default US Stripe Treasury flow
       const intent = await createDepositPaymentIntent(
         totalCharged,
         user.id,
@@ -1685,6 +1772,8 @@ app.use((req, res, next) => {
 
       return res.json({
         success: true,
+        provider: 'stripe_treasury',
+        currency: 'USD',
         clientSecret: intent.clientSecret,
         paymentIntentId: intent.paymentIntentId,
         depositAmount,
