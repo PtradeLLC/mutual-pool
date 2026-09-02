@@ -2,10 +2,26 @@ import Stripe from 'stripe';
 import { getDb, COLLECTIONS, timestampToISO } from '../config/firebase';
 import { Timestamp } from 'firebase-admin/firestore';
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-06-20' as any,
-  typescript: true,
+// Initialize Stripe lazily
+let stripeClient: Stripe | null = null;
+export function getStripe(): Stripe {
+  if (!stripeClient) {
+    const key = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_mutualpool';
+    stripeClient = new Stripe(key, {
+      apiVersion: '2024-06-20' as any,
+      typescript: true,
+    });
+  }
+  return stripeClient;
+}
+
+// Proxied stripe object for backwards compatibility
+const stripe = new Proxy({} as Stripe, {
+  get: (_target, prop) => {
+    const client = getStripe();
+    const value = (client as any)[prop];
+    return typeof value === 'function' ? value.bind(client) : value;
+  }
 });
 
 export interface StripeConnectAccount {
@@ -299,6 +315,10 @@ export async function getFinancialAccountBalance(financialAccountId: string): Pr
 // Webhook Handlers
 export async function handleStripeWebhook(event: Stripe.Event): Promise<void> {
   const db = getDb();
+  if (!db) {
+    console.warn('[Stripe Webhook] Admin DB not available, skipping database sync.');
+    return;
+  }
   
   switch (event.type as string) {
     case 'account.updated': {

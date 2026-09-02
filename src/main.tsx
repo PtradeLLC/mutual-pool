@@ -3,7 +3,11 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { LanguageProvider } from './i18n';
+import { installFetchInterceptor } from './lib/apiClient.ts';
 import './index.css';
+
+// Initialize global authenticated API interceptor
+installFetchInterceptor();
 
 if (typeof window !== 'undefined') {
   // Suppress unhandled errors from crypto/wallet browser extensions

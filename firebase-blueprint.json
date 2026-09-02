@@ -99,6 +99,66 @@
         "codeOrLink": { "type": "string" }
       },
       "required": ["id", "userId", "perkId", "redeemedAt"]
+    },
+    "notifications": {
+      "title": "App Notifications",
+      "description": "In-app notifications for pod swaps, payouts, and system alerts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "podId": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "message", "createdAt"]
+    },
+    "swap_requests": {
+      "title": "Spot Swap Requests",
+      "description": "Requests between pod members to exchange payout rotation slots",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "podId": { "type": "string" },
+        "requesterUserId": { "type": "string" },
+        "targetUserId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "podId", "requesterUserId", "targetUserId", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User profiles with KYC status, gig platform, and Stripe Treasury references"
+    },
+    "/pods/{podId}": {
+      "schema": "pods",
+      "description": "Mutual ROSCA savings pools with member listings and rotation order"
+    },
+    "/perks/{perkId}": {
+      "schema": "perks",
+      "description": "Marketplace member perks and gig benefits"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "auditLogs",
+      "description": "Append-only immutable audit trail"
+    },
+    "/redemptions/{redemptionId}": {
+      "schema": "redemptions",
+      "description": "Perk redemption logs"
+    },
+    "/notifications/{notifId}": {
+      "schema": "notifications",
+      "description": "User notifications"
+    },
+    "/swap_requests/{requestId}": {
+      "schema": "swap_requests",
+      "description": "Pod spot swap requests"
     }
   }
 }
