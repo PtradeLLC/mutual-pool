@@ -1306,14 +1306,52 @@ export const fr: Record<TranslationKey, string> = {
   'advertiser.summaryLockInSmb': 'Réserver la Flotte Hyperlocale de Quartier',
   'advertiser.summaryLockInEnterprise': 'Valider la Proposition Entreprise',
 
-  // Hyperlocal Neighborhoods
-  'advertiser.hood_west_loop': 'West Loop & Fulton Market (60661, 60607)',
+  // Hyperlocal Neighborhoods & City Filter
+  'advertiser.calcCityFilter': 'Ville / Pôle Métropolitain Ciblé :',
+  'advertiser.cityAll': 'Toutes les Métropoles',
+  'advertiser.cityNyc': 'New York, NY',
+  'advertiser.cityChicago': 'Chicago, IL',
+  'advertiser.cityLa': 'Los Angeles, CA',
+  'advertiser.cityAustin': 'Austin, TX',
+  'advertiser.cityAtlanta': 'Atlanta, GA',
+  'advertiser.citySf': 'San Francisco, CA',
+  'advertiser.cityMiami': 'Miami, FL',
+  'advertiser.calcLiveShiftActive': '{count} en tournée de livraison active',
+  'advertiser.calcZipMatched': 'Associé à {city} : {count} livreurs vérifiés prêts dans ce couloir',
+  'advertiser.calcCorridorsLabel': 'Densité des Couloirs Actifs',
+
   'advertiser.hood_les_ev': 'Lower East Side & East Village (10002, 10009)',
   'advertiser.hood_wburg': 'Williamsburg & Greenpoint (11211, 11222)',
+  'advertiser.hood_soho_wv': 'SoHo, NoHo & West Village (10012, 10014)',
+  'advertiser.hood_midtown_flat': 'Midtown & Flatiron District (10001, 10010)',
+  'advertiser.hood_astoria_lic': 'Astoria & Long Island City (11101, 11102)',
+  'advertiser.hood_bushwick': 'Bushwick & Bed-Stuy (11206, 11216)',
+
+  'advertiser.hood_west_loop': 'West Loop & Fulton Market (60661, 60607)',
   'advertiser.hood_wicker': 'Wicker Park & Logan Square (60622, 60647)',
+  'advertiser.hood_river_north': 'River North & The Loop (60654, 60602)',
+  'advertiser.hood_lincoln_park': 'Lincoln Park & Lakeview (60614, 60657)',
+  'advertiser.hood_pilsen': 'Pilsen & South Loop (60608, 60605)',
+
   'advertiser.hood_sm_venice': 'Santa Monica & Venice (90401, 90291)',
+  'advertiser.hood_dtla_arts': 'Downtown LA & Arts District (90013, 90021)',
+  'advertiser.hood_hollywood': 'Hollywood & Silver Lake (90028, 90026)',
+  'advertiser.hood_weho_bev': 'West Hollywood & Beverly (90069, 90210)',
+
   'advertiser.hood_austin_dt': 'Centre d\'Austin & East 6th (78701, 78702)',
+  'advertiser.hood_soco_rainey': 'South Congress & Rainey St (78704, 78701)',
+  'advertiser.hood_ut_campus': 'Campus UT & North Loop (78705, 78751)',
+
   'advertiser.hood_midtown_atl': 'Midtown & Inman Park (30308, 30307)',
+  'advertiser.hood_buckhead': 'Buckhead & West End (30305, 30310)',
+  'advertiser.hood_o4w_beltline': 'Old Fourth Ward & BeltLine (30312, 30308)',
+
+  'advertiser.hood_soma_fidi': 'SoMa & Financial District (94103, 94104)',
+  'advertiser.hood_mission_castro': 'Mission & Castro (94110, 94114)',
+
+  'advertiser.hood_brickell_dt': 'Brickell & Centre de Miami (33131, 33130)',
+  'advertiser.hood_wynwood': 'Wynwood & Design District (33127, 33137)',
+
   'advertiser.hood_custom': 'Rayon Local Personnalisé de 3 km (Votre Établissement)',
 
   // Catalog Section

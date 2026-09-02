@@ -1303,6 +1303,7 @@ export default function App() {
         }>
           <AdvertiserPage
             currentUser={currentUser}
+            allUsers={allUsers}
             campaigns={campaigns}
             shifts={campaignShifts}
             initialTab={advertiserInitialTab}

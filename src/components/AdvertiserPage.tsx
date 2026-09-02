@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { User, AdCampaign, CampaignShiftLog, isAdvertiserOrAdmin } from '../types';
 import { Logo } from './Logo';
 import { AdvertiserDashboard } from './AdvertiserDashboard';
@@ -21,6 +21,7 @@ import promoSleeveImg from '../assets/images/promo_hoodie_sleeve_1786902506042.j
 
 interface AdvertiserPageProps {
   currentUser?: User | null;
+  allUsers?: User[];
   campaigns?: AdCampaign[];
   shifts?: CampaignShiftLog[];
   onAddNewShift?: (shift: CampaignShiftLog) => void;
@@ -41,17 +42,334 @@ const METRO_MARKETS = [
   { id: 'national', nameKey: 'advertiser.market_national', activeCouriers: '14,000+', dailyFootTraffic: '22M+' },
 ] as const;
 
-// Hyperlocal Neighborhoods for Small Businesses
-const HYPERLOCAL_NEIGHBORHOODS = [
-  { id: 'hood_west_loop', nameKey: 'advertiser.hood_west_loop', metro: 'Chicago, IL', activeFleet: '65 verified couriers' },
-  { id: 'hood_les_ev', nameKey: 'advertiser.hood_les_ev', metro: 'New York, NY', activeFleet: '120 verified couriers' },
-  { id: 'hood_wburg', nameKey: 'advertiser.hood_wburg', metro: 'Brooklyn, NY', activeFleet: '85 verified couriers' },
-  { id: 'hood_wicker', nameKey: 'advertiser.hood_wicker', metro: 'Chicago, IL', activeFleet: '50 verified couriers' },
-  { id: 'hood_sm_venice', nameKey: 'advertiser.hood_sm_venice', metro: 'Los Angeles, CA', activeFleet: '75 verified couriers' },
-  { id: 'hood_austin_dt', nameKey: 'advertiser.hood_austin_dt', metro: 'Austin, TX', activeFleet: '40 verified couriers' },
-  { id: 'hood_midtown_atl', nameKey: 'advertiser.hood_midtown_atl', metro: 'Atlanta, GA', activeFleet: '45 verified couriers' },
-  { id: 'hood_custom', nameKey: 'advertiser.hood_custom', metro: 'Direct Storefront Matching', activeFleet: 'Dynamic GPS radius' },
+// Hyperlocal Target Metros for SMBs
+export const HYPERLOCAL_METROS = [
+  { id: 'nyc', nameKey: 'advertiser.cityNyc', label: 'New York, NY', flag: '🗽', defaultHood: 'hood_les_ev' },
+  { id: 'chicago', nameKey: 'advertiser.cityChicago', label: 'Chicago, IL', flag: '🏙️', defaultHood: 'hood_west_loop' },
+  { id: 'la', nameKey: 'advertiser.cityLa', label: 'Los Angeles, CA', flag: '🌴', defaultHood: 'hood_sm_venice' },
+  { id: 'austin', nameKey: 'advertiser.cityAustin', label: 'Austin, TX', flag: '🎸', defaultHood: 'hood_austin_dt' },
+  { id: 'atlanta', nameKey: 'advertiser.cityAtlanta', label: 'Atlanta, GA', flag: '🍑', defaultHood: 'hood_midtown_atl' },
+  { id: 'sf', nameKey: 'advertiser.citySf', label: 'San Francisco, CA', flag: '🌉', defaultHood: 'hood_soma_fidi' },
+  { id: 'miami', nameKey: 'advertiser.cityMiami', label: 'Miami, FL', flag: '☀️', defaultHood: 'hood_brickell_dt' },
+  { id: 'all', nameKey: 'advertiser.cityAll', label: 'All Metros', flag: '📍', defaultHood: 'hood_custom' },
 ] as const;
+
+export interface HyperlocalNeighborhood {
+  id: string;
+  nameKey: string;
+  metroKey: 'nyc' | 'chicago' | 'la' | 'austin' | 'atlanta' | 'sf' | 'miami' | 'custom';
+  metroName: string;
+  zipCodes: string[];
+  baseVerifiedCouriers: number;
+  activeShiftsCount: number;
+  corridorType: string;
+  estimatedDailyDeliveries: string;
+}
+
+// Hyperlocal Neighborhoods for Small Businesses (Organized by Metro)
+const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
+  // 🗽 New York & Brooklyn, NY
+  {
+    id: 'hood_les_ev',
+    nameKey: 'advertiser.hood_les_ev',
+    metroKey: 'nyc',
+    metroName: 'New York, NY',
+    zipCodes: ['10002', '10009', '10003'],
+    baseVerifiedCouriers: 120,
+    activeShiftsCount: 86,
+    corridorType: 'High-Density Restaurant & Nightlife Corridor',
+    estimatedDailyDeliveries: '2,400+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_wburg',
+    nameKey: 'advertiser.hood_wburg',
+    metroKey: 'nyc',
+    metroName: 'Brooklyn, NY',
+    zipCodes: ['11211', '11222', '11249'],
+    baseVerifiedCouriers: 85,
+    activeShiftsCount: 62,
+    corridorType: 'Artisan Retail & Waterfront Dining',
+    estimatedDailyDeliveries: '1,750+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_soho_wv',
+    nameKey: 'advertiser.hood_soho_wv',
+    metroKey: 'nyc',
+    metroName: 'New York, NY',
+    zipCodes: ['10012', '10014', '10013'],
+    baseVerifiedCouriers: 140,
+    activeShiftsCount: 98,
+    corridorType: 'Luxury Boutiques & Heavy Pedestrian Flow',
+    estimatedDailyDeliveries: '2,900+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_midtown_flat',
+    nameKey: 'advertiser.hood_midtown_flat',
+    metroKey: 'nyc',
+    metroName: 'New York, NY',
+    zipCodes: ['10001', '10010', '10018'],
+    baseVerifiedCouriers: 165,
+    activeShiftsCount: 115,
+    corridorType: 'Commercial Core & Transit Lunch Surge',
+    estimatedDailyDeliveries: '3,600+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_astoria_lic',
+    nameKey: 'advertiser.hood_astoria_lic',
+    metroKey: 'nyc',
+    metroName: 'Queens, NY',
+    zipCodes: ['11101', '11102', '11105'],
+    baseVerifiedCouriers: 60,
+    activeShiftsCount: 42,
+    corridorType: 'Neighborhood Cafes & Residential High-Rises',
+    estimatedDailyDeliveries: '1,200+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_bushwick',
+    nameKey: 'advertiser.hood_bushwick',
+    metroKey: 'nyc',
+    metroName: 'Brooklyn, NY',
+    zipCodes: ['11206', '11216', '11237'],
+    baseVerifiedCouriers: 70,
+    activeShiftsCount: 48,
+    corridorType: 'Creative District & Avenue Corridors',
+    estimatedDailyDeliveries: '1,450+ doorstep dropoffs/day',
+  },
+
+  // 🏙️ Chicago, IL
+  {
+    id: 'hood_west_loop',
+    nameKey: 'advertiser.hood_west_loop',
+    metroKey: 'chicago',
+    metroName: 'Chicago, IL',
+    zipCodes: ['60661', '60607'],
+    baseVerifiedCouriers: 65,
+    activeShiftsCount: 48,
+    corridorType: 'Restaurant Row & Fulton Tech Office Corridor',
+    estimatedDailyDeliveries: '1,850+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_wicker',
+    nameKey: 'advertiser.hood_wicker',
+    metroKey: 'chicago',
+    metroName: 'Chicago, IL',
+    zipCodes: ['60622', '60647'],
+    baseVerifiedCouriers: 50,
+    activeShiftsCount: 36,
+    corridorType: 'Milwaukee Ave Indie Dining & Boutiques',
+    estimatedDailyDeliveries: '1,350+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_river_north',
+    nameKey: 'advertiser.hood_river_north',
+    metroKey: 'chicago',
+    metroName: 'Chicago, IL',
+    zipCodes: ['60654', '60602', '60611'],
+    baseVerifiedCouriers: 80,
+    activeShiftsCount: 58,
+    corridorType: 'Downtown High-Rise & Entertainment District',
+    estimatedDailyDeliveries: '2,200+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_lincoln_park',
+    nameKey: 'advertiser.hood_lincoln_park',
+    metroKey: 'chicago',
+    metroName: 'Chicago, IL',
+    zipCodes: ['60614', '60657'],
+    baseVerifiedCouriers: 55,
+    activeShiftsCount: 39,
+    corridorType: 'Clark & Halsted Residential Dining Corridor',
+    estimatedDailyDeliveries: '1,400+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_pilsen',
+    nameKey: 'advertiser.hood_pilsen',
+    metroKey: 'chicago',
+    metroName: 'Chicago, IL',
+    zipCodes: ['60608', '60605'],
+    baseVerifiedCouriers: 45,
+    activeShiftsCount: 31,
+    corridorType: '18th St Cultural Corridors & South Loop',
+    estimatedDailyDeliveries: '950+ doorstep dropoffs/day',
+  },
+
+  // 🌴 Los Angeles, CA
+  {
+    id: 'hood_sm_venice',
+    nameKey: 'advertiser.hood_sm_venice',
+    metroKey: 'la',
+    metroName: 'Los Angeles, CA',
+    zipCodes: ['90401', '90291', '90403'],
+    baseVerifiedCouriers: 75,
+    activeShiftsCount: 54,
+    corridorType: 'Abbot Kinney & Promenade High-Visibility',
+    estimatedDailyDeliveries: '1,900+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_dtla_arts',
+    nameKey: 'advertiser.hood_dtla_arts',
+    metroKey: 'la',
+    metroName: 'Los Angeles, CA',
+    zipCodes: ['90013', '90021', '90015'],
+    baseVerifiedCouriers: 90,
+    activeShiftsCount: 65,
+    corridorType: 'Arts District Lofts & Downtown Dining',
+    estimatedDailyDeliveries: '2,350+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_hollywood',
+    nameKey: 'advertiser.hood_hollywood',
+    metroKey: 'la',
+    metroName: 'Los Angeles, CA',
+    zipCodes: ['90028', '90026', '90039'],
+    baseVerifiedCouriers: 65,
+    activeShiftsCount: 46,
+    corridorType: 'Sunset Blvd & Silver Lake Cafe Corridors',
+    estimatedDailyDeliveries: '1,600+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_weho_bev',
+    nameKey: 'advertiser.hood_weho_bev',
+    metroKey: 'la',
+    metroName: 'Los Angeles, CA',
+    zipCodes: ['90069', '90210', '90048'],
+    baseVerifiedCouriers: 70,
+    activeShiftsCount: 52,
+    corridorType: 'Santa Monica Blvd & Beverly Hills Corridors',
+    estimatedDailyDeliveries: '1,800+ doorstep dropoffs/day',
+  },
+
+  // 🎸 Austin, TX
+  {
+    id: 'hood_austin_dt',
+    nameKey: 'advertiser.hood_austin_dt',
+    metroKey: 'austin',
+    metroName: 'Austin, TX',
+    zipCodes: ['78701', '78702'],
+    baseVerifiedCouriers: 40,
+    activeShiftsCount: 28,
+    corridorType: 'Congress Ave & East 6th Entertainment Strip',
+    estimatedDailyDeliveries: '1,100+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_soco_rainey',
+    nameKey: 'advertiser.hood_soco_rainey',
+    metroKey: 'austin',
+    metroName: 'Austin, TX',
+    zipCodes: ['78704', '78701'],
+    baseVerifiedCouriers: 35,
+    activeShiftsCount: 24,
+    corridorType: 'South Congress Retail & Rainey Street Patios',
+    estimatedDailyDeliveries: '950+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_ut_campus',
+    nameKey: 'advertiser.hood_ut_campus',
+    metroKey: 'austin',
+    metroName: 'Austin, TX',
+    zipCodes: ['78705', '78751'],
+    baseVerifiedCouriers: 45,
+    activeShiftsCount: 32,
+    corridorType: 'Guadalupe The Drag & West Campus Apartments',
+    estimatedDailyDeliveries: '1,300+ doorstep dropoffs/day',
+  },
+
+  // 🍑 Atlanta, GA
+  {
+    id: 'hood_midtown_atl',
+    nameKey: 'advertiser.hood_midtown_atl',
+    metroKey: 'atlanta',
+    metroName: 'Atlanta, GA',
+    zipCodes: ['30308', '30307', '30309'],
+    baseVerifiedCouriers: 45,
+    activeShiftsCount: 32,
+    corridorType: 'Peachtree St & Piedmont Park Corridor',
+    estimatedDailyDeliveries: '1,250+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_buckhead',
+    nameKey: 'advertiser.hood_buckhead',
+    metroKey: 'atlanta',
+    metroName: 'Atlanta, GA',
+    zipCodes: ['30305', '30326', '30310'],
+    baseVerifiedCouriers: 50,
+    activeShiftsCount: 36,
+    corridorType: 'Lenox Road & Buckhead Village Dining',
+    estimatedDailyDeliveries: '1,400+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_o4w_beltline',
+    nameKey: 'advertiser.hood_o4w_beltline',
+    metroKey: 'atlanta',
+    metroName: 'Atlanta, GA',
+    zipCodes: ['30312', '30308'],
+    baseVerifiedCouriers: 55,
+    activeShiftsCount: 40,
+    corridorType: 'Ponce City Market & BeltLine Pedestrian Flow',
+    estimatedDailyDeliveries: '1,550+ doorstep dropoffs/day',
+  },
+
+  // 🌉 San Francisco, CA
+  {
+    id: 'hood_soma_fidi',
+    nameKey: 'advertiser.hood_soma_fidi',
+    metroKey: 'sf',
+    metroName: 'San Francisco, CA',
+    zipCodes: ['94103', '94104', '94105'],
+    baseVerifiedCouriers: 85,
+    activeShiftsCount: 60,
+    corridorType: 'Market St & Mission Bay Office Corridors',
+    estimatedDailyDeliveries: '2,400+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_mission_castro',
+    nameKey: 'advertiser.hood_mission_castro',
+    metroKey: 'sf',
+    metroName: 'San Francisco, CA',
+    zipCodes: ['94110', '94114'],
+    baseVerifiedCouriers: 65,
+    activeShiftsCount: 46,
+    corridorType: 'Valencia & Mission St Food & Retail Row',
+    estimatedDailyDeliveries: '1,700+ doorstep dropoffs/day',
+  },
+
+  // ☀️ Miami, FL
+  {
+    id: 'hood_brickell_dt',
+    nameKey: 'advertiser.hood_brickell_dt',
+    metroKey: 'miami',
+    metroName: 'Miami, FL',
+    zipCodes: ['33131', '33130'],
+    baseVerifiedCouriers: 70,
+    activeShiftsCount: 51,
+    corridorType: 'Brickell Ave Financial & High-Rise Condos',
+    estimatedDailyDeliveries: '1,950+ doorstep dropoffs/day',
+  },
+  {
+    id: 'hood_wynwood',
+    nameKey: 'advertiser.hood_wynwood',
+    metroKey: 'miami',
+    metroName: 'Miami, FL',
+    zipCodes: ['33127', '33137'],
+    baseVerifiedCouriers: 55,
+    activeShiftsCount: 39,
+    corridorType: 'NW 2nd Ave Art District & Nightlife',
+    estimatedDailyDeliveries: '1,500+ doorstep dropoffs/day',
+  },
+
+  // 📍 Custom 2-Mile Local Radius
+  {
+    id: 'hood_custom',
+    nameKey: 'advertiser.hood_custom',
+    metroKey: 'custom',
+    metroName: 'Direct Storefront Matching',
+    zipCodes: [],
+    baseVerifiedCouriers: 45,
+    activeShiftsCount: 30,
+    corridorType: 'Dynamic 2-Mile GPS Corridor Around Your Store',
+    estimatedDailyDeliveries: '1,200+ doorstep dropoffs/day',
+  },
+];
 
 // SMB Micro-Tier Duration Options
 const SMB_DURATIONS = [
@@ -132,6 +450,7 @@ const FAQS = [
 
 export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   currentUser,
+  allUsers = [],
   campaigns = INITIAL_CAMPAIGNS,
   shifts = INITIAL_CAMPAIGN_SHIFTS,
   onAddNewShift,
@@ -161,11 +480,96 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   const [campaignTier, setCampaignTier] = useState<'smb' | 'enterprise'>('smb');
 
   // SMB Calculator State
+  const [smbCityFilter, setSmbCityFilter] = useState<string>('nyc');
   const [smbNeighborhood, setSmbNeighborhood] = useState<string>(HYPERLOCAL_NEIGHBORHOODS[0].id);
   const [smbFleetCount, setSmbFleetCount] = useState<number>(10);
   const [smbDurationId, setSmbDurationId] = useState<string>('1week');
   const [smbHardwareId, setSmbHardwareId] = useState<string>('modular_sleeve');
   const [customZipCode, setCustomZipCode] = useState<string>('');
+
+  // Filtered neighborhoods based on selected metro city
+  const filteredNeighborhoods = useMemo(() => {
+    if (smbCityFilter === 'all') {
+      return HYPERLOCAL_NEIGHBORHOODS;
+    }
+    return HYPERLOCAL_NEIGHBORHOODS.filter(
+      hood => hood.metroKey === smbCityFilter || hood.id === 'hood_custom'
+    );
+  }, [smbCityFilter]);
+
+  // Active selected neighborhood details
+  const activeNeighborhood = useMemo(() => {
+    return HYPERLOCAL_NEIGHBORHOODS.find(h => h.id === smbNeighborhood) || HYPERLOCAL_NEIGHBORHOODS[0];
+  }, [smbNeighborhood]);
+
+  // Dynamically compute verified couriers based on real user registrations + neighborhood base
+  const getDynamicCourierStats = (hood: HyperlocalNeighborhood) => {
+    // Helper to check if a user is a gig worker/courier
+    const isGigCourier = (u: User) => {
+      return u.role === 'RIDER' || u.role === 'DRIVER' || !isAdvertiserOrAdmin(u);
+    };
+
+    if (hood.id === 'hood_custom') {
+      const cleanZip = customZipCode.trim();
+      if (cleanZip) {
+        const matched = HYPERLOCAL_NEIGHBORHOODS.find(h => 
+          h.id !== 'hood_custom' && (
+            h.zipCodes.some(z => cleanZip.includes(z)) || 
+            h.metroName.toLowerCase().includes(cleanZip.toLowerCase()) ||
+            cleanZip.toLowerCase().includes(h.metroName.toLowerCase())
+          )
+        );
+        if (matched) {
+          const registeredInZip = allUsers.filter(u => 
+            isGigCourier(u) && (
+              matched.zipCodes.includes((u as any).zipCode || '') || 
+              (u.city && matched.metroName.toLowerCase().includes(u.city.toLowerCase()))
+            )
+          ).length;
+          const count = matched.baseVerifiedCouriers + registeredInZip;
+          return {
+            verifiedCount: count,
+            activeShiftCount: Math.round(count * 0.72),
+            metroLabel: matched.metroName,
+            matchedName: t(matched.nameKey as any),
+            corridorDesc: matched.corridorType,
+            deliveries: matched.estimatedDailyDeliveries,
+          };
+        }
+      }
+      return {
+        verifiedCount: 45,
+        activeShiftCount: 30,
+        metroLabel: 'Dynamic 2-Mile Radius',
+        matchedName: customZipCode ? `Radius for ${customZipCode}` : 'Custom Storefront Corridor',
+        corridorDesc: 'Dynamic GPS-fenced courier delivery routes',
+        deliveries: '1,200+ doorstep dropoffs/day',
+      };
+    }
+
+    // Count active gig workers registered in system if allUsers is provided
+    const registeredCount = allUsers.filter(u => 
+      isGigCourier(u) && (
+        hood.zipCodes.includes((u as any).zipCode || '') || 
+        (u.city && hood.metroName.toLowerCase().includes(u.city.toLowerCase()))
+      )
+    ).length;
+
+    const totalVerified = hood.baseVerifiedCouriers + registeredCount;
+
+    return {
+      verifiedCount: totalVerified,
+      activeShiftCount: Math.round(totalVerified * 0.72),
+      metroLabel: hood.metroName,
+      matchedName: t(hood.nameKey as any),
+      corridorDesc: hood.corridorType,
+      deliveries: hood.estimatedDailyDeliveries,
+    };
+  };
+
+  const activeNeighborhoodStats = useMemo(() => {
+    return getDynamicCourierStats(activeNeighborhood);
+  }, [activeNeighborhood, customZipCode, allUsers, language]);
 
   // Enterprise Calculator State
   const [selectedMarket, setSelectedMarket] = useState<string>(METRO_MARKETS[0].id);
@@ -766,55 +1170,157 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               {/* Conditional Controls: SMB vs Enterprise */}
               {isSmb ? (
                 <>
-                  {/* Step 1: Hyperlocal Neighborhood / Radius */}
+                  {/* Step 1: Hyperlocal Neighborhood / Radius with City Filtering & Dynamic Verified Couriers */}
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-blue-600" />
                         {t('advertiser.calcStep1Smb')}
                       </label>
-                      <span className="text-[11px] text-blue-700 font-semibold flex items-center gap-1">
+                      <span className="text-[11px] text-blue-700 font-semibold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
                         <Compass className="w-3.5 h-3.5" /> 2-Mile Courier Corridors
                       </span>
                     </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {HYPERLOCAL_NEIGHBORHOODS.map(hood => (
-                        <button
-                          key={hood.id}
-                          type="button"
-                          onClick={() => setSmbNeighborhood(hood.id)}
-                          className={`p-3 rounded-xl text-left border transition-all cursor-pointer ${
-                            smbNeighborhood === hood.id
-                              ? 'bg-amber-50/80 border-amber-500 text-slate-950 shadow-xs'
-                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
-                          }`}
-                        >
-                          <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                            <span>{t(hood.nameKey)}</span>
-                            {smbNeighborhood === hood.id && <Check className="w-3.5 h-3.5 text-amber-700" />}
-                          </div>
-                          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                            <span>{hood.metro}</span>
-                            <span className="text-slate-800 font-semibold">{hood.activeFleet}</span>
-                          </div>
-                        </button>
-                      ))}
+
+                    {/* City Selector Pill Strip */}
+                    <div className="mb-3.5">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>{t('advertiser.calcCityFilter')}</span>
+                        <span className="text-slate-400 font-normal hidden sm:inline">Select metro to see local verified couriers</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {HYPERLOCAL_METROS.map(metro => {
+                          const isSelected = smbCityFilter === metro.id;
+                          return (
+                            <button
+                              key={metro.id}
+                              type="button"
+                              onClick={() => {
+                                setSmbCityFilter(metro.id);
+                                if (metro.id !== 'all') {
+                                  const targetHood = HYPERLOCAL_NEIGHBORHOODS.find(h => h.metroKey === metro.id);
+                                  if (targetHood) {
+                                    setSmbNeighborhood(targetHood.id);
+                                  }
+                                }
+                              }}
+                              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                isSelected
+                                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                  : 'bg-white text-slate-600 hover:text-slate-950 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              <span>{metro.flag}</span>
+                              <span>{t(metro.nameKey as any)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
+                    {/* Neighborhood Cards for chosen City */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {filteredNeighborhoods.map(hood => {
+                        const stats = getDynamicCourierStats(hood);
+                        const isSelected = smbNeighborhood === hood.id;
+                        return (
+                          <button
+                            key={hood.id}
+                            type="button"
+                            onClick={() => setSmbNeighborhood(hood.id)}
+                            className={`p-3.5 rounded-2xl text-left border transition-all cursor-pointer relative ${
+                              isSelected
+                                ? 'bg-amber-50/90 border-amber-500 text-slate-950 shadow-sm ring-1 ring-amber-400/40'
+                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900 hover:shadow-2xs'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                  <span>{t(hood.nameKey as any)}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
+                                  <span className="font-semibold text-slate-600">{hood.metroName}</span>
+                                  {hood.zipCodes.length > 0 && (
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      ({hood.zipCodes.join(', ')})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {isSelected ? (
+                                <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-3.5 h-3.5" />
+                                </span>
+                              ) : (
+                                <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center shrink-0 border border-slate-200">
+                                  <MapPin className="w-3 h-3" />
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-2.5 pt-2 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-900 flex items-center gap-1">
+                                <Users className="w-3 h-3 text-blue-600" />
+                                <span>{stats.verifiedCount} verified couriers</span>
+                              </span>
+                              <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                                <Zap className="w-2.5 h-2.5" /> {stats.activeShiftCount} on shift
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Address Input when hood_custom selected */}
                     {smbNeighborhood === 'hood_custom' && (
-                      <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Enter Storefront Address or Target Zip Codes:
+                      <div className="mt-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                        <label className="block text-[11px] font-bold text-slate-700">
+                          Enter Storefront Address or Target Zip Code:
                         </label>
-                        <input
-                          type="text"
-                          placeholder="e.g., 94103 (Mission District) or 123 Main St, Austin TX"
-                          value={customZipCode}
-                          onChange={(e) => setCustomZipCode(e.target.value)}
-                          className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#005FB8]"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="e.g., 10002 (Lower East Side) or 60622 (Wicker Park)"
+                            value={customZipCode}
+                            onChange={(e) => setCustomZipCode(e.target.value)}
+                            className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#005FB8] bg-white"
+                          />
+                        </div>
+                        {customZipCode && (
+                          <div className="text-[11px] text-blue-900 bg-blue-50/80 p-2.5 rounded-xl border border-blue-200 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-[#005FB8] shrink-0" />
+                            <span>
+                              <strong>{activeNeighborhoodStats.verifiedCount} verified couriers</strong> ready for 2-mile route matching around <em>{customZipCode}</em> ({activeNeighborhoodStats.metroLabel})
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
+
+                    {/* Live Selected Location Confirmation Card */}
+                    <div className="mt-3.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                          Active Courier Fleet Matching
+                        </div>
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#005FB8]" />
+                          <span>{activeNeighborhoodStats.matchedName}</span>
+                          <span className="text-slate-400 font-normal">({activeNeighborhoodStats.metroLabel})</span>
+                        </div>
+                        <div className="text-[11px] text-slate-600">
+                          {activeNeighborhoodStats.corridorDesc} • <span className="text-slate-800 font-semibold">{activeNeighborhoodStats.deliveries}</span>
+                        </div>
+                      </div>
+                      <div className="text-left sm:text-right shrink-0 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">Available in 2-Mi Radius</div>
+                        <div className="text-sm font-black text-[#005FB8]">
+                          {activeNeighborhoodStats.verifiedCount} Couriers
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Step 2: SMB Fleet Size Options (5 - 25 Couriers) */}
@@ -1120,14 +1626,14 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 href="#launch-form"
                 onClick={() => {
                   if (isSmb) {
-                    const foundHood = HYPERLOCAL_NEIGHBORHOODS.find(h => h.id === smbNeighborhood);
-                    const hoodLabel = foundHood ? t(foundHood.nameKey) : 'Hyperlocal 2-Mile Radius';
+                    const hoodName = activeNeighborhoodStats.matchedName;
+                    const hoodMetro = activeNeighborhoodStats.metroLabel;
                     setFormData(prev => ({
                       ...prev,
                       budgetRange: smbTotalCost < 1500 
                         ? '$500 - $1,500 (Hyperlocal 5–10 Couriers • Weekend/1-Week)'
                         : '$1,500 - $3,500 (Neighborhood Blitz 15–25 Couriers)',
-                      notes: `Hyperlocal Micro-Tier: ${smbFleetCount} couriers, ${selectedSmbDuration.subtitle}, Neighborhood: ${smbNeighborhood === 'hood_custom' ? customZipCode || 'Custom Storefront' : hoodLabel}`,
+                      notes: `Hyperlocal Micro-Tier: ${smbFleetCount} couriers, ${selectedSmbDuration.subtitle}, Location: ${hoodName} (${hoodMetro}) • Available Fleet: ${activeNeighborhoodStats.verifiedCount} verified couriers`,
                     }));
                   }
                 }}
