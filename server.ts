@@ -1086,6 +1086,7 @@ function checkIsAdmin(req: Request): boolean {
 }
 
 export const app = express();
+app.set('trust proxy', 1);
 
 export function isServerlessRuntime(): boolean {
   return Boolean(

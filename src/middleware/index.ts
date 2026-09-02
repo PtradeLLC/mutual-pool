@@ -115,28 +115,67 @@ export function validateQuery<T>(schema: ZodSchema<T>) {
 }
 
 // Rate Limiting
+const getClientIp = (req: Request): string => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0].split(',')[0].trim();
+  }
+  const fwdHeader = req.headers['forwarded'];
+  if (typeof fwdHeader === 'string') {
+    const match = fwdHeader.match(/for="?([^;,\s"]+)"?/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return req.ip || req.socket?.remoteAddress || '127.0.0.1';
+};
+
 export const apiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs
   message: { error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  validate: {
+    xForwardedForHeader: false,
+    forwardedHeader: false,
+    trustProxy: false,
+    default: false,
+  },
 });
 
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit each IP to 10 auth requests per windowMs
+  max: 60, // limit each IP to 60 auth requests per windowMs
   message: { error: 'Too many authentication attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  validate: {
+    xForwardedForHeader: false,
+    forwardedHeader: false,
+    trustProxy: false,
+    default: false,
+  },
 });
 
 export const strictRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 30, // limit each IP to 30 requests per minute
+  max: 100, // limit each IP to 100 requests per minute
   message: { error: 'Rate limit exceeded' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  validate: {
+    xForwardedForHeader: false,
+    forwardedHeader: false,
+    trustProxy: false,
+    default: false,
+  },
 });
 
 // Idempotency Middleware
