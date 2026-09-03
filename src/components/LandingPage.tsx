@@ -270,7 +270,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Desktop Nav Links (Visible on XL screens 1280px+) */}
-          <div className="hidden xl:flex items-center gap-5 text-xs text-[#4B5563] font-semibold">
+          <div className="hidden xl:flex items-center gap-3.5 2xl:gap-5 text-xs text-[#4B5563] font-semibold shrink-0">
             <button
               onClick={onOpenAbout}
               className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
@@ -355,20 +355,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 )}
               </div>
             ) : (
-              <div className="hidden md:flex items-center gap-2">
+              <div className="hidden md:flex items-center">
                 <button
+                  id="landing-sign-in-btn"
                   onClick={() => onOpenAuth('LOGIN')}
-                  className="px-3 sm:px-4 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-all shadow-xs cursor-pointer"
+                  className="px-3.5 sm:px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
                 >
                   {t('nav.signIn')}
-                </button>
-
-                <button
-                  onClick={() => onOpenAuth('REGISTER')}
-                  className="px-3 sm:px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer"
-                >
-                  <span>{t('nav.getStarted')}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
@@ -391,25 +384,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="xl:hidden border-t border-[#DDE1E6] bg-white px-4 py-4 space-y-3.5 shadow-lg animate-in slide-in-from-top-2 duration-200">
             {/* Primary Auth CTAs in Drawer on Mobile (< md) */}
             {!currentUser ? (
-              <div className="md:hidden grid grid-cols-2 gap-2 pb-1 border-b border-gray-100">
+              <div className="md:hidden pb-1 border-b border-gray-100">
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
                     onOpenAuth('LOGIN');
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-bold text-xs text-center transition-all shadow-2xs cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs text-center transition-all shadow-2xs cursor-pointer"
                 >
                   {t('nav.signIn')}
-                </button>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenAuth('REGISTER');
-                  }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>{t('nav.getStarted')}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
