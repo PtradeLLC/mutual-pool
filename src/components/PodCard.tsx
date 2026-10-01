@@ -2,7 +2,7 @@ import React from 'react';
 import { Pod, User } from '../types';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
-import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut, MessageSquare, Bot } from 'lucide-react';
+import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut, MessageSquare, Bot, AlertTriangle } from 'lucide-react';
 
 interface PodCardProps {
   pod: Pod;
@@ -88,8 +88,32 @@ export const PodCard: React.FC<PodCardProps> = ({
   const currentActivePool = displayCount * pod.depositTier;
   const fullCapacityTarget = pod.sizeTier * pod.depositTier;
 
+  // Determine user rotation index (0-indexed)
+  const userRotationIndex = userMembership
+    ? userMembership.rotationIndex
+    : (isCreator ? Math.max(0, (pod.sizeTier || 1) - 1) : 0);
+
+  const hasUserReceivedPayout = userMembership?.hasReceivedPayout || false;
+
+  // Visual Emergency Indicator: triggered when the user is in their designated payout rotation week
+  const isDesignatedPayoutWeek = Boolean(
+    isMember &&
+    pod.status === 'ACTIVE' &&
+    (userRotationIndex + 1 === pod.currentCycleWeek) &&
+    !hasUserReceivedPayout
+  );
+
+  const treasuryBalance = currentUser?.treasury?.balanceUsd ?? 0;
+  const requiredWeeklyDeposit = pod.depositTier || 0;
+  const isTreasurySufficient = treasuryBalance >= requiredWeeklyDeposit;
+  const estimatedNetPot = currentActivePool * 0.90;
+
   return (
-    <div className="bg-white border border-[#DDE1E6] rounded-xl p-4 hover:border-[#005FB8] transition-all flex flex-col justify-between shadow-xs relative group">
+    <div className={`bg-white border ${
+      isDesignatedPayoutWeek 
+        ? 'border-red-500 ring-2 ring-red-400/40 shadow-lg' 
+        : 'border-[#DDE1E6] hover:border-[#005FB8]'
+    } rounded-xl p-4 transition-all flex flex-col justify-between shadow-xs relative group`}>
       <div>
         
         {/* Header Badges */}
@@ -101,6 +125,14 @@ export const PodCard: React.FC<PodCardProps> = ({
               {pod.status === 'ACTIVE' && t('pod.cycleWeek', { current: pod.currentCycleWeek, total: pod.totalCycles })}
               {pod.status === 'COMPLETED' && t('pod.allCyclesCompleted')}
             </span>
+
+            {/* Payout Week Emergency Badge */}
+            {isDesignatedPayoutWeek && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-red-600 text-white border-red-700 flex items-center gap-1.5 shadow-sm animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-white inline-block animate-ping" />
+                🚨 YOUR PAYOUT WEEK (WK {pod.currentCycleWeek})
+              </span>
+            )}
 
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
               pod.podType === 'TRUSTED_CIRCLE' 
@@ -225,6 +257,71 @@ export const PodCard: React.FC<PodCardProps> = ({
                 {t('pod.signPodAgreement')}
               </button>
             )}
+          </div>
+        )}
+
+        {/* Visual Emergency Payout Week Indicator */}
+        {isDesignatedPayoutWeek && (
+          <div className="mb-3 p-3.5 rounded-xl border-2 border-red-500 bg-gradient-to-br from-red-50 via-rose-50 to-amber-50 shadow-md">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                <AlertTriangle className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1 flex-wrap mb-1">
+                  <span className="text-xs font-black uppercase tracking-wider text-red-900 flex items-center gap-1">
+                    🚨 EMERGENCY PAYOUT NOTICE
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wide border ${
+                    isTreasurySufficient 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                      : 'bg-red-100 text-red-800 border-red-300 animate-pulse'
+                  }`}>
+                    {isTreasurySufficient ? '✓ Treasury Balance Ready' : '⚠️ Balance Insufficient'}
+                  </span>
+                </div>
+                
+                <p className="text-xs text-red-950 font-medium leading-snug mb-2">
+                  It is currently your <strong>designated payout rotation week (Week {pod.currentCycleWeek} • Turn #{userRotationIndex + 1})</strong> to receive the <strong className="text-emerald-700">${estimatedNetPot.toFixed(2)} net pot payout</strong>!
+                </p>
+
+                <div className="p-2 rounded-lg bg-white/90 border border-red-200 text-xs mb-2 space-y-1">
+                  <div className="flex items-center justify-between font-mono text-[11px]">
+                    <span className="text-slate-600">Your Stripe Treasury Balance:</span>
+                    <span className={`font-bold ${isTreasurySufficient ? 'text-emerald-700' : 'text-red-600'}`}>
+                      ${treasuryBalance.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between font-mono text-[11px]">
+                    <span className="text-slate-600">Required Weekly Deposit:</span>
+                    <span className="font-bold text-slate-800">${requiredWeeklyDeposit.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {isTreasurySufficient ? (
+                  <p className="text-[11px] text-emerald-800 font-medium mb-2.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Reminder: Ensure your Stripe Treasury balance stays sufficient until weekly cycle settlement completes.</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-red-700 font-semibold mb-2.5 flex items-center gap-1 bg-red-100/80 p-1.5 rounded border border-red-200">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                    <span>CRITICAL: Shortfall of ${(requiredWeeklyDeposit - treasuryBalance).toFixed(2)}! Fund your Stripe Treasury wallet immediately to prevent cycle hold or member default.</span>
+                  </p>
+                )}
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectPod(pod, 'deposits');
+                  }}
+                  className="w-full py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <span>Verify Stripe Treasury & Pod Ledger</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

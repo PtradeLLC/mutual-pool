@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
 import { PodCard } from './components/PodCard';
+import { WeeklySavingsChart } from './components/WeeklySavingsChart';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { HardshipRequestModal } from './components/HardshipRequestModal';
 import { VoiceAgent } from './components/VoiceAgent';
@@ -1618,6 +1619,15 @@ export default function App() {
               <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.completedPodCycles')}</span>
               <span className="font-extrabold text-[#005FB8] font-mono text-sm">{t('dash.completedCount', { count: activeUser.completedPodsCount })}</span>
             </div>
+          </div>
+
+          {/* Weekly Savings Contributions Line Chart (Last 3 Months) */}
+          <div className="mt-5 pt-5 border-t border-[#E2E8F0]">
+            <WeeklySavingsChart
+              currentUser={activeUser}
+              myPods={myPods}
+              onExplorePods={() => setActiveTab('explore-pods')}
+            />
           </div>
         </div>
 
