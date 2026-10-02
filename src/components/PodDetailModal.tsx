@@ -4,6 +4,7 @@ import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { CampaignAdAgreementModal } from './CampaignAdAgreementModal';
 import { PodMilestoneProgress } from './PodMilestoneProgress';
+import { PlatformScheduleBanner } from './PlatformScheduleBanner';
 import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { useChat } from '../context/ChatContext';
 import { useTranslation, TranslationKey } from '../i18n';
@@ -1217,6 +1218,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         )}
         {activeTab === 'deposits' && (
           <div className="space-y-4 text-xs">
+            {/* Synchronized Platform Settlement Heartbeat (Thursdays 12AM Deposits / Fridays 12AM Payouts) */}
+            <PlatformScheduleBanner onRefreshData={onRefreshPod} />
+
             {/* Option A Rule Explanation Banner */}
             <div className="p-3 bg-slate-900 text-white rounded-xl space-y-1.5 shadow-sm">
               <div className="flex items-center gap-2 font-bold text-amber-400 text-xs">

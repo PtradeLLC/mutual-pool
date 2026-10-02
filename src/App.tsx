@@ -3,6 +3,7 @@ import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, Couri
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
+import { PlatformScheduleBanner } from './components/PlatformScheduleBanner';
 import { PodCard } from './components/PodCard';
 import { WeeklySavingsChart } from './components/WeeklySavingsChart';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
@@ -1633,6 +1634,9 @@ export default function App() {
 
         {/* FDIC Disclosure Notice Banner */}
         <FDICNoticeBanner />
+
+        {/* Synchronized Platform Settlement Heartbeat (Thursdays 12AM Deposits / Fridays 12AM Payouts) */}
+        <PlatformScheduleBanner onRefreshData={fetchAppData} />
 
         {/* TAB CONTENTS */}
 

@@ -224,6 +224,39 @@ export interface Deposit {
   stripePaymentId: string;
   status: 'COMPLETE' | 'PENDING' | 'FAILED';
   createdAt: string;
+  scheduledSweepType?: 'THURSDAY_AUTOMATED' | 'MANUAL_DEPOSIT';
+}
+
+export type SettlementPhase = 'COLLECTION_PENDING' | 'SETTLEMENT_BUFFER' | 'PAYOUT_DISBURSING';
+
+export interface PlatformScheduleStatus {
+  weeklyDepositDay: 'THURSDAY';
+  weeklyDepositTime: '12:00 AM';
+  weeklyPayoutDay: 'FRIDAY';
+  weeklyPayoutTime: '12:00 AM';
+  timezone: string;
+  nextDepositDate: string;
+  nextPayoutDate: string;
+  msUntilNextDeposit: number;
+  msUntilNextPayout: number;
+  currentPhase: SettlementPhase;
+  phaseLabel: string;
+  phaseDescription: string;
+  lastThursdaySweepAt?: string;
+  lastFridaySweepAt?: string;
+  activePodsCount: number;
+  totalWeeklyTargetVolumeUsd: number;
+}
+
+export interface SweepExecutionResult {
+  sweepType: 'THURSDAY_DEPOSITS' | 'FRIDAY_PAYOUTS';
+  executedAt: string;
+  success: boolean;
+  activePodsEvaluated: number;
+  totalTransactionsCount: number;
+  totalVolumeUsd: number;
+  failedCount: number;
+  details: string[];
 }
 
 export type ReprioritizationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -277,6 +310,8 @@ export type NotificationType =
   | 'PAYOUT_RECEIVED'
   | 'DEPOSIT_REMINDER' 
   | 'DEPOSIT_DUE'
+  | 'DEPOSIT_CONFIRMED'
+  | 'PAYMENT_FAILED'
   | 'STATUS_CHANGE'
   | 'GENERAL';
 
@@ -331,7 +366,10 @@ export interface AuditLogEntry {
     | 'COURIER_GEAR_VERIFIED_PAYOUT'
     | 'AUTONOMOUS_STEWARDSHIP_ACTIVATED'
     | 'SYSTEM_ESCROW_DEPOSIT_DISBURSED'
-    | 'CREATOR_HOST_REWARD_DISBURSED';
+    | 'CREATOR_HOST_REWARD_DISBURSED'
+    | 'THURSDAY_AUTOMATED_DEPOSIT_SWEEP'
+    | 'FRIDAY_AUTOMATED_PAYOUT_SWEEP'
+    | 'CONTINGENCY_BUFFER_BRIDGED_DEPOSIT';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

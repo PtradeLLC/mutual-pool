@@ -325,6 +325,18 @@ export const PodCard: React.FC<PodCardProps> = ({
           </div>
         )}
 
+        {/* Thursday/Friday Platform Heartbeat Schedule Badge */}
+        <div className="mt-3 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[10.5px] text-slate-600 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-medium">
+            <Calendar className="w-3.5 h-3.5 text-[#005FB8] shrink-0" />
+            <span>Auto-Debit: <strong>Thurs 12AM</strong> (${pod.depositTier})</span>
+          </div>
+          <div className="flex items-center gap-1.5 font-medium text-emerald-700">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+            <span>Payouts: <strong>Fri 12AM</strong></span>
+          </div>
+        </div>
+
       </div>
 
       {/* Action Footer */}

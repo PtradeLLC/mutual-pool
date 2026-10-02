@@ -8,8 +8,15 @@ import fs from 'fs';
 import { 
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
-  HardshipFundRequest, AppNotification, NotificationType, SwapRequest 
+  HardshipFundRequest, AppNotification, NotificationType, SwapRequest,
+  PlatformScheduleStatus, SweepExecutionResult
 } from './src/types';
+import {
+  getNextThursdayMidnight,
+  getNextFridayMidnight,
+  getPlatformScheduleStatus,
+  PLATFORM_SCHEDULE_CONFIG
+} from './src/utils/platformSchedule';
 import { 
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
 } from './src/data/initialData';
@@ -3029,7 +3036,389 @@ app.use((req, res, next) => {
     });
   });
 
-  // 10c. AI LLM Vision Gear Verification Against Active Campaign Rotation
+  // =========================================================================
+  // 10c. Synchronized Platform Settlement Heartbeat (Thursdays 12AM Deposits / Fridays 12AM Payouts)
+  // =========================================================================
+  let lastThursdaySweepDate = '';
+  let lastFridaySweepDate = '';
+  let lastThursdaySweepResult: SweepExecutionResult | null = null;
+  let lastFridaySweepResult: SweepExecutionResult | null = null;
+
+  async function executeThursdayDepositSweep(): Promise<SweepExecutionResult> {
+    const executedAt = new Date().toISOString();
+    const details: string[] = [];
+    let activePodsEvaluated = 0;
+    let totalTransactionsCount = 0;
+    let totalVolumeUsd = 0;
+    let failedCount = 0;
+
+    const activePods = pods.filter(p => p && p.status === 'ACTIVE');
+    activePodsEvaluated = activePods.length;
+
+    for (const pod of activePods) {
+      const cycleWeek = pod.currentCycleWeek || 1;
+      const baseDepositAmount = pod.depositTier || 20;
+      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+      const totalChargedAmount = baseDepositAmount + platformFee;
+
+      for (const member of pod.members) {
+        // Check if member already deposited for this pod's current cycle week
+        const alreadyDeposited = deposits.some(d =>
+          d.podId === pod.id &&
+          d.userId === member.userId &&
+          d.cycleId === `cyc_w${cycleWeek}` &&
+          d.status === 'COMPLETE'
+        );
+
+        if (alreadyDeposited) {
+          continue;
+        }
+
+        const targetUser = users.find(u => u.id === member.userId);
+        const userBalance = targetUser?.treasury?.balanceUsd || 0;
+
+        if (userBalance >= totalChargedAmount || targetUser?.externalBank?.status === 'LINKED') {
+          if (targetUser) {
+            targetUser.treasury.balanceUsd = Math.max(0, targetUser.treasury.balanceUsd - totalChargedAmount);
+          }
+
+          const stripePaymentId = `pi_auto_thu_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+          const newDeposit: Deposit = {
+            id: `dep_thu_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            membershipId: member.id,
+            podId: pod.id,
+            cycleId: `cyc_w${cycleWeek}`,
+            userId: member.userId,
+            userName: member.displayName,
+            amount: baseDepositAmount,
+            stripePaymentId,
+            status: 'COMPLETE',
+            createdAt: new Date().toISOString(),
+            scheduledSweepType: 'THURSDAY_AUTOMATED',
+          };
+
+          deposits.unshift(newDeposit);
+          pod.currentWeeklyCollected += baseDepositAmount;
+          totalTransactionsCount += 1;
+          totalVolumeUsd += baseDepositAmount;
+
+          createNotification({
+            userId: member.userId,
+            type: 'DEPOSIT_CONFIRMED',
+            title: '🗓️ Thursday Automated Deposit Debited',
+            message: `Your weekly contribution of $${baseDepositAmount.toFixed(2)} was successfully auto-debited for "${pod.name}" (Week ${cycleWeek}). Funds secured in Treasury escrow for Friday payout settlement.`,
+            podId: pod.id,
+          });
+
+          addAuditLog(
+            pod.id,
+            member.userId,
+            member.displayName,
+            'THURSDAY_AUTOMATED_DEPOSIT_SWEEP',
+            `Thursday 12:00 AM Automated Sweep: Auto-debited $${baseDepositAmount.toFixed(2)} ($${platformFee.toFixed(2)} fee, $${totalChargedAmount.toFixed(2)} total) from ${member.displayName} for Week ${cycleWeek}. Stripe Ref: ${stripePaymentId}.`,
+            { baseDepositAmount, platformFee, totalChargedAmount, cycleWeek, scheduledSweep: 'THURSDAY_12AM' }
+          );
+
+          details.push(`[${pod.name}] Auto-debited $${baseDepositAmount} from ${member.displayName} (Week ${cycleWeek})`);
+        } else {
+          failedCount += 1;
+          let bufferDrawn = false;
+          if (pod.contingencyBufferUsd && pod.contingencyBufferUsd >= baseDepositAmount) {
+            pod.contingencyBufferUsd -= baseDepositAmount;
+            pod.currentWeeklyCollected += baseDepositAmount;
+            bufferDrawn = true;
+
+            addAuditLog(
+              pod.id,
+              'SYSTEM',
+              'MutualPool Contingency Engine',
+              'CONTINGENCY_BUFFER_BRIDGED_DEPOSIT',
+              `🛡️ First-Cycle Contingency Buffer bridged $${baseDepositAmount.toFixed(2)} deposit for ${member.displayName} during Thursday sweep so Friday payout remains 100% on schedule. Remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}.`,
+              { bridgedUserId: member.userId, amount: baseDepositAmount, cycleWeek }
+            );
+          }
+
+          createNotification({
+            userId: member.userId,
+            type: 'PAYMENT_FAILED',
+            title: '⚠️ Thursday Deposit Attention Required',
+            message: `Thursday auto-debit for "${pod.name}" had insufficient balance ($${userBalance.toFixed(2)}). 24-hour grace active before Friday 12:00 AM payout settlement. Please fund your Treasury balance.`,
+            podId: pod.id,
+          });
+
+          details.push(`[${pod.name}] Incomplete debit for ${member.displayName}: Balance $${userBalance} < $${totalChargedAmount}${bufferDrawn ? ' (Contingency buffer bridged)' : ''}`);
+        }
+      }
+    }
+
+    savePodsToDisk();
+    saveUsersToDisk();
+
+    return {
+      sweepType: 'THURSDAY_DEPOSITS',
+      executedAt,
+      success: true,
+      activePodsEvaluated,
+      totalTransactionsCount,
+      totalVolumeUsd,
+      failedCount,
+      details,
+    };
+  }
+
+  async function executeFridayPayoutSweep(): Promise<SweepExecutionResult> {
+    const executedAt = new Date().toISOString();
+    const details: string[] = [];
+    let activePodsEvaluated = 0;
+    let totalTransactionsCount = 0;
+    let totalVolumeUsd = 0;
+    let failedCount = 0;
+
+    const activePods = pods.filter(p => p && p.status === 'ACTIVE');
+    activePodsEvaluated = activePods.length;
+
+    for (const pod of activePods) {
+      const cycleWeek = pod.currentCycleWeek || 1;
+      const targetIndex = cycleWeek - 1;
+      const recipientMember = pod.members.find(m => m.rotationIndex === targetIndex);
+
+      if (!recipientMember) {
+        failedCount += 1;
+        details.push(`[${pod.name}] No member assigned for rotation index ${targetIndex}.`);
+        continue;
+      }
+
+      if (recipientMember.hasReceivedPayout && recipientMember.payoutCycleWeek === cycleWeek) {
+        details.push(`[${pod.name}] Recipient ${recipientMember.displayName} already received Week ${cycleWeek} payout.`);
+        continue;
+      }
+
+      const recipientUser = users.find(u => u.id === recipientMember.userId);
+      const grossPayoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
+      const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
+      const netPayoutAmount = grossPayoutAmount - totalPayoutFee;
+
+      const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
+      const creatorUser = users.find(u => u.id === pod.createdBy);
+      const isCreatorActiveInPod = pod.members.some(m => m.userId === pod.createdBy);
+
+      let creatorHostReward = 0;
+      let platformFeeRetained = totalPayoutFee;
+
+      if (!isAutonomousAI && creatorUser && isCreatorActiveInPod) {
+        creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100;
+        platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100;
+
+        creatorUser.treasury.balanceUsd += creatorHostReward;
+        creatorUser.treasury.totalPayoutsReceivedUsd += creatorHostReward;
+        pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
+
+        createNotification({
+          userId: creatorUser.id,
+          type: 'PAYOUT_RECEIVED',
+          title: '🎉 Friday 3% Host Stewardship Reward Disbursed',
+          message: `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your Stripe Treasury.`,
+          podId: pod.id,
+        });
+      }
+
+      const stripeTransferId = `tr_fri_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+
+      if (recipientUser) {
+        recipientUser.treasury.balanceUsd += netPayoutAmount;
+        recipientUser.treasury.totalPayoutsReceivedUsd += netPayoutAmount;
+      }
+
+      recipientMember.hasReceivedPayout = true;
+      recipientMember.payoutCycleWeek = cycleWeek;
+      recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
+      recipientMember.payoutStripeTransferId = stripeTransferId;
+      recipientMember.payoutProcessedAt = new Date().toISOString();
+
+      pod.currentWeeklyCollected = 0;
+
+      createNotification({
+        userId: recipientMember.userId,
+        type: 'PAYOUT_READY',
+        title: '🎉 Friday Automated Payout Disbursed!',
+        message: `Your rotating lump-sum savings payout of $${netPayoutAmount.toFixed(2)} net ($${grossPayoutAmount.toFixed(2)} gross pool - 10% platform fee) for "${pod.name}" has been transferred into your Stripe Treasury account!`,
+        podId: pod.id,
+      });
+
+      addAuditLog(
+        pod.id,
+        recipientMember.userId,
+        recipientMember.displayName,
+        'FRIDAY_AUTOMATED_PAYOUT_SWEEP',
+        `Friday 12:00 AM Automated Payout Sweep: Disbursed $${netPayoutAmount.toFixed(2)} net ($${grossPayoutAmount.toFixed(2)} gross pool, -$${totalPayoutFee.toFixed(2)} 10% fee) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex + 1}) via Stripe Treasury. Transfer Ref: ${stripeTransferId}.`,
+        {
+          stripeTransferId,
+          recipientId: recipientMember.userId,
+          grossPayoutAmount,
+          payoutFee: totalPayoutFee,
+          creatorHostReward,
+          platformFeeRetained,
+          netPayoutAmount,
+          weekNumber: cycleWeek,
+          scheduledSweep: 'FRIDAY_12AM',
+          payoutClaimStatus: 'EARMARKED_IN_TREASURY',
+        }
+      );
+
+      if (cycleWeek >= pod.totalCycles) {
+        pod.status = 'COMPLETED';
+        pod.members.forEach(m => {
+          const u = users.find(usr => usr.id === m.userId);
+          if (u) u.completedPodsCount += 1;
+        });
+        details.push(`[${pod.name}] Final Week ${cycleWeek} payout complete. Pod marked COMPLETED!`);
+      } else {
+        pod.currentCycleWeek = cycleWeek + 1;
+        details.push(`[${pod.name}] Disbursed $${netPayoutAmount.toFixed(2)} to ${recipientMember.displayName}. Advanced to Week ${pod.currentCycleWeek}.`);
+      }
+
+      totalTransactionsCount += 1;
+      totalVolumeUsd += netPayoutAmount;
+    }
+
+    savePodsToDisk();
+    saveUsersToDisk();
+
+    return {
+      sweepType: 'FRIDAY_PAYOUTS',
+      executedAt,
+      success: true,
+      activePodsEvaluated,
+      totalTransactionsCount,
+      totalVolumeUsd,
+      failedCount,
+      details,
+    };
+  }
+
+  // Periodic Background Clock: Checks for Thursday 12:00 AM and Friday 12:00 AM sweep windows
+  setInterval(() => {
+    try {
+      const now = new Date();
+      const day = now.getDay();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const dateStr = now.toISOString().slice(0, 10);
+
+      // Thursday 12:00 AM Midnight: day 4, hour 0, minute < 5
+      if (day === 4 && hour === 0 && minute < 5 && lastThursdaySweepDate !== dateStr) {
+        lastThursdaySweepDate = dateStr;
+        console.log(`[Scheduled Heartbeat] Executing Thursday 12:00 AM deposit sweep (${dateStr})...`);
+        executeThursdayDepositSweep()
+          .then(res => {
+            lastThursdaySweepResult = res;
+            console.log(`[Scheduled Heartbeat] Thursday sweep completed: ${res.totalTransactionsCount} deposits, $${res.totalVolumeUsd}`);
+          })
+          .catch(err => console.error('[Scheduled Heartbeat] Thursday sweep error:', err));
+      }
+
+      // Friday 12:00 AM Midnight: day 5, hour 0, minute < 5
+      if (day === 5 && hour === 0 && minute < 5 && lastFridaySweepDate !== dateStr) {
+        lastFridaySweepDate = dateStr;
+        console.log(`[Scheduled Heartbeat] Executing Friday 12:00 AM payout sweep (${dateStr})...`);
+        executeFridayPayoutSweep()
+          .then(res => {
+            lastFridaySweepResult = res;
+            console.log(`[Scheduled Heartbeat] Friday sweep completed: ${res.totalTransactionsCount} payouts, $${res.totalVolumeUsd}`);
+          })
+          .catch(err => console.error('[Scheduled Heartbeat] Friday sweep error:', err));
+      }
+    } catch (schedErr) {
+      console.error('[Scheduled Heartbeat] Clock tick error:', schedErr);
+    }
+  }, 60000);
+
+  // Endpoint: Get Real-Time Platform Settlement Schedule Status
+  app.get(['/api/platform/schedule', '/platform/schedule'], (req: Request, res: Response) => {
+    const status = getPlatformScheduleStatus(new Date());
+    const activePods = pods.filter(p => p && p.status === 'ACTIVE');
+    status.activePodsCount = activePods.length;
+    status.totalWeeklyTargetVolumeUsd = activePods.reduce((sum, p) => sum + (p.weeklyPoolTarget || (p.depositTier * (p.members?.length || p.sizeTier))), 0);
+    status.lastThursdaySweepAt = lastThursdaySweepResult?.executedAt;
+    status.lastFridaySweepAt = lastFridaySweepResult?.executedAt;
+
+    res.json({
+      ...status,
+      lastThursdaySweepResult,
+      lastFridaySweepResult,
+    });
+  });
+
+  // Endpoint: Manually / Test Trigger Scheduled Sweep
+  app.post(['/api/platform/schedule/sweep', '/platform/schedule/sweep'], async (req: Request, res: Response) => {
+    const { sweepType } = req.body || {};
+
+    if (sweepType !== 'THURSDAY_DEPOSITS' && sweepType !== 'FRIDAY_PAYOUTS') {
+      return res.status(400).json({ error: 'INVALID_SWEEP_TYPE', message: 'sweepType must be THURSDAY_DEPOSITS or FRIDAY_PAYOUTS' });
+    }
+
+    try {
+      let result: SweepExecutionResult;
+      if (sweepType === 'THURSDAY_DEPOSITS') {
+        result = await executeThursdayDepositSweep();
+        lastThursdaySweepResult = result;
+      } else {
+        result = await executeFridayPayoutSweep();
+        lastFridaySweepResult = result;
+      }
+
+      res.json({
+        success: true,
+        sweepType,
+        result,
+      });
+    } catch (err: any) {
+      console.error(`[Manual Sweep Trigger: ${sweepType}] Error:`, err);
+      res.status(500).json({ error: 'SWEEP_FAILED', message: err?.message || 'Sweep execution failed' });
+    }
+  });
+
+  // Endpoint: Get Pod Settlement Schedule
+  app.get(['/api/pods/:id/settlement-schedule', '/pods/:id/settlement-schedule'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const pod = await findPodById(req.params.id, user);
+
+    if (!pod) {
+      return res.status(404).json({ error: 'Pod not found' });
+    }
+
+    const schedule = getPlatformScheduleStatus(new Date());
+    const cycleWeek = pod.currentCycleWeek || 1;
+    const targetIndex = cycleWeek - 1;
+    const recipientMember = pod.members.find(m => m.rotationIndex === targetIndex);
+
+    let userDepositCompleted = false;
+    if (user) {
+      userDepositCompleted = deposits.some(d =>
+        d.podId === pod.id &&
+        d.userId === user.id &&
+        d.cycleId === `cyc_w${cycleWeek}` &&
+        d.status === 'COMPLETE'
+      );
+    }
+
+    res.json({
+      podId: pod.id,
+      podName: pod.name,
+      currentCycleWeek: cycleWeek,
+      weeklyDepositAmount: pod.depositTier,
+      currentTurnRecipient: recipientMember ? {
+        userId: recipientMember.userId,
+        displayName: recipientMember.displayName,
+        rotationIndex: recipientMember.rotationIndex,
+        hasReceivedPayout: recipientMember.hasReceivedPayout,
+      } : null,
+      userDepositCompleted,
+      schedule,
+    });
+  });
+
+  // 10d. AI LLM Vision Gear Verification Against Active Campaign Rotation
   app.post(['/api/campaigns/gear-verify', '/campaigns/gear-verify'], async (req: Request, res: Response) => {
     try {
       const { courierPhoto, campaign, checkedGear, sampleTag } = req.body || {};
