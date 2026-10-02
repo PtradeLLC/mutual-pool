@@ -1152,6 +1152,7 @@ export const fr: Record<TranslationKey, string> = {
   'howItWorksModal.agreementTitle': 'L\'Accord de Groupe',
   'howItWorksModal.agreementDesc': 'Avant le premier cycle, chaque membre examine et signe un accord rédigé en termes simples détaillant :',
   'howItWorksModal.agreementBullet1': 'L\'ordre fixe des versements et sa méthode d\'attribution',
+  'howItWorksModal.agreementBulletAutoDebit': 'Le prélèvement automatique des cotisations (jeudi 00h00) et le versement automatisé de la cagnotte (vendredi 00h00) lors de son tour',
   'howItWorksModal.agreementBullet2': 'L\'absence de rendement garanti et le principe de cotisation sans intérêts',
   'howItWorksModal.agreementBullet3': 'Les règles du Bonus de Bienvenue et de la Réserve de Contingence',
   'howItWorksModal.agreementBullet4': 'Le fonctionnement des demandes d\'urgence et d\'échange de créneaux',

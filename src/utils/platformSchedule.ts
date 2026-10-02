@@ -120,3 +120,80 @@ export function getPlatformScheduleStatus(now: Date = new Date()): PlatformSched
     totalWeeklyTargetVolumeUsd: 0,
   };
 }
+
+export interface UpcomingCyclePair {
+  cycleIndex: number; // 0, 1, 2
+  label: string; // e.g. "Week 1: Immediate Settlement", "Week 2: Following Week", "Week 3: 3-Week Horizon"
+  thursdayDate: Date;
+  thursdayIso: string;
+  thursdayFormatted: string; // e.g. "Thu, Oct 8, 2026"
+  fridayDate: Date;
+  fridayIso: string;
+  fridayFormatted: string; // e.g. "Fri, Oct 9, 2026"
+  isCurrentActiveWeek: boolean;
+  msUntilThursday: number;
+  msUntilFriday: number;
+}
+
+export function getUpcomingCycleDates(count: number = 3, now: Date = new Date()): UpcomingCyclePair[] {
+  const currentDay = now.getDay();
+  let baseThursday: Date;
+
+  if (currentDay === 4) {
+    // Thursday: today at 00:00:00
+    baseThursday = new Date(now);
+    baseThursday.setHours(0, 0, 0, 0);
+  } else if (currentDay < 4) {
+    // Sun(0), Mon(1), Tue(2), Wed(3): upcoming Thursday this week
+    const daysToThu = 4 - currentDay;
+    baseThursday = new Date(now);
+    baseThursday.setDate(now.getDate() + daysToThu);
+    baseThursday.setHours(0, 0, 0, 0);
+  } else {
+    // Fri(5), Sat(6): next Thursday
+    const daysToThu = (4 - currentDay + 7);
+    baseThursday = new Date(now);
+    baseThursday.setDate(now.getDate() + daysToThu);
+    baseThursday.setHours(0, 0, 0, 0);
+  }
+
+  const baseFriday = new Date(baseThursday);
+  baseFriday.setDate(baseThursday.getDate() + 1);
+  baseFriday.setHours(0, 0, 0, 0);
+
+  const labels = [
+    'Week 1: Immediate Settlement',
+    'Week 2: Following Week',
+    'Week 3: 3-Week Horizon'
+  ];
+
+  const dateOptions: Intl.DateTimeFormatOptions = { 
+    weekday: 'short', 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  };
+
+  const cycles: UpcomingCyclePair[] = [];
+  for (let i = 0; i < count; i++) {
+    const thu = new Date(baseThursday.getTime() + i * 7 * 86400000);
+    const fri = new Date(baseFriday.getTime() + i * 7 * 86400000);
+
+    cycles.push({
+      cycleIndex: i,
+      label: labels[i] || `Week ${i + 1}`,
+      thursdayDate: thu,
+      thursdayIso: thu.toISOString(),
+      thursdayFormatted: thu.toLocaleDateString('en-US', dateOptions),
+      fridayDate: fri,
+      fridayIso: fri.toISOString(),
+      fridayFormatted: fri.toLocaleDateString('en-US', dateOptions),
+      isCurrentActiveWeek: i === 0 && currentDay === 4,
+      msUntilThursday: Math.max(0, thu.getTime() - now.getTime()),
+      msUntilFriday: Math.max(0, fri.getTime() - now.getTime()),
+    });
+  }
+
+  return cycles;
+}
+

@@ -1152,6 +1152,7 @@ export const es: Record<TranslationKey, string> = {
   'howItWorksModal.agreementTitle': 'El Acuerdo del Grupo',
   'howItWorksModal.agreementDesc': 'Antes de que el grupo se cierre y comience su primer ciclo, cada miembro revisa y firma un acuerdo claro que incluye:',
   'howItWorksModal.agreementBullet1': 'El orden fijo de cobro y cómo fue determinado',
+  'howItWorksModal.agreementBulletAutoDebit': 'Débito automático de las cuotas semanales (jueves 12:00 AM) y desembolso automático del pago global (viernes 12:00 AM) cuando llegue su turno',
   'howItWorksModal.agreementBullet2': 'Ausencia de rentabilidad garantizada y cobro sin intereses',
   'howItWorksModal.agreementBullet3': 'Normas del Fondo de Bienvenida y gobernanza de la Reserva de Contingencia',
   'howItWorksModal.agreementBullet4': 'Funcionamiento de solicitudes de adelanto e intercambio de turnos',

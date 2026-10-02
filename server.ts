@@ -9,7 +9,7 @@ import {
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
   HardshipFundRequest, AppNotification, NotificationType, SwapRequest,
-  PlatformScheduleStatus, SweepExecutionResult
+  PlatformScheduleStatus, SweepExecutionResult, PaymentHistoryItem
 } from './src/types';
 import {
   getNextThursdayMidnight,
@@ -2496,7 +2496,7 @@ app.use((req, res, next) => {
         user.id,
         user.displayName,
         'AGREEMENT_SIGNED',
-        `Signed legal Pod Agreement v2.0-2026 as "${member.agreementSignatureName}". Confirmed understanding of fixed rotation order, FDIC pass-through coverage, and delinquency handling.`
+        `Signed legal Pod Agreement v2.0-2026 as "${member.agreementSignatureName}". Confirmed understanding of fixed rotation order, automated weekly deposit withdrawals (Thursdays), automated rotation payouts (Fridays), FDIC pass-through coverage, and delinquency handling.`
       );
 
       res.json({ success: true, member, pod });
@@ -3415,6 +3415,79 @@ app.use((req, res, next) => {
       } : null,
       userDepositCompleted,
       schedule,
+    });
+  });
+
+  // Endpoint: Get Authenticated User Payment & Payout History
+  app.get(['/api/user/payment-history', '/user/payment-history'], (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session required.' });
+    }
+
+    const history: PaymentHistoryItem[] = [];
+
+    // 1. User deposits
+    for (const d of (deposits || [])) {
+      if (
+        d.userId === user.id || 
+        (d.userName && user.displayName && d.userName.trim().toLowerCase() === user.displayName.trim().toLowerCase())
+      ) {
+        const pod = pods.find(p => p.id === d.podId);
+        let parsedWeek = 1;
+        if (d.cycleId) {
+          const match = d.cycleId.match(/\d+/);
+          if (match) parsedWeek = parseInt(match[0], 10);
+        }
+
+        history.push({
+          id: d.id,
+          type: 'DEPOSIT',
+          podId: d.podId,
+          podName: pod?.name || 'Mutual Savings Pod',
+          amount: d.amount,
+          status: d.status === 'COMPLETE' ? 'COMPLETED' : (d.status === 'PENDING' ? 'PENDING' : 'FAILED'),
+          date: d.createdAt,
+          cycleWeek: parsedWeek,
+          stripePaymentId: d.stripePaymentId,
+          description: `Weekly contribution for ${pod?.name || 'Mutual Pod'} (Cycle Week ${parsedWeek})`,
+          paymentMethod: 'Stripe Treasury / Bank',
+        });
+      }
+    }
+
+    // 2. User rotation payouts across all pods
+    for (const pod of pods) {
+      const member = (pod.members || []).find(m => 
+        m.userId === user.id || 
+        (m.displayName && user.displayName && m.displayName.trim().toLowerCase() === user.displayName.trim().toLowerCase())
+      );
+
+      if (member && member.hasReceivedPayout) {
+        const weekNum = member.payoutCycleWeek || (member.rotationIndex + 1);
+        history.push({
+          id: member.payoutStripeTransferId || `payout_${pod.id}_${user.id}`,
+          type: 'PAYOUT',
+          podId: pod.id,
+          podName: pod.name,
+          amount: pod.weeklyPoolTarget || (pod.depositTier * (pod.members?.length || pod.sizeTier)),
+          status: 'COMPLETED',
+          date: member.payoutProcessedAt || pod.cycleStartDate || pod.createdAt || new Date().toISOString(),
+          cycleWeek: weekNum,
+          stripeTransferId: member.payoutStripeTransferId,
+          description: `Rotating lump-sum payout for ${pod.name} (Cycle Week ${weekNum})`,
+          paymentMethod: 'Stripe Treasury Account',
+        });
+      }
+    }
+
+    // Sort descending by date (most recent first)
+    history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    res.json({
+      success: true,
+      totalCount: history.length,
+      history,
     });
   });
 

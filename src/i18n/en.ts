@@ -1150,6 +1150,7 @@ export const en = {
   'howItWorksModal.agreementTitle': 'The Pod Agreement',
   'howItWorksModal.agreementDesc': 'Before any pod locks and its first cycle begins, every member reviews and signs a plain-language agreement covering:',
   'howItWorksModal.agreementBullet1': 'The fixed payout order and how it was set',
+  'howItWorksModal.agreementBulletAutoDebit': 'Automatic withdrawal of weekly member deposits (Thursdays 12:00 AM) and automated lump-sum rotation payouts (Fridays 12:00 AM) when it is their turn',
   'howItWorksModal.agreementBullet2': 'No guaranteed return and no interest',
   'howItWorksModal.agreementBullet3': 'Welcome Match rules and First-Cycle Contingency Buffer governance',
   'howItWorksModal.agreementBullet4': 'How reprioritization requests and slot swaps work',

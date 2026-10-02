@@ -136,28 +136,35 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
           </section>
 
           <section>
-            <h4 className="font-bold text-[#111827] text-sm mb-1">3. Emergency Reprioritization & Voluntary Swaps</h4>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">3. Automated Weekly Deposit Withdrawals & Automatic Payouts</h4>
+            <p>
+              By signing this agreement, the member explicitly authorizes Mutual Pool and its banking partners to execute automatic weekly deposit withdrawals of ${pod.depositTier}.00 from their linked payment method or account balance on scheduled collection days (Thursdays at 12:00 AM Midnight). When it is the member’s assigned rotation turn, the full weekly lump-sum payout of ${pod.weeklyPoolTarget}.00 will be automatically disbursed directly into their account (Fridays at 12:00 AM Midnight) without requiring manual claims or manual intervention.
+            </p>
+          </section>
+
+          <section>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">4. Emergency Reprioritization & Voluntary Swaps</h4>
             <p>
               Members facing urgent financial hardship (e.g., vehicle repairs, medical emergencies) may submit a formal Reprioritization Request. Advancement requires a formal pod vote meeting a 50%+1 quorum threshold. Two consenting members may also execute a voluntary slot swap before payout. Every rotation modification is written to an immutable audit log.
             </p>
           </section>
 
           <section>
-            <h4 className="font-bold text-[#111827] text-sm mb-1">4. Missed Deposit, Account Balance Deduction & Welcome Match Policy</h4>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">5. Missed Deposit, Account Balance Deduction & Welcome Match Policy</h4>
             <p>
               Weekly deposits close on scheduled cycle cutoffs. Upon payment or delinquency recovery, the full deposit amount is deducted directly from the member's account balance (supplemental gig earnings/Treasury). If the member's balance is insufficient, the <strong>Welcome Match Credited / First-Cycle Contingency Reserve</strong> covers the remainder. Once the Welcome Match kicks in due to insufficient user balance, the member is automatically removed from the Pod due to missed deposit default, and the Pod is publicly listed as an Open Pod with high replacement priority to fill the vacant spot.
             </p>
           </section>
 
           <section>
-            <h4 className="font-bold text-[#111827] text-sm mb-1">5. Stripe Treasury FDIC Pass-Through Disclosure</h4>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">6. Stripe Treasury FDIC Pass-Through Disclosure</h4>
             <p>
               Pod cycle balances sit in Stripe Treasury Financial Accounts backed by Evolve Bank & Trust or Fifth Third Bank, N.A., Members FDIC. Deposits are FDIC-insured pass-through up to $250,000 per user, subject to standard policy conditions.
             </p>
           </section>
 
           <section>
-            <h4 className="font-bold text-[#111827] text-sm mb-1">6. Mutual Pool First Deposit Welcome Match & Contingency Buffer</h4>
+            <h4 className="font-bold text-[#111827] text-sm mb-1">7. Mutual Pool First Deposit Welcome Match & Contingency Buffer</h4>
             <p>
               For new pod creators with verified KYC accounts, Mutual Pool provides a 100% platform-funded Welcome Match equal to the pod deposit tier (${(pod.welcomeMatchAmountUsd || pod.contingencyBufferInitialUsd || pod.depositTier || 20).toFixed(2)}). This non-withdrawable promotional credit is deposited directly into the pod's First-Cycle Contingency Buffer to safeguard rotation payout schedules against missed deposits during Cycle 1. If the pod disbands prior to activation, unspent match funds revert to Mutual Pool Treasury.
             </p>
@@ -174,7 +181,7 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
               className="mt-0.5 rounded border-gray-300 text-[#005FB8] focus:ring-[#005FB8] shrink-0"
             />
             <span>
-              I have read, understood, and agree to abide by all 5 clauses of the Pod Mutual Agreement v2.0-2026.
+              I have read, understood, and agree to abide by all 7 clauses of the Pod Mutual Agreement v2.0-2026, including automated weekly deposit withdrawals and automated rotation payouts.
             </span>
           </label>
 

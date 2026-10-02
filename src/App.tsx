@@ -6,6 +6,7 @@ import { FDICNoticeBanner } from './components/FDICNoticeBanner';
 import { PlatformScheduleBanner } from './components/PlatformScheduleBanner';
 import { PodCard } from './components/PodCard';
 import { WeeklySavingsChart } from './components/WeeklySavingsChart';
+import { UpcomingPayments } from './components/UpcomingPayments';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { HardshipRequestModal } from './components/HardshipRequestModal';
 import { VoiceAgent } from './components/VoiceAgent';
@@ -1637,6 +1638,14 @@ export default function App() {
 
         {/* Synchronized Platform Settlement Heartbeat (Thursdays 12AM Deposits / Fridays 12AM Payouts) */}
         <PlatformScheduleBanner onRefreshData={fetchAppData} />
+
+        {/* Member-Specific Upcoming Automated Payments & Payouts (Next 3 Weekly Cycles) */}
+        <UpcomingPayments
+          currentUser={activeUser}
+          myPods={myPods}
+          onExplorePods={() => setActiveTab('explore-pods')}
+          onOpenPodDetail={(pod) => setSelectedPodDetail(pod)}
+        />
 
         {/* TAB CONTENTS */}
 

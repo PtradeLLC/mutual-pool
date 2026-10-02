@@ -513,6 +513,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
             </p>
             <ul className="space-y-1 text-[#374151] list-disc list-inside text-[11px]">
               <li>{t('howItWorksModal.agreementBullet1')}</li>
+              <li>{t('howItWorksModal.agreementBulletAutoDebit')}</li>
               <li>{t('howItWorksModal.agreementBullet2')}</li>
               <li>{t('howItWorksModal.agreementBullet3')}</li>
               <li>{t('howItWorksModal.agreementBullet4')}</li>

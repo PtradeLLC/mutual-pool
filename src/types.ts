@@ -227,6 +227,22 @@ export interface Deposit {
   scheduledSweepType?: 'THURSDAY_AUTOMATED' | 'MANUAL_DEPOSIT';
 }
 
+export interface PaymentHistoryItem {
+  id: string;
+  type: 'DEPOSIT' | 'PAYOUT';
+  podId: string;
+  podName: string;
+  amount: number;
+  status: 'COMPLETED' | 'PENDING' | 'FAILED';
+  date: string;
+  formattedDate?: string;
+  cycleWeek?: number;
+  stripePaymentId?: string;
+  stripeTransferId?: string;
+  description: string;
+  paymentMethod?: string;
+}
+
 export type SettlementPhase = 'COLLECTION_PENDING' | 'SETTLEMENT_BUFFER' | 'PAYOUT_DISBURSING';
 
 export interface PlatformScheduleStatus {
