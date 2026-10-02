@@ -3,6 +3,7 @@ import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Depos
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { CampaignAdAgreementModal } from './CampaignAdAgreementModal';
+import { PodMilestoneProgress } from './PodMilestoneProgress';
 import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { useChat } from '../context/ChatContext';
 import { useTranslation, TranslationKey } from '../i18n';
@@ -838,6 +839,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Pod Progress Markers & Motivating Timeline */}
+          <PodMilestoneProgress pod={pod} currentUser={currentUser} />
 
           {/* Trusted Circle Creator Banner & Conversion Controls */}
           {pod.podType === 'TRUSTED_CIRCLE' && (
