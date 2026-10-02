@@ -5,7 +5,7 @@ import {
   X, ShieldCheck, Users, Heart, Award, CheckCircle2, 
   HelpCircle, Scale, Clock, Lock, AlertCircle, Phone, 
   Mail, MessageSquare, Send, Building2, Sparkles, MapPin, ExternalLink,
-  Gift, RefreshCw, Zap, Layers, FileText
+  Gift, RefreshCw, Zap, Layers, FileText, Calendar, ArrowRight
 } from 'lucide-react';
 
 /* -------------------------------------------------------------------------- */
@@ -380,7 +380,95 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
             {t('howItWorksModal.payoutOrderSubtitle')}
           </p>
 
-          <ul className="space-y-2 text-xs text-[#374151]">
+          {/* Weekly Settlement & Disbursement Heartbeat Timeline Card */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-slate-50 border border-blue-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/70 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#005FB8] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-[#111827]">
+                    {t('howItWorksModal.scheduleCardTitle')}
+                  </h4>
+                  <p className="text-[11px] text-[#4B5563]">
+                    {t('howItWorksModal.scheduleCardSubtitle')}
+                  </p>
+                </div>
+              </div>
+              <span className="self-start sm:self-center px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-[#005FB8] border border-blue-300 uppercase tracking-wider shrink-0 font-mono">
+                THU 12:00 AM → FRI 12:00 AM
+              </span>
+            </div>
+
+            {/* Stepped 3-Phase Flow */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Step 1: Thursday Sweep */}
+              <div className="p-3.5 bg-white/95 rounded-xl border border-blue-100 shadow-2xs space-y-2 relative">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-[#005FB8] border border-blue-200 uppercase font-mono">
+                    {t('howItWorksModal.scheduleStep1Badge')}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-[#005FB8]" />
+                    {t('howItWorksModal.scheduleStep1Time')}
+                  </span>
+                </div>
+                <h5 className="font-bold text-xs text-[#111827]">
+                  {t('howItWorksModal.scheduleStep1Title')}
+                </h5>
+                <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                  {t('howItWorksModal.scheduleStep1Desc')}
+                </p>
+              </div>
+
+              {/* Step 2: 24h Buffer */}
+              <div className="p-3.5 bg-white/95 rounded-xl border border-amber-200 shadow-2xs space-y-2 relative">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 uppercase font-mono">
+                    {t('howItWorksModal.scheduleStep2Badge')}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-amber-600" />
+                    {t('howItWorksModal.scheduleStep2Time')}
+                  </span>
+                </div>
+                <h5 className="font-bold text-xs text-[#111827]">
+                  {t('howItWorksModal.scheduleStep2Title')}
+                </h5>
+                <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                  {t('howItWorksModal.scheduleStep2Desc')}
+                </p>
+              </div>
+
+              {/* Step 3: Friday Payout */}
+              <div className="p-3.5 bg-white/95 rounded-xl border border-emerald-200 shadow-2xs space-y-2 relative">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono">
+                    {t('howItWorksModal.scheduleStep3Badge')}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-emerald-600" />
+                    {t('howItWorksModal.scheduleStep3Time')}
+                  </span>
+                </div>
+                <h5 className="font-bold text-xs text-[#111827]">
+                  {t('howItWorksModal.scheduleStep3Title')}
+                </h5>
+                <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                  {t('howItWorksModal.scheduleStep3Desc')}
+                </p>
+              </div>
+            </div>
+
+            {/* Pro-Tip Alert */}
+            <div className="p-2.5 rounded-xl bg-blue-100/70 border border-blue-200 flex items-start gap-2 text-[11px] text-blue-950 font-medium">
+              <AlertCircle className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
+              <span>{t('howItWorksModal.scheduleProTip')}</span>
+            </div>
+          </div>
+
+          <ul className="space-y-2 text-xs text-[#374151] pt-1">
             <li className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-1">
               <strong>{t('howItWorksModal.payoutOrderItem1Prefix')}</strong> {t('howItWorksModal.payoutOrderItem1')}
             </li>
