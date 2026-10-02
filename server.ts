@@ -2260,7 +2260,7 @@ app.use((req, res, next) => {
         return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
       }
       const { inviteCode, refUserId, refName } = req.body || {};
-      const pod = await findPodById(req.params.id, user);
+      const pod = await findPodById(req.params.id);
 
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
