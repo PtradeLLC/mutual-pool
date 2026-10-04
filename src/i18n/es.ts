@@ -23,6 +23,9 @@ export const es: Record<TranslationKey, string> = {
   'nav.language': 'Idioma',
   'nav.closeMenu': 'Cerrar menú',
   'nav.openMenu': 'Abrir menú',
+  'nav.menu': 'Menú',
+  'nav.scrollLeft': 'Desplazar a la izquierda',
+  'nav.scrollRight': 'Desplazar a la derecha',
 
   // Hero Section
   'hero.badge': 'Diseñado para conductores de DoorDash, Uber, Lyft, Instacart, Amazon Flex y más',

@@ -23,6 +23,9 @@ export const fr: Record<TranslationKey, string> = {
   'nav.language': 'Langue',
   'nav.closeMenu': 'Fermer le menu',
   'nav.openMenu': 'Ouvrir le menu',
+  'nav.menu': 'Menu',
+  'nav.scrollLeft': 'Défiler vers la gauche',
+  'nav.scrollRight': 'Défiler vers la droite',
 
   // Hero Section
   'hero.badge': 'Conçu pour les livreurs DoorDash, Uber, Lyft, Instacart, Amazon Flex et plus',

@@ -21,6 +21,9 @@ export const en = {
   'nav.language': 'Language',
   'nav.closeMenu': 'Close menu',
   'nav.openMenu': 'Open menu',
+  'nav.menu': 'Menu',
+  'nav.scrollLeft': 'Scroll left',
+  'nav.scrollRight': 'Scroll right',
 
   // Hero Section
   'hero.badge': 'Built for Gig Workers, Couriers, Trade Specialists & Independent Contractors',
