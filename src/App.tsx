@@ -1372,7 +1372,7 @@ export default function App() {
           </div>
         </div>
       ) : (
-        <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
+        <div className="min-h-screen max-w-full overflow-x-hidden bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
       
       {/* App Header */}
       <Header

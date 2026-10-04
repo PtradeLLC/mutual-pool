@@ -67,9 +67,9 @@ export const Header: React.FC<HeaderProps> = ({
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' || Boolean(currentUser.isAdmin);
 
   return (
-    <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-        <div className="flex items-center justify-between gap-4">
+    <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs max-w-full overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 w-full">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
           
           {/* Brand Logo & Name */}
           <div 
@@ -81,14 +81,14 @@ export const Header: React.FC<HeaderProps> = ({
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }
             }}
-            className="flex items-center gap-3 cursor-pointer group shrink-0"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0 min-w-0"
             title="MutualPool Dashboard"
           >
             <Logo size="md" />
           </div>
 
           {/* User Status Bar & Switcher */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
 
             {/* Country & Currency Selector */}
             <CountrySelector />
@@ -277,6 +277,42 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                     )}
 
+                    {/* Quick Access Info Links (accessible on mobile/tablet) */}
+                    <div className="pt-2 border-t border-gray-100 grid grid-cols-2 gap-1 text-[11px] text-[#4B5563]">
+                      {onOpenAbout && (
+                        <button
+                          onClick={() => { setShowUserDropdown(false); onOpenAbout(); }}
+                          className="text-left px-2 py-1 rounded hover:bg-gray-100 hover:text-[#005FB8] font-medium"
+                        >
+                          {t('nav.about')}
+                        </button>
+                      )}
+                      {onOpenHowItWorks && (
+                        <button
+                          onClick={() => { setShowUserDropdown(false); onOpenHowItWorks(); }}
+                          className="text-left px-2 py-1 rounded hover:bg-gray-100 hover:text-[#005FB8] font-medium"
+                        >
+                          {t('nav.rules')}
+                        </button>
+                      )}
+                      {onOpenFaq && (
+                        <button
+                          onClick={() => { setShowUserDropdown(false); onOpenFaq(); }}
+                          className="text-left px-2 py-1 rounded hover:bg-gray-100 hover:text-[#005FB8] font-bold text-[#005FB8]"
+                        >
+                          {t('nav.faq')}
+                        </button>
+                      )}
+                      {onOpenContact && (
+                        <button
+                          onClick={() => { setShowUserDropdown(false); onOpenContact(); }}
+                          className="text-left px-2 py-1 rounded hover:bg-gray-100 hover:text-[#005FB8] font-medium"
+                        >
+                          {t('nav.contact')}
+                        </button>
+                      )}
+                    </div>
+
                     {onLogout && (
                       <button
                         onClick={() => {
@@ -302,11 +338,12 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Navigation Tabs Bar */}
-        <nav className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2 border-t border-[#DDE1E6]">
-          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar shrink-0">
+        <nav className="w-full min-w-0 flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#DDE1E6]">
+          {/* Scrollable Tabs: min-w-0 flex-1 allows overflow-x-auto to cleanly scroll without pushing page width */}
+          <div className="min-w-0 flex-1 flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none py-1">
             <button
               onClick={() => setActiveTab('my-pods')}
-              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'my-pods'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
@@ -318,7 +355,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('explore-pods')}
-              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'explore-pods'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
@@ -330,7 +367,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('perks')}
-              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'perks'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
@@ -343,7 +380,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               id="header-tab-campaigns"
               onClick={() => setActiveTab('campaigns')}
-              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'campaigns'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
@@ -355,7 +392,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={onOpenSubmitPerk || (() => setActiveTab('perks'))}
-              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
               title="Submit a partner or community perk offer for admin review"
             >
               <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
@@ -367,7 +404,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 id="header-advertise-btn"
                 onClick={() => onOpenAdvertiser('media-kit')}
-                className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+                className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-xs cursor-pointer"
                 title="Launch a brand campaign or sponsor courier promo apparel"
               >
                 <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950" />
@@ -377,7 +414,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('audit-log')}
-              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'audit-log'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
@@ -390,7 +427,7 @@ export const Header: React.FC<HeaderProps> = ({
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('admin-ops')}
-                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
+                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   activeTab === 'admin-ops'
                     ? 'bg-purple-700 text-white font-bold shadow-xs'
                     : 'text-purple-800 bg-purple-50 hover:bg-purple-100 font-bold'
@@ -402,18 +439,18 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Quick Info Modal Links */}
-          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#4B5563] shrink-0 font-medium">
+          {/* Quick Info Modal Links (Shown on desktop xl+ screens) */}
+          <div className="hidden xl:flex items-center gap-2 2xl:gap-3 text-xs sm:text-sm text-[#4B5563] shrink-0 font-medium pl-3 border-l border-[#DDE1E6]">
             <button
               onClick={onOpenAbout}
-              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
+              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded whitespace-nowrap"
             >
               {t('nav.about')}
             </button>
             <span className="text-gray-300">•</span>
             <button
               onClick={onOpenHowItWorks}
-              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
+              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded whitespace-nowrap"
             >
               {t('nav.rules')}
             </button>
@@ -422,7 +459,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-gray-300">•</span>
                 <button
                   onClick={onOpenFaq}
-                  className="text-[#005FB8] font-bold hover:underline transition-colors py-1 px-1.5 rounded flex items-center gap-1"
+                  className="text-[#005FB8] font-bold hover:underline transition-colors py-1 px-1.5 rounded flex items-center gap-1 whitespace-nowrap"
                 >
                   <span>{t('nav.faq')}</span>
                 </button>
@@ -431,7 +468,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-gray-300">•</span>
             <button
               onClick={onOpenContact}
-              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"
+              className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded whitespace-nowrap"
             >
               {t('nav.contact')}
             </button>

@@ -64,7 +64,7 @@ export const Logo: React.FC<LogoProps> = ({
           Mutual<span className="text-[#4D6E58]">Pool</span>
         </span>
         {showTagline && (
-          <span className={`font-extrabold text-[#475569] tracking-wider uppercase mt-1 leading-none ${taglineSizeClasses[size]}`}>
+          <span className={`hidden md:block font-extrabold text-[#475569] tracking-wider uppercase mt-1 leading-none ${taglineSizeClasses[size]}`}>
             WE POOL. WE GROW. WE DELIVER.
           </span>
         )}

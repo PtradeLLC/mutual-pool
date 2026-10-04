@@ -37,7 +37,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-09-02T16:35:53.122Z",
-    "accountAgeDays": 30,
+    "accountAgeDays": 32,
     "kycStatus": "PENDING",
     "treasury": {
       "stripeAccountId": "acct_1xCustom_1788366961537",
@@ -1550,6 +1550,240 @@
     "treasury": {
       "stripeAccountId": "",
       "stripeFinAccountId": "",
+      "balanceUsd": 37.4,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 38.4,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 3,
+    "welcomeMatchReceived": true,
+    "welcomeMatchAmountUsd": 20
+  },
+  {
+    "id": "usr_test_member_t2_1791139173026_29508",
+    "email": "member_t2_1791139173026_29508@gigmutual.test",
+    "displayName": "Test member_t2 9508",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t2%209508&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:39:33.088Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 15,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 36,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 3
+  },
+  {
+    "id": "usr_test_creator_t3_1791139173199_11417",
+    "email": "creator_t3_1791139173199_11417@gigmutual.test",
+    "displayName": "Test creator_t3 1417",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t3%201417&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:39:33.221Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 97.5,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 97.5,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 3,
+    "welcomeMatchReceived": true,
+    "welcomeMatchAmountUsd": 50
+  },
+  {
+    "id": "usr_test_member_t3_1791139173199_95939",
+    "email": "member_t3_1791139173199_95939@gigmutual.test",
+    "displayName": "Test member_t3 5939",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t3%205939&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:39:33.296Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 82.5,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 135,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 3
+  },
+  {
+    "id": "usr_test_creator_t4_1791139173403_54255",
+    "email": "creator_t4_1791139173403_54255@gigmutual.test",
+    "displayName": "Test creator_t4 4255",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t4%204255&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:39:33.426Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 93.5,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 96,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 3,
+    "welcomeMatchReceived": true,
+    "welcomeMatchAmountUsd": 50
+  },
+  {
+    "id": "usr_test_member_t4_1791139173403_13407",
+    "email": "member_t4_1791139173403_13407@gigmutual.test",
+    "displayName": "Test member_t4 3407",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t4%203407&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:39:33.508Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 12.5,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 90,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 3
+  },
+  {
+    "id": "usr_test_creator_t5_1791139173659_9901",
+    "email": "creator_t5_1791139173659_9901@gigmutual.test",
+    "displayName": "Test creator_t5 9901",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t5%209901&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:39:33.682Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 20,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 0,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 2,
+    "welcomeMatchReceived": true,
+    "welcomeMatchAmountUsd": 20
+  },
+  {
+    "id": "usr_test_creator_t1_1791140019787_22310",
+    "email": "creator_t1_1791140019787_22310@gigmutual.test",
+    "displayName": "Test creator_t1 2310",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t1%202310&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:53:39.892Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
+      "balanceUsd": 50,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 0,
+      "fdicPassThroughEligible": true,
+      "status": "ACTIVE"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 2,
+    "welcomeMatchReceived": true,
+    "welcomeMatchAmountUsd": 50
+  },
+  {
+    "id": "usr_test_creator_t2_1791140019956_41018",
+    "email": "creator_t2_1791140019956_41018@gigmutual.test",
+    "displayName": "Test creator_t2 1018",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t2%201018&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-04T18:53:40.010Z",
+    "accountAgeDays": 180,
+    "kycStatus": "VERIFIED",
+    "treasury": {
+      "stripeAccountId": "",
+      "stripeFinAccountId": "",
       "balanceUsd": 21.2,
       "pendingInboundUsd": 0,
       "totalPayoutsReceivedUsd": 1.2,
@@ -1568,13 +1802,13 @@
     "welcomeMatchAmountUsd": 20
   },
   {
-    "id": "usr_test_member_t2_1791139173026_29508",
-    "email": "member_t2_1791139173026_29508@gigmutual.test",
-    "displayName": "Test member_t2 9508",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t2%209508&background=005FB8&color=fff&size=200",
+    "id": "usr_test_member_t2_1791140019956_5857",
+    "email": "member_t2_1791140019956_5857@gigmutual.test",
+    "displayName": "Test member_t2 5857",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t2%205857&background=005FB8&color=fff&size=200",
     "platform": "DoorDash",
     "role": "RIDER",
-    "createdAt": "2026-10-04T18:39:33.088Z",
+    "createdAt": "2026-10-04T18:53:40.198Z",
     "accountAgeDays": 180,
     "kycStatus": "VERIFIED",
     "treasury": {
@@ -1596,13 +1830,13 @@
     "completedPodsCount": 2
   },
   {
-    "id": "usr_test_creator_t3_1791139173199_11417",
-    "email": "creator_t3_1791139173199_11417@gigmutual.test",
-    "displayName": "Test creator_t3 1417",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t3%201417&background=005FB8&color=fff&size=200",
+    "id": "usr_test_creator_t3_1791140020304_89534",
+    "email": "creator_t3_1791140020304_89534@gigmutual.test",
+    "displayName": "Test creator_t3 9534",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t3%209534&background=005FB8&color=fff&size=200",
     "platform": "DoorDash",
     "role": "RIDER",
-    "createdAt": "2026-10-04T18:39:33.221Z",
+    "createdAt": "2026-10-04T18:53:40.320Z",
     "accountAgeDays": 180,
     "kycStatus": "VERIFIED",
     "treasury": {
@@ -1626,13 +1860,13 @@
     "welcomeMatchAmountUsd": 50
   },
   {
-    "id": "usr_test_member_t3_1791139173199_95939",
-    "email": "member_t3_1791139173199_95939@gigmutual.test",
-    "displayName": "Test member_t3 5939",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t3%205939&background=005FB8&color=fff&size=200",
+    "id": "usr_test_member_t3_1791140020304_91629",
+    "email": "member_t3_1791140020304_91629@gigmutual.test",
+    "displayName": "Test member_t3 1629",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t3%201629&background=005FB8&color=fff&size=200",
     "platform": "DoorDash",
     "role": "RIDER",
-    "createdAt": "2026-10-04T18:39:33.296Z",
+    "createdAt": "2026-10-04T18:53:40.375Z",
     "accountAgeDays": 180,
     "kycStatus": "VERIFIED",
     "treasury": {
@@ -1654,13 +1888,13 @@
     "completedPodsCount": 2
   },
   {
-    "id": "usr_test_creator_t4_1791139173403_54255",
-    "email": "creator_t4_1791139173403_54255@gigmutual.test",
-    "displayName": "Test creator_t4 4255",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t4%204255&background=005FB8&color=fff&size=200",
+    "id": "usr_test_creator_t4_1791140020531_75721",
+    "email": "creator_t4_1791140020531_75721@gigmutual.test",
+    "displayName": "Test creator_t4 5721",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t4%205721&background=005FB8&color=fff&size=200",
     "platform": "DoorDash",
     "role": "RIDER",
-    "createdAt": "2026-10-04T18:39:33.426Z",
+    "createdAt": "2026-10-04T18:53:40.550Z",
     "accountAgeDays": 180,
     "kycStatus": "VERIFIED",
     "treasury": {
@@ -1684,13 +1918,13 @@
     "welcomeMatchAmountUsd": 50
   },
   {
-    "id": "usr_test_member_t4_1791139173403_13407",
-    "email": "member_t4_1791139173403_13407@gigmutual.test",
-    "displayName": "Test member_t4 3407",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t4%203407&background=005FB8&color=fff&size=200",
+    "id": "usr_test_member_t4_1791140020531_58767",
+    "email": "member_t4_1791140020531_58767@gigmutual.test",
+    "displayName": "Test member_t4 8767",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20member_t4%208767&background=005FB8&color=fff&size=200",
     "platform": "DoorDash",
     "role": "RIDER",
-    "createdAt": "2026-10-04T18:39:33.508Z",
+    "createdAt": "2026-10-04T18:53:40.612Z",
     "accountAgeDays": 180,
     "kycStatus": "VERIFIED",
     "treasury": {
@@ -1712,13 +1946,13 @@
     "completedPodsCount": 2
   },
   {
-    "id": "usr_test_creator_t5_1791139173659_9901",
-    "email": "creator_t5_1791139173659_9901@gigmutual.test",
-    "displayName": "Test creator_t5 9901",
-    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t5%209901&background=005FB8&color=fff&size=200",
+    "id": "usr_test_creator_t5_1791140020785_11050",
+    "email": "creator_t5_1791140020785_11050@gigmutual.test",
+    "displayName": "Test creator_t5 1050",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t5%201050&background=005FB8&color=fff&size=200",
     "platform": "DoorDash",
     "role": "RIDER",
-    "createdAt": "2026-10-04T18:39:33.682Z",
+    "createdAt": "2026-10-04T18:53:40.822Z",
     "accountAgeDays": 180,
     "kycStatus": "VERIFIED",
     "treasury": {

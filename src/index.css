@@ -42,6 +42,8 @@
     color: #111827;
     background-color: #F8FAFC;
     scroll-behavior: smooth;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   body {
@@ -51,6 +53,8 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   /* Headings: Balanced line wrapping, crisp hierarchy */
@@ -396,4 +400,15 @@
 [class*="tabular-nums"] {
   font-feature-settings: 'tnum' on, 'lnum' on;
   font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar hiding utilities for clean horizontal sub-navigation */
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
