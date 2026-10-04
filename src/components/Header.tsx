@@ -195,9 +195,9 @@ export const Header: React.FC<HeaderProps> = ({
                   alt={currentUser.displayName}
                   className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-300"
                 />
-                <div className="hidden sm:block text-xs">
+                <div className="hidden sm:block text-xs sm:text-sm">
                   <span className="font-bold text-[#111827] block leading-tight">{currentUser.displayName}</span>
-                  <span className="text-[10px] text-[#6B7280]">{currentUser.platform} ({currentUser.role})</span>
+                  <span className="text-[11px] sm:text-xs text-[#6B7280]">{currentUser.platform} ({currentUser.role})</span>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-[#6B7280]" />
               </button>
@@ -206,9 +206,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="absolute right-0 mt-2 w-64 bg-white border border-[#DDE1E6] rounded-xl shadow-xl p-2 z-50 divide-y divide-[#DDE1E6]">
                   {/* Account / Profile Quick Action */}
                   <div className="pb-2">
-                    <div className="px-2 py-1.5 mb-1 bg-gray-50 rounded-lg border border-gray-100">
-                      <p className="text-xs font-bold text-[#111827] truncate">{currentUser.displayName}</p>
-                      <p className="text-[10px] text-[#6B7280] truncate">{currentUser.email || `${currentUser.platform} Member`}</p>
+                    <div className="px-2.5 py-2 mb-1 bg-gray-50 rounded-lg border border-gray-100">
+                      <p className="text-sm font-bold text-[#111827] truncate">{currentUser.displayName}</p>
+                      <p className="text-xs text-[#6B7280] truncate">{currentUser.email || `${currentUser.platform} Member`}</p>
                     </div>
 
                     {onOpenEditProfile && (
@@ -217,7 +217,7 @@ export const Header: React.FC<HeaderProps> = ({
                           setShowUserDropdown(false);
                           onOpenEditProfile();
                         }}
-                        className="w-full text-left p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] font-bold text-xs flex items-center justify-between transition-colors border border-blue-200 cursor-pointer"
+                        className="w-full text-left p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] font-bold text-xs sm:text-sm flex items-center justify-between transition-colors border border-blue-200 cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           <img
@@ -306,59 +306,59 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar shrink-0">
             <button
               onClick={() => setActiveTab('my-pods')}
-              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'my-pods'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
+              <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>{t('dash.myPods')}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('explore-pods')}
-              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'explore-pods'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
               }`}
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>{t('dash.explorePods')}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('perks')}
-              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'perks'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
               }`}
             >
-              <Gift className="w-3.5 h-3.5" />
+              <Gift className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>{t('dash.perks')}</span>
             </button>
 
             <button
               id="header-tab-campaigns"
               onClick={() => setActiveTab('campaigns')}
-              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'campaigns'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
               }`}
             >
-              <Shirt className="w-3.5 h-3.5" />
+              <Shirt className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>{t('dash.campaigns')}</span>
             </button>
 
             <button
               onClick={onOpenSubmitPerk || (() => setActiveTab('perks'))}
-              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
               title="Submit a partner or community perk offer for admin review"
             >
-              <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
               <span>{t('nav.submitPerksShort')}</span>
             </button>
 
@@ -367,43 +367,43 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 id="header-advertise-btn"
                 onClick={() => onOpenAdvertiser('media-kit')}
-                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+                className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
                 title="Launch a brand campaign or sponsor courier promo apparel"
               >
-                <Megaphone className="w-3.5 h-3.5 text-slate-950" />
+                <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950" />
                 <span>{t('nav.advertiseShort')}</span>
               </button>
             )}
 
             <button
               onClick={() => setActiveTab('audit-log')}
-              className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
                 activeTab === 'audit-log'
                   ? 'bg-[#005FB8] text-white font-bold shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-100'
               }`}
             >
-              <Activity className="w-3.5 h-3.5" />
+              <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>{t('dash.auditLog')}</span>
             </button>
 
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('admin-ops')}
-                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 shrink-0 ${
+                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'admin-ops'
                     ? 'bg-purple-700 text-white font-bold shadow-xs'
                     : 'text-purple-800 bg-purple-50 hover:bg-purple-100 font-bold'
                 }`}
               >
-                <Lock className="w-3.5 h-3.5 text-purple-600" />
+                <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600" />
                 <span>{t('dash.adminOps')}</span>
               </button>
             )}
           </div>
 
           {/* Quick Info Modal Links */}
-          <div className="flex items-center gap-2 sm:gap-3 text-xs text-[#4B5563] shrink-0 font-medium">
+          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-[#4B5563] shrink-0 font-medium">
             <button
               onClick={onOpenAbout}
               className="hover:text-[#005FB8] hover:underline transition-colors py-1 px-1.5 rounded"

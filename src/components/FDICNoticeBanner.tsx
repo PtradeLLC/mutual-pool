@@ -8,19 +8,19 @@ export const FDICNoticeBanner: React.FC = () => {
 
   return (
     <>
-      <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-3 shadow-xs flex items-center justify-between gap-3 text-xs text-blue-950">
+      <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-3 sm:p-3.5 shadow-xs flex items-center justify-between gap-3 text-xs sm:text-sm text-blue-950">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="p-1.5 rounded-lg bg-blue-100 text-[#005FB8] shrink-0">
             <ShieldCheck className="w-4 h-4" />
           </div>
           <div className="truncate">
             <span className="font-bold text-[#005FB8]">{t('fdic.insuredTitle')}</span>
-            <span className="hidden sm:inline text-slate-600">{t('fdic.insuredDesc')}</span>
+            <span className="hidden sm:inline text-slate-600 ml-1.5">{t('fdic.insuredDesc')}</span>
           </div>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="px-2.5 py-1 rounded-md bg-white hover:bg-gray-50 text-slate-800 border border-slate-300 font-semibold shrink-0 transition-colors flex items-center gap-1 shadow-xs text-xs cursor-pointer"
+          className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-slate-800 border border-slate-300 font-semibold shrink-0 transition-colors flex items-center gap-1.5 shadow-xs text-xs sm:text-sm cursor-pointer"
         >
           <Info className="w-3.5 h-3.5 text-[#005FB8]" />
           <span>{t('fdic.disclosureBtn')}</span>

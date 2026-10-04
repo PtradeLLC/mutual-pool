@@ -187,30 +187,30 @@ export const PodCard: React.FC<PodCardProps> = ({
         </div>
 
         {/* Title & Description */}
-        <h3 className="text-base font-bold text-[#111827] mb-1 group-hover:text-[#005FB8] transition-colors">
+        <h3 className="text-base sm:text-lg font-bold text-[#111827] mb-1 group-hover:text-[#005FB8] transition-colors">
           {pod.name}
         </h3>
-        <p className="text-xs text-[#6B7280] line-clamp-2 mb-3 leading-relaxed">
+        <p className="text-xs sm:text-sm text-[#6B7280] line-clamp-2 mb-3 leading-relaxed">
           {pod.description}
         </p>
 
         {/* Financial Overview Metrics */}
-        <div className="bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] mb-3 grid grid-cols-2 gap-3 text-xs">
+        <div className="bg-[#F8FAFC] p-3 sm:p-3.5 rounded-lg border border-[#E2E8F0] mb-3 grid grid-cols-2 gap-3 text-xs sm:text-sm">
           <div>
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">{t('pod.activeWeeklyPool')}</span>
-            <span className="font-mono font-bold text-[#005FB8] text-sm">
+            <span className="text-[#6B7280] text-[11px] sm:text-xs uppercase font-bold block">{t('pod.activeWeeklyPool')}</span>
+            <span className="font-mono font-bold text-[#005FB8] text-base sm:text-lg block">
               ${currentActivePool.toLocaleString()}
             </span>
-            <span className="text-[10px] text-[#6B7280] block font-mono">
+            <span className="text-[11px] sm:text-xs text-[#6B7280] block font-mono">
               {displayCount} {displayCount === 1 ? 'member' : 'members'} × ${pod.depositTier}/wk
             </span>
           </div>
           <div>
-            <span className="text-[#6B7280] text-[10px] uppercase font-bold block">{t('pod.fullTargetPayout')}</span>
-            <span className="font-mono font-bold text-slate-700 text-sm">
+            <span className="text-[#6B7280] text-[11px] sm:text-xs uppercase font-bold block">{t('pod.fullTargetPayout')}</span>
+            <span className="font-mono font-bold text-slate-700 text-base sm:text-lg block">
               ${fullCapacityTarget.toLocaleString()}
             </span>
-            <span className="text-[10px] text-[#6B7280] block font-mono">
+            <span className="text-[11px] sm:text-xs text-[#6B7280] block font-mono">
               {t('pod.maxCapacityLabel', { count: pod.sizeTier })}
             </span>
           </div>
@@ -218,7 +218,7 @@ export const PodCard: React.FC<PodCardProps> = ({
 
         {/* Capacity Progress Bar */}
         <div className="mb-3">
-          <div className="flex items-center justify-between text-xs text-[#6B7280] mb-1">
+          <div className="flex items-center justify-between text-xs sm:text-sm text-[#6B7280] mb-1.5">
             <span>{t('pod.podCapacityFill')}</span>
             <span className="font-mono text-[#111827] font-semibold">{t('pod.memberCountOfTotal', { current: displayCount, max: pod.sizeTier })}</span>
           </div>
@@ -232,14 +232,14 @@ export const PodCard: React.FC<PodCardProps> = ({
 
         {/* User Membership Banner if in Pod */}
         {isMember && (
-          <div className="mb-3 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
+          <div className="mb-3 p-2.5 sm:p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs sm:text-sm text-blue-900 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#005FB8] shrink-0" />
               <div>
                 <span className="font-bold block text-[#111827]">
                   {t('pod.lineForPayout', { index: userMembership ? userMembership.rotationIndex + 1 : 1 })}
                 </span>
-                <span className="text-[10px] text-[#005FB8]">
+                <span className="text-[11px] sm:text-xs text-[#005FB8]">
                   {userMembership?.hasReceivedPayout 
                     ? t('pod.payoutReceivedWeek', { week: userMembership.payoutCycleWeek })
                     : t('pod.nextUpInQueue')}
@@ -252,7 +252,7 @@ export const PodCard: React.FC<PodCardProps> = ({
                   e.stopPropagation();
                   onSignAgreement(pod);
                 }}
-                className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shrink-0 transition-colors shadow-xs cursor-pointer"
+                className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shrink-0 transition-colors shadow-xs cursor-pointer"
               >
                 {t('pod.signPodAgreement')}
               </button>

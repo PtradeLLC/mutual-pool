@@ -300,13 +300,13 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
           <h3 className="text-xl sm:text-2xl font-black text-[#111827] tracking-tight">
             Upcoming Payments & Payouts
           </h3>
-          <p className="text-xs text-[#6B7280] max-w-2xl">
+          <p className="text-xs sm:text-sm text-[#4B5563] max-w-2xl leading-relaxed">
             Next three weekly settlement cycles specific to your active pods. Automated deposit withdrawals execute on <strong className="text-[#111827]">Thursdays at 12:00 AM Midnight</strong>, and rotating pool payouts disburse on <strong className="text-[#111827]">Fridays at 12:00 AM Midnight</strong>.
           </p>
         </div>
 
         {/* Filter Toggle */}
-        <div className="flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200 text-xs self-start md:self-center shrink-0">
+        <div className="flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200 text-xs sm:text-sm self-start md:self-center shrink-0">
           <button
             onClick={() => setFilterMode('ALL')}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
@@ -327,7 +327,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
           >
             <span>Withdrawals</span>
             {weeklyTotalWithdrawal > 0 && (
-              <span className="px-1.5 py-0.2 rounded text-[10px] bg-blue-100 text-[#005FB8]">
+              <span className="px-1.5 py-0.2 rounded text-[11px] sm:text-xs bg-blue-100 text-[#005FB8]">
                 ${weeklyTotalWithdrawal}/wk
               </span>
             )}
@@ -342,7 +342,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
           >
             <span>Payouts</span>
             {totalUserPayoutCountNext3Weeks > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-600 text-white font-mono animate-pulse">
+              <span className="px-1.5 py-0.2 rounded-full text-[11px] sm:text-xs bg-emerald-600 text-white font-mono animate-pulse">
                 {totalUserPayoutCountNext3Weeks}
               </span>
             )}
@@ -354,30 +354,30 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Metric 1: Weekly Auto-Withdrawal */}
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+          <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">
             Weekly Auto-Withdrawal
           </span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl sm:text-2xl font-black text-[#111827] font-mono">
               ${weeklyTotalWithdrawal.toFixed(2)}
             </span>
-            <span className="text-xs text-slate-500">/ week</span>
+            <span className="text-xs sm:text-sm text-slate-500">/ week</span>
           </div>
-          <span className="text-[11px] text-slate-600 block">
+          <span className="text-[11px] sm:text-xs text-slate-600 block">
             Across {activePods.length} active {activePods.length === 1 ? 'pod' : 'pods'}
           </span>
         </div>
 
         {/* Metric 2: Next Immediate Thursday Sweep */}
         <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-1">
-          <span className="text-[10px] font-bold text-[#005FB8] uppercase tracking-wider block flex items-center gap-1">
-            <Clock className="w-3 h-3" />
+          <span className="text-[11px] sm:text-xs font-bold text-[#005FB8] uppercase tracking-wider block flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
             Next Thursday Sweep
           </span>
-          <div className="text-sm font-black text-[#111827] truncate">
+          <div className="text-sm sm:text-base font-black text-[#111827] truncate">
             {cycles[0]?.thursdayFormatted || 'Upcoming Thursday'}
           </div>
-          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100/80 text-[10px] font-bold text-[#005FB8] font-mono">
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100/80 text-[11px] sm:text-xs font-bold text-[#005FB8] font-mono">
             <span>In {nextThursdayCountdown.formatted}</span>
           </div>
         </div>
@@ -388,7 +388,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
             ? 'bg-emerald-50/90 border-emerald-300 ring-1 ring-emerald-200' 
             : 'bg-slate-50 border-slate-200'
         }`}>
-          <span className={`text-[10px] font-bold uppercase tracking-wider block flex items-center gap-1 ${
+          <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider block flex items-center gap-1 ${
             totalUserPayoutCountNext3Weeks > 0 ? 'text-emerald-700' : 'text-slate-500'
           }`}>
             <Sparkles className="w-3 h-3 text-emerald-600" />
@@ -701,11 +701,11 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
               <h4 className="text-base sm:text-lg font-black text-[#111827]">
                 Payment History
               </h4>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 font-mono">
+              <span className="px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-bold bg-slate-100 text-slate-600 font-mono">
                 {history.length} {history.length === 1 ? 'Record' : 'Records'}
               </span>
             </div>
-            <p className="text-xs text-[#6B7280]">
+            <p className="text-xs sm:text-sm text-[#4B5563]">
               Verified historical record of completed weekly contributions and lump-sum rotation payouts.
             </p>
           </div>
@@ -714,65 +714,65 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
             <button
               onClick={() => fetchPaymentHistory()}
               disabled={historyLoading}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-xs flex items-center gap-1 disabled:opacity-50"
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-xs sm:text-sm flex items-center gap-1.5 disabled:opacity-50"
               title="Refresh Payment History"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${historyLoading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline font-semibold">Refresh</span>
+              <span className="font-semibold">Refresh</span>
             </button>
           </div>
         </div>
 
         {/* History Stats Summary Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs sm:text-sm">
           <div className="flex items-center justify-between sm:justify-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#005FB8] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-blue-100 text-[#005FB8] flex items-center justify-center shrink-0">
               <ArrowDownLeft className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">
+              <span className="text-[11px] sm:text-xs text-slate-500 block uppercase font-bold tracking-wider">
                 Total Deposited
               </span>
-              <span className="font-extrabold text-[#111827] font-mono text-sm">
+              <span className="font-extrabold text-[#111827] font-mono text-base sm:text-lg block">
                 -${historyStats.totalDeposited.toFixed(2)}
               </span>
-              <span className="text-[10px] text-slate-400 block font-normal">
+              <span className="text-xs text-slate-500 block font-normal">
                 {historyStats.depositCount} weekly {historyStats.depositCount === 1 ? 'deposit' : 'deposits'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-start gap-3 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+          <div className="flex items-center justify-between sm:justify-start gap-3 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2.5 sm:pt-0 sm:pl-3.5">
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
               <ArrowUpRight className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">
+              <span className="text-[11px] sm:text-xs text-slate-500 block uppercase font-bold tracking-wider">
                 Total Payouts Received
               </span>
-              <span className="font-extrabold text-emerald-700 font-mono text-sm">
+              <span className="font-extrabold text-emerald-700 font-mono text-base sm:text-lg block">
                 +${historyStats.totalPayouts.toFixed(2)}
               </span>
-              <span className="text-[10px] text-slate-400 block font-normal">
+              <span className="text-xs text-slate-500 block font-normal">
                 {historyStats.payoutCount} rotation {historyStats.payoutCount === 1 ? 'payout' : 'payouts'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-start gap-3 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+          <div className="flex items-center justify-between sm:justify-start gap-3 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2.5 sm:pt-0 sm:pl-3.5">
+            <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
               <Receipt className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">
+              <span className="text-[11px] sm:text-xs text-slate-500 block uppercase font-bold tracking-wider">
                 Net Wealth Accumulated
               </span>
-              <span className={`font-extrabold font-mono text-sm ${
+              <span className={`font-extrabold font-mono text-base sm:text-lg block ${
                 historyStats.netDifference >= 0 ? 'text-emerald-700' : 'text-slate-700'
               }`}>
                 {historyStats.netDifference >= 0 ? '+' : ''}${historyStats.netDifference.toFixed(2)}
               </span>
-              <span className="text-[10px] text-slate-400 block font-normal">
+              <span className="text-xs text-slate-500 block font-normal">
                 Across all completed cycles
               </span>
             </div>
@@ -782,20 +782,20 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
         {/* History Search & Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
           <div className="relative flex-1 max-w-sm">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
               placeholder="Search by pod name or cycle..."
-              className="w-full pl-8.5 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs text-[#111827] focus:outline-none focus:border-[#005FB8] transition-colors"
+              className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm text-[#111827] focus:outline-none focus:border-[#005FB8] transition-colors"
             />
           </div>
 
-          <div className="flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200 text-xs self-start sm:self-center">
+          <div className="flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200 text-xs sm:text-sm self-start sm:self-center">
             <button
               onClick={() => setHistoryFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 historyFilter === 'ALL'
                   ? 'bg-white text-[#111827] shadow-xs'
                   : 'text-gray-500 hover:text-gray-900'
@@ -805,7 +805,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
             </button>
             <button
               onClick={() => setHistoryFilter('DEPOSIT')}
-              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 historyFilter === 'DEPOSIT'
                   ? 'bg-white text-blue-700 shadow-xs'
                   : 'text-gray-500 hover:text-gray-900'
@@ -815,7 +815,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
             </button>
             <button
               onClick={() => setHistoryFilter('PAYOUT')}
-              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 historyFilter === 'PAYOUT'
                   ? 'bg-white text-emerald-700 shadow-xs'
                   : 'text-gray-500 hover:text-gray-900'

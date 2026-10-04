@@ -30,10 +30,10 @@ export const Logo: React.FC<LogoProps> = ({
   };
 
   const taglineSizeClasses = {
-    sm: 'text-[7px]',
-    md: 'text-[8px] sm:text-[9px]',
-    lg: 'text-[11px]',
-    xl: 'text-[13px]',
+    sm: 'text-[9px] sm:text-[10px]',
+    md: 'text-[10px] sm:text-[11px]',
+    lg: 'text-xs sm:text-[13px]',
+    xl: 'text-xs sm:text-sm',
   };
 
   const sources = [
