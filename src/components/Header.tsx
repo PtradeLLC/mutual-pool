@@ -9,7 +9,7 @@ import { useChat } from '../context/ChatContext';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
-  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X
+  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X, Globe
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -173,8 +173,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs max-w-full overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 w-full">
-        <div className="flex items-center justify-between gap-2 sm:gap-4 w-full min-w-0">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-3 w-full">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-4 w-full min-w-0">
           
           {/* Brand Logo & Name */}
           <div 
@@ -193,22 +193,26 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* User Status Bar & Switcher */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
 
-            {/* Country & Currency Selector */}
-            <CountrySelector />
+            {/* Country & Currency Selector - Hidden on mobile (< md), fully featured in Mobile Drawer */}
+            <div className="hidden md:block">
+              <CountrySelector />
+            </div>
 
-            {/* Language Selector */}
-            <LanguageSelector />
+            {/* Language Selector - Hidden on mobile (< md), fully featured in Mobile Drawer */}
+            <div className="hidden md:block">
+              <LanguageSelector />
+            </div>
 
             {/* PWA Install Button */}
             {canInstallPWA && onInstallPWA && (
               <button
                 onClick={onInstallPWA}
-                className="px-2.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition-all"
+                className="hidden md:flex px-2.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs shadow-xs items-center gap-1.5 transition-all"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Install PWA App</span>
+                <span>Install PWA App</span>
               </button>
             )}
 
@@ -228,7 +232,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </button>
 
-            {/* Verified Status Badge or KYC Verification Prompt */}
+            {/* Verified Status Badge or KYC Verification Prompt - Hidden on mobile, shown on lg+ screens */}
             {currentUser.kycStatus === 'VERIFIED' ? (
               <button
                 type="button"
@@ -238,22 +242,22 @@ export const Header: React.FC<HeaderProps> = ({
                   window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer');
                   if (onOpenKycModal) onOpenKycModal();
                 }}
-                className="px-3 py-1 rounded-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="hidden lg:flex px-3 py-1 rounded-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 title="Verified via Stripe Identity — Click to view in Stripe Dashboard & Verification Details"
               >
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="hidden sm:inline font-bold text-[11px] uppercase tracking-wide">{t('dash.verifiedMember')}</span>
+                <span className="font-bold text-[11px] uppercase tracking-wide">{t('dash.verifiedMember')}</span>
                 <ExternalLink className="w-3 h-3 text-green-600 ml-0.5 shrink-0" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={onOpenKycModal}
-                className="px-3 py-1 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="hidden lg:flex px-3 py-1 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 title="Click to complete Stripe Identity KYC verification"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span className="hidden sm:inline font-extrabold text-[11px] uppercase tracking-wide">{t('dash.verifyIdentityKyc')}</span>
+                <span className="font-extrabold text-[11px] uppercase tracking-wide">{t('dash.verifyIdentityKyc')}</span>
               </button>
             )}
 
@@ -293,7 +297,9 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="relative">
               <button
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="bg-white hover:bg-gray-50 border border-[#DDE1E6] rounded-lg px-2.5 py-1.5 flex items-center gap-2 transition-colors text-left shadow-xs"
+                className="bg-white hover:bg-gray-50 border border-[#DDE1E6] rounded-lg p-1.5 sm:px-2.5 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 transition-colors text-left shadow-xs cursor-pointer"
+                title={currentUser.displayName}
+                aria-label="User account menu"
               >
                 <img
                   src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
@@ -416,6 +422,24 @@ export const Header: React.FC<HeaderProps> = ({
                           {t('nav.contact')}
                         </button>
                       )}
+                    </div>
+
+                    {/* Mobile Country & Language Shortcut */}
+                    <div className="md:hidden pt-2 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          setMobileMenuOpen(true);
+                        }}
+                        className="w-full text-left p-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold text-xs flex items-center justify-between border border-gray-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-3.5 h-3.5 text-[#005FB8]" />
+                          <span>Region & Language</span>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                      </button>
                     </div>
 
                     {onLogout && (
@@ -955,6 +979,17 @@ export const Header: React.FC<HeaderProps> = ({
                       {t('nav.contact')}
                     </button>
                   )}
+                </div>
+              </div>
+
+              {/* Region & Language Preferences */}
+              <div>
+                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                  Region & Language
+                </div>
+                <div className="space-y-2.5">
+                  <CountrySelector variant="drawer" />
+                  <LanguageSelector variant="drawer" />
                 </div>
               </div>
             </div>
