@@ -115,22 +115,41 @@ export function validateQuery<T>(schema: ZodSchema<T>) {
 }
 
 // Rate Limiting
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.NETLIFY ||
+  process.env.CF_PAGES
+);
+
 const getClientIp = (req: Request): string => {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  if (Array.isArray(forwarded) && forwarded.length > 0) {
-    return forwarded[0].split(',')[0].trim();
-  }
-  const fwdHeader = req.headers['forwarded'];
-  if (typeof fwdHeader === 'string') {
-    const match = fwdHeader.match(/for="?([^;,\s"]+)"?/i);
-    if (match && match[1]) {
-      return match[1].trim();
+  try {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.trim()) {
+      return forwarded.split(',')[0].trim();
     }
-  }
-  return req.ip || req.socket?.remoteAddress || '127.0.0.1';
+    if (Array.isArray(forwarded) && forwarded.length > 0 && typeof forwarded[0] === 'string') {
+      return forwarded[0].split(',')[0].trim();
+    }
+    const realIp = req.headers['x-real-ip'];
+    if (typeof realIp === 'string' && realIp.trim()) {
+      return realIp.trim();
+    }
+    const fwdHeader = req.headers['forwarded'];
+    if (typeof fwdHeader === 'string') {
+      const match = fwdHeader.match(/for="?([^;,\s"]+)"?/i);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+    if (req.socket && typeof req.socket.remoteAddress === 'string') {
+      return req.socket.remoteAddress;
+    }
+    if ((req as any).connection && typeof (req as any).connection.remoteAddress === 'string') {
+      return (req as any).connection.remoteAddress;
+    }
+  } catch {}
+  return '127.0.0.1';
 };
 
 export const apiRateLimiter = rateLimit({
@@ -139,6 +158,7 @@ export const apiRateLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isServerless,
   keyGenerator: (req) => getClientIp(req),
   validate: {
     xForwardedForHeader: false,
@@ -154,6 +174,7 @@ export const authRateLimiter = rateLimit({
   message: { error: 'Too many authentication attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isServerless,
   keyGenerator: (req) => getClientIp(req),
   validate: {
     xForwardedForHeader: false,
@@ -169,6 +190,7 @@ export const strictRateLimiter = rateLimit({
   message: { error: 'Rate limit exceeded' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isServerless,
   keyGenerator: (req) => getClientIp(req),
   validate: {
     xForwardedForHeader: false,

@@ -25,6 +25,32 @@ interface PlatformScheduleBannerProps {
   compact?: boolean;
 }
 
+const formatErrorMessage = (data: any, status?: number): string => {
+  if (!data) return status ? `Sweep simulation failed (HTTP ${status})` : 'Sweep execution failed';
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (trimmed && trimmed !== '[object Object]') return trimmed;
+  }
+  if (data instanceof Error && data.message && data.message !== '[object Object]') {
+    return data.message.trim();
+  }
+  if (typeof data.message === 'string' && data.message.trim() && data.message !== '[object Object]') {
+    return data.message.trim();
+  }
+  if (typeof data.error === 'string' && data.error.trim() && data.error !== '[object Object]') {
+    return data.error.trim();
+  }
+  if (data.error && typeof data.error === 'object') {
+    if (typeof data.error.message === 'string' && data.error.message.trim() && data.error.message !== '[object Object]') {
+      return data.error.message.trim();
+    }
+  }
+  if (typeof data.details === 'string' && data.details.trim()) {
+    return data.details.trim();
+  }
+  return status ? `Sweep simulation failed (HTTP ${status})` : 'Sweep execution failed';
+};
+
 export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
   onRefreshData,
   compact = false,
@@ -121,7 +147,7 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
       }
 
       if (!res.ok || data?.success === false) {
-        throw new Error(data?.message || data?.error || `Sweep simulation failed (HTTP ${res.status})`);
+        throw new Error(formatErrorMessage(data, res.status));
       }
 
       setSweepResult(data.result);
@@ -161,7 +187,7 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
         }
       }
     } catch (err: any) {
-      const errMsg = err?.message || 'Error executing scheduled sweep';
+      const errMsg = formatErrorMessage(err);
       setSweepError(errMsg);
       toast.error(errMsg, {
         title: isThursday ? 'Thursday Deposit Sweep Failed' : 'Friday Payout Sweep Failed',

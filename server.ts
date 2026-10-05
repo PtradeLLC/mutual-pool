@@ -1112,6 +1112,20 @@ export function isServerlessRuntime(): boolean {
   );
 }
 
+// Serverless & Standard Express socket / connection stabilizer
+app.use((req, res, next) => {
+  if (!req.socket) {
+    (req as any).socket = { remoteAddress: '127.0.0.1' };
+  }
+  if (!(req as any).connection) {
+    (req as any).connection = (req as any).socket;
+  }
+  if (!req.socket.remoteAddress) {
+    (req.socket as any).remoteAddress = '127.0.0.1';
+  }
+  next();
+});
+
 // Serverless & Standard Express body parsing middlewares
 app.use((req, res, next) => {
   if (res.headersSent) return next();
@@ -1222,9 +1236,11 @@ app.get('/api/country/all', (_req: Request, res: Response) => {
   });
 });
 
-// Rate limiting middleware
-app.use('/api/', apiRateLimiter);
-app.use(['/api/users/login', '/api/users/register', '/api/users/switch'], authRateLimiter);
+// Rate limiting middleware (skipped in serverless like Vercel where edge proxies protect endpoints)
+if (!isServerlessRuntime()) {
+  app.use('/api/', apiRateLimiter);
+  app.use(['/api/users/login', '/api/users/register', '/api/users/switch'], authRateLimiter);
+}
 
 // Unified Firebase ID Token Verification Middleware for all API routes
 app.use(async (req: Request, res: Response, next) => {
@@ -6504,6 +6520,16 @@ if (!process.env.VERCEL) {
 }
 
 export default function handler(req: express.Request, res: express.Response, next?: express.NextFunction) {
+  if (!req.socket) {
+    (req as any).socket = { remoteAddress: '127.0.0.1' };
+  }
+  if (!(req as any).connection) {
+    (req as any).connection = (req as any).socket;
+  }
+  if (!req.socket.remoteAddress) {
+    (req.socket as any).remoteAddress = '127.0.0.1';
+  }
+
   const normalized = normalizeApiUrl(req);
   if (normalized && normalized !== req.url && !normalized.startsWith('/api/index')) {
     req.url = normalized;
