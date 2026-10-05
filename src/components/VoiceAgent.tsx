@@ -13,6 +13,7 @@ import {
 } from '../utils/audioPlayer';
 import { User } from '../types';
 import { useTranslation } from '../i18n';
+import { useToast } from '../context/ToastContext';
 
 export interface VoiceAgentProps {
   currentUser: User | null;
@@ -85,6 +86,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
   onOpenFaq,
 }) => {
   const { t, language } = useTranslation();
+  const toast = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -532,7 +534,9 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
 
     const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionClass) {
-      alert(t('voiceAgent.speechNotSupported'));
+      toast.warning(t('voiceAgent.speechNotSupported'), {
+        title: 'Speech Recognition',
+      });
       return;
     }
 

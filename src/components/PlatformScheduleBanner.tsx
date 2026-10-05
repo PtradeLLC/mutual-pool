@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PlatformScheduleStatus, SweepExecutionResult } from '../types';
+import { useToast } from '../context/ToastContext';
 import { 
   getPlatformScheduleStatus, 
   formatTimeRemaining,
@@ -36,6 +37,7 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
   const [sweepResult, setSweepResult] = useState<SweepExecutionResult | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const toast = useToast();
 
   // Ticking countdown timer updated every 10 seconds
   useEffect(() => {
@@ -81,16 +83,45 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
     setSweepResult(null);
     setSweepError(null);
 
+    const isThursday = sweepType === 'THURSDAY_DEPOSITS';
+
     try {
       const res = await fetch('/api/platform/schedule/sweep', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ sweepType }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Sweep failed to execute');
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+
+      if (contentType.includes('application/json')) {
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+      }
+
+      if (!data) {
+        const rawText = await res.text().catch(() => '');
+        try {
+          data = rawText ? JSON.parse(rawText) : {};
+        } catch {
+          data = { 
+            success: false,
+            message: rawText && rawText.length < 200 
+              ? rawText 
+              : `Server returned HTTP ${res.status} (${res.statusText || 'Error'}). Please try again.` 
+          };
+        }
+      }
+
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || data?.error || `Sweep simulation failed (HTTP ${res.status})`);
       }
 
       setSweepResult(data.result);
@@ -98,8 +129,43 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
       if (onRefreshData) {
         onRefreshData();
       }
+
+      // Display Toast Notification replacing simple alerts
+      if (isThursday) {
+        const txCount = data.result?.totalTransactionsCount ?? 0;
+        const volume = data.result?.totalVolumeUsd ?? 0;
+        if (txCount > 0) {
+          toast.success(
+            `Deposit successful! Processed ${txCount} member contribution${txCount === 1 ? '' : 's'} ($${volume.toFixed(2)} total volume). Funds held in Treasury escrow for Friday payout.`,
+            { title: 'Thursday 12:00 AM Deposit Sweep' }
+          );
+        } else {
+          toast.info(
+            'Thursday sweep simulated: All member deposits are currently up to date.',
+            { title: 'Thursday Deposit Sweep Completed' }
+          );
+        }
+      } else {
+        const txCount = data.result?.totalTransactionsCount ?? 0;
+        const volume = data.result?.totalVolumeUsd ?? 0;
+        if (txCount > 0) {
+          toast.success(
+            `Payout successful! Disbursed $${volume.toFixed(2)} to rotation recipients via Stripe Treasury.`,
+            { title: 'Friday 12:00 AM Payout Sweep' }
+          );
+        } else {
+          toast.info(
+            'Friday sweep simulated: Rotation payouts are up to date.',
+            { title: 'Friday Payout Sweep Completed' }
+          );
+        }
+      }
     } catch (err: any) {
-      setSweepError(err.message || 'Error executing scheduled sweep');
+      const errMsg = err?.message || 'Error executing scheduled sweep';
+      setSweepError(errMsg);
+      toast.error(errMsg, {
+        title: isThursday ? 'Thursday Deposit Sweep Failed' : 'Friday Payout Sweep Failed',
+      });
     } finally {
       setRunningSweep(null);
     }

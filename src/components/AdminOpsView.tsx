@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Pod } from '../types';
 import { useCountry } from '../context/CountryContext';
+import { useToast } from '../context/ToastContext';
 import { SUPPORTED_COUNTRIES } from '../config/countries';
 import { Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, Building2, Smartphone, ExternalLink, Shield } from 'lucide-react';
 
@@ -22,6 +23,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
   const [webhookPayload, setWebhookPayload] = useState('{\n  "amount": 40000,\n  "currency": "usd",\n  "status": "posted"\n}');
   const [firingWebhook, setFiringWebhook] = useState(false);
   const [webhookResult, setWebhookResult] = useState<string | null>(null);
+  const toast = useToast();
 
   // Delinquency handling form state
   const [selectedPodId, setSelectedPodId] = useState(allPods[0]?.id || '');
@@ -111,9 +113,14 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to spot pod');
+      toast.success('System deposit injected successfully!', {
+        title: 'Escrow Spot Deposit',
+      });
       onRefreshData();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'System deposit failed');
+      toast.error(err instanceof Error ? err.message : 'System deposit failed', {
+        title: 'System Deposit Error',
+      });
     } finally {
       setInjectingSpot(null);
     }

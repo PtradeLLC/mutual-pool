@@ -4,6 +4,7 @@ import {
   DollarSign, Users, AlertCircle, Send, X, MessageSquare
 } from 'lucide-react';
 import { User, Pod, AppNotification } from '../types';
+import { useToast } from '../context/ToastContext';
 
 interface NotificationCenterProps {
   currentUser: User;
@@ -25,6 +26,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [loading, setLoading] = useState(false);
   const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
   const [respondedStatus, setRespondedStatus] = useState<Record<string, 'ACCEPTED' | 'DECLINED'>>({});
+  const toast = useToast();
 
   // Send Intent Modal state inside Notification Center
   const [showSendIntentModal, setShowSendIntentModal] = useState(false);
@@ -160,10 +162,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       });
       if (res.ok) {
         setRespondedStatus(prev => ({ ...prev, [requestId]: action === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED' }));
+        toast.success(`Spot trade request ${action === 'ACCEPT' ? 'accepted' : 'declined'}.`, {
+          title: 'Trade Request Updated',
+        });
         fetchNotifications();
       } else {
         const err = await res.json();
-        alert(err.message || err.error || 'Failed to respond to spot trade request');
+        toast.error(err.message || err.error || 'Failed to respond to spot trade request', {
+          title: 'Trade Request Error',
+        });
       }
     } catch (err) {
       console.error('Error responding to swap request:', err);

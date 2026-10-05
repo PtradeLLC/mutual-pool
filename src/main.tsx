@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { CountryProvider } from './context/CountryContext.tsx';
+import { ToastProvider } from './context/ToastContext.tsx';
 import { LanguageProvider } from './i18n';
 import { installFetchInterceptor } from './lib/apiClient.ts';
 import './index.css';
@@ -116,7 +117,9 @@ createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <CountryProvider>
         <LanguageProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </LanguageProvider>
       </CountryProvider>
     </ErrorBoundary>

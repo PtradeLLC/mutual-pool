@@ -5,11 +5,13 @@ import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
 import { PlatformScheduleBanner } from './components/PlatformScheduleBanner';
 import { PodCard } from './components/PodCard';
+import { SwipeablePodContainer } from './components/SwipeablePodContainer';
 import { WeeklySavingsChart } from './components/WeeklySavingsChart';
 import { UpcomingPayments } from './components/UpcomingPayments';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { HardshipRequestModal } from './components/HardshipRequestModal';
 import { VoiceAgent } from './components/VoiceAgent';
+import { useToast } from './context/ToastContext';
 import { ChatProvider } from './context/ChatContext';
 import { ChatDrawer } from './components/Chat/ChatDrawer';
 import { ChatButton } from './components/Chat/ChatButton';
@@ -53,6 +55,7 @@ import { useTranslation } from './i18n';
 
 export default function App() {
   const { t, formatCurrency } = useTranslation();
+  const toast = useToast();
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('mutualpool_active_user');
@@ -433,7 +436,7 @@ export default function App() {
       const activeReq = reqs.find((r: any) => r.userId === currentUser.id && r.status === 'APPROVED');
       
       if (!activeReq) {
-        alert('No active approved hardship request found.');
+        toast.info('No active approved hardship request found.');
         return;
       }
 
@@ -449,10 +452,15 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Repayment failed');
 
-      alert(`Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`);
+      toast.success(
+        `Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`,
+        { title: 'Hardship Repaid' }
+      );
       fetchAppData(currentUser.id);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Repayment failed');
+      toast.error(err instanceof Error ? err.message : 'Repayment failed', {
+        title: 'Hardship Repayment Error',
+      });
     } finally {
       setRepayingHardship(false);
     }
@@ -1184,9 +1192,15 @@ export default function App() {
       }
 
       if (!res.ok) {
-        alert(data.message || data.error || 'You cannot leave this pod yet.');
+        toast.warning(data.message || data.error || 'You cannot leave this pod yet.', {
+          title: 'Unable to Leave Pod',
+        });
         return;
       }
+
+      toast.success(`You have left "${pod.name}".`, {
+        title: 'Pod Membership Updated',
+      });
 
       if (typeof window !== 'undefined') {
         try {
@@ -1200,7 +1214,9 @@ export default function App() {
       fetchAppData();
     } catch (err) {
       console.error('Failed to leave pod:', err);
-      alert('Network error attempting to leave pod.');
+      toast.error('Network error attempting to leave pod.', {
+        title: 'Error',
+      });
     }
   };
 
@@ -1649,100 +1665,23 @@ export default function App() {
 
         {/* TAB CONTENTS */}
 
-        {/* 1. MY MUTUAL PODS TAB */}
-        {activeTab === 'my-pods' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-[#111827]">{t('dash.myActivePodsTitle', { count: myPods.length })}</h3>
-                <p className="text-xs text-[#6B7280]">{t('dash.myActivePodsDesc')}</p>
-              </div>
-
-              <button
-                onClick={() => setShowCreatePodModal(true)}
-                className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>{t('dash.newPod')}</span>
-              </button>
-            </div>
-
-            {myPods.length === 0 ? (
-              <div className="bg-white border border-[#DDE1E6] rounded-xl p-10 text-center space-y-3 shadow-xs">
-                <Layers className="w-10 h-10 text-gray-400 mx-auto" />
-                <h4 className="text-base font-bold text-[#111827]">{t('dash.noMyPodsTitle')}</h4>
-                <p className="text-xs text-[#6B7280] max-w-md mx-auto">
-                  {t('dash.noMyPodsDesc')}
-                </p>
-                <button
-                  onClick={() => setActiveTab('explore-pods')}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
-                >
-                  {t('dash.exploreFormingPodsBtn')}
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {myPods.map((pod) => (
-                  <PodCard
-                    key={pod.id}
-                    pod={pod}
-                    currentUser={activeUser}
-                    onSelectPod={(p, initialTab) => {
-                      setSelectedPodDetail(p);
-                      setSelectedPodDetailTab(initialTab || 'rotation');
-                    }}
-                    onJoinPod={handleJoinPod}
-                    onLeavePod={handleLeavePod}
-                    onSignAgreement={(p) => setAgreementPod(p)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 2. EXPLORE FORMING PODS TAB */}
-        {activeTab === 'explore-pods' && (
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-[#111827]">{t('dash.exploreOpenPodsTitle', { count: explorePods.length })}</h3>
-              <p className="text-xs text-[#6B7280]">{t('dash.exploreOpenPodsDesc')}</p>
-            </div>
-
-            {explorePods.length === 0 ? (
-              <div className="bg-white border border-[#DDE1E6] rounded-xl p-10 text-center space-y-3 shadow-xs">
-                <Users className="w-10 h-10 text-gray-400 mx-auto" />
-                <h4 className="text-base font-bold text-[#111827]">{t('dash.noExplorePodsTitle')}</h4>
-                <p className="text-xs text-[#6B7280] max-w-md mx-auto">
-                  {t('dash.noExplorePodsDesc')}
-                </p>
-                <button
-                  onClick={() => setShowCreatePodModal(true)}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
-                >
-                  {t('dash.createPodBtn')}
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {explorePods.map((pod) => (
-                  <PodCard
-                    key={pod.id}
-                    pod={pod}
-                    currentUser={activeUser}
-                    onSelectPod={(p, initialTab) => {
-                      setSelectedPodDetail(p);
-                      setSelectedPodDetailTab(initialTab || 'rotation');
-                    }}
-                    onJoinPod={handleJoinPod}
-                    onLeavePod={handleLeavePod}
-                    onSignAgreement={(p) => setAgreementPod(p)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+        {/* 1 & 2. MY MUTUAL PODS & EXPLORE PODS TABS (WITH HORIZONTAL TOUCH SWIPE GESTURES) */}
+        {(activeTab === 'my-pods' || activeTab === 'explore-pods') && (
+          <SwipeablePodContainer
+            activeTab={activeTab}
+            onTabChange={(tab) => setActiveTab(tab)}
+            myPods={myPods}
+            explorePods={explorePods}
+            activeUser={activeUser}
+            onSelectPod={(p, initialTab) => {
+              setSelectedPodDetail(p);
+              setSelectedPodDetailTab(initialTab || 'rotation');
+            }}
+            onJoinPod={handleJoinPod}
+            onLeavePod={handleLeavePod}
+            onSignAgreement={(p) => setAgreementPod(p)}
+            onOpenCreatePod={() => setShowCreatePodModal(true)}
+          />
         )}
 
         {/* 3. PERKS MARKETPLACE TAB */}

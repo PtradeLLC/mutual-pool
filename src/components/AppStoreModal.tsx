@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Smartphone, Share, PlusSquare, ArrowRight, Download, CheckCircle2, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Logo } from './Logo';
+import { useToast } from '../context/ToastContext';
 
 interface AppStoreModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
   const [platform, setPlatform] = useState<'ios' | 'android'>(defaultPlatform);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     setPlatform(defaultPlatform);
@@ -48,7 +50,9 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
       }
       setDeferredPrompt(null);
     } else {
-      alert('To install MutualPool on your device, follow the step-by-step instructions below!');
+      toast.info('To install MutualPool on your device, follow the step-by-step instructions below!', {
+        title: 'Install MutualPool PWA',
+      });
     }
   };
 
