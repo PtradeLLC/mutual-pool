@@ -1,5 +1,45 @@
 [
   {
+    "userId": "usr_test_member_t4_1791215737846_43286",
+    "type": "PAYOUT_READY",
+    "title": "🎉 Friday Automated Payout Disbursed!",
+    "message": "Your rotating lump-sum savings payout of $90.00 net ($100.00 gross pool - 10% platform fee) for \"Payout Test Pod 1791215737846\" has been transferred into your Stripe Treasury account!",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791306160409_k74mj",
+    "isRead": false,
+    "createdAt": "2026-10-06T17:02:40.409Z"
+  },
+  {
+    "userId": "usr_test_creator_t4_1791215737846_59041",
+    "type": "PAYOUT_RECEIVED",
+    "title": "🎉 Friday 3% Host Stewardship Reward Disbursed",
+    "message": "You earned +$3.00 (3% of $100.00 pool) for hosting \"Payout Test Pod 1791215737846\" Week 1 Friday payout! Funds added to your Stripe Treasury.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791306160406_wlcko",
+    "isRead": false,
+    "createdAt": "2026-10-06T17:02:40.406Z"
+  },
+  {
+    "userId": "usr_test_creator_t4_1791215737846_59041",
+    "type": "DEPOSIT_CONFIRMED",
+    "title": "🗓️ Thursday Automated Deposit Debited",
+    "message": "Your weekly contribution of $50.00 was successfully auto-debited for \"Payout Test Pod 1791215737846\" (Week 1). Funds secured in Treasury escrow for Friday payout settlement.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791306153627_l9fwz",
+    "isRead": false,
+    "createdAt": "2026-10-06T17:02:33.627Z"
+  },
+  {
+    "userId": "usr_test_member_t4_1791215737846_43286",
+    "type": "DEPOSIT_CONFIRMED",
+    "title": "🗓️ Thursday Automated Deposit Debited",
+    "message": "Your weekly contribution of $50.00 was successfully auto-debited for \"Payout Test Pod 1791215737846\" (Week 1). Funds secured in Treasury escrow for Friday payout settlement.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791306153608_rpymm",
+    "isRead": false,
+    "createdAt": "2026-10-06T17:02:33.608Z"
+  },
+  {
     "userId": "usr_test_creator_t4_1791215737846_59041",
     "type": "PAYOUT_READY",
     "title": "🎉 Friday Automated Payout Disbursed!",

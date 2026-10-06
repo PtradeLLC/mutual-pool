@@ -60,7 +60,7 @@
     "invitedContacts": [],
     "sizeTier": 20,
     "depositTier": 50,
-    "status": "COMPLETED",
+    "status": "ACTIVE",
     "currentCycleWeek": 2,
     "totalCycles": 2,
     "agreementVersion": "v2.0-2026",
@@ -96,8 +96,8 @@
         "invitedByName": "Test creator_t4 9041",
         "agreementSignedAt": "2026-10-05T15:55:38.023Z",
         "agreementSignatureName": "Test member_t4 3286",
-        "payoutStripeTransferId": "tr_fri_treasury_1791304330626_38115",
-        "payoutProcessedAt": "2026-10-06T16:32:10.627Z",
+        "payoutStripeTransferId": "tr_fri_treasury_1791306160409_3898",
+        "payoutProcessedAt": "2026-10-06T17:02:40.409Z",
         "payoutCycleWeek": 1,
         "payoutClaimStatus": "EARMARKED_IN_TREASURY"
       },
@@ -110,21 +110,19 @@
         "avatarUrl": "https://ui-avatars.com/api/?name=Test%20creator_t4%209041&background=005FB8&color=fff&size=200",
         "platform": "DoorDash",
         "rotationIndex": 1,
-        "hasReceivedPayout": true,
+        "hasReceivedPayout": false,
         "delinquencyStatus": "CLEAN",
         "joinedAt": "2026-10-05T15:55:37.872Z",
         "agreementSignedAt": "2026-10-05T15:55:37.933Z",
         "agreementSignatureName": "Test creator_t4 9041",
         "payoutStripeTransferId": "tr_fri_treasury_1791304607854_27719",
-        "payoutProcessedAt": "2026-10-06T16:36:47.854Z",
-        "payoutCycleWeek": 2,
-        "payoutClaimStatus": "EARMARKED_IN_TREASURY"
+        "payoutProcessedAt": "2026-10-06T16:36:47.854Z"
       }
     ],
     "memberCount": 2,
     "cycleStartDate": "2026-10-05T15:55:38.117Z",
-    "creatorStewardshipEarningsUsd": 27,
-    "activatedAt": "2026-10-05T15:57:11.046Z"
+    "creatorStewardshipEarningsUsd": 30,
+    "activatedAt": "2026-10-06T17:02:33.607Z"
   },
   {
     "id": "pod_1791215737525",

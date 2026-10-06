@@ -3484,41 +3484,46 @@ app.use((req, res, next) => {
   }
 
   // Periodic Background Clock: Checks for Thursday 12:00 AM and Friday 12:00 AM sweep windows
-  setInterval(() => {
-    try {
-      const now = new Date();
-      const day = now.getDay();
-      const hour = now.getHours();
-      const minute = now.getMinutes();
-      const dateStr = now.toISOString().slice(0, 10);
+  if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const sweepInterval = setInterval(() => {
+      try {
+        const now = new Date();
+        const day = now.getDay();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+        const dateStr = now.toISOString().slice(0, 10);
 
-      // Thursday 12:00 AM Midnight: day 4, hour 0, minute < 5
-      if (day === 4 && hour === 0 && minute < 5 && lastThursdaySweepDate !== dateStr) {
-        lastThursdaySweepDate = dateStr;
-        console.log(`[Scheduled Heartbeat] Executing Thursday 12:00 AM deposit sweep (${dateStr})...`);
-        executeThursdayDepositSweep()
-          .then(res => {
-            lastThursdaySweepResult = res;
-            console.log(`[Scheduled Heartbeat] Thursday sweep completed: ${res.totalTransactionsCount} deposits, $${res.totalVolumeUsd}`);
-          })
-          .catch(err => console.error('[Scheduled Heartbeat] Thursday sweep error:', err));
-      }
+        // Thursday 12:00 AM Midnight: day 4, hour 0, minute < 5
+        if (day === 4 && hour === 0 && minute < 5 && lastThursdaySweepDate !== dateStr) {
+          lastThursdaySweepDate = dateStr;
+          console.log(`[Scheduled Heartbeat] Executing Thursday 12:00 AM deposit sweep (${dateStr})...`);
+          executeThursdayDepositSweep()
+            .then(res => {
+              lastThursdaySweepResult = res;
+              console.log(`[Scheduled Heartbeat] Thursday sweep completed: ${res.totalTransactionsCount} deposits, $${res.totalVolumeUsd}`);
+            })
+            .catch(err => console.error('[Scheduled Heartbeat] Thursday sweep error:', err));
+        }
 
-      // Friday 12:00 AM Midnight: day 5, hour 0, minute < 5
-      if (day === 5 && hour === 0 && minute < 5 && lastFridaySweepDate !== dateStr) {
-        lastFridaySweepDate = dateStr;
-        console.log(`[Scheduled Heartbeat] Executing Friday 12:00 AM payout sweep (${dateStr})...`);
-        executeFridayPayoutSweep()
-          .then(res => {
-            lastFridaySweepResult = res;
-            console.log(`[Scheduled Heartbeat] Friday sweep completed: ${res.totalTransactionsCount} payouts, $${res.totalVolumeUsd}`);
-          })
-          .catch(err => console.error('[Scheduled Heartbeat] Friday sweep error:', err));
+        // Friday 12:00 AM Midnight: day 5, hour 0, minute < 5
+        if (day === 5 && hour === 0 && minute < 5 && lastFridaySweepDate !== dateStr) {
+          lastFridaySweepDate = dateStr;
+          console.log(`[Scheduled Heartbeat] Executing Friday 12:00 AM payout sweep (${dateStr})...`);
+          executeFridayPayoutSweep()
+            .then(res => {
+              lastFridaySweepResult = res;
+              console.log(`[Scheduled Heartbeat] Friday sweep completed: ${res.totalTransactionsCount} payouts, $${res.totalVolumeUsd}`);
+            })
+            .catch(err => console.error('[Scheduled Heartbeat] Friday sweep error:', err));
+        }
+      } catch (schedErr) {
+        console.error('[Scheduled Heartbeat] Clock tick error:', schedErr);
       }
-    } catch (schedErr) {
-      console.error('[Scheduled Heartbeat] Clock tick error:', schedErr);
+    }, 60000);
+    if (typeof sweepInterval.unref === 'function') {
+      sweepInterval.unref();
     }
-  }, 60000);
+  }
 
   // Endpoint: Get Real-Time Platform Settlement Schedule Status
   app.get(['/api/platform/schedule', '/platform/schedule'], (req: Request, res: Response) => {

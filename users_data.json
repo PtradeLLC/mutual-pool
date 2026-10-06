@@ -4006,9 +4006,9 @@
     "treasury": {
       "stripeAccountId": "",
       "stripeFinAccountId": "",
-      "balanceUsd": 122,
+      "balanceUsd": 72.5,
       "pendingInboundUsd": 0,
-      "totalPayoutsReceivedUsd": 387,
+      "totalPayoutsReceivedUsd": 390,
       "fdicPassThroughEligible": true,
       "status": "ACTIVE"
     },
@@ -4036,9 +4036,9 @@
     "treasury": {
       "stripeAccountId": "",
       "stripeFinAccountId": "",
-      "balanceUsd": 215,
+      "balanceUsd": 252.5,
       "pendingInboundUsd": 0,
-      "totalPayoutsReceivedUsd": 450,
+      "totalPayoutsReceivedUsd": 540,
       "fdicPassThroughEligible": true,
       "status": "ACTIVE"
     },
