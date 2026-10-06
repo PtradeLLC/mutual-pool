@@ -780,4 +780,99 @@ export interface ChatThread {
   isOnline?: boolean;
 }
 
+// ==========================================
+// FOURTHWALL SPONSORED APPAREL GEAR TYPES
+// ==========================================
+
+export type GearProductType = 
+  | 'WINDBREAKER' 
+  | 'HOODIE' 
+  | 'DELIVERY_BAG' 
+  | 'FLEET_POLO' 
+  | 'COURIER_CAP';
+
+export type GearPrintZone = 
+  | 'FRONT_CHEST' 
+  | 'BACK_FULL' 
+  | 'LEFT_SLEEVE' 
+  | 'RIGHT_SLEEVE' 
+  | 'FRONT_FLAP' 
+  | 'CROWN';
+
+export type GearColor = 
+  | 'BLACK' 
+  | 'NAVY' 
+  | 'NEON_LIME' 
+  | 'STEALTH_CHARCOAL' 
+  | 'SAFETY_ORANGE' 
+  | 'WHITE';
+
+export type GearDesignStatus = 
+  | 'DRAFT' 
+  | 'PENDING_APPROVAL' 
+  | 'APPROVED' 
+  | 'DISPATCHED_TO_FOURTHWALL' 
+  | 'PRINTING' 
+  | 'COMPLETED' 
+  | 'REJECTED';
+
+export interface GearDesignZoneConfig {
+  zone: GearPrintZone;
+  label: string;
+  sponsorMessage: string;
+  subMessage?: string;
+  fontSize: 'sm' | 'md' | 'lg' | 'xl';
+  textColor: string;
+  badgeStyle: 'NONE' | 'OUTLINED' | 'HIGH_VIS_BOX' | 'REFLECTIVE_SHIELD';
+  logoBadgeUrl?: string;
+  active: boolean;
+}
+
+export interface GearCatalogItem {
+  type: GearProductType;
+  name: string;
+  category: string;
+  description: string;
+  baseUnitCostUsd: number;
+  availableColors: GearColor[];
+  supportedZones: {
+    zone: GearPrintZone;
+    label: string;
+    maxCharacters: number;
+    dimensions: string;
+  }[];
+  materialSpec: string;
+  fourthwallProductTemplateId: string;
+}
+
+export interface GearDesignOrder {
+  id: string;
+  campaignId?: string;
+  campaignTitle?: string;
+  sponsorBrand: string;
+  sponsorContactEmail: string;
+  sponsorContactName: string;
+  gearType: GearProductType;
+  gearName: string;
+  baseColor: GearColor;
+  quantity: number;
+  unitCostUsd: number;
+  totalEstimatedCostUsd: number;
+  zones: Record<string, GearDesignZoneConfig>;
+  status: GearDesignStatus;
+  submittedAt?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  adminNotes?: string;
+  // Fourthwall Platform API Response details
+  fourthwallOrderId?: string;
+  fourthwallOrderNumber?: string;
+  fourthwallTrackingUrl?: string;
+  fourthwallProductionStage?: 'SUBMITTED' | 'ARTWORK_VALIDATED' | 'PRINT_QUEUE' | 'IN_PRODUCTION' | 'FULFILLED';
+  fourthwallRawResponse?: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+
 

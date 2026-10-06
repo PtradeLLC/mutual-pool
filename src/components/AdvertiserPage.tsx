@@ -12,8 +12,9 @@ import {
   Globe, HelpCircle, ChevronRight, Eye, RefreshCw, Star, HeartHandshake,
   Download, ArrowLeft, Zap, Filter, LayoutDashboard, Calculator, Plus,
   Lock, LogIn, Store, QrCode, Navigation, Compass, CheckSquare, Tag,
-  BadgePercent, Percent
+  BadgePercent, Percent, Printer
 } from 'lucide-react';
+import { FourthwallGearStudio } from './FourthwallGearStudio';
 
 import promoFrontImg from '../assets/images/promo_hoodie_front_1786902471783.jpg';
 import promoBackImg from '../assets/images/promo_hoodie_back_1786902490265.jpg';
@@ -577,6 +578,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   const [durationWeeks, setDurationWeeks] = useState<number>(4);
   const [selectedGear, setSelectedGear] = useState<string>('hoodie');
   const [previewTab, setPreviewTab] = useState<'front' | 'back' | 'sleeve' | 'full'>('full');
+  const [showFourthwallStudio, setShowFourthwallStudio] = useState<boolean>(false);
 
   // Lead Intake Form State
   const [formData, setFormData] = useState({
@@ -863,49 +865,74 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 </p>
               </div>
 
-              {/* View Toggle */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">
+              {/* View Toggle & Fourthwall Studio Launcher */}
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setPreviewTab('full')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    previewTab === 'full' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                  onClick={() => setShowFourthwallStudio(!showFourthwallStudio)}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                    showFourthwallStudio 
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
+                      : 'bg-emerald-500/10 text-emerald-700 border border-emerald-300 hover:bg-emerald-500/20'
                   }`}
                 >
-                  {t('advertiser.all3Views')}
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>{showFourthwallStudio ? 'Show Photo Gallery' : 'Interactive Fourthwall Gear Designer'}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewTab('front')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    previewTab === 'front' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
-                  }`}
-                >
-                  {t('advertiser.frontView')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewTab('back')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    previewTab === 'back' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
-                  }`}
-                >
-                  {t('advertiser.backView')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewTab('sleeve')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    previewTab === 'sleeve' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
-                  }`}
-                >
-                  {t('advertiser.sleeveDetail')}
-                </button>
+
+                {!showFourthwallStudio && (
+                  <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab('full')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        previewTab === 'full' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                      }`}
+                    >
+                      {t('advertiser.all3Views')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab('front')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        previewTab === 'front' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                      }`}
+                    >
+                      {t('advertiser.frontView')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab('back')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        previewTab === 'back' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                      }`}
+                    >
+                      {t('advertiser.backView')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab('sleeve')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        previewTab === 'sleeve' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                      }`}
+                    >
+                      {t('advertiser.sleeveDetail')}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* 3-Panel Visual Showcase Grid */}
-            {previewTab === 'full' ? (
+            {/* Embedded Fourthwall Gear Studio */}
+            {showFourthwallStudio ? (
+              <div className="pt-2">
+                <FourthwallGearStudio
+                  sponsorBrand={formData.brandName || 'Sponsor Brand'}
+                  sponsorEmail={formData.contactEmail}
+                  campaignTitle={formData.brandName ? `${formData.brandName} Courier Fleet` : undefined}
+                />
+              </div>
+            ) : previewTab === 'full' ? (
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
                 
                 {/* Panel 1: Front View (Span 5) */}

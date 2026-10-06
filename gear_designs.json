@@ -1,0 +1,212 @@
+[
+  {
+    "id": "gdes_1791310860671_11",
+    "campaignId": "camp_ad_hoc_sponsor",
+    "campaignTitle": "Subway Fleet Sponsored Fleet",
+    "sponsorBrand": "Subway Fleet",
+    "sponsorContactEmail": "sponsor@mutualpool.org",
+    "sponsorContactName": "Subway Fleet",
+    "gearType": "HOODIE",
+    "gearName": "Heavyweight Fleece Courier Hoodie",
+    "baseColor": "BLACK",
+    "quantity": 20,
+    "unitCostUsd": 34,
+    "totalEstimatedCostUsd": 680,
+    "zones": {
+      "FRONT_CHEST": {
+        "zone": "FRONT_CHEST",
+        "label": "Front Chest",
+        "sponsorMessage": "SUBWAY FRESH",
+        "active": true,
+        "textColor": "#ffffff",
+        "fontSize": "md",
+        "badgeStyle": "HIGH_VIS_BOX"
+      }
+    },
+    "status": "REJECTED",
+    "submittedAt": "2026-10-06T18:21:03.514Z",
+    "createdAt": "2026-10-06T18:21:00.671Z",
+    "updatedAt": "2026-10-06T18:21:06.154Z",
+    "rejectedAt": "2026-10-06T18:21:06.154Z",
+    "adminNotes": "Please increase font contrast for night shifts."
+  },
+  {
+    "id": "gdes_1791309576330_437",
+    "campaignId": "camp_ad_hoc_sponsor",
+    "campaignTitle": "DoorDash Rewards Sponsored Fleet",
+    "sponsorBrand": "DoorDash Rewards",
+    "sponsorContactEmail": "sponsor@doordash.com",
+    "sponsorContactName": "DoorDash Rewards",
+    "gearType": "FLEET_POLO",
+    "gearName": "Breathable Technical Fleet Polo Shirt",
+    "baseColor": "NAVY",
+    "quantity": 25,
+    "unitCostUsd": 22,
+    "totalEstimatedCostUsd": 550,
+    "zones": {
+      "FRONT_CHEST": {
+        "zone": "FRONT_CHEST",
+        "label": "Left Chest",
+        "sponsorMessage": "DOORDASH PRO",
+        "active": true,
+        "textColor": "#ffffff",
+        "fontSize": "md",
+        "badgeStyle": "REFLECTIVE_SHIELD"
+      }
+    },
+    "status": "DISPATCHED_TO_FOURTHWALL",
+    "submittedAt": "2026-10-06T17:59:39.274Z",
+    "createdAt": "2026-10-06T17:59:36.330Z",
+    "updatedAt": "2026-10-06T17:59:42.362Z",
+    "approvedAt": "2026-10-06T17:59:42.362Z",
+    "adminNotes": "Approved for courier safety and sponsor branding standards",
+    "fourthwallOrderId": "fw_ord_1791309582362_6481",
+    "fourthwallOrderNumber": "FW-726481",
+    "fourthwallTrackingUrl": "https://fourthwall.com/orders/track/fw_ord_1791309582362_6481",
+    "fourthwallProductionStage": "ARTWORK_VALIDATED",
+    "fourthwallRawResponse": {
+      "status": "success",
+      "order": {
+        "id": "fw_ord_1791309582362_6481",
+        "friendly_id": "FW-726481",
+        "status": "PROCESSING",
+        "fulfillment_status": "IN_PRODUCTION",
+        "created_at": "2026-10-06T17:59:42.362Z",
+        "shop": {
+          "id": "mutualpool-creator-shop",
+          "domain": "mutualpool.fourthwall.com"
+        },
+        "items_count": 25,
+        "total_usd": 550,
+        "print_pipeline": {
+          "artwork_status": "VALIDATED_PRINT_READY",
+          "resolution_dpi": 300,
+          "color_profile": "CMYK_COATED_FOGRA39",
+          "estimated_ship_date": "2026-10-11"
+        }
+      }
+    }
+  },
+  {
+    "id": "gdes_gatorade_windbreaker_101",
+    "campaignId": "camp_gatorade_fuel",
+    "campaignTitle": "Gatorade Fast-Twitch Hydration Fleet",
+    "sponsorBrand": "Gatorade",
+    "sponsorContactEmail": "partnerships@gatorade.pepsico.com",
+    "sponsorContactName": "Marcus Bennett",
+    "gearType": "WINDBREAKER",
+    "gearName": "Hi-Vis Weatherproof Courier Windbreaker",
+    "baseColor": "NEON_LIME",
+    "quantity": 50,
+    "unitCostUsd": 38,
+    "totalEstimatedCostUsd": 1900,
+    "zones": {
+      "FRONT_CHEST": {
+        "zone": "FRONT_CHEST",
+        "label": "Front Left Chest (Sponsor Patch)",
+        "sponsorMessage": "GATORADE FAST-TWITCH",
+        "subMessage": "Official Hydration Partner",
+        "fontSize": "md",
+        "textColor": "#0f172a",
+        "badgeStyle": "REFLECTIVE_SHIELD",
+        "active": true
+      },
+      "BACK_FULL": {
+        "zone": "BACK_FULL",
+        "label": "Full Back Impact Billboard",
+        "sponsorMessage": "LIGHTNING SPEED • ZERO CRASH",
+        "subMessage": "Powered by Gatorade Energy Fleet",
+        "fontSize": "xl",
+        "textColor": "#0f172a",
+        "badgeStyle": "HIGH_VIS_BOX",
+        "active": true
+      },
+      "LEFT_SLEEVE": {
+        "zone": "LEFT_SLEEVE",
+        "label": "Left Sleeve Courier Stripe",
+        "sponsorMessage": "G-SERIES PRO",
+        "fontSize": "sm",
+        "textColor": "#0f172a",
+        "badgeStyle": "OUTLINED",
+        "active": true
+      }
+    },
+    "status": "APPROVED",
+    "submittedAt": "2026-10-04T12:00:00Z",
+    "approvedAt": "2026-10-04T15:30:00Z",
+    "fourthwallOrderId": "fw_ord_982410294_gtr",
+    "fourthwallOrderNumber": "FW-829104",
+    "fourthwallTrackingUrl": "https://fourthwall.com/orders/track/fw_ord_982410294_gtr",
+    "fourthwallProductionStage": "IN_PRODUCTION",
+    "createdAt": "2026-10-04T11:45:00Z",
+    "updatedAt": "2026-10-04T15:30:00Z"
+  },
+  {
+    "id": "gdes_chime_hoodie_202",
+    "campaignId": "camp_chime_banking",
+    "campaignTitle": "Chime Fee-Free Courier Network",
+    "sponsorBrand": "Chime",
+    "sponsorContactEmail": "growth@chime.com",
+    "sponsorContactName": "Rachel Vance",
+    "gearType": "HOODIE",
+    "gearName": "Heavyweight Fleece Courier Hoodie",
+    "baseColor": "BLACK",
+    "quantity": 35,
+    "unitCostUsd": 34,
+    "totalEstimatedCostUsd": 1190,
+    "zones": {
+      "FRONT_CHEST": {
+        "zone": "FRONT_CHEST",
+        "label": "Front Center Chest Banner",
+        "sponsorMessage": "CHIME • BANKING THAT HAS YOUR BACK",
+        "subMessage": "Keep 100% Of Your Tips & Earnings",
+        "fontSize": "md",
+        "textColor": "#25C974",
+        "badgeStyle": "REFLECTIVE_SHIELD",
+        "active": true
+      },
+      "BACK_FULL": {
+        "zone": "BACK_FULL",
+        "label": "Full Back High-Density Print",
+        "sponsorMessage": "EARN FASTER • ZERO MONTHLY FEES",
+        "subMessage": "Chime.com/gig",
+        "fontSize": "lg",
+        "textColor": "#ffffff",
+        "badgeStyle": "OUTLINED",
+        "active": true
+      }
+    },
+    "status": "DISPATCHED_TO_FOURTHWALL",
+    "submittedAt": "2026-10-05T18:10:00Z",
+    "createdAt": "2026-10-05T17:45:00Z",
+    "updatedAt": "2026-10-06T18:21:09.798Z",
+    "approvedAt": "2026-10-06T18:21:09.798Z",
+    "adminNotes": "Approved for courier safety standards",
+    "fourthwallOrderId": "fw_ord_1791310869798_2964",
+    "fourthwallOrderNumber": "FW-992964",
+    "fourthwallTrackingUrl": "https://fourthwall.com/orders/track/fw_ord_1791310869798_2964",
+    "fourthwallProductionStage": "ARTWORK_VALIDATED",
+    "fourthwallRawResponse": {
+      "status": "success",
+      "order": {
+        "id": "fw_ord_1791310869798_2964",
+        "friendly_id": "FW-992964",
+        "status": "PROCESSING",
+        "fulfillment_status": "IN_PRODUCTION",
+        "created_at": "2026-10-06T18:21:09.798Z",
+        "shop": {
+          "id": "mutualpool-creator-shop",
+          "domain": "mutualpool.fourthwall.com"
+        },
+        "items_count": 35,
+        "total_usd": 1190,
+        "print_pipeline": {
+          "artwork_status": "VALIDATED_PRINT_READY",
+          "resolution_dpi": 300,
+          "color_profile": "CMYK_COATED_FOGRA39",
+          "estimated_ship_date": "2026-10-11"
+        }
+      }
+    }
+  }
+]

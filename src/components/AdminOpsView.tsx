@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import { User, Pod } from '../types';
+import React, { useState, useEffect } from 'react';
+import { User, Pod, GearDesignOrder } from '../types';
 import { useCountry } from '../context/CountryContext';
 import { useToast } from '../context/ToastContext';
 import { SUPPORTED_COUNTRIES } from '../config/countries';
-import { Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, Building2, Smartphone, ExternalLink, Shield } from 'lucide-react';
+import { FourthwallGearStudio } from './FourthwallGearStudio';
+import { 
+  Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, 
+  CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, 
+  Building2, Smartphone, ExternalLink, Shield, Printer, Package, Truck, Check, X, Clock 
+} from 'lucide-react';
 
 interface AdminOpsViewProps {
   currentUser: User;
@@ -32,6 +37,74 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
   const [handlingDelinquency, setHandlingDelinquency] = useState(false);
   const [delinquencyResult, setDelinquencyResult] = useState<string | null>(null);
   const [injectingSpot, setInjectingSpot] = useState<string | null>(null);
+
+  // Fourthwall Gear Approvals State
+  const [gearDesigns, setGearDesigns] = useState<GearDesignOrder[]>([]);
+  const [loadingDesigns, setLoadingDesigns] = useState(false);
+  const [approvingDesignId, setApprovingDesignId] = useState<string | null>(null);
+  const [showGearStudio, setShowGearStudio] = useState(false);
+
+  const fetchGearDesigns = async () => {
+    setLoadingDesigns(true);
+    try {
+      const res = await fetch('/api/fourthwall/designs');
+      if (res.ok) {
+        const data = await res.json();
+        setGearDesigns(data.designs || []);
+      }
+    } catch (err) {
+      console.warn('Failed to load gear designs:', err);
+    } finally {
+      setLoadingDesigns(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGearDesigns();
+  }, []);
+
+  const handleApproveAndDispatch = async (designId: string) => {
+    setApprovingDesignId(designId);
+    try {
+      const res = await fetch(`/api/fourthwall/designs/${designId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(
+          `Design approved and dispatched to Fourthwall! Order #${data.fourthwall?.fourthwallOrderNumber || data.design?.fourthwallOrderNumber} is queued for printing.`,
+          { title: 'Fourthwall Order Confirmed' }
+        );
+        fetchGearDesigns();
+      } else {
+        toast.error(data.message || 'Approval failed', { title: 'Dispatch Error' });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to dispatch to Fourthwall', { title: 'Dispatch Failed' });
+    } finally {
+      setApprovingDesignId(null);
+    }
+  };
+
+  const handleRejectDesign = async (designId: string) => {
+    try {
+      const res = await fetch(`/api/fourthwall/designs/${designId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminNotes: 'Design requires adjustments for courier safety and sponsor branding standards.' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.info('Gear design marked as rejected with safety feedback.', { title: 'Design Rejected' });
+        fetchGearDesigns();
+      } else {
+        toast.error(data.message || 'Reject failed', { title: 'Error' });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to reject design', { title: 'Error' });
+    }
+  };
 
   const activePod = allPods.find(p => p.id === selectedPodId);
 
@@ -594,7 +667,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
             <button
               type="submit"
               disabled={firingWebhook}
-              className="px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs"
+              className="px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>Fire Webhook Event</span>
@@ -602,6 +675,213 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           </form>
         </div>
 
+      </div>
+
+      {/* Fourthwall Gear Approvals & Print Dispatch Management */}
+      <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 space-y-4 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                <Printer className="w-3 h-3" />
+                Fourthwall API Integration
+              </span>
+              <span className="text-[11px] text-gray-500 font-mono">
+                Direct-to-Film Print-on-Demand
+              </span>
+            </div>
+            <h3 className="font-bold text-base text-[#111827] flex items-center gap-2">
+              Fourthwall Sponsored Gear Approvals & Manufacturing Dispatch
+            </h3>
+            <p className="text-xs text-gray-600">
+              Review custom courier clothing designs created by sponsors. Upon admin approval, orders are transmitted directly via the Fourthwall Ordering API to trigger printing.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={fetchGearDesigns}
+              disabled={loadingDesigns}
+              className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingDesigns ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowGearStudio(!showGearStudio)}
+              className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{showGearStudio ? 'Hide Studio' : 'Launch Gear Studio'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Expandable In-App Fourthwall Gear Studio */}
+        {showGearStudio && (
+          <div className="pt-2 pb-4">
+            <FourthwallGearStudio 
+              sponsorBrand="Apex Fleet Logistics"
+              sponsorEmail="fleet@apexlogistics.com"
+              isAdmin={true}
+              onDesignSubmitted={() => {
+                fetchGearDesigns();
+              }}
+            />
+          </div>
+        )}
+
+        {/* Gear Designs List Table */}
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-[10px] tracking-wider border-b border-gray-200">
+              <tr>
+                <th className="px-3.5 py-2.5">Gear & Apparel</th>
+                <th className="px-3.5 py-2.5">Sponsor Brand</th>
+                <th className="px-3.5 py-2.5">Designated Print Zones</th>
+                <th className="px-3.5 py-2.5">Volume & Budget</th>
+                <th className="px-3.5 py-2.5">Status & Fourthwall Order</th>
+                <th className="px-3.5 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {gearDesigns.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                    No gear designs submitted yet. Use the Launch Gear Studio button above to configure an apparel order.
+                  </td>
+                </tr>
+              ) : (
+                gearDesigns.map((d) => {
+                  const isPending = d.status === 'PENDING_APPROVAL';
+                  const isDispatched = d.status === 'DISPATCHED_TO_FOURTHWALL';
+                  const isApproving = approvingDesignId === d.id;
+
+                  return (
+                    <tr key={d.id} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="px-3.5 py-3">
+                        <div className="font-bold text-gray-900">{d.gearName}</div>
+                        <div className="text-[10px] text-gray-500 font-mono">
+                          Color: <strong className="text-gray-700">{d.baseColor}</strong>
+                        </div>
+                      </td>
+
+                      <td className="px-3.5 py-3">
+                        <div className="font-bold text-[#005FB8]">{d.sponsorBrand}</div>
+                        <div className="text-[10px] text-gray-500">{d.sponsorContactEmail}</div>
+                      </td>
+
+                      <td className="px-3.5 py-3">
+                        <div className="space-y-1 max-w-xs">
+                          {Object.entries(d.zones || {}).map(([zoneKey, z]) => {
+                            if (!z || !z.active || !z.sponsorMessage) return null;
+                            return (
+                              <div key={zoneKey} className="text-[10.5px] leading-tight">
+                                <span className="font-mono text-gray-400 font-semibold">{zoneKey}: </span>
+                                <span className="font-bold text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded">
+                                  "{z.sponsorMessage}"
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+
+                      <td className="px-3.5 py-3 font-mono">
+                        <div className="font-bold text-gray-900">{d.quantity} units</div>
+                        <div className="text-[10px] text-emerald-700 font-bold">
+                          ${d.totalEstimatedCostUsd.toFixed(2)} (${d.unitCostUsd.toFixed(2)}/unit)
+                        </div>
+                      </td>
+
+                      <td className="px-3.5 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          isDispatched 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                            : isPending 
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                            : 'bg-blue-100 text-blue-800 border border-blue-300'
+                        }`}>
+                          {isDispatched && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                          {isPending && <Clock className="w-3 h-3 text-amber-600" />}
+                          {d.status}
+                        </span>
+
+                        {d.fourthwallOrderNumber && (
+                          <div className="mt-1 font-mono text-[10px] text-gray-700">
+                            Order: <strong className="text-gray-900">{d.fourthwallOrderNumber}</strong>
+                          </div>
+                        )}
+
+                        {d.fourthwallTrackingUrl && (
+                          <a
+                            href={d.fourthwallTrackingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline font-mono mt-0.5"
+                          >
+                            <span>Track on Fourthwall</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        )}
+                      </td>
+
+                      <td className="px-3.5 py-3 text-right">
+                        {isPending ? (
+                          <div className="inline-flex items-center gap-1.5 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleRejectDesign(d.id)}
+                              disabled={isApproving}
+                              className="px-2.5 py-1.5 rounded-lg border border-rose-300 hover:bg-rose-50 text-rose-700 font-bold text-xs inline-flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                              title="Reject design"
+                            >
+                              <X className="w-3 h-3" />
+                              <span>Reject</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApproveAndDispatch(d.id)}
+                              disabled={isApproving}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                            >
+                              {isApproving ? (
+                                <>
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  <span>Sending...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Printer className="w-3 h-3" />
+                                  <span>Approve & Print</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        ) : isDispatched ? (
+                          <span className="text-emerald-700 font-bold text-xs inline-flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>In Production</span>
+                          </span>
+                        ) : d.status === 'REJECTED' ? (
+                          <span className="text-rose-600 font-bold text-xs inline-flex items-center gap-1">
+                            <X className="w-3.5 h-3.5" />
+                            <span>Rejected</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs font-medium">Approved</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>

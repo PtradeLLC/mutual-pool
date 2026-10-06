@@ -48,6 +48,8 @@ import {
   getOrCreateDirectThread,
   getOrCreatePodThread
 } from './src/server/chatManager';
+import { FOURTHWALL_GEAR_CATALOG, INITIAL_GEAR_DESIGNS, dispatchOrderToFourthwall } from './src/services/fourthwall';
+import { GearDesignOrder } from './src/types';
 
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -5586,6 +5588,236 @@ app.post('/api/campaigns/advertiser-inquiry', async (req: Request, res: Response
 app.get('/api/campaigns/advertiser-inquiries', (req: Request, res: Response) => {
   const inquiries = loadAdvertiserInquiries();
   res.json({ inquiries });
+});
+
+// --- FOURTHWALL PRINT-ON-DEMAND GEAR STORAGE & API ---
+const GEAR_DESIGNS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'gear_designs.json');
+
+function loadGearDesigns(): GearDesignOrder[] {
+  try {
+    const raw = safeReadFile(GEAR_DESIGNS_FILE);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('[Fourthwall] Error loading gear_designs.json:', err);
+  }
+  return [...INITIAL_GEAR_DESIGNS];
+}
+
+let gearDesigns: GearDesignOrder[] = loadGearDesigns();
+
+function saveGearDesigns(): void {
+  try {
+    safeWriteFile(GEAR_DESIGNS_FILE, JSON.stringify(gearDesigns, null, 2));
+  } catch (err) {
+    console.error('[Fourthwall] Error saving gear_designs.json:', err);
+  }
+}
+
+// 1. Get Fourthwall Base Apparel Catalog
+app.get(['/api/fourthwall/catalog', '/fourthwall/catalog'], (req: Request, res: Response) => {
+  res.json({
+    catalog: FOURTHWALL_GEAR_CATALOG,
+    provider: 'Fourthwall Platform API',
+    printMethod: 'Direct-to-Film (DTF) High-Density Printing',
+    documentationUrl: 'https://docs.fourthwall.com/quickstart',
+  });
+});
+
+// 2. List Sponsored Gear Designs
+app.get(['/api/fourthwall/designs', '/fourthwall/designs'], (req: Request, res: Response) => {
+  const { status, sponsorBrand, campaignId } = req.query;
+  let results = [...gearDesigns];
+
+  if (status && typeof status === 'string') {
+    results = results.filter(d => d.status === status);
+  }
+  if (sponsorBrand && typeof sponsorBrand === 'string') {
+    results = results.filter(d => d.sponsorBrand.toLowerCase().includes(sponsorBrand.toLowerCase()));
+  }
+  if (campaignId && typeof campaignId === 'string') {
+    results = results.filter(d => d.campaignId === campaignId);
+  }
+
+  res.json({
+    designs: results,
+    total: results.length,
+  });
+});
+
+// 3. Create or Save Gear Design Draft
+app.post(['/api/fourthwall/designs', '/fourthwall/designs'], (req: Request, res: Response) => {
+  try {
+    const designData = req.body as Partial<GearDesignOrder>;
+    if (!designData.sponsorBrand || !designData.gearType) {
+      return res.status(400).json({ error: 'sponsorBrand and gearType are required' });
+    }
+
+    const catalogItem = FOURTHWALL_GEAR_CATALOG.find(c => c.type === designData.gearType) || FOURTHWALL_GEAR_CATALOG[0];
+    const qty = designData.quantity || 50;
+    const unitCost = catalogItem.baseUnitCostUsd;
+
+    const newDesign: GearDesignOrder = {
+      id: designData.id || `gdes_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      campaignId: designData.campaignId || 'camp_ad_hoc_sponsor',
+      campaignTitle: designData.campaignTitle || `${designData.sponsorBrand} Sponsored Fleet`,
+      sponsorBrand: designData.sponsorBrand,
+      sponsorContactEmail: designData.sponsorContactEmail || 'sponsor@mutualpool.org',
+      sponsorContactName: designData.sponsorContactName || designData.sponsorBrand,
+      gearType: designData.gearType,
+      gearName: catalogItem.name,
+      baseColor: designData.baseColor || 'NEON_LIME',
+      quantity: qty,
+      unitCostUsd: unitCost,
+      totalEstimatedCostUsd: unitCost * qty,
+      zones: designData.zones || {},
+      status: designData.status || 'DRAFT',
+      submittedAt: designData.status === 'PENDING_APPROVAL' ? new Date().toISOString() : undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const existingIdx = gearDesigns.findIndex(d => d.id === newDesign.id);
+    if (existingIdx !== -1) {
+      gearDesigns[existingIdx] = { ...gearDesigns[existingIdx], ...newDesign, updatedAt: new Date().toISOString() };
+    } else {
+      gearDesigns.unshift(newDesign);
+    }
+
+    saveGearDesigns();
+    res.status(201).json({ success: true, design: newDesign });
+  } catch (err: any) {
+    console.error('[Fourthwall] Error creating gear design:', err);
+    res.status(500).json({ error: 'Failed to create gear design', message: err?.message });
+  }
+});
+
+// 4. Submit Gear Design for Admin Approval
+app.post(['/api/fourthwall/designs/:id/submit', '/fourthwall/designs/:id/submit'], (req: Request, res: Response) => {
+  const design = gearDesigns.find(d => d.id === req.params.id);
+  if (!design) {
+    return res.status(404).json({ error: 'Gear design not found' });
+  }
+
+  design.status = 'PENDING_APPROVAL';
+  design.submittedAt = new Date().toISOString();
+  design.updatedAt = new Date().toISOString();
+  saveGearDesigns();
+
+  res.json({
+    success: true,
+    design,
+    message: 'Gear design submitted for stewardship approval. Upon approval it will be dispatched to Fourthwall.',
+  });
+});
+
+// 5. Admin Approves Gear Design & Dispatches Order to Fourthwall API
+app.post(['/api/fourthwall/designs/:id/approve', '/fourthwall/designs/:id/approve'], async (req: Request, res: Response) => {
+  const design = gearDesigns.find(d => d.id === req.params.id);
+  if (!design) {
+    return res.status(404).json({ error: 'Gear design not found' });
+  }
+
+  try {
+    const { shippingRecipient, adminNotes } = req.body || {};
+    
+    // Call Fourthwall Orders API
+    const fwResult = await dispatchOrderToFourthwall(design, shippingRecipient);
+
+    design.status = 'DISPATCHED_TO_FOURTHWALL';
+    design.approvedAt = new Date().toISOString();
+    design.adminNotes = adminNotes || 'Design approved for high-visibility courier fleet print run.';
+    design.fourthwallOrderId = fwResult.fourthwallOrderId;
+    design.fourthwallOrderNumber = fwResult.fourthwallOrderNumber;
+    design.fourthwallTrackingUrl = fwResult.fourthwallTrackingUrl;
+    design.fourthwallProductionStage = fwResult.productionStage;
+    design.fourthwallRawResponse = fwResult.rawResponse;
+    design.updatedAt = new Date().toISOString();
+
+    saveGearDesigns();
+
+    res.json({
+      success: true,
+      design,
+      fourthwall: fwResult,
+      message: `Design approved and manufacturing order ${fwResult.fourthwallOrderNumber} dispatched to Fourthwall print pipeline.`,
+    });
+  } catch (err: any) {
+    console.error('[Fourthwall] Approval and dispatch error:', err);
+    res.status(500).json({ error: 'Fourthwall dispatch failed', message: err?.message });
+  }
+});
+
+// 6. Admin Rejects Gear Design
+app.post(['/api/fourthwall/designs/:id/reject', '/fourthwall/designs/:id/reject'], (req: Request, res: Response) => {
+  const design = gearDesigns.find(d => d.id === req.params.id);
+  if (!design) {
+    return res.status(404).json({ error: 'Gear design not found' });
+  }
+
+  const { adminNotes } = req.body || {};
+  design.status = 'REJECTED';
+  design.rejectedAt = new Date().toISOString();
+  design.adminNotes = adminNotes || 'Design requires adjustments to comply with courier safety guidelines.';
+  design.updatedAt = new Date().toISOString();
+  saveGearDesigns();
+
+  res.json({
+    success: true,
+    design,
+    message: 'Gear design marked as rejected with feedback.',
+  });
+});
+
+// 7. Get Single Gear Design
+app.get(['/api/fourthwall/designs/:id', '/fourthwall/designs/:id'], (req: Request, res: Response) => {
+  const design = gearDesigns.find(d => d.id === req.params.id);
+  if (!design) {
+    return res.status(404).json({ error: 'Gear design not found' });
+  }
+  res.json({ design });
+});
+
+// 8. Fourthwall Webhook Receiver
+app.post(['/api/fourthwall/webhook', '/fourthwall/webhook'], (req: Request, res: Response) => {
+  try {
+    const { event, order_id, order_number, status, tracking_url } = req.body || {};
+    console.log(`[Fourthwall Webhook] Received ${event} for order ${order_id || order_number}`);
+
+    if (order_id || order_number) {
+      const match = gearDesigns.find(d => d.fourthwallOrderId === order_id || d.fourthwallOrderNumber === order_number);
+      if (match) {
+        if (status === 'IN_PRODUCTION') match.fourthwallProductionStage = 'IN_PRODUCTION';
+        if (status === 'SHIPPED') match.fourthwallProductionStage = 'FULFILLED';
+        if (tracking_url) match.fourthwallTrackingUrl = tracking_url;
+        match.updatedAt = new Date().toISOString();
+        saveGearDesigns();
+      }
+    }
+
+    res.json({ received: true });
+  } catch (err: any) {
+    console.error('[Fourthwall Webhook] Error processing event:', err);
+    res.status(500).json({ error: 'Webhook processing error' });
+  }
+});
+
+// 9. Fourthwall Health & Config Status
+app.get(['/api/fourthwall/health', '/fourthwall/health'], (req: Request, res: Response) => {
+  const isConfigured = Boolean(process.env.FOURTHWALL_API_KEY || process.env.FOURTHWALL_ACCESS_TOKEN);
+  res.json({
+    status: 'ok',
+    configured: isConfigured,
+    mode: isConfigured ? 'live' : 'sandbox',
+    apiUrl: process.env.FOURTHWALL_API_URL || 'https://platform.fourthwall.com/v1',
+    shopId: process.env.FOURTHWALL_SHOP_ID || 'mutualpool-creator-shop',
+    catalogItemsAvailable: FOURTHWALL_GEAR_CATALOG.length,
+    activeOrdersCount: gearDesigns.length,
+  });
 });
 
 // --- VOICE AI & NATURAL AUDIO AGENT API ---
