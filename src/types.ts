@@ -149,6 +149,7 @@ export interface Pod {
   depositTier: DepositTier;
   status: PodStatus;
   cycleStartDate?: string;
+  activatedAt?: string;
   currentCycleWeek: number;
   totalCycles: number;
   agreementVersion: string;

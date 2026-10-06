@@ -1,6 +1,86 @@
 [
   {
     "userId": "usr_test_creator_t4_1791215737846_59041",
+    "type": "PAYOUT_READY",
+    "title": "🎉 Friday Automated Payout Disbursed!",
+    "message": "Your rotating lump-sum savings payout of $90.00 net ($100.00 gross pool - 10% platform fee) for \"Payout Test Pod 1791215737846\" has been transferred into your Stripe Treasury account!",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304607854_bxwg5",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:36:47.854Z"
+  },
+  {
+    "userId": "usr_test_creator_t4_1791215737846_59041",
+    "type": "PAYOUT_RECEIVED",
+    "title": "🎉 Friday 3% Host Stewardship Reward Disbursed",
+    "message": "You earned +$3.00 (3% of $100.00 pool) for hosting \"Payout Test Pod 1791215737846\" Week 2 Friday payout! Funds added to your Stripe Treasury.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304607851_om06z",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:36:47.851Z"
+  },
+  {
+    "userId": "usr_test_creator_t4_1791215737846_59041",
+    "type": "DEPOSIT_CONFIRMED",
+    "title": "🗓️ Thursday Automated Deposit Debited",
+    "message": "Your weekly contribution of $50.00 was successfully auto-debited for \"Payout Test Pod 1791215737846\" (Week 2). Funds secured in Treasury escrow for Friday payout settlement.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304603613_rlcvd",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:36:43.613Z"
+  },
+  {
+    "userId": "usr_test_member_t4_1791215737846_43286",
+    "type": "DEPOSIT_CONFIRMED",
+    "title": "🗓️ Thursday Automated Deposit Debited",
+    "message": "Your weekly contribution of $50.00 was successfully auto-debited for \"Payout Test Pod 1791215737846\" (Week 2). Funds secured in Treasury escrow for Friday payout settlement.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304603591_icuqx",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:36:43.591Z"
+  },
+  {
+    "userId": "usr_test_member_t4_1791215737846_43286",
+    "type": "PAYOUT_READY",
+    "title": "🎉 Friday Automated Payout Disbursed!",
+    "message": "Your rotating lump-sum savings payout of $180.00 net ($200.00 gross pool - 10% platform fee) for \"Payout Test Pod 1791215737846\" has been transferred into your Stripe Treasury account!",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304330627_ls0l4",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:32:10.627Z"
+  },
+  {
+    "userId": "usr_test_creator_t4_1791215737846_59041",
+    "type": "PAYOUT_RECEIVED",
+    "title": "🎉 Friday 3% Host Stewardship Reward Disbursed",
+    "message": "You earned +$6.00 (3% of $200.00 pool) for hosting \"Payout Test Pod 1791215737846\" Week 1 Friday payout! Funds added to your Stripe Treasury.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304330623_inwqz",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:32:10.623Z"
+  },
+  {
+    "userId": "usr_test_creator_t4_1791215737846_59041",
+    "type": "DEPOSIT_CONFIRMED",
+    "title": "🗓️ Thursday Automated Deposit Debited",
+    "message": "Your weekly contribution of $50.00 was successfully auto-debited for \"Payout Test Pod 1791215737846\" (Week 1). Funds secured in Treasury escrow for Friday payout settlement.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304325787_9t4zn",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:32:05.787Z"
+  },
+  {
+    "userId": "usr_test_member_t4_1791215737846_43286",
+    "type": "DEPOSIT_CONFIRMED",
+    "title": "🗓️ Thursday Automated Deposit Debited",
+    "message": "Your weekly contribution of $50.00 was successfully auto-debited for \"Payout Test Pod 1791215737846\" (Week 1). Funds secured in Treasury escrow for Friday payout settlement.",
+    "podId": "pod_1791215737872",
+    "id": "notif_1791304325755_jd76y",
+    "isRead": false,
+    "createdAt": "2026-10-06T16:32:05.755Z"
+  },
+  {
+    "userId": "usr_test_creator_t4_1791215737846_59041",
     "type": "DEPOSIT_CONFIRMED",
     "title": "🗓️ Thursday Automated Deposit Debited",
     "message": "Your weekly contribution of $50.00 was successfully auto-debited for \"Payout Test Pod 1791215737846\" (Week 1). Funds secured in Treasury escrow for Friday payout settlement.",
