@@ -52,6 +52,7 @@ import {
   HeartHandshake, DollarSign, AlertTriangle, ExternalLink, HelpCircle
 } from 'lucide-react';
 import { useTranslation } from './i18n';
+import { fetchWithExponentialBackoff } from './utils/apiRetry';
 
 export default function App() {
   const { t, formatCurrency } = useTranslation();
@@ -497,10 +498,13 @@ export default function App() {
       const savedUserId = typeof window !== 'undefined' ? (localStorage.getItem('mutualpool_active_user_id') || undefined) : undefined;
       const uId = userIdOverride || (currentUser ? currentUser.id : savedUserId);
 
+      let activeUser: User | null = currentUser;
+
       if (uId) {
         // Try getting fresh user document from Firestore
         const firestoreUser = await getUserFromFirestore(uId).catch(() => null);
         if (firestoreUser) {
+          activeUser = firestoreUser;
           if (firestoreUser.accountAgeDays && firestoreUser.accountAgeDays > 1) {
             const createdTime = firestoreUser.createdAt ? new Date(firestoreUser.createdAt).getTime() : NaN;
             const elapsed = isNaN(createdTime) ? 0 : Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
@@ -570,8 +574,12 @@ export default function App() {
       const firestorePods = await getPodsFromFirestore().catch(() => []);
       console.log('[App fetchAppData] Firestore pods returned:', firestorePods.length, firestorePods);
 
-      // Fetch all pods from backend API
-      const podsRes = await fetch('/api/pods').catch(() => null);
+      // Fetch all pods from backend API with exponential backoff retry to mitigate transient 500 errors
+      const podsRes = await fetchWithExponentialBackoff(
+        '/api/pods',
+        { headers: { Accept: 'application/json' } },
+        { maxRetries: 3, baseDelayMs: 300, maxDelayMs: 2500 }
+      );
       let apiPods: Pod[] = [];
       if (podsRes && podsRes.ok) {
         const pData = await podsRes.json().catch(() => null);
@@ -580,6 +588,37 @@ export default function App() {
         }
       }
       console.log('[App fetchAppData] Server API pods returned:', apiPods.length, apiPods);
+
+      // Fetch user notifications with exponential backoff retry to mitigate transient 500 errors
+      if (uId) {
+        const notifParams = new URLSearchParams({
+          userId: uId,
+          userEmail: activeUser?.email || '',
+          userName: activeUser?.displayName || '',
+        });
+        const notifsRes = await fetchWithExponentialBackoff(
+          `/api/notifications?${notifParams.toString()}`,
+          {
+            headers: {
+              Accept: 'application/json',
+              'x-user-id': uId,
+              'x-user-email': activeUser?.email || '',
+              'x-user-name': activeUser?.displayName || '',
+            },
+          },
+          { maxRetries: 3, baseDelayMs: 300, maxDelayMs: 2500 }
+        );
+        if (notifsRes && notifsRes.ok) {
+          const notifsData = await notifsRes.json().catch(() => null);
+          if (notifsData && Array.isArray(notifsData.notifications) && typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('mutualpool_notifications_synced', {
+                detail: notifsData,
+              })
+            );
+          }
+        }
+      }
 
       // Check local storage created pods
       let localCreatedPods: Pod[] = [];

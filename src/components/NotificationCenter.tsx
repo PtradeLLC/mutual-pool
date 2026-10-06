@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { User, Pod, AppNotification } from '../types';
 import { useToast } from '../context/ToastContext';
+import { fetchWithExponentialBackoff } from '../utils/apiRetry';
 
 interface NotificationCenterProps {
   currentUser: User;
@@ -46,14 +47,19 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         userEmail: currentUser.email || '',
         userName: currentUser.displayName || '',
       });
-      const res = await fetch(`/api/notifications?${params.toString()}`, {
-        headers: {
-          'x-user-id': currentUser.id,
-          'x-user-email': currentUser.email || '',
-          'x-user-name': currentUser.displayName || '',
+      const res = await fetchWithExponentialBackoff(
+        `/api/notifications?${params.toString()}`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-email': currentUser.email || '',
+            'x-user-name': currentUser.displayName || '',
+          },
         },
-      });
-      if (res.ok) {
+        { maxRetries: 3, baseDelayMs: 300, maxDelayMs: 2500 }
+      );
+      if (res && res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
@@ -65,8 +71,20 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 8000); // poll every 8 sec
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchNotifications, 10000); // poll every 10 sec
+
+    const handleSync = (e: any) => {
+      if (e?.detail) {
+        setNotifications(e.detail.notifications || []);
+        setUnreadCount(e.detail.unreadCount || 0);
+      }
+    };
+    window.addEventListener('mutualpool_notifications_synced', handleSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('mutualpool_notifications_synced', handleSync);
+    };
   }, [currentUser.id, currentUser.email, currentUser.displayName]);
 
   // Click outside to close dropdown
