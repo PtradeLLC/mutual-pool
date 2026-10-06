@@ -872,12 +872,12 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   onClick={() => setShowFourthwallStudio(!showFourthwallStudio)}
                   className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
                     showFourthwallStudio 
-                      ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
-                      : 'bg-emerald-500/10 text-emerald-700 border border-emerald-300 hover:bg-emerald-500/20'
+                      ? 'bg-[#005FB8] text-white hover:bg-blue-700' 
+                      : 'bg-blue-50 text-[#005FB8] border border-blue-200 hover:bg-blue-100/70'
                   }`}
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>{showFourthwallStudio ? 'Show Photo Gallery' : 'Interactive Fourthwall Gear Designer'}</span>
+                  <span>{showFourthwallStudio ? 'View Real Photo Gallery' : 'Open Custom Gear Studio (Fourthwall POD)'}</span>
                 </button>
 
                 {!showFourthwallStudio && (

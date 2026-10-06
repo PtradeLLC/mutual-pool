@@ -681,14 +681,12 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 space-y-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                <Printer className="w-3 h-3" />
-                Fourthwall API Integration
-              </span>
-              <span className="text-[11px] text-gray-500 font-mono">
-                Direct-to-Film Print-on-Demand
-              </span>
+            <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+              <span>Fourthwall Platform API</span>
+              <span aria-hidden="true">·</span>
+              <span>Direct-to-Film Print-on-Demand</span>
+              <span aria-hidden="true">·</span>
+              <span>Fleet Stewardship</span>
             </div>
             <h3 className="font-bold text-base text-[#111827] flex items-center gap-2">
               Fourthwall Sponsored Gear Approvals & Manufacturing Dispatch
