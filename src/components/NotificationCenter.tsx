@@ -308,7 +308,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   }) || [];
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div className="relative z-50" ref={popoverRef}>
       {/* Bell Icon Trigger Button */}
       <button
         type="button"
@@ -329,7 +329,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
       {/* Popover Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-[#DDE1E6] rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-[#DDE1E6] rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-900 via-[#005FB8] to-blue-800 p-4 text-white flex items-center justify-between">

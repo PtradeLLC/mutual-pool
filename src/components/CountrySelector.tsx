@@ -83,7 +83,7 @@ export const CountrySelector: React.FC<CountrySelectorProps> = ({
   }
 
   return (
-    <div className={`relative inline-block text-left ${className}`} ref={dropdownRef}>
+    <div className={`relative z-50 inline-block text-left ${className}`} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -100,7 +100,7 @@ export const CountrySelector: React.FC<CountrySelectorProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1.5 w-64 rounded-xl bg-white border border-[#DDE1E6] shadow-xl z-50 py-1.5 animate-in fade-in-50 zoom-in-95 duration-150">
+        <div className="absolute right-0 mt-1.5 w-64 rounded-xl bg-white border border-[#DDE1E6] shadow-2xl z-[100] py-1.5 animate-in fade-in-50 zoom-in-95 duration-150">
           <div className="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Regional Market & Currency

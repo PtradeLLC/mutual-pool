@@ -8,9 +8,11 @@ import { PlatformScheduleBanner } from './PlatformScheduleBanner';
 import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { useChat } from '../context/ChatContext';
 import { useTranslation, TranslationKey } from '../i18n';
+import { useToast } from '../context/ToastContext';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
-  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare, Bot, Cpu
+  Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare, Bot, Cpu,
+  Copy, Check, ExternalLink, MessageCircle
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -34,6 +36,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 }) => {
   const { t, language } = useTranslation();
   const { openPodChat, startDirectChat } = useChat();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>(initialTab);
   const [podLogs, setPodLogs] = useState<AuditLogEntry[]>([]);
   const [depositing, setDepositing] = useState(false);
@@ -46,6 +49,68 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [withdrawingPayout, setWithdrawingPayout] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  // Share Pod Invite States
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const getPodDeepLink = () => {
+    if (typeof window === 'undefined') return `https://mutual-pool.vercel.app/?podId=${pod.id}`;
+    const url = new URL(window.location.origin);
+    url.searchParams.set('podId', pod.id);
+    if (pod.inviteCode && pod.podType === 'TRUSTED_CIRCLE') {
+      url.searchParams.set('inviteCode', pod.inviteCode);
+    }
+    return url.toString();
+  };
+
+  const getShareMessage = () => {
+    const link = getPodDeepLink();
+    const codePart = (pod.podType === 'TRUSTED_CIRCLE' && pod.inviteCode)
+      ? ` (Private Invite Code: ${pod.inviteCode})`
+      : '';
+    return `Join our mutual savings pool "${pod.name}" on MutualPool! We save $${pod.depositTier}/week together with FDIC-insured Stripe Treasury and rotational payouts${codePart}. Tap to view and join: ${link}`;
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getPodDeepLink());
+      setCopiedLink(true);
+      toast.success('Pod invite deep link copied to clipboard!');
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      toast.info('Deep link ready to share');
+    }
+  };
+
+  const handleCopyCode = async () => {
+    if (!pod.inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(pod.inviteCode);
+      setCopiedCode(true);
+      toast.success(`Invite code ${pod.inviteCode} copied!`);
+      setTimeout(() => setCopiedCode(false), 2500);
+    } catch {
+      toast.info('Invite code ready');
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join ${pod.name} on MutualPool`,
+          text: getShareMessage(),
+          url: getPodDeepLink(),
+        });
+      } catch {
+        // user cancelled or share failed silently
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
 
   // Financial Hardship Fund States
   const [hardshipRequests, setHardshipRequests] = useState<HardshipFundRequest[]>([]);
@@ -674,7 +739,17 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 </h2>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowShareModal(true)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  title="Share Pod Invite Link (WhatsApp, SMS, Telegram)"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Share Pod Invite</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => openPodChat(pod)}
@@ -1749,6 +1824,153 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           onConfirmOptOut={handleConfirmCampaignOptOut}
           isSubmitting={submittingAgreement}
         />
+      )}
+
+      {/* Share Pod Invite Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-5 text-[#111827]">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-gray-100">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                  <Share2 className="w-4 h-4" />
+                  <span>Invite Friends & Fellow Couriers</span>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Share Pod Invite
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Pod Summary Card */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-gray-900">{pod.name}</span>
+                <span className="font-mono text-xs font-bold text-[#005FB8] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  ${pod.depositTier}/wk
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
+                <span aria-hidden="true">·</span>
+                <span>{pod.members.length}/{pod.sizeTier} Members</span>
+                <span aria-hidden="true">·</span>
+                <span>{pod.category}</span>
+              </div>
+              {pod.podType === 'TRUSTED_CIRCLE' && pod.inviteCode && (
+                <div className="pt-2 flex items-center justify-between border-t border-slate-200/70 text-xs">
+                  <span className="text-gray-600 font-medium">Private Invite Code:</span>
+                  <div className="flex items-center gap-1.5">
+                    <code className="font-mono font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-300 tracking-wider">
+                      {pod.inviteCode}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopyCode}
+                      className="p-1 text-gray-500 hover:text-blue-600 cursor-pointer"
+                      title="Copy Invite Code"
+                    >
+                      {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Share Channel Buttons */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-700 block">
+                Share via Messaging Apps
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* WhatsApp */}
+                <a
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(getShareMessage())}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white flex flex-col items-center justify-center gap-1.5 text-xs font-bold transition-transform hover:-translate-y-0.5 shadow-xs cursor-pointer text-center"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  <span>WhatsApp</span>
+                </a>
+
+                {/* SMS / Text */}
+                <a
+                  href={`sms:?&body=${encodeURIComponent(getShareMessage())}`}
+                  className="p-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white flex flex-col items-center justify-center gap-1.5 text-xs font-bold transition-transform hover:-translate-y-0.5 shadow-xs cursor-pointer text-center"
+                >
+                  <Send className="w-5 h-5" />
+                  <span>SMS / Text</span>
+                </a>
+
+                {/* Telegram */}
+                <a
+                  href={`https://t.me/share/url?url=${encodeURIComponent(getPodDeepLink())}&text=${encodeURIComponent(`Join our mutual savings pool "${pod.name}" on MutualPool ($${pod.depositTier}/wk)!`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 rounded-xl bg-[#229ED9] hover:bg-[#1f8fc4] text-white flex flex-col items-center justify-center gap-1.5 text-xs font-bold transition-transform hover:-translate-y-0.5 shadow-xs cursor-pointer text-center"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                  <span>Telegram</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Copy Deep Link Bar */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 block">
+                Direct Pod Deep Link
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={getPodDeepLink()}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-gray-700 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-xs ${
+                    copiedLink
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-[#005FB8] hover:bg-[#004C93] text-white'
+                  }`}
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Anyone with this link will land directly on this pod details page to review and join.
+              </p>
+            </div>
+
+            {/* Native Device Share Sheet (Mobile / Tablet) */}
+            {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+              <div className="pt-1 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  className="w-full py-2.5 px-4 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Share2 className="w-4 h-4 text-[#005FB8]" />
+                  <span>Open System Share Sheet (More Apps)</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

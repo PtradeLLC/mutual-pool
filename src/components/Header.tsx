@@ -63,7 +63,23 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
+
+  // Close user dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    if (showUserDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserDropdown]);
   const { openChat, totalUnreadCount, isConnected } = useChat();
   const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' || Boolean(currentUser.isAdmin);
 
@@ -172,7 +188,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs max-w-full overflow-hidden">
+    <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-50 shadow-xs max-w-full overflow-visible">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-3 w-full">
         <div className="flex items-center justify-between gap-1.5 sm:gap-4 w-full min-w-0">
           
@@ -294,7 +310,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* User Switcher Dropdown */}
-            <div className="relative">
+            <div className="relative z-50" ref={userDropdownRef}>
               <button
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
                 className="bg-white hover:bg-gray-50 border border-[#DDE1E6] rounded-lg p-1.5 sm:px-2.5 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 transition-colors text-left shadow-xs cursor-pointer"
@@ -314,7 +330,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
 
               {showUserDropdown && (
-                <div className="absolute right-0 mt-2 w-64 bg-white border border-[#DDE1E6] rounded-xl shadow-xl p-2 z-50 divide-y divide-[#DDE1E6]">
+                <div className="absolute right-0 mt-2 w-64 bg-white border border-[#DDE1E6] rounded-xl shadow-2xl p-2 z-[100] divide-y divide-[#DDE1E6]">
                   {/* Account / Profile Quick Action */}
                   <div className="pb-2">
                     <div className="px-2.5 py-2 mb-1 bg-gray-50 rounded-lg border border-gray-100">

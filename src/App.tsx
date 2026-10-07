@@ -840,6 +840,32 @@ export default function App() {
     };
   }, [currentUser?.id]);
 
+  // Handle Pod Deep Links (?podId=... & ?inviteCode=...)
+  useEffect(() => {
+    if (typeof window === 'undefined' || allPods.length === 0) return;
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const targetPodId = searchParams.get('podId');
+      const targetInviteCode = searchParams.get('inviteCode');
+
+      if (targetPodId) {
+        const foundPod = allPods.find(p => p.id === targetPodId);
+        if (foundPod) {
+          setSelectedPodDetail(foundPod);
+          if (foundPod.podType === 'TRUSTED_CIRCLE' && targetInviteCode) {
+            setInviteCodeInput(targetInviteCode.toUpperCase());
+            const isMember = currentUser && foundPod.members.some(m => m.userId === currentUser.id);
+            if (!isMember) {
+              setInviteCodeTargetPod(foundPod);
+            }
+          }
+        }
+      }
+    } catch {
+      // quiet fallback
+    }
+  }, [allPods, currentUser]);
+
   const handleOpenAuth = (mode: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE' = 'LOGIN') => {
     setAuthInitialMode(mode);
     setShowAuthModal(true);

@@ -238,7 +238,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     <div className="min-h-screen bg-[#F8FAFC] text-[#111827] flex flex-col font-sans selection:bg-[#005FB8] selection:text-white">
       
       {/* 1. LANDING NAVBAR */}
-      <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-40 shadow-xs">
+      <header className="bg-white border-b border-[#DDE1E6] sticky top-0 z-50 shadow-xs overflow-visible">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
           
           {/* Logo */}
