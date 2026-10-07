@@ -1434,6 +1434,7 @@ app.use((req, res, next) => {
       } else {
         users.push(syncUser);
       }
+      saveUsersToDisk();
       res.json({ success: true, user: syncUser });
     } catch (err) {
       console.error('[/api/users/sync] error:', err);

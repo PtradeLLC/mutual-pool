@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { User, Pod, isAdvertiserOrAdmin } from '../types';
+import { User, Pod, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin } from '../types';
 import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
 import { LanguageSelector } from './LanguageSelector';
@@ -9,7 +9,7 @@ import { useChat } from '../context/ChatContext';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
-  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X, Globe
+  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X, Globe, UserCheck
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -35,6 +35,7 @@ interface HeaderProps {
   hasWelcomeMatch?: boolean;
   onOpenHardshipModal?: (initialTab?: 'hardship' | 'trade') => void;
   onOpenPodDetail?: (podId: string) => void;
+  onSwitchRole?: (role: UserRole) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -60,6 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
   hasWelcomeMatch,
   onOpenHardshipModal,
   onOpenPodDetail,
+  onSwitchRole,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -81,7 +83,11 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [showUserDropdown]);
   const { openChat, totalUnreadCount, isConnected } = useChat();
-  const isAdmin = currentUser.role === 'Admin' || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN' || (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) || currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' || Boolean(currentUser.isAdmin);
+
+  // Role-Based Access Control: Admin vs Advertiser vs Courier
+  const isAdmin = isAdminUser(currentUser);
+  const isAdvertiser = isAdvertiserUser(currentUser);
+  const isCourier = isCourierUser(currentUser);
 
   // Horizontal sub-nav tabs scrolling state and ref
   const tabsContainerRef = useRef<HTMLDivElement>(null);
@@ -160,21 +166,32 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  // Primary navigation tabs list for both desktop and mobile drawer
+  // Primary navigation tabs list: strictly role-based!
+  // User with role 'Admin' accesses all features.
+  // User with role 'Advertiser' only accesses advertising content.
   const primaryTabsList: Array<{
     id: HeaderProps['activeTab'];
     label: string;
     icon: React.FC<{ className?: string }>;
     description: string;
     badge?: string | number;
-  }> = [
-    { id: 'my-pods', label: t('dash.myPods'), icon: Layers, description: 'Your savings circles & scheduled payouts', badge: myPods.length > 0 ? myPods.length : undefined },
-    { id: 'explore-pods', label: t('dash.explorePods'), icon: Users, description: 'Find & join community savings pods' },
-    { id: 'perks', label: t('dash.perks'), icon: Gift, description: 'Discounts, fuel, maintenance & health perks' },
-    { id: 'campaigns', label: t('dash.campaigns'), icon: Shirt, description: 'Courier apparel campaigns & brand payouts' },
-    { id: 'audit-log', label: t('dash.auditLog'), icon: Activity, description: 'Immutable transparent audit ledger' },
-    ...(isAdmin ? [{ id: 'admin-ops' as const, label: t('dash.adminOps'), icon: Lock, description: 'Platform administration & emergency operations' }] : []),
-  ];
+  }> = isAdvertiser
+    ? [
+        {
+          id: 'campaigns',
+          label: 'Campaigns & Gear Studio',
+          icon: Shirt,
+          description: 'Brand apparel sponsorships & Fourthwall custom gear studio',
+        },
+      ]
+    : [
+        { id: 'my-pods', label: t('dash.myPods'), icon: Layers, description: 'Your savings circles & scheduled payouts', badge: myPods.length > 0 ? myPods.length : undefined },
+        { id: 'explore-pods', label: t('dash.explorePods'), icon: Users, description: 'Find & join community savings pods' },
+        { id: 'perks', label: t('dash.perks'), icon: Gift, description: 'Discounts, fuel, maintenance & health perks' },
+        { id: 'campaigns', label: t('dash.campaigns'), icon: Shirt, description: 'Courier apparel campaigns & brand payouts' },
+        { id: 'audit-log', label: t('dash.auditLog'), icon: Activity, description: 'Immutable transparent audit ledger' },
+        ...(isAdmin ? [{ id: 'admin-ops' as const, label: t('dash.adminOps'), icon: Lock, description: 'Platform administration & emergency operations' }] : []),
+      ];
 
   const currentTabIndex = primaryTabsList.findIndex((tab) => tab.id === activeTab);
   const activeTabInfo = primaryTabsList[currentTabIndex >= 0 ? currentTabIndex : 0];
@@ -198,7 +215,7 @@ export const Header: React.FC<HeaderProps> = ({
               if (onLogoClick) {
                 onLogoClick();
               } else {
-                setActiveTab('my-pods');
+                setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }
             }}
@@ -232,24 +249,49 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Treasury Balance Pill */}
-            <button
-              type="button"
-              onClick={onOpenBankModal}
-              title="Click to view Stripe Treasury Account & Add Test Funds"
-              className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] hover:bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-emerald-300 text-xs transition-all cursor-pointer group"
-            >
-              <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
-              <div className="text-left">
-                <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">{t('header.stripeTreasuryBalance')}</span>
-                <span className="font-bold text-[#111827] font-mono">
-                  ${currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
-                </span>
-              </div>
-            </button>
+            {/* Treasury Balance Pill or Brand Escrow Pill based on Role */}
+            {isAdvertiser ? (
+              <button
+                type="button"
+                onClick={() => onOpenAdvertiser && onOpenAdvertiser('metrics')}
+                title="Brand Advertising Escrow & Campaign Analytics — Click to view Portal"
+                className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] hover:bg-amber-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-amber-300 text-xs transition-all cursor-pointer group"
+              >
+                <Megaphone className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+                <div className="text-left">
+                  <span className="text-[#6B7280] group-hover:text-amber-800 text-[10px] uppercase font-bold block leading-none">Brand Ad Escrow</span>
+                  <span className="font-bold text-[#111827] font-mono">
+                    $12,500.00 <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenBankModal}
+                title="Click to view Stripe Treasury Account & Add Test Funds"
+                className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] hover:bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-emerald-300 text-xs transition-all cursor-pointer group"
+              >
+                <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+                <div className="text-left">
+                  <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">{t('header.stripeTreasuryBalance')}</span>
+                  <span className="font-bold text-[#111827] font-mono">
+                    ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
+                  </span>
+                </div>
+              </button>
+            )}
 
-            {/* Verified Status Badge or KYC Verification Prompt - Hidden on mobile, shown on lg+ screens */}
-            {currentUser.kycStatus === 'VERIFIED' ? (
+            {/* Verified Status Badge or KYC Verification Prompt */}
+            {isAdvertiser ? (
+              <div
+                className="hidden lg:flex px-3 py-1 rounded-full border border-amber-300 bg-amber-50 text-amber-900 text-xs font-bold items-center gap-1.5 shadow-xs"
+                title="Verified Brand Partner & Campaign Sponsor"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="font-extrabold text-[11px] uppercase tracking-wide">Brand Advertiser</span>
+              </div>
+            ) : currentUser.kycStatus === 'VERIFIED' ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -330,13 +372,84 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
 
               {showUserDropdown && (
-                <div className="absolute right-0 mt-2 w-64 bg-white border border-[#DDE1E6] rounded-xl shadow-2xl p-2 z-[100] divide-y divide-[#DDE1E6]">
+                <div className="absolute right-0 mt-2 w-72 bg-white border border-[#DDE1E6] rounded-xl shadow-2xl p-2.5 z-[100] divide-y divide-[#DDE1E6]">
                   {/* Account / Profile Quick Action */}
-                  <div className="pb-2">
-                    <div className="px-2.5 py-2 mb-1 bg-gray-50 rounded-lg border border-gray-100">
-                      <p className="text-sm font-bold text-[#111827] truncate">{currentUser.displayName}</p>
+                  <div className="pb-2.5">
+                    <div className="px-3 py-2.5 mb-2 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <p className="text-sm font-bold text-[#111827] truncate">{currentUser.displayName}</p>
+                        {isAdmin ? (
+                          <span className="text-[9px] font-black uppercase bg-purple-100 text-purple-900 px-2 py-0.5 rounded-full border border-purple-200 shrink-0">
+                            Admin (All)
+                          </span>
+                        ) : isAdvertiser ? (
+                          <span className="text-[9px] font-black uppercase bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                            Advertiser (Ads)
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full border border-blue-200 shrink-0">
+                            Courier
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-[#6B7280] truncate">{currentUser.email || `${currentUser.platform} Member`}</p>
                     </div>
+
+                    {/* Quick Demo Role Switcher to effortlessly verify role-based permissions */}
+                    {onSwitchRole && (
+                      <div className="p-2 mb-2 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                          <span>Role-Based Access (RBAC):</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSwitchRole('Admin');
+                              setShowUserDropdown(false);
+                            }}
+                            className={`py-1.5 px-1 text-[10px] font-extrabold rounded-md transition-all text-center cursor-pointer ${
+                              isAdmin
+                                ? 'bg-purple-600 text-white shadow-2xs'
+                                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                            }`}
+                            title="Admin: Access all features across the platform"
+                          >
+                            Admin (All)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSwitchRole('ADVERTISER');
+                              setShowUserDropdown(false);
+                            }}
+                            className={`py-1.5 px-1 text-[10px] font-extrabold rounded-md transition-all text-center cursor-pointer ${
+                              isAdvertiser
+                                ? 'bg-amber-500 text-slate-950 shadow-2xs font-black'
+                                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                            }`}
+                            title="Advertiser: Only see and access advertising content"
+                          >
+                            Advertiser
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSwitchRole('RIDER');
+                              setShowUserDropdown(false);
+                            }}
+                            className={`py-1.5 px-1 text-[10px] font-extrabold rounded-md transition-all text-center cursor-pointer ${
+                              isCourier
+                                ? 'bg-[#005FB8] text-white shadow-2xs'
+                                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                            }`}
+                            title="Courier/Rider: Mutual pods & perks"
+                          >
+                            Courier
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {onOpenEditProfile && (
                       <button
@@ -359,9 +472,28 @@ export const Header: React.FC<HeaderProps> = ({
                     )}
                   </div>
 
-                  {/* Navigation & Logout Section */}
+                  {/* Navigation & Logout Section - Strictly Role Gated */}
                   <div className="pt-2 space-y-1">
-                    {onOpenAdvertiser && isAdvertiserOrAdmin(currentUser) ? (
+                    {/* Admin: Show Admin Ops & Advertiser Portal */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          setActiveTab('admin-ops');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="w-full text-left p-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs flex items-center justify-between transition-colors border border-purple-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-purple-600" />
+                          <span>Admin Operations Console</span>
+                        </div>
+                        <span className="text-[10px] bg-purple-200/80 px-1.5 py-0.5 rounded text-purple-900 font-bold uppercase">All Ops</span>
+                      </button>
+                    )}
+
+                    {/* Advertiser & Admin: Show Advertiser Portal & Media Kit */}
+                    {(isAdvertiser || isAdmin) && onOpenAdvertiser && (
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
@@ -375,7 +507,10 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                         <span className="text-[10px] bg-amber-200/80 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">{t('header.portal')}</span>
                       </button>
-                    ) : onOpenAdvertiser ? (
+                    )}
+
+                    {/* Media Kit access */}
+                    {onOpenAdvertiser && (
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
@@ -389,7 +524,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                         <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded text-blue-900 font-bold uppercase">{t('header.mediaKitBadge')}</span>
                       </button>
-                    ) : null}
+                    )}
 
                     {onExitToLanding && (
                       <button
@@ -602,114 +737,74 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none py-1 scroll-smooth"
             >
-              <button
-                data-tab="my-pods"
-                onClick={() => setActiveTab('my-pods')}
-                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  activeTab === 'my-pods'
-                    ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                    : 'text-[#4B5563] hover:bg-gray-100'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>{t('dash.myPods')}</span>
-                {myPods.length > 0 && (
-                  <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
-                    activeTab === 'my-pods' ? 'bg-white/25 text-white' : 'bg-gray-200 text-gray-700'
-                  }`}>
-                    {myPods.length}
-                  </span>
-                )}
-              </button>
+              {/* Dynamically render tabs from role-gated primaryTabsList */}
+              {primaryTabsList.map((tab) => {
+                const TabIcon = tab.icon;
+                const isActive = activeTab === tab.id;
+                const isSpecialAdmin = tab.id === 'admin-ops';
 
-              <button
-                data-tab="explore-pods"
-                onClick={() => setActiveTab('explore-pods')}
-                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  activeTab === 'explore-pods'
-                    ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                    : 'text-[#4B5563] hover:bg-gray-100'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>{t('dash.explorePods')}</span>
-              </button>
+                return (
+                  <button
+                    key={tab.id}
+                    data-tab={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                      isActive
+                        ? isSpecialAdmin
+                          ? 'bg-purple-700 text-white font-bold shadow-xs'
+                          : 'bg-[#005FB8] text-white font-bold shadow-xs'
+                        : isSpecialAdmin
+                          ? 'text-purple-800 bg-purple-50 hover:bg-purple-100 font-bold'
+                          : 'text-[#4B5563] hover:bg-gray-100'
+                    }`}
+                  >
+                    <TabIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>{tab.label}</span>
+                    {tab.badge !== undefined && (
+                      <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isActive ? 'bg-white/25 text-white' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
 
-              <button
-                data-tab="perks"
-                onClick={() => setActiveTab('perks')}
-                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  activeTab === 'perks'
-                    ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                    : 'text-[#4B5563] hover:bg-gray-100'
-                }`}
-              >
-                <Gift className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>{t('dash.perks')}</span>
-              </button>
-
-              <button
-                id="header-tab-campaigns"
-                data-tab="campaigns"
-                onClick={() => setActiveTab('campaigns')}
-                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  activeTab === 'campaigns'
-                    ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                    : 'text-[#4B5563] hover:bg-gray-100'
-                }`}
-              >
-                <Shirt className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>{t('dash.campaigns')}</span>
-              </button>
-
-              <button
-                onClick={onOpenSubmitPerk || (() => setActiveTab('perks'))}
-                className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
-                title="Submit a partner or community perk offer for admin review"
-              >
-                <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
-                <span>{t('nav.submitPerksShort')}</span>
-              </button>
-
-              {onOpenAdvertiser && (
+              {/* If Courier or Admin: show Submit Perk shortcut */}
+              {!isAdvertiser && (
                 <button
-                  type="button"
-                  id="header-advertise-btn"
-                  onClick={() => onOpenAdvertiser('media-kit')}
-                  className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-xs cursor-pointer"
-                  title="Launch a brand campaign or sponsor courier promo apparel"
+                  onClick={onOpenSubmitPerk || (() => setActiveTab('perks'))}
+                  className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
+                  title="Submit a partner or community perk offer for admin review"
                 >
-                  <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950" />
-                  <span>{t('nav.advertiseShort')}</span>
+                  <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+                  <span>{t('nav.submitPerksShort')}</span>
                 </button>
               )}
 
-              <button
-                data-tab="audit-log"
-                onClick={() => setActiveTab('audit-log')}
-                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  activeTab === 'audit-log'
-                    ? 'bg-[#005FB8] text-white font-bold shadow-xs'
-                    : 'text-[#4B5563] hover:bg-gray-100'
-                }`}
-              >
-                <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>{t('dash.auditLog')}</span>
-              </button>
-
-              {isAdmin && (
-                <button
-                  data-tab="admin-ops"
-                  onClick={() => setActiveTab('admin-ops')}
-                  className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeTab === 'admin-ops'
-                      ? 'bg-purple-700 text-white font-bold shadow-xs'
-                      : 'text-purple-800 bg-purple-50 hover:bg-purple-100 font-bold'
-                  }`}
-                >
-                  <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600" />
-                  <span>{t('dash.adminOps')}</span>
-                </button>
+              {/* If Advertiser: show direct shortcuts to Portal & Media Kit */}
+              {isAdvertiser && onOpenAdvertiser && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAdvertiser('metrics')}
+                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
+                    title="Open Advertiser Performance Metrics Portal"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
+                    <span>Advertiser Portal</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAdvertiser('media-kit')}
+                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
+                    title="View Media Kit & Rate Card"
+                  >
+                    <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#005FB8]" />
+                    <span>Media Kit</span>
+                  </button>
+                </>
               )}
             </div>
 
@@ -797,7 +892,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => {
                   setMobileMenuOpen(false);
                   if (onLogoClick) onLogoClick();
-                  else setActiveTab('my-pods');
+                  else setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods');
                 }}
                 className="cursor-pointer"
               >
@@ -830,36 +925,62 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-200 text-xs">
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenBankModal();
-                    }}
-                    className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-emerald-300 transition-colors cursor-pointer"
-                  >
-                    <span className="text-[10px] text-gray-500 block font-bold uppercase">{t('header.stripeTreasuryBalance')}</span>
-                    <span className="font-bold text-gray-900 font-mono text-xs">
-                      ${currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                  </button>
+                  {isAdvertiser ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          if (onOpenAdvertiser) onOpenAdvertiser('metrics');
+                        }}
+                        className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-amber-300 transition-colors cursor-pointer"
+                      >
+                        <span className="text-[10px] text-gray-500 block font-bold uppercase">Brand Escrow</span>
+                        <span className="font-bold text-gray-900 font-mono text-xs">
+                          $12,500.00 USD
+                        </span>
+                      </button>
 
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      if (currentUser.kycStatus === 'VERIFIED') {
-                        window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer');
-                        if (onOpenKycModal) onOpenKycModal();
-                      } else if (onOpenKycModal) {
-                        onOpenKycModal();
-                      }
-                    }}
-                    className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer flex flex-col justify-center"
-                  >
-                    <span className="text-[10px] text-gray-500 block font-bold uppercase">Stripe KYC</span>
-                    <span className={`font-bold text-xs ${currentUser.kycStatus === 'VERIFIED' ? 'text-green-600' : 'text-amber-600'}`}>
-                      {currentUser.kycStatus === 'VERIFIED' ? '✓ Verified' : '⚠ Verify ID'}
-                    </span>
-                  </button>
+                      <div className="text-left p-2 rounded-lg bg-amber-50 border border-amber-200 flex flex-col justify-center">
+                        <span className="text-[10px] text-amber-700 block font-bold uppercase">Sponsor Role</span>
+                        <span className="font-extrabold text-xs text-amber-900">
+                          ✓ Advertiser
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          onOpenBankModal();
+                        }}
+                        className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-emerald-300 transition-colors cursor-pointer"
+                      >
+                        <span className="text-[10px] text-gray-500 block font-bold uppercase">{t('header.stripeTreasuryBalance')}</span>
+                        <span className="font-bold text-gray-900 font-mono text-xs">
+                          ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          if (currentUser.kycStatus === 'VERIFIED') {
+                            window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer');
+                            if (onOpenKycModal) onOpenKycModal();
+                          } else if (onOpenKycModal) {
+                            onOpenKycModal();
+                          }
+                        }}
+                        className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer flex flex-col justify-center"
+                      >
+                        <span className="text-[10px] text-gray-500 block font-bold uppercase">Stripe KYC</span>
+                        <span className={`font-bold text-xs ${currentUser.kycStatus === 'VERIFIED' ? 'text-green-600' : 'text-amber-600'}`}>
+                          {currentUser.kycStatus === 'VERIFIED' ? '✓ Verified' : '⚠ Verify ID'}
+                        </span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -919,22 +1040,43 @@ export const Header: React.FC<HeaderProps> = ({
                   Actions & Programs
                 </div>
                 <div className="space-y-2">
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      if (onOpenSubmitPerk) onOpenSubmitPerk();
-                      else setActiveTab('perks');
-                    }}
-                    className="w-full text-left p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <PlusCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <div>
-                        <span className="block font-bold">{t('nav.submitPerksShort')}</span>
-                        <span className="text-[11px] text-emerald-700 font-normal">Offer exclusive perks to gig & trade crew</span>
+                  {!isAdvertiser && (
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        if (onOpenSubmitPerk) onOpenSubmitPerk();
+                        else setActiveTab('perks');
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <PlusCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="block font-bold">{t('nav.submitPerksShort')}</span>
+                          <span className="text-[11px] text-emerald-700 font-normal">Offer exclusive perks to gig & trade crew</span>
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                  )}
+
+                  {(isAdvertiser || isAdmin) && onOpenAdvertiser && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onOpenAdvertiser('metrics');
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-between transition-colors shadow-xs cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <BarChart3 className="w-4 h-4 text-slate-950 shrink-0" />
+                        <div>
+                          <span className="block font-extrabold">{t('header.advertiserPortal')}</span>
+                          <span className="text-[11px] text-slate-800 font-semibold">Brand escrow budget & campaign analytics</span>
+                        </div>
+                      </div>
+                    </button>
+                  )}
 
                   {onOpenAdvertiser && (
                     <button
@@ -943,13 +1085,13 @@ export const Header: React.FC<HeaderProps> = ({
                         setMobileMenuOpen(false);
                         onOpenAdvertiser('media-kit');
                       }}
-                      className="w-full text-left p-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-between transition-colors shadow-xs cursor-pointer"
+                      className="w-full text-left p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs sm:text-sm flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
                     >
                       <div className="flex items-center gap-2.5">
-                        <Megaphone className="w-4 h-4 text-slate-950 shrink-0" />
+                        <Megaphone className="w-4 h-4 text-[#005FB8]" />
                         <div>
-                          <span className="block font-extrabold">{t('nav.advertiseShort')}</span>
-                          <span className="text-[11px] text-slate-800 font-semibold">Brand ambassador & courier apparel</span>
+                          <span className="block font-bold">{t('header.mediaKit')}</span>
+                          <span className="text-[11px] text-blue-700 font-normal">Brand ambassador rate card & proposals</span>
                         </div>
                       </div>
                     </button>

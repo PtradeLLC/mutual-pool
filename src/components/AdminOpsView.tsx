@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Pod, GearDesignOrder } from '../types';
+import { User, Pod, GearDesignOrder, isAdminUser } from '../types';
 import { useCountry } from '../context/CountryContext';
 import { useToast } from '../context/ToastContext';
 import { SUPPORTED_COUNTRIES } from '../config/countries';
@@ -237,6 +237,20 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       setHandlingDelinquency(false);
     }
   };
+
+  if (!isAdminUser(currentUser)) {
+    return (
+      <div className="bg-rose-50 border border-rose-300 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 shadow-xs">
+        <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto mb-3">
+          <Shield className="w-6 h-6" />
+        </div>
+        <h3 className="text-lg font-black text-gray-950 mb-1">Access Restricted: Administrator Only</h3>
+        <p className="text-xs text-gray-600 leading-relaxed">
+          The Platform Admin Operations Console is restricted to users with the Admin role.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

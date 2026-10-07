@@ -174,14 +174,14 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
               </button>
             )}
 
-            {isUserAdmin && onOpenCreateCampaign && (
+            {isAdvertiserOrAdmin(currentUser) && onOpenCreateCampaign && (
               <button
                 type="button"
                 onClick={onOpenCreateCampaign}
-                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>{t('campaigns.btn.createCampaignAdmin')}</span>
+                <Plus className="w-4 h-4 text-slate-950" />
+                <span>Launch New Campaign</span>
               </button>
             )}
           </div>

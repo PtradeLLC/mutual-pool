@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays } from './types';
+import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -49,7 +49,8 @@ import {
 import { 
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
   Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil,
-  HeartHandshake, DollarSign, AlertTriangle, ExternalLink, HelpCircle
+  HeartHandshake, DollarSign, AlertTriangle, ExternalLink, HelpCircle,
+  Megaphone, BarChart3, Shirt, Shield
 } from 'lucide-react';
 import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
@@ -932,6 +933,61 @@ export default function App() {
     completedPodsCount: 0,
   };
 
+  const isAdmin = isAdminUser(activeUser);
+  const isAdvertiser = isAdvertiserUser(activeUser);
+  const isCourier = isCourierUser(activeUser);
+
+  // Strictly synchronize and enforce activeTab permissions based on role
+  useEffect(() => {
+    if (isAdvertiser && activeTab !== 'campaigns') {
+      setActiveTab('campaigns');
+    } else if (!isAdmin && activeTab === 'admin-ops') {
+      setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods');
+    }
+  }, [isAdvertiser, isAdmin, activeTab]);
+
+  const handleSwitchRole = async (newRole: UserRole) => {
+    const isNewAdmin = newRole === 'Admin' || newRole === 'SUPER_ADMIN' || newRole === 'ADMIN';
+    const updatedUser: User = {
+      ...activeUser,
+      role: newRole,
+      isAdmin: isNewAdmin,
+    };
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem('mutualpool_active_user', JSON.stringify(updatedUser));
+    } catch (err) {
+      console.warn('Failed to save switched role locally:', err);
+    }
+
+    if (newRole === 'ADVERTISER' || newRole === 'Advertiser') {
+      setActiveTab('campaigns');
+      toast.success('Switched to Advertiser role — Access restricted to advertising & gear studio only.');
+    } else if (isNewAdmin) {
+      toast.success('Switched to Admin role — Full access unlocked across all platform features.');
+    } else {
+      if (activeTab === 'admin-ops') {
+        setActiveTab('my-pods');
+      }
+      toast.success(`Switched to Courier role (${newRole}) — Mutual savings pods and perks unlocked.`);
+    }
+
+    setAllUsers(prev => {
+      const idx = prev.findIndex(u => u.id === updatedUser.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = updatedUser;
+        return next;
+      }
+      return [updatedUser, ...prev];
+    });
+
+    if (updatedUser.id && updatedUser.id !== 'usr_guest') {
+      await syncUserWithBackend(updatedUser);
+      saveUserToFirestore(updatedUser).catch(console.error);
+    }
+  };
+
   // Comprehensive Pod filtering to robustly match user by ID, Email, or Display Name across reloads
   const myPods = useMemo(() => {
     return allPods.filter(p => {
@@ -1464,9 +1520,10 @@ export default function App() {
         setActiveTab={setActiveTab}
         onLogoClick={() => {
           setViewMode('DASHBOARD');
-          setActiveTab('my-pods');
+          setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+        onSwitchRole={handleSwitchRole}
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
         onOpenSubmitPerk={() => {
@@ -1503,8 +1560,8 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-        {/* Financial Hardship Hold & Repayment Alert Banner */}
-        {activeUser.isHardshipInactive && (
+        {/* Financial Hardship Hold & Repayment Alert Banner (Couriers & Admin only) */}
+        {!isAdvertiser && activeUser.isHardshipInactive && (
           <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-amber-100 rounded-lg text-amber-800 shrink-0 mt-0.5">
@@ -1539,199 +1596,342 @@ export default function App() {
           </div>
         )}
 
-        {/* Top Personal Dashboard Banner */}
-        <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 shadow-xs relative overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            
-            {/* User Greeting & Badges */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <button
-                  onClick={() => setShowEditProfileModal(true)}
-                  title="Click to change your primary gig platform or role"
-                  className="text-xs font-mono font-bold text-[#005FB8] bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                >
-                  <span>{t('dash.fleetMember', { platform: activeUser.platform })}</span>
-                  <Pencil className="w-3 h-3 text-[#005FB8]" />
-                </button>
+        {/* ------------------------------------------------------------- */}
+        {/* ROLE-BASED DASHBOARD HERO / COMMAND BANNER                   */}
+        {/* ------------------------------------------------------------- */}
+        {isAdvertiser ? (
+          /* BRAND ADVERTISER COMMAND CENTER BANNER (Strictly Advertising Content) */
+          <div className="bg-gradient-to-br from-white via-amber-50/40 to-amber-100/30 rounded-2xl border border-amber-200 p-5 sm:p-6 shadow-xs relative overflow-hidden">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-mono font-extrabold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1.5 shadow-2xs">
+                    <Megaphone className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Role: Brand Advertiser (Advertising & Sponsored Gear Only)</span>
+                  </span>
+                  <button
+                    onClick={() => setShowEditProfileModal(true)}
+                    className="text-xs text-gray-500 hover:text-amber-800 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                    title="Edit Brand Profile"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    <span>Edit Profile</span>
+                  </button>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                  {activeUser.displayName || 'Brand Campaign Sponsor'}
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-600 mt-1 max-w-2xl leading-relaxed">
+                  Manage sponsored courier apparel campaigns, monitor live delivery impressions, allocate escrow budgets, and customize Fourthwall gear for brand ambassadors.
+                </p>
+              </div>
+
+              {/* Quick Actions for Advertiser */}
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowEditProfileModal(true)}
-                  title="Click to edit member join date and verified tenure"
-                  className="text-xs font-mono text-[#6B7280] hover:text-[#005FB8] hover:bg-gray-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                  onClick={() => setShowCreateCampaignModal(true)}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
                 >
-                  <span>
-                    {activeUser.accountAgeDays === 1
-                      ? t('dash.accountTenureSingular')
-                      : t('dash.accountTenure', { count: activeUser.accountAgeDays })}
+                  <PlusCircle className="w-4 h-4 text-slate-950" />
+                  <span>Launch New Campaign</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenAdvertiser('metrics')}
+                  className="px-4 py-2.5 rounded-xl bg-white hover:bg-amber-50 text-gray-900 border border-amber-300 font-bold text-xs transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
+                >
+                  <BarChart3 className="w-4 h-4 text-amber-600" />
+                  <span>Advertiser Portal & Analytics</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenAdvertiser('media-kit')}
+                  className="px-4 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  <span>Media Kit & Proposals</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Advertiser KPI Cards */}
+            <div className="mt-6 pt-5 border-t border-amber-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
+                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Brand Escrow Balance</span>
+                <span className="font-extrabold text-amber-700 font-mono text-base sm:text-lg block mt-0.5">$12,500.00 USD</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">Automated per-delivery payouts</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
+                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Active Campaigns</span>
+                <span className="font-extrabold text-gray-900 font-mono text-base sm:text-lg block mt-0.5">
+                  {campaigns.filter(c => c.status === 'active' || c.status === 'recruiting').length} Active
+                </span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">Multi-metro courier distribution</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
+                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Active Brand Ambassadors</span>
+                <span className="font-extrabold text-[#005FB8] font-mono text-base sm:text-lg block mt-0.5">
+                  {participations.length > 0 ? participations.length : 14} Couriers
+                </span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">Wearing verified sponsored apparel</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
+                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Delivery Shifts & Proofs</span>
+                <span className="font-extrabold text-emerald-700 font-mono text-base sm:text-lg block mt-0.5">
+                  {campaignShifts.length > 0 ? campaignShifts.length : 48} Shifts Logged
+                </span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">GPS & gear photo verified</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* COURIER & ADMIN DASHBOARD HERO */
+          <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 shadow-xs relative overflow-hidden">
+            {/* Admin Quick Console Header (Only visible to Admin) */}
+            {isAdmin && (
+              <div className="mb-5 p-3 rounded-xl bg-purple-50 border border-purple-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-purple-100 rounded-lg text-purple-700 shrink-0">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-purple-950 text-sm">Role: Platform Administrator</span>
+                      <span className="px-2 py-0.5 bg-purple-200 text-purple-900 rounded-md font-black text-[10px] uppercase font-mono tracking-wider">
+                        All Features Unlocked
+                      </span>
+                    </div>
+                    <p className="text-purple-700 text-xs mt-0.5">
+                      Full access to Mutual Pods, Member Perks, Brand Campaigns & Studio, Immutable Audit Ledger, and Admin Operations.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('admin-ops');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Admin Ops Console</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAdvertiser('metrics')}
+                    className="px-3.5 py-2 rounded-lg bg-white hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Advertiser Portal</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              
+              {/* User Greeting & Badges */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <button
+                    onClick={() => setShowEditProfileModal(true)}
+                    title="Click to change your primary gig platform or role"
+                    className="text-xs font-mono font-bold text-[#005FB8] bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <span>{t('dash.fleetMember', { platform: activeUser.platform })}</span>
+                    <Pencil className="w-3 h-3 text-[#005FB8]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditProfileModal(true)}
+                    title="Click to edit member join date and verified tenure"
+                    className="text-xs font-mono text-[#6B7280] hover:text-[#005FB8] hover:bg-gray-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <span>
+                      {activeUser.accountAgeDays === 1
+                        ? t('dash.accountTenureSingular')
+                        : t('dash.accountTenure', { count: activeUser.accountAgeDays })}
+                    </span>
+                  </button>
+                </div>
+                <h2 className="text-2xl font-bold text-[#111827]">
+                  {t('dash.welcomeUser', { name: activeUser.displayName })}
+                </h2>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <p className="text-xs text-[#6B7280]">
+                    {t('dash.fdicBalance')} <strong className="text-emerald-700 font-mono">${activeUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                  </p>
+                  {hasWelcomeMatch && (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse" />
+                      {t('dash.welcomeMatchCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Action Controls */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={() => setShowBankModal(true)}
+                  className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Building2 className="w-4 h-4 text-[#005FB8]" />
+                  <span>{activeUser.externalBank.status === 'LINKED' ? t('dash.bankLinked', { bankName: activeUser.externalBank.bankName }) : t('dash.depositFundsInTreasury')}</span>
+                </button>
+
+                <button
+                  onClick={() => setShowHardshipModal(true)}
+                  className="px-3.5 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <HeartHandshake className="w-4 h-4 text-[#005FB8]" />
+                  <span>{t('dash.requestHardshipFund')}</span>
+                </button>
+
+                <button
+                  onClick={() => setShowCreatePodModal(true)}
+                  className={`px-4 py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer ${
+                    isPodCreationLimitReached
+                      ? 'bg-slate-700 hover:bg-slate-800'
+                      : 'bg-[#005FB8] hover:bg-[#004C93]'
+                  }`}
+                  title={isPodCreationLimitReached ? 'Maximum created pod limit reached (3/3)' : 'Create a new mutual savings pod'}
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>{t('dash.createNewPodBtn')}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold ${
+                    isPodCreationLimitReached ? 'bg-rose-500 text-white' : 'bg-blue-700 text-blue-100'
+                  }`}>
+                    {createdPodsCount}/3
                   </span>
                 </button>
               </div>
-              <h2 className="text-2xl font-bold text-[#111827]">
-                {t('dash.welcomeUser', { name: activeUser.displayName })}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <p className="text-xs text-[#6B7280]">
-                  {t('dash.fdicBalance')} <strong className="text-emerald-700 font-mono">${activeUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                </p>
-                {hasWelcomeMatch && (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse" />
-                    {t('dash.welcomeMatchCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
-                  </span>
+
+            </div>
+
+            {/* Metrics summary row */}
+            <div className="mt-5 pt-4 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
+              <div>
+                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.activePodsMetric')}</span>
+                <span className="font-extrabold text-[#111827] font-mono text-sm">{t('dash.podsCount', { count: myPods.length })}</span>
+              </div>
+
+              <div>
+                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.podsCreatedLimit')}</span>
+                <span className={`font-extrabold font-mono text-sm inline-flex items-center gap-1 ${
+                  isPodCreationLimitReached ? 'text-rose-600' : 'text-[#111827]'
+                }`}>
+                  {t('dash.podsCreatedMax', { count: createdPodsCount })}
+                  {isPodCreationLimitReached && (
+                    <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                      {t('dash.max')}
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.memberStatus')}</span>
+                {activeUser.kycStatus === 'VERIFIED' ? (
+                  <a
+                    href="https://dashboard.stripe.com/test/identity"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-extrabold font-mono text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
+                    title="Verified via Stripe Identity — Click to view in Stripe Dashboard"
+                  >
+                    <span>{t('dash.verifiedMember')}</span>
+                    <ExternalLink className="w-3 h-3 text-emerald-600 shrink-0" />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowKycModal(true)}
+                    className="font-extrabold font-mono text-xs text-amber-700 hover:text-amber-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    title="Verification Pending — Click to complete Stripe Identity KYC"
+                  >
+                    <span>{activeUser.kycStatus === 'PENDING' ? t('dash.kycPending') : t('dash.verifyIdentity')}</span>
+                    <ExternalLink className="w-3 h-3 text-amber-600 shrink-0" />
+                  </button>
                 )}
               </div>
-            </div>
 
-            {/* Quick Action Controls */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => setShowBankModal(true)}
-                className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <Building2 className="w-4 h-4 text-[#005FB8]" />
-                <span>{activeUser.externalBank.status === 'LINKED' ? t('dash.bankLinked', { bankName: activeUser.externalBank.bankName }) : t('dash.depositFundsInTreasury')}</span>
-              </button>
-
-              <button
-                onClick={() => setShowHardshipModal(true)}
-                className="px-3.5 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <HeartHandshake className="w-4 h-4 text-[#005FB8]" />
-                <span>{t('dash.requestHardshipFund')}</span>
-              </button>
-
-              <button
-                onClick={() => setShowCreatePodModal(true)}
-                className={`px-4 py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer ${
-                  isPodCreationLimitReached
-                    ? 'bg-slate-700 hover:bg-slate-800'
-                    : 'bg-[#005FB8] hover:bg-[#004C93]'
-                }`}
-                title={isPodCreationLimitReached ? 'Maximum created pod limit reached (3/3)' : 'Create a new mutual savings pod'}
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>{t('dash.createNewPodBtn')}</span>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold ${
-                  isPodCreationLimitReached ? 'bg-rose-500 text-white' : 'bg-blue-700 text-blue-100'
-                }`}>
-                  {createdPodsCount}/3
-                </span>
-              </button>
-            </div>
-
-          </div>
-
-          {/* Metrics summary row */}
-          <div className="mt-5 pt-4 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
-            <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.activePodsMetric')}</span>
-              <span className="font-extrabold text-[#111827] font-mono text-sm">{t('dash.podsCount', { count: myPods.length })}</span>
-            </div>
-
-            <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.podsCreatedLimit')}</span>
-              <span className={`font-extrabold font-mono text-sm inline-flex items-center gap-1 ${
-                isPodCreationLimitReached ? 'text-rose-600' : 'text-[#111827]'
-              }`}>
-                {t('dash.podsCreatedMax', { count: createdPodsCount })}
-                {isPodCreationLimitReached && (
-                  <span className="text-[10px] font-bold text-rose-600 uppercase tracking-tight bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
-                    {t('dash.max')}
-                  </span>
-                )}
-              </span>
-            </div>
-
-            <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.memberStatus')}</span>
-              {activeUser.kycStatus === 'VERIFIED' ? (
+              <div>
+                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.stripeTreasuryAccount')}</span>
                 <a
-                  href="https://dashboard.stripe.com/test/identity"
+                  href="https://dashboard.stripe.com/test/connect/accounts"
                   target="_blank"
                   rel="noreferrer"
-                  className="font-extrabold font-mono text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
-                  title="Verified via Stripe Identity — Click to view in Stripe Dashboard"
+                  className="font-mono text-[#111827] text-xs hover:text-[#005FB8] hover:underline inline-flex items-center gap-1 max-w-full"
+                  title="View Connected Accounts in Stripe Dashboard"
                 >
-                  <span>{t('dash.verifiedMember')}</span>
-                  <ExternalLink className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span className="truncate">{activeUser.treasury.stripeFinAccountId || t('dash.activeTreasury')}</span>
+                  <ExternalLink className="w-3 h-3 text-gray-400 shrink-0" />
                 </a>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowKycModal(true)}
-                  className="font-extrabold font-mono text-xs text-amber-700 hover:text-amber-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                  title="Verification Pending — Click to complete Stripe Identity KYC"
-                >
-                  <span>{activeUser.kycStatus === 'PENDING' ? t('dash.kycPending') : t('dash.verifyIdentity')}</span>
-                  <ExternalLink className="w-3 h-3 text-amber-600 shrink-0" />
-                </button>
-              )}
+              </div>
+
+              <div>
+                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.contingencyMatch')}</span>
+                {hasWelcomeMatch ? (
+                  <span className="font-extrabold text-emerald-700 font-mono text-xs inline-flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                    {t('dash.contingencyCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-emerald-600 font-mono text-xs inline-flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-500" />
+                    {t('dash.contingencyAvailable')}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.completedPodCycles')}</span>
+                <span className="font-extrabold text-[#005FB8] font-mono text-sm">{t('dash.completedCount', { count: activeUser.completedPodsCount })}</span>
+              </div>
             </div>
 
-            <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.stripeTreasuryAccount')}</span>
-              <a
-                href="https://dashboard.stripe.com/test/connect/accounts"
-                target="_blank"
-                rel="noreferrer"
-                className="font-mono text-[#111827] text-xs hover:text-[#005FB8] hover:underline inline-flex items-center gap-1 max-w-full"
-                title="View Connected Accounts in Stripe Dashboard"
-              >
-                <span className="truncate">{activeUser.treasury.stripeFinAccountId || t('dash.activeTreasury')}</span>
-                <ExternalLink className="w-3 h-3 text-gray-400 shrink-0" />
-              </a>
-            </div>
-
-            <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.contingencyMatch')}</span>
-              {hasWelcomeMatch ? (
-                <span className="font-extrabold text-emerald-700 font-mono text-xs inline-flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                  {t('dash.contingencyCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
-                </span>
-              ) : (
-                <span className="font-semibold text-emerald-600 font-mono text-xs inline-flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-emerald-500" />
-                  {t('dash.contingencyAvailable')}
-                </span>
-              )}
-            </div>
-
-            <div>
-              <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.completedPodCycles')}</span>
-              <span className="font-extrabold text-[#005FB8] font-mono text-sm">{t('dash.completedCount', { count: activeUser.completedPodsCount })}</span>
+            {/* Weekly Savings Contributions Line Chart (Last 3 Months) */}
+            <div className="mt-5 pt-5 border-t border-[#E2E8F0]">
+              <WeeklySavingsChart
+                currentUser={activeUser}
+                myPods={myPods}
+                onExplorePods={() => setActiveTab('explore-pods')}
+              />
             </div>
           </div>
+        )}
 
-          {/* Weekly Savings Contributions Line Chart (Last 3 Months) */}
-          <div className="mt-5 pt-5 border-t border-[#E2E8F0]">
-            <WeeklySavingsChart
-              currentUser={activeUser}
-              myPods={myPods}
-              onExplorePods={() => setActiveTab('explore-pods')}
-            />
-          </div>
-        </div>
+        {/* FDIC Disclosure Notice Banner (Couriers & Admin only) */}
+        {!isAdvertiser && <FDICNoticeBanner />}
 
-        {/* FDIC Disclosure Notice Banner */}
-        <FDICNoticeBanner />
+        {/* Synchronized Platform Settlement Heartbeat (Couriers & Admin only) */}
+        {!isAdvertiser && <PlatformScheduleBanner onRefreshData={fetchAppData} />}
 
-        {/* Synchronized Platform Settlement Heartbeat (Thursdays 12AM Deposits / Fridays 12AM Payouts) */}
-        <PlatformScheduleBanner onRefreshData={fetchAppData} />
+        {/* Member-Specific Upcoming Automated Payments (Couriers & Admin only) */}
+        {!isAdvertiser && (
+          <UpcomingPayments
+            currentUser={activeUser}
+            myPods={myPods}
+            onExplorePods={() => setActiveTab('explore-pods')}
+            onOpenPodDetail={(pod) => setSelectedPodDetail(pod)}
+          />
+        )}
 
-        {/* Member-Specific Upcoming Automated Payments & Payouts (Next 3 Weekly Cycles) */}
-        <UpcomingPayments
-          currentUser={activeUser}
-          myPods={myPods}
-          onExplorePods={() => setActiveTab('explore-pods')}
-          onOpenPodDetail={(pod) => setSelectedPodDetail(pod)}
-        />
+        {/* ------------------------------------------------------------- */}
+        {/* ROLE-GATED TAB CONTENTS                                      */}
+        {/* ------------------------------------------------------------- */}
 
-        {/* TAB CONTENTS */}
-
-        {/* 1 & 2. MY MUTUAL PODS & EXPLORE PODS TABS (WITH HORIZONTAL TOUCH SWIPE GESTURES) */}
-        {(activeTab === 'my-pods' || activeTab === 'explore-pods') && (
+        {/* 1 & 2. MY MUTUAL PODS & EXPLORE PODS TABS (Couriers & Admin only) */}
+        {!isAdvertiser && (activeTab === 'my-pods' || activeTab === 'explore-pods') && (
           <SwipeablePodContainer
             activeTab={activeTab}
             onTabChange={(tab) => setActiveTab(tab)}
@@ -1749,8 +1949,8 @@ export default function App() {
           />
         )}
 
-        {/* 3. PERKS MARKETPLACE TAB */}
-        {activeTab === 'perks' && (
+        {/* 3. PERKS MARKETPLACE TAB (Couriers & Admin only) */}
+        {!isAdvertiser && activeTab === 'perks' && (
           <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading marketplace…</div>}>
             <PerksMarketplace
               currentUser={currentUser || {
@@ -1774,7 +1974,7 @@ export default function App() {
           </Suspense>
         )}
 
-        {/* 4. AD CAMPAIGNS TAB */}
+        {/* 4. AD CAMPAIGNS TAB (All Roles: Advertisers, Couriers, and Admins) */}
         {activeTab === 'campaigns' && (
           <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading brand campaigns…</div>}>
             <CampaignsPage
@@ -1797,15 +1997,15 @@ export default function App() {
           </Suspense>
         )}
 
-        {/* 5. AUDIT LOG LEDGER TAB */}
-        {activeTab === 'audit-log' && (
+        {/* 5. AUDIT LOG LEDGER TAB (Couriers & Admin only) */}
+        {!isAdvertiser && activeTab === 'audit-log' && (
           <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading audit log…</div>}>
             <AuditLogViewer />
           </Suspense>
         )}
 
-        {/* 6. OPERATIONS & WEBHOOKS TAB */}
-        {activeTab === 'admin-ops' && currentUser && (
+        {/* 6. OPERATIONS & WEBHOOKS TAB (Admin Only) */}
+        {isAdmin && activeTab === 'admin-ops' && currentUser && (
           <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading admin tools…</div>}>
             <AdminOpsView
               currentUser={currentUser}
@@ -1814,6 +2014,45 @@ export default function App() {
               onRefreshData={fetchAppData}
             />
           </Suspense>
+        )}
+
+        {/* Role Guard Fallback: If Advertiser hits a non-advertising tab */}
+        {isAdvertiser && activeTab !== 'campaigns' && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-8 text-center max-w-xl mx-auto shadow-xs">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+              <Megaphone className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-black text-gray-950 mb-1">Advertiser Role Restriction</h3>
+            <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+              As a user with the Advertiser role, your account can only see and access advertising related content: brand apparel campaigns, Fourthwall custom gear studio, and campaign performance analytics.
+            </p>
+            <button
+              onClick={() => setActiveTab('campaigns')}
+              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
+            >
+              <Shirt className="w-4 h-4 text-slate-950" />
+              <span>Return to Campaigns & Gear Studio</span>
+            </button>
+          </div>
+        )}
+
+        {/* Role Guard Fallback: If non-admin hits admin-ops */}
+        {!isAdmin && activeTab === 'admin-ops' && (
+          <div className="bg-rose-50 border border-rose-300 rounded-2xl p-8 text-center max-w-xl mx-auto shadow-xs">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto mb-3">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-black text-gray-950 mb-1">Administrator Access Required</h3>
+            <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+              Platform administration, delinquency resolution, and test webhooks are restricted to users with the Admin role.
+            </p>
+            <button
+              onClick={() => setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods')}
+              className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
+            >
+              <span>Return to {isAdvertiser ? 'Campaigns & Gear' : 'My Pods'}</span>
+            </button>
+          </div>
         )}
 
       </main>
@@ -1993,6 +2232,13 @@ export default function App() {
             currentUser={currentUser}
             onUpdateUser={async (updatedUser) => {
               setCurrentUser(updatedUser);
+              if (isAdvertiserUser(updatedUser)) {
+                setActiveTab('campaigns');
+              } else if (activeTab === 'campaigns' && !isAdminUser(updatedUser)) {
+                setActiveTab('my-pods');
+              } else if (!isAdminUser(updatedUser) && activeTab === 'admin-ops') {
+                setActiveTab('my-pods');
+              }
               await syncUserWithBackend(updatedUser);
             }}
           />

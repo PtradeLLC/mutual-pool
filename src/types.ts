@@ -1,17 +1,35 @@
 export type KYCStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'FAILED';
 
-export type UserRole = 'RIDER' | 'DRIVER' | 'POD_ADMIN' | 'SUPER_ADMIN' | 'Admin' | 'ADVERTISER' | 'Advertiser';
+export type UserRole = 'RIDER' | 'DRIVER' | 'POD_ADMIN' | 'SUPER_ADMIN' | 'Admin' | 'ADMIN' | 'ADVERTISER' | 'Advertiser';
+
+export const isAdminUser = (user?: User | null): boolean => {
+  if (!user || !user.id || user.id === 'usr_guest') return false;
+  if (user.isAdmin) return true;
+  const role = String(user.role || '').trim().toUpperCase();
+  return (
+    role === 'ADMIN' ||
+    role === 'SUPER_ADMIN' ||
+    role === 'PLATFORM_ADMIN' ||
+    role === 'SITE_ADMIN' ||
+    user.email?.toLowerCase() === 'chrisbitoy@gmail.com'
+  );
+};
+
+export const isAdvertiserUser = (user?: User | null): boolean => {
+  if (!user || !user.id || user.id === 'usr_guest') return false;
+  if (isAdminUser(user)) return false;
+  const role = String(user.role || '').trim().toUpperCase();
+  return role === 'ADVERTISER' || role === 'BRAND_ADVERTISER' || role.includes('ADVERTISER');
+};
+
+export const isCourierUser = (user?: User | null): boolean => {
+  if (!user || !user.id || user.id === 'usr_guest') return false;
+  return !isAdminUser(user) && !isAdvertiserUser(user);
+};
 
 export const isAdvertiserOrAdmin = (user?: User | null): boolean => {
   if (!user || !user.id || user.id === 'usr_guest') return false;
-  if (user.isAdmin) return true;
-  const role = String(user.role || '').toUpperCase();
-  return (
-    role.includes('ADVERTISER') ||
-    role.includes('ADMIN') ||
-    role === 'SUPER_ADMIN' ||
-    user.email?.toLowerCase() === 'chrisbitoy@gmail.com'
-  );
+  return isAdminUser(user) || isAdvertiserUser(user);
 };
 
 export type GigPlatform = 'Uber Eats' | 'Lyft' | 'DoorDash' | 'Instacart' | 'Amazon Flex' | 'Grubhub' | 'Spark' | 'Partner Provider';
