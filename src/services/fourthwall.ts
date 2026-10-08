@@ -23,7 +23,7 @@ export const FOURTHWALL_GEAR_CATALOG: GearCatalogItem[] = [
       },
       {
         zone: 'LEFT_SLEEVE',
-        label: 'Left Sleeve Courier Stripe',
+        label: 'Left Sleeve Forearm (QR Code & "ADVERTISE WITH US")',
         maxCharacters: 24,
         dimensions: '3" x 10" (900 x 3000 px)',
       },
@@ -50,6 +50,12 @@ export const FOURTHWALL_GEAR_CATALOG: GearCatalogItem[] = [
         label: 'Full Back High-Density Print',
         maxCharacters: 60,
         dimensions: '12" x 15" (3600 x 4500 px)',
+      },
+      {
+        zone: 'LEFT_SLEEVE',
+        label: 'Left Sleeve Forearm (QR Code & "ADVERTISE WITH US")',
+        maxCharacters: 24,
+        dimensions: '3" x 10" (900 x 3000 px)',
       },
       {
         zone: 'RIGHT_SLEEVE',
@@ -110,6 +116,12 @@ export const FOURTHWALL_GEAR_CATALOG: GearCatalogItem[] = [
         label: 'Upper Back Shoulder Banner',
         maxCharacters: 40,
         dimensions: '10" x 5" (3000 x 1500 px)',
+      },
+      {
+        zone: 'LEFT_SLEEVE',
+        label: 'Left Sleeve Forearm (QR Code & "ADVERTISE WITH US")',
+        maxCharacters: 24,
+        dimensions: '3" x 10" (900 x 3000 px)',
       },
     ],
     materialSpec: '100% Micro-Pique Polyester • Dri-Fit Moisture Management • UPF 50+ Sun Protection',

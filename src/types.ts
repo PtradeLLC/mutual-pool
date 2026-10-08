@@ -844,6 +844,9 @@ export interface GearDesignZoneConfig {
   badgeStyle: 'NONE' | 'OUTLINED' | 'HIGH_VIS_BOX' | 'REFLECTIVE_SHIELD';
   logoBadgeUrl?: string;
   active: boolean;
+  qrCodeUrl?: string;
+  qrCodeEnabled?: boolean;
+  qrCodePosition?: 'NEXT_TO_TEXT' | 'ABOVE_TEXT' | 'BELOW_TEXT';
 }
 
 export interface GearCatalogItem {

@@ -50,7 +50,7 @@ import {
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
   Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil,
   HeartHandshake, DollarSign, AlertTriangle, ExternalLink, HelpCircle,
-  Megaphone, BarChart3, Shirt, Shield
+  Megaphone, BarChart3, Shirt, Shield, QrCode, Scan, X
 } from 'lucide-react';
 import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
@@ -94,6 +94,7 @@ export default function App() {
     }
   });
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops'>('my-pods');
+  const [scannedSleeveNotice, setScannedSleeveNotice] = useState<boolean>(false);
   const [campaigns, setCampaigns] = useState<AdCampaign[]>(() => {
     try {
       const saved = localStorage.getItem('mutualpool_campaigns');
@@ -846,6 +847,14 @@ export default function App() {
     if (typeof window === 'undefined' || allPods.length === 0) return;
     try {
       const searchParams = new URLSearchParams(window.location.search);
+      const isSleeveScan = searchParams.get('ref') === 'sleeve_qr' || searchParams.get('utm_campaign') === 'advertise_with_us' || searchParams.get('utm_source') === 'apparel_sleeve';
+      if (isSleeveScan) {
+        setScannedSleeveNotice(true);
+        toast.success('Welcome! You scanned a courier apparel sleeve QR code ("Advertise with us").', {
+          title: 'Sleeve QR Code Scanned',
+        });
+      }
+
       const targetPodId = searchParams.get('podId');
       const targetInviteCode = searchParams.get('inviteCode');
 
@@ -1559,6 +1568,52 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* Courier Sleeve QR Scan Attribution Banner */}
+        {scannedSleeveNotice && (
+          <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-2xl p-4 sm:p-5 text-slate-950 shadow-lg border border-amber-500/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-slate-950 rounded-xl text-amber-400 shrink-0 shadow-md">
+                <QrCode className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-slate-950 text-sm sm:text-base">
+                    You Scanned a Courier Apparel Sleeve QR Code!
+                  </span>
+                  <span className="px-2 py-0.5 bg-slate-950 text-amber-300 font-black text-[10px] rounded-full uppercase font-mono">
+                    Verified Sleeve Scan
+                  </span>
+                </div>
+                <p className="text-slate-900 mt-1 max-w-2xl text-xs sm:text-sm font-medium leading-relaxed">
+                  Welcome to MutualPool! Every delivery courier on our fleet wears high-visibility apparel printed with <strong>"Advertise with us"</strong> and this scannable QR code to connect street pedestrians directly with sponsor brands and courier mutual aid.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('ADVERTISER');
+                  setScannedSleeveNotice(false);
+                }}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-slate-950 hover:bg-slate-900 text-amber-300 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <span>Explore Brand Apparel & Sponsoring</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setScannedSleeveNotice(false)}
+                className="p-2 rounded-xl text-slate-900 hover:bg-black/10 transition-colors cursor-pointer"
+                title="Dismiss Notice"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Financial Hardship Hold & Repayment Alert Banner (Couriers & Admin only) */}
         {!isAdvertiser && activeUser.isHardshipInactive && (

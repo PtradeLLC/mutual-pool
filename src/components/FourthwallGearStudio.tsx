@@ -27,8 +27,14 @@ import {
   Info,
   Download,
   Check,
-  RotateCw
+  RotateCw,
+  QrCode,
+  Scan,
+  Megaphone
 } from 'lucide-react';
+import QRCode from 'qrcode';
+import { SleeveQRGenerator } from './SleeveQRGenerator';
+import { SleeveQRScannerModal } from './SleeveQRScannerModal';
 
 interface FourthwallGearStudioProps {
   sponsorBrand?: string;
@@ -72,7 +78,7 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
 
   const [selectedGearType, setSelectedGearType] = useState<GearProductType>('WINDBREAKER');
   const [selectedColor, setSelectedColor] = useState<GearColor>('NEON_LIME');
-  const [activeView, setActiveView] = useState<'front' | 'back'>('front');
+  const [activeView, setActiveView] = useState<'front' | 'back' | 'sleeve'>('front');
   const [activeZone, setActiveZone] = useState<GearPrintZone>('FRONT_CHEST');
   const [quantity, setQuantity] = useState<number>(50);
   const [brandName, setBrandName] = useState<string>(sponsorBrand);
@@ -81,6 +87,28 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
   const [dispatchedOrder, setDispatchedOrder] = useState<GearDesignOrder | null>(null);
   const [fontFamilyMode, setFontFamilyMode] = useState<'HEAVY' | 'CONDENSED' | 'MINIMAL'>('HEAVY');
   const [showProofModal, setShowProofModal] = useState<boolean>(false);
+  const [showScannerModal, setShowScannerModal] = useState<boolean>(false);
+
+  // Sleeve QR Code URL and live data URL
+  const defaultSleeveUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/?ref=sleeve_qr&utm_source=apparel_sleeve&utm_medium=courier_qr&utm_campaign=advertise_with_us`
+    : 'https://mutualpool.org/?ref=sleeve_qr';
+  const [sleeveQrUrl, setSleeveQrUrl] = useState<string>(defaultSleeveUrl);
+  const [sleeveQrDataUrl, setSleeveQrDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(sleeveQrUrl, {
+      width: 400,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+    }).then(url => {
+      if (!cancelled) setSleeveQrDataUrl(url);
+    }).catch(err => {
+      console.warn('Failed to generate sleeve QR:', err);
+    });
+    return () => { cancelled = true; };
+  }, [sleeveQrUrl]);
 
   // Active gear catalog configuration
   const currentCatalogItem = FOURTHWALL_GEAR_CATALOG.find(c => c.type === selectedGearType) || FOURTHWALL_GEAR_CATALOG[0];
@@ -94,12 +122,21 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
         label: z.label,
         sponsorMessage: z.zone === 'FRONT_CHEST' || z.zone === 'FRONT_FLAP' || z.zone === 'CROWN' 
           ? sponsorBrand.toUpperCase() 
+          : z.zone === 'LEFT_SLEEVE'
+          ? 'ADVERTISE WITH US'
           : 'FUELING THE GIG ECONOMY',
-        subMessage: z.zone === 'BACK_FULL' ? 'Official Courier Fleet Partner' : '',
+        subMessage: z.zone === 'BACK_FULL' 
+          ? 'Official Courier Fleet Partner' 
+          : z.zone === 'LEFT_SLEEVE'
+          ? 'SCAN SLEEVE TO VISIT SITE'
+          : '',
         fontSize: z.zone === 'BACK_FULL' ? 'xl' : 'md',
         textColor: selectedColor === 'NEON_LIME' || selectedColor === 'WHITE' ? '#0f172a' : '#ffffff',
         badgeStyle: z.zone === 'BACK_FULL' ? 'HIGH_VIS_BOX' : 'REFLECTIVE_SHIELD',
         active: true,
+        qrCodeEnabled: z.zone === 'LEFT_SLEEVE' ? true : false,
+        qrCodePosition: 'NEXT_TO_TEXT',
+        qrCodeUrl: defaultSleeveUrl,
       };
     }
     return initial;
@@ -118,12 +155,17 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
             label: z.label,
             sponsorMessage: z.zone === 'FRONT_CHEST' || z.zone === 'FRONT_FLAP' || z.zone === 'CROWN' 
               ? brandName.toUpperCase() 
+              : z.zone === 'LEFT_SLEEVE'
+              ? 'ADVERTISE WITH US'
               : 'COURIER SAFETY NETWORK',
-            subMessage: '',
+            subMessage: z.zone === 'LEFT_SLEEVE' ? 'SCAN SLEEVE TO VISIT SITE' : '',
             fontSize: z.zone === 'BACK_FULL' ? 'xl' : 'md',
             textColor: selectedColor === 'NEON_LIME' || selectedColor === 'WHITE' ? '#0f172a' : '#ffffff',
-            badgeStyle: 'REFLECTIVE_SHIELD',
+            badgeStyle: z.zone === 'LEFT_SLEEVE' ? 'HIGH_VIS_BOX' : 'REFLECTIVE_SHIELD',
             active: true,
+            qrCodeEnabled: z.zone === 'LEFT_SLEEVE' ? true : false,
+            qrCodePosition: 'NEXT_TO_TEXT',
+            qrCodeUrl: sleeveQrUrl,
           };
         }
       }
@@ -386,13 +428,13 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
               ))}
             </div>
 
-            {/* Front / Back Angle Switcher */}
+            {/* Front / Back / Sleeve Angle Switcher */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveView('front')}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  activeView === 'front' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  activeView === 'front' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Front View
@@ -401,10 +443,26 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
                 type="button"
                 onClick={() => setActiveView('back')}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  activeView === 'back' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  activeView === 'back' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Back View
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveView('sleeve');
+                  setActiveZone('LEFT_SLEEVE');
+                }}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeView === 'sleeve' ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Sleeve (QR Code)</span>
+                <span className="text-[9px] bg-slate-950 text-amber-300 px-1 py-0.2 rounded font-black uppercase">
+                  Default
+                </span>
               </button>
             </div>
           </div>
@@ -418,29 +476,111 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
             {/* Top Left Tag: Specs & Active Print Zone */}
             <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
               <span className="text-[11px] font-mono text-slate-400 bg-slate-900/80 px-2.5 py-1 rounded-md border border-slate-800">
-                {currentCatalogItem.category}
+                {activeView === 'sleeve' ? 'Forearm Sleeve Zone' : currentCatalogItem.category}
               </span>
               <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-1 rounded-md border border-emerald-800">
-                DTF 300 DPI
+                {activeView === 'sleeve' ? 'Default Print Spec' : 'DTF 300 DPI'}
               </span>
             </div>
 
-            {/* Top Right: Flip Angle Quick Action */}
-            <button
-              type="button"
-              onClick={() => setActiveView(prev => prev === 'front' ? 'back' : 'front')}
-              className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 cursor-pointer transition-colors shadow-sm"
-            >
-              <RotateCw className="w-3.5 h-3.5 text-blue-400" />
-              <span>Flip Angle</span>
-            </button>
-
-            {/* Garment SVG Vector Canvas */}
-            <div className="relative w-full max-w-sm sm:max-w-md h-full flex flex-col items-center justify-center">
-              <svg 
-                viewBox="0 0 400 400" 
-                className="w-full h-full drop-shadow-2xl transition-all duration-300"
+            {/* Top Right: Flip Angle / View Quick Action */}
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5">
+              {activeView === 'sleeve' && (
+                <button
+                  type="button"
+                  onClick={() => setShowScannerModal(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 border border-amber-500 cursor-pointer transition-colors shadow-sm"
+                >
+                  <Scan className="w-3.5 h-3.5" />
+                  <span>Test Scanner</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveView(prev => prev === 'front' ? 'back' : prev === 'back' ? 'sleeve' : 'front');
+                  if (activeView === 'back') setActiveZone('LEFT_SLEEVE');
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 cursor-pointer transition-colors shadow-sm"
               >
+                <RotateCw className="w-3.5 h-3.5 text-blue-400" />
+                <span>Rotate View</span>
+              </button>
+            </div>
+
+            {/* SLEEVE FOREARM REALISTIC PRINT STAGE (when activeView === 'sleeve') */}
+            {activeView === 'sleeve' ? (
+              <div 
+                onClick={() => {
+                  setActiveZone('LEFT_SLEEVE');
+                  setActiveStep('design');
+                }}
+                className="relative w-full max-w-xs h-full py-2 flex flex-col items-center justify-center text-center cursor-pointer group animate-fade-in"
+              >
+                {/* Sleeve Mockup Container styled to match the attached photo */}
+                <div 
+                  className="w-full max-w-[270px] rounded-2xl p-5 border-2 border-slate-700 shadow-2xl relative overflow-hidden flex flex-col items-center text-center transition-all group-hover:border-amber-400 group-hover:scale-[1.02]"
+                  style={{ backgroundColor: fabricHex }}
+                >
+                  {/* Subtle weave texture */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/50 pointer-events-none" />
+
+                  {/* Ribbed wrist cuff at bottom */}
+                  <div className="absolute bottom-0 left-0 right-0 h-4 border-t border-slate-700/80 bg-slate-950/60" />
+
+                  {/* Forearm stitch guides */}
+                  <div className="absolute top-0 bottom-0 left-3 w-px border-l border-dashed border-slate-700/60" />
+                  <div className="absolute top-0 bottom-0 right-3 w-px border-r border-dashed border-slate-700/60" />
+
+                  {/* Megaphone Icon in High-Vis Yellow Badge */}
+                  <div className="relative z-10 mb-2.5">
+                    <div className="p-2.5 rounded-full bg-amber-400 text-slate-950 shadow-md">
+                      <Megaphone className="w-5 h-5 fill-slate-950 text-slate-950" />
+                    </div>
+                  </div>
+
+                  {/* Bold Headline: ADVERTISE WITH US */}
+                  <div className="relative z-10 mb-3 tracking-tighter leading-none select-none">
+                    <span className="block font-black text-2xl text-white uppercase tracking-tight">
+                      {zoneConfigs['LEFT_SLEEVE']?.sponsorMessage?.split(' ')[0] || 'ADVERTISE'}
+                    </span>
+                    <span className="block font-black text-2xl text-amber-400 uppercase tracking-tight mt-0.5">
+                      {zoneConfigs['LEFT_SLEEVE']?.sponsorMessage?.split(' ').slice(1).join(' ') || 'WITH US'}
+                    </span>
+                  </div>
+
+                  {/* Printed Scannable QR Code */}
+                  <div className="relative z-10 p-2 bg-white rounded-xl shadow-xl border border-slate-200">
+                    {sleeveQrDataUrl ? (
+                      <img 
+                        src={sleeveQrDataUrl} 
+                        alt="Sleeve QR Code" 
+                        className="w-28 h-28 sm:w-32 sm:h-32 object-contain block"
+                      />
+                    ) : (
+                      <div className="w-28 h-28 sm:w-32 sm:h-32 bg-slate-200 animate-pulse rounded" />
+                    )}
+                    <div className="mt-1 text-[8.5px] font-black uppercase tracking-wider text-slate-900 font-mono">
+                      Scan with phone camera
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 mt-2.5 text-[9.5px] font-mono text-slate-300 bg-slate-950/70 px-2 py-0.5 rounded">
+                    Printed by default on all courier sleeves
+                  </div>
+                </div>
+
+                <div className="mt-2 text-[10.5px] text-amber-300 font-medium">
+                  Click to configure destination URL & print options →
+                </div>
+              </div>
+            ) : (
+              /* Garment SVG Vector Canvas */
+              <div className="relative w-full max-w-sm sm:max-w-md h-full flex flex-col items-center justify-center">
+                <svg 
+                  viewBox="0 0 400 400" 
+                  className="w-full h-full drop-shadow-2xl transition-all duration-300"
+                >
                 <defs>
                   {/* Real Fabric 3D Texture & Shadow Gradients */}
                   <linearGradient id="fabricShading3D" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -742,11 +882,18 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
                 </div>
               )}
             </div>
+          )}
 
-            {/* Bottom Status Pill */}
+          {/* Bottom Status Pill */}
             <div className="absolute bottom-3 left-4 bg-slate-900/90 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] text-slate-300 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-400" />
-              <span>Editing: <strong className="text-white">{currentZoneConfig.label}</strong></span>
+              <span className={`w-2 h-2 rounded-full ${activeView === 'sleeve' ? 'bg-amber-400' : 'bg-blue-400'}`} />
+              <span>
+                {activeView === 'sleeve' ? (
+                  <>Print Zone: <strong className="text-amber-300">Left Sleeve Forearm (QR Code + "ADVERTISE WITH US")</strong></>
+                ) : (
+                  <>Editing: <strong className="text-white">{currentZoneConfig.label}</strong></>
+                )}
+              </span>
             </div>
           </div>
 
@@ -792,6 +939,19 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
               <span>{currentCatalogItem.materialSpec}</span>
             </div>
           </div>
+
+          {/* Default Sleeve QR Code Generator & Print Asset Spec */}
+          <SleeveQRGenerator
+            brandName={brandName}
+            fabricColor={fabricHex}
+            accentColor="#FACC15"
+            targetUrl={sleeveQrUrl}
+            onUrlChange={(url) => {
+              setSleeveQrUrl(url);
+              updateActiveZoneField('qrCodeUrl', url);
+            }}
+            onOpenScanner={() => setShowScannerModal(true)}
+          />
         </div>
 
         {/* Right Column: Dynamic Step-by-Step Configuration Panels (5 cols) */}
@@ -879,7 +1039,7 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
                         type="button"
                         onClick={() => {
                           setActiveZone(z.zone);
-                          setActiveView(z.zone === 'BACK_FULL' ? 'back' : 'front');
+                          setActiveView(z.zone === 'BACK_FULL' ? 'back' : z.zone === 'LEFT_SLEEVE' || z.zone === 'RIGHT_SLEEVE' ? 'sleeve' : 'front');
                         }}
                         className={`w-full p-2.5 rounded-xl text-left transition-all flex items-center justify-between text-xs cursor-pointer border ${
                           isActive 
@@ -888,7 +1048,14 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
                         }`}
                       >
                         <div>
-                          <span className="block font-semibold">{z.label}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="block font-semibold">{z.label}</span>
+                            {(z.zone === 'LEFT_SLEEVE' || z.zone === 'RIGHT_SLEEVE') && (
+                              <span className="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[9px] rounded uppercase">
+                                QR Default
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10.5px] text-slate-500 font-mono">Max {z.maxCharacters} chars · {z.dimensions}</span>
                         </div>
                         {hasMessage ? (
@@ -901,6 +1068,68 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
                   })}
                 </div>
               </div>
+
+              {/* Specific Sleeve QR Code Configuration Card */}
+              {(activeZone === 'LEFT_SLEEVE' || activeZone === 'RIGHT_SLEEVE') && (
+                <div className="p-4 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 space-y-3 shadow-md animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-amber-400 text-slate-950 font-black">
+                        <QrCode className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-black text-white block">Default Sleeve QR Code & Print Spec</span>
+                        <span className="text-[10px] text-amber-300">Printed next to "ADVERTISE WITH US"</span>
+                      </div>
+                    </div>
+                    <span className="text-[9px] bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black uppercase">
+                      Default Print
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Every apparel sleeve includes this scannable QR code printed by default next to <strong className="text-amber-400">Advertise with us</strong>. When pedestrians scan the sleeve, their mobile browser brings them directly back to the site.
+                  </p>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10.5px] font-bold text-slate-300">
+                        Destination Website URL (When Scanned)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSleeveQrUrl(defaultSleeveUrl);
+                          updateActiveZoneField('qrCodeUrl', defaultSleeveUrl);
+                        }}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 font-medium cursor-pointer"
+                      >
+                        Reset Default URL
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={sleeveQrUrl}
+                      onChange={(e) => {
+                        setSleeveQrUrl(e.target.value);
+                        updateActiveZoneField('qrCodeUrl', e.target.value);
+                      }}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-emerald-400 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div className="pt-1 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowScannerModal(true)}
+                      className="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95"
+                    >
+                      <Scan className="w-4 h-4 text-slate-950" />
+                      <span>Launch Sleeve QR Code Scanner</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Live Zone Editor Box */}
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3.5">
@@ -1173,6 +1402,13 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
           )}
         </div>
       </div>
+
+      {/* Courier Sleeve QR Scanner Modal */}
+      <SleeveQRScannerModal
+        isOpen={showScannerModal}
+        onClose={() => setShowScannerModal(false)}
+        brandName={brandName}
+      />
     </div>
   );
 };

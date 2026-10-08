@@ -12,9 +12,11 @@ import {
   Globe, HelpCircle, ChevronRight, Eye, RefreshCw, Star, HeartHandshake,
   Download, ArrowLeft, Zap, Filter, LayoutDashboard, Calculator, Plus,
   Lock, LogIn, Store, QrCode, Navigation, Compass, CheckSquare, Tag,
-  BadgePercent, Percent, Printer
+  BadgePercent, Percent, Printer, Scan
 } from 'lucide-react';
 import { FourthwallGearStudio } from './FourthwallGearStudio';
+import { SleeveQRGenerator } from './SleeveQRGenerator';
+import { SleeveQRScannerModal } from './SleeveQRScannerModal';
 
 import promoFrontImg from '../assets/images/promo_hoodie_front_1786902471783.jpg';
 import promoBackImg from '../assets/images/promo_hoodie_back_1786902490265.jpg';
@@ -579,6 +581,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   const [selectedGear, setSelectedGear] = useState<string>('hoodie');
   const [previewTab, setPreviewTab] = useState<'front' | 'back' | 'sleeve' | 'full'>('full');
   const [showFourthwallStudio, setShowFourthwallStudio] = useState<boolean>(false);
+  const [showScannerModal, setShowScannerModal] = useState<boolean>(false);
 
   // Lead Intake Form State
   const [formData, setFormData] = useState({
@@ -880,6 +883,15 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   <span>{showFourthwallStudio ? 'View Real Photo Gallery' : 'Open Custom Gear Studio (Fourthwall POD)'}</span>
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => setShowScannerModal(true)}
+                  className="px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 active:scale-95"
+                >
+                  <Scan className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Test Sleeve QR Scanner</span>
+                </button>
+
                 {!showFourthwallStudio && (
                   <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">
                     <button
@@ -912,11 +924,12 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     <button
                       type="button"
                       onClick={() => setPreviewTab('sleeve')}
-                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                         previewTab === 'sleeve' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
                       }`}
                     >
-                      {t('advertiser.sleeveDetail')}
+                      <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{t('advertiser.sleeveDetail')}</span>
                     </button>
                   </div>
                 )}
@@ -933,83 +946,108 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 />
               </div>
             ) : previewTab === 'full' ? (
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
-                
-                {/* Panel 1: Front View (Span 5) */}
-                <div className="md:col-span-5 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
-                  <div className="absolute top-4 left-4 z-10">
-                    <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
-                      {t('advertiser.panel1Badge')}
-                    </span>
-                  </div>
-                  <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-                    <img
-                      src={promoFrontImg}
-                      alt="Front View of Partner Promo Hoodie"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60 pointer-events-none" />
-                  </div>
-                  <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
-                    <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                      {t('advertiser.panel1Title')}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
+                  
+                  {/* Panel 1: Front View (Span 5) */}
+                  <div className="md:col-span-5 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
+                    <div className="absolute top-4 left-4 z-10">
+                      <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
+                        {t('advertiser.panel1Badge')}
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-200 font-medium">
-                      {t('advertiser.panel1Desc')}
-                    </p>
+                    <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+                      <img
+                        src={promoFrontImg}
+                        alt="Front View of Partner Promo Hoodie"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60 pointer-events-none" />
+                    </div>
+                    <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                        {t('advertiser.panel1Title')}
+                      </div>
+                      <p className="text-xs text-slate-200 font-medium">
+                        {t('advertiser.panel1Desc')}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Panel 2: Back View (Span 4) */}
+                  <div className="md:col-span-4 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
+                    <div className="absolute top-4 left-4 z-10">
+                      <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
+                        {t('advertiser.panel2Badge')}
+                      </span>
+                    </div>
+                    <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+                      <img
+                        src={promoBackImg}
+                        alt="Back View of Partner Promo Hoodie"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60 pointer-events-none" />
+                    </div>
+                    <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                        {t('advertiser.panel2Title')}
+                      </div>
+                      <p className="text-xs text-slate-200 font-medium">
+                        {t('advertiser.panel2Desc')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Panel 3: Sleeve Detail (Span 3) with Default QR Code Badge */}
+                  <div className="md:col-span-3 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
+                    <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
+                      <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
+                        {t('advertiser.panel3Badge')}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 font-black text-[10px] tracking-wider uppercase flex items-center gap-1 shadow-sm">
+                        <QrCode className="w-3 h-3" />
+                        Default QR Print
+                      </span>
+                    </div>
+                    <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+                      <img
+                        src={promoSleeveImg}
+                        alt="Sleeve Detail of Partner Promo Hoodie"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60 pointer-events-none" />
+                    </div>
+                    <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                          {t('advertiser.panel3Title')}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowScannerModal(true)}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Scan className="w-3 h-3" />
+                          <span>Scan</span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-200 font-medium">
+                        {t('advertiser.panel3Desc')}
+                      </p>
+                    </div>
+                  </div>
+
                 </div>
 
-                {/* Panel 2: Back View (Span 4) */}
-                <div className="md:col-span-4 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
-                  <div className="absolute top-4 left-4 z-10">
-                    <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
-                      {t('advertiser.panel2Badge')}
-                    </span>
-                  </div>
-                  <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-                    <img
-                      src={promoBackImg}
-                      alt="Back View of Partner Promo Hoodie"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60 pointer-events-none" />
-                  </div>
-                  <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
-                    <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                      {t('advertiser.panel2Title')}
-                    </div>
-                    <p className="text-xs text-slate-200 font-medium">
-                      {t('advertiser.panel2Desc')}
-                    </p>
-                  </div>
+                {/* Default Sleeve QR Code Generator & Print Specification Card */}
+                <div className="pt-2">
+                  <SleeveQRGenerator
+                    brandName={formData.brandName || 'MutualPool Fleet'}
+                    sleeveText="ADVERTISE WITH US"
+                    onOpenScanner={() => setShowScannerModal(true)}
+                  />
                 </div>
-
-                {/* Panel 3: Sleeve Detail (Span 3) */}
-                <div className="md:col-span-3 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 relative group flex flex-col shadow-sm">
-                  <div className="absolute top-4 left-4 z-10">
-                    <span className="px-3 py-1 rounded-md bg-black/75 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
-                      {t('advertiser.panel3Badge')}
-                    </span>
-                  </div>
-                  <div className="relative aspect-4/5 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-                    <img
-                      src={promoSleeveImg}
-                      alt="Sleeve Detail of Partner Promo Hoodie"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60 pointer-events-none" />
-                  </div>
-                  <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-1">
-                    <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                      {t('advertiser.panel3Title')}
-                    </div>
-                    <p className="text-xs text-slate-200 font-medium">
-                      {t('advertiser.panel3Desc')}
-                    </p>
-                  </div>
-                </div>
-
               </div>
             ) : previewTab === 'front' ? (
               <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden border border-slate-200 bg-slate-950">
@@ -1028,11 +1066,33 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden border border-slate-200 bg-slate-950">
-                <img src={promoSleeveImg} alt="Sleeve Detail" className="w-full object-cover aspect-3/4" />
-                <div className="p-4 bg-slate-900 text-center">
-                  <h3 className="font-bold text-white text-base">{t('advertiser.sleeveViewDetailTitle')}</h3>
-                  <p className="text-xs text-slate-300 mt-1">{t('advertiser.sleeveViewDetailDesc')}</p>
+              /* Sleeve Detail Tab: Split Layout with Sleeve Photo + Interactive QR Generator */
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  <div className="lg:col-span-5 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-xl relative">
+                    <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
+                      <span className="px-3 py-1 rounded-md bg-black/80 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">
+                        Sleeve Forearm Print
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 font-black text-[10px] tracking-wider uppercase flex items-center gap-1 shadow-sm">
+                        <QrCode className="w-3 h-3" />
+                        Default QR Print
+                      </span>
+                    </div>
+                    <img src={promoSleeveImg} alt="Sleeve Detail" className="w-full object-cover aspect-4/5" />
+                    <div className="p-4 bg-slate-900 text-center border-t border-slate-800">
+                      <h3 className="font-bold text-white text-base">{t('advertiser.sleeveViewDetailTitle')}</h3>
+                      <p className="text-xs text-slate-300 mt-1">{t('advertiser.sleeveViewDetailDesc')}</p>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-7">
+                    <SleeveQRGenerator
+                      brandName={formData.brandName || 'MutualPool Fleet'}
+                      sleeveText="ADVERTISE WITH US"
+                      onOpenScanner={() => setShowScannerModal(true)}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -2032,6 +2092,13 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
           </div>
         </div>
       </footer>
+
+      {/* Courier Sleeve QR Scanner Modal */}
+      <SleeveQRScannerModal
+        isOpen={showScannerModal}
+        onClose={() => setShowScannerModal(false)}
+        brandName={formData.brandName || 'MutualPool Fleet'}
+      />
 
     </div>
   );

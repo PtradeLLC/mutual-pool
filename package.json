@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test/multiCountry.test.ts && tsx --test tests/feature-integration.test.ts"
+    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts && tsx --test tests/feature-integration.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -23,8 +23,10 @@
     "firebase": "^12.16.0",
     "firebase-admin": "^14.2.0",
     "groq-sdk": "^1.5.0",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "recharts": "^3.10.1",
@@ -39,6 +41,7 @@
     "@types/canvas-confetti": "^1.9.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/ws": "^8.18.1",
