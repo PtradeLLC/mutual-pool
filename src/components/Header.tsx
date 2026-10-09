@@ -6,6 +6,7 @@ import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
 import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
 import { useSiteUrl } from '../utils/siteUrl';
+import { scrollToTabSection } from '../utils/navigation';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
 import { 
@@ -22,6 +23,7 @@ interface HeaderProps {
   setActiveTab: (tab: 'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops') => void;
   onLogoClick?: () => void;
   onOpenBankModal: () => void;
+  onOpenAddFundsModal?: () => void;
   onOpenEditProfile?: () => void;
   onOpenSubmitPerk?: () => void;
   onOpenAdvertiser?: (tab?: 'metrics' | 'media-kit') => void;
@@ -48,6 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   onLogoClick,
   onOpenBankModal,
+  onOpenAddFundsModal,
   onOpenEditProfile,
   onOpenSubmitPerk,
   onOpenAdvertiser,
@@ -201,10 +204,16 @@ export const Header: React.FC<HeaderProps> = ({
   const activeTabInfo = primaryTabsList[currentTabIndex >= 0 ? currentTabIndex : 0];
   const ActiveTabIcon = activeTabInfo?.icon || Layers;
 
+  const handleTabClick = (tabId: HeaderProps['activeTab']) => {
+    setActiveTab(tabId);
+    scrollToTabSection(tabId);
+  };
+
   const handleStepTab = (direction: 'prev' | 'next') => {
     const newIndex = direction === 'prev' ? currentTabIndex - 1 : currentTabIndex + 1;
     if (newIndex >= 0 && newIndex < primaryTabsList.length) {
-      setActiveTab(primaryTabsList[newIndex].id);
+      const targetTab = primaryTabsList[newIndex].id;
+      handleTabClick(targetTab);
     }
   };
 
@@ -270,20 +279,32 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={onOpenBankModal}
-                title="Click to view Stripe Treasury Account & Add Test Funds"
-                className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] hover:bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-emerald-300 text-xs transition-all cursor-pointer group"
-              >
-                <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
-                <div className="text-left">
-                  <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">{t('header.stripeTreasuryBalance')}</span>
-                  <span className="font-bold text-[#111827] font-mono">
-                    ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
-                  </span>
-                </div>
-              </button>
+              <div className="hidden lg:flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onOpenAddFundsModal || onOpenBankModal}
+                  title="Click to view Stripe Treasury Account & Add Funds"
+                  className="flex items-center gap-2 bg-[#F8FAFC] hover:bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-emerald-300 text-xs transition-all cursor-pointer group"
+                >
+                  <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+                  <div className="text-left">
+                    <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">{t('header.stripeTreasuryBalance')}</span>
+                    <span className="font-bold text-[#111827] font-mono">
+                      ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onOpenAddFundsModal || onOpenBankModal}
+                  title="Add Funds via Bank Account or Digital Card"
+                  className="px-2.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>+ Add Funds</span>
+                </button>
+              </div>
             )}
 
             {/* Verified Status Badge or KYC Verification Prompt */}
@@ -483,8 +504,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
-                          setActiveTab('admin-ops');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          handleTabClick('admin-ops');
                         }}
                         className="w-full text-left p-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs flex items-center justify-between transition-colors border border-purple-200 cursor-pointer"
                       >
@@ -771,7 +791,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     key={tab.id}
                     data-tab={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabClick(tab.id)}
                     className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                       isActive
                         ? isSpecialAdmin
@@ -798,7 +818,13 @@ export const Header: React.FC<HeaderProps> = ({
               {/* If Courier or Admin: show Submit Perk shortcut */}
               {!isAdvertiser && (
                 <button
-                  onClick={onOpenSubmitPerk || (() => setActiveTab('perks'))}
+                  onClick={() => {
+                    if (onOpenSubmitPerk) {
+                      onOpenSubmitPerk();
+                    } else {
+                      handleTabClick('perks');
+                    }
+                  }}
                   className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
                   title="Submit a partner or community perk offer for admin review"
                 >
@@ -976,13 +1002,19 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         onClick={() => {
                           setMobileMenuOpen(false);
-                          onOpenBankModal();
+                          if (onOpenAddFundsModal) onOpenAddFundsModal();
+                          else onOpenBankModal();
                         }}
-                        className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-emerald-300 transition-colors cursor-pointer"
+                        className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-emerald-300 transition-colors cursor-pointer flex items-center justify-between"
                       >
-                        <span className="text-[10px] text-gray-500 block font-bold uppercase">{t('header.stripeTreasuryBalance')}</span>
-                        <span className="font-bold text-gray-900 font-mono text-xs">
-                          ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+                        <div>
+                          <span className="text-[10px] text-gray-500 block font-bold uppercase">{t('header.stripeTreasuryBalance')}</span>
+                          <span className="font-bold text-gray-900 font-mono text-xs">
+                            ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          + Add Funds
                         </span>
                       </button>
 
@@ -1021,9 +1053,8 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         key={tab.id}
                         onClick={() => {
-                          setActiveTab(tab.id);
                           setMobileMenuOpen(false);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          handleTabClick(tab.id);
                         }}
                         className={`w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between border cursor-pointer ${
                           isActive
@@ -1069,7 +1100,7 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={() => {
                         setMobileMenuOpen(false);
                         if (onOpenSubmitPerk) onOpenSubmitPerk();
-                        else setActiveTab('perks');
+                        else handleTabClick('perks');
                       }}
                       className="w-full text-left p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
                     >

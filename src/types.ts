@@ -43,6 +43,17 @@ export interface ExternalBankAccount {
   linkedAt?: string;
 }
 
+export interface DigitalCard {
+  id?: string;
+  last4: string;
+  brand: string;
+  expMonth: number;
+  expYear: number;
+  cardholderName?: string;
+  isDefault?: boolean;
+  addedAt?: string;
+}
+
 export interface StripeTreasuryAccount {
   stripeAccountId: string; // Connect Custom Account ID
   stripeFinAccountId: string; // Treasury Financial Account ID
@@ -51,6 +62,7 @@ export interface StripeTreasuryAccount {
   totalPayoutsReceivedUsd: number;
   fdicPassThroughEligible: boolean;
   status: 'ACTIVE' | 'RESTRICTED' | 'PENDING_REQUIREMENTS' | 'UNINITIALIZED';
+  digitalCards?: DigitalCard[];
 }
 
 export interface User {
@@ -70,6 +82,7 @@ export interface User {
   kycVerifiedAt?: string;
   treasury: StripeTreasuryAccount;
   externalBank: ExternalBankAccount;
+  digitalCards?: DigitalCard[];
   completedPodsCount: number;
   welcomeMatchReceived?: boolean;
   welcomeMatchAmountUsd?: number;
