@@ -6,6 +6,7 @@ import {
   Sparkles, AlertCircle, Copy, Check, QrCode, ArrowRight, ShieldCheck, Zap 
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { getSleeveQrUrl } from '../utils/siteUrl';
 import promoSleeveImg from '../assets/images/promo_hoodie_sleeve_1786902506042.jpg';
 
 interface SleeveQRScannerModalProps {
@@ -207,7 +208,7 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
           handleSuccessfulScan(code.data);
         } else {
           // If the photo was of a sleeve with text but without an explicit QR matrix, decode the embedded sleeve deep link
-          const fallbackUrl = `${window.location.origin}/?ref=sleeve_qr&utm_source=apparel_sleeve&utm_medium=courier_qr&utm_campaign=advertise_with_us`;
+          const fallbackUrl = getSleeveQrUrl({ utmSource: 'apparel_sleeve', utmMedium: 'courier_qr', utmCampaign: 'advertise_with_us' });
           handleSuccessfulScan(fallbackUrl, 'Verified Courier Sleeve Photo');
         }
       };
@@ -225,7 +226,7 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
     setProcessingImage(true);
     try {
       // Create a test sleeve image with embedded scannable QR code
-      const targetUrl = `${window.location.origin}/?ref=sleeve_qr&utm_source=courier_hoodie_sleeve&utm_medium=qr_scan&utm_campaign=advertise_with_us`;
+      const targetUrl = getSleeveQrUrl({ utmSource: 'courier_hoodie_sleeve', utmMedium: 'qr_scan', utmCampaign: 'advertise_with_us' });
       const qrDataUrl = await QRCode.toDataURL(targetUrl, { width: 300, margin: 1 });
 
       const img = new Image();
@@ -250,7 +251,7 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
     } catch {
       setProcessingImage(false);
       handleSuccessfulScan(
-        `${window.location.origin}/?ref=sleeve_qr&utm_source=courier_hoodie_sleeve&utm_medium=qr_scan&utm_campaign=advertise_with_us`,
+        getSleeveQrUrl({ utmSource: 'courier_hoodie_sleeve', utmMedium: 'qr_scan', utmCampaign: 'advertise_with_us' }),
         'Apex Logistics Courier Fleet'
       );
     }
@@ -258,7 +259,7 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
 
   // Handle quick simulation
   const handleSimulateScan = () => {
-    const demoUrl = `${window.location.origin}/?ref=sleeve_qr&utm_source=apparel_sleeve&utm_medium=courier_qr&utm_campaign=advertise_with_us`;
+    const demoUrl = getSleeveQrUrl({ utmSource: 'apparel_sleeve', utmMedium: 'courier_qr', utmCampaign: 'advertise_with_us' });
     handleSuccessfulScan(demoUrl, brandName);
   };
 
@@ -631,7 +632,7 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
                   <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 max-w-sm mx-auto text-left text-xs space-y-1.5 font-mono text-slate-400">
                     <div className="text-slate-300 font-bold">Simulated Target:</div>
                     <div className="truncate text-amber-400">
-                      {window.location.origin}/?ref=sleeve_qr&utm_source=apparel_sleeve&utm_medium=courier_qr
+                      {getSleeveQrUrl({ utmSource: 'apparel_sleeve', utmMedium: 'courier_qr' })}
                     </div>
                   </div>
 

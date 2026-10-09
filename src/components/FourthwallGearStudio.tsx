@@ -35,6 +35,7 @@ import {
 import QRCode from 'qrcode';
 import { SleeveQRGenerator } from './SleeveQRGenerator';
 import { SleeveQRScannerModal } from './SleeveQRScannerModal';
+import { getSleeveQrUrl } from '../utils/siteUrl';
 
 interface FourthwallGearStudioProps {
   sponsorBrand?: string;
@@ -90,9 +91,7 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
   const [showScannerModal, setShowScannerModal] = useState<boolean>(false);
 
   // Sleeve QR Code URL and live data URL
-  const defaultSleeveUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/?ref=sleeve_qr&utm_source=apparel_sleeve&utm_medium=courier_qr&utm_campaign=advertise_with_us`
-    : 'https://mutualpool.org/?ref=sleeve_qr';
+  const defaultSleeveUrl = getSleeveQrUrl();
   const [sleeveQrUrl, setSleeveQrUrl] = useState<string>(defaultSleeveUrl);
   const [sleeveQrDataUrl, setSleeveQrDataUrl] = useState<string>('');
 

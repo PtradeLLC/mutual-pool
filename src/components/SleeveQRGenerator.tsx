@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import QRCode from 'qrcode';
-import { Megaphone, Download, ExternalLink, QrCode, Scan, Copy, Check, Sparkles, RefreshCw } from 'lucide-react';
+import { Megaphone, Download, ExternalLink, QrCode, Scan, Copy, Check, Sparkles, RefreshCw, Globe } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { getSleeveQrUrl, useSiteUrl } from '../utils/siteUrl';
+import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
 
 interface SleeveQRGeneratorProps {
   targetUrl?: string;
@@ -26,11 +28,11 @@ export const SleeveQRGenerator: React.FC<SleeveQRGeneratorProps> = ({
 }) => {
   const toast = useToast();
   const inputId = useId();
+  const { siteUrl, isProduction, environment } = useSiteUrl();
+  const [showEnvModal, setShowEnvModal] = useState(false);
 
   // Default target URL brings users back to the site with sleeve tracking query parameters
-  const defaultUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/?ref=sleeve_qr&utm_source=apparel_sleeve&utm_medium=courier_qr&utm_campaign=advertise_with_us`
-    : 'https://mutualpool.org/?ref=sleeve_qr';
+  const defaultUrl = getSleeveQrUrl();
 
   const [currentUrl, setCurrentUrl] = useState<string>(targetUrl || defaultUrl);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -44,6 +46,13 @@ export const SleeveQRGenerator: React.FC<SleeveQRGeneratorProps> = ({
       setCurrentUrl(targetUrl);
     }
   }, [targetUrl]);
+
+  // If siteUrl changes (e.g. dev/prod switched) and user hasn't typed custom targetUrl, sync default
+  useEffect(() => {
+    if (!targetUrl) {
+      setCurrentUrl(getSleeveQrUrl());
+    }
+  }, [siteUrl, targetUrl]);
 
   // Generate QR code data URL whenever currentUrl or qrStyle changes
   useEffect(() => {
@@ -304,14 +313,25 @@ export const SleeveQRGenerator: React.FC<SleeveQRGeneratorProps> = ({
                   <span>Destination Website URL (When Scanned)</span>
                   <span className="text-amber-400 text-[10px] font-normal">• Brings users back to the site</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => handleUrlChange(defaultUrl)}
-                  className="text-[10px] text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Reset Default</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowEnvModal(true)}
+                    className="text-[10px] font-bold text-slate-300 hover:text-white px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Switch dynamic URL between Development (Vercel) and Production"
+                  >
+                    <Globe className="w-3 h-3 text-amber-400" />
+                    <span>{isProduction ? 'PROD (themutualpool.com)' : 'DEV (mutual-pool.vercel.app)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUrlChange(defaultUrl)}
+                    className="text-[10px] text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                </div>
               </div>
 
               <div className="relative">
@@ -391,6 +411,12 @@ export const SleeveQRGenerator: React.FC<SleeveQRGeneratorProps> = ({
         </div>
 
       </div>
+
+      {/* Dynamic Environment & Site URL Switcher Modal */}
+      <EnvironmentSwitcherModal
+        isOpen={showEnvModal}
+        onClose={() => setShowEnvModal(false)}
+      />
 
     </div>
   );

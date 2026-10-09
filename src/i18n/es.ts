@@ -1252,6 +1252,7 @@ export const es: Record<TranslationKey, string> = {
   'advertiser.frontView': 'Vista Frontal',
   'advertiser.backView': 'Vista Trasera',
   'advertiser.sleeveDetail': 'Detalle de Manga',
+  'advertiser.sleeveMockup': 'Maqueta de Manga',
   'advertiser.panel1Badge': 'Vista Frontal',
   'advertiser.panel1Title': 'Estampado Frontal y Emblema de Marca',
   'advertiser.panel1Desc': 'Tipografía de alto contraste: "FUELED BY HUSTLE. POWERED BY COMMUNITY." con co-branding de tu marca.',

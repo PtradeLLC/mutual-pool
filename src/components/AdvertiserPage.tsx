@@ -17,6 +17,7 @@ import {
 import { FourthwallGearStudio } from './FourthwallGearStudio';
 import { SleeveQRGenerator } from './SleeveQRGenerator';
 import { SleeveQRScannerModal } from './SleeveQRScannerModal';
+import { ApparelSleeveMockup } from './ApparelSleeveMockup';
 
 import promoFrontImg from '../assets/images/promo_hoodie_front_1786902471783.jpg';
 import promoBackImg from '../assets/images/promo_hoodie_back_1786902490265.jpg';
@@ -579,7 +580,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   const [courierCount, setCourierCount] = useState<number>(100);
   const [durationWeeks, setDurationWeeks] = useState<number>(4);
   const [selectedGear, setSelectedGear] = useState<string>('hoodie');
-  const [previewTab, setPreviewTab] = useState<'front' | 'back' | 'sleeve' | 'full'>('full');
+  const [previewTab, setPreviewTab] = useState<'front' | 'back' | 'sleeve' | 'full' | 'mockup'>('full');
   const [showFourthwallStudio, setShowFourthwallStudio] = useState<boolean>(false);
   const [showScannerModal, setShowScannerModal] = useState<boolean>(false);
 
@@ -931,6 +932,16 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       <QrCode className="w-3.5 h-3.5 text-amber-400" />
                       <span>{t('advertiser.sleeveDetail')}</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab('mockup')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        previewTab === 'mockup' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{t('advertiser.sleeveMockup')}</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -1023,14 +1034,25 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                         <div className="text-xs font-bold text-amber-400 uppercase tracking-wide">
                           {t('advertiser.panel3Title')}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowScannerModal(true)}
-                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
-                        >
-                          <Scan className="w-3 h-3" />
-                          <span>Scan</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTab('mockup')}
+                            className="px-2 py-0.5 rounded bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Open interactive 3D sleeve mockup"
+                          >
+                            <Sparkles className="w-3 h-3 text-slate-950" />
+                            <span>3D Mock-up</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowScannerModal(true)}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Scan className="w-3 h-3" />
+                            <span>Scan</span>
+                          </button>
+                        </div>
                       </div>
                       <p className="text-xs text-slate-200 font-medium">
                         {t('advertiser.panel3Desc')}
@@ -1065,10 +1087,47 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   <p className="text-xs text-slate-300 mt-1">{t('advertiser.backViewDetailDesc')}</p>
                 </div>
               </div>
-            ) : (
-              /* Sleeve Detail Tab: Split Layout with Sleeve Photo + Interactive QR Generator */
+            ) : previewTab === 'mockup' ? (
+              /* Dedicated Interactive Apparel Sleeve Mockup Visualization View */
               <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <ApparelSleeveMockup
+                  brandName={formData.brandName || 'MutualPool Fleet'}
+                  sleeveText="ADVERTISE WITH US"
+                  targetUrl={formData.websiteUrl || undefined}
+                  onOpenScanner={() => setShowScannerModal(true)}
+                />
+
+                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-white">Authentic Garment Photoshoot Reference</div>
+                      <div className="text-slate-400 text-[11px]">Compare this interactive mock-up against real-life courier production photos.</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('sleeve')}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span>View Real Sleeve Photoshoot</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Sleeve Detail Tab: Split Layout with Sleeve Photo + Interactive Mockup & Spec */
+              <div className="space-y-6">
+                <ApparelSleeveMockup
+                  brandName={formData.brandName || 'MutualPool Fleet'}
+                  sleeveText="ADVERTISE WITH US"
+                  targetUrl={formData.websiteUrl || undefined}
+                  onOpenScanner={() => setShowScannerModal(true)}
+                />
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pt-2">
                   <div className="lg:col-span-5 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-xl relative">
                     <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
                       <span className="px-3 py-1 rounded-md bg-black/80 backdrop-blur-md text-white font-mono font-bold text-xs tracking-wider border border-white/20 uppercase">

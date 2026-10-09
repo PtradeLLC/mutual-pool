@@ -9,6 +9,7 @@ import { AppStoreModal } from './AppStoreModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
+import { SiteUrlBadge } from './SiteUrlBadge';
 import { useTranslation } from '../i18n';
 import { useCountry } from '../context/CountryContext';
 import { 
@@ -1211,8 +1212,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <strong>{country.countryName} Market ({country.currency.code}):</strong> {country.regulations.regulatoryNotice}
             </span>
           </div>
-          <div className="shrink-0 text-gray-400">
-            Regulated under {country.regulations.regulatoryBody.split('/')[0].trim()}
+          <div className="shrink-0 flex items-center gap-3 text-gray-400">
+            <span>Regulated under {country.regulations.regulatoryBody.split('/')[0].trim()}</span>
+            <span>•</span>
+            <SiteUrlBadge variant="minimal" />
           </div>
         </div>
       </footer>

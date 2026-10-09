@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { getDb, COLLECTIONS, timestampToISO } from '../config/firebase';
 import { Timestamp } from 'firebase-admin/firestore';
+import { getSiteUrl } from '../utils/siteUrl';
 
 // Initialize Stripe lazily
 let stripeClient: Stripe | null = null;
@@ -103,7 +104,7 @@ export async function createConnectAccount(userId: string, email: string, displa
     },
     business_profile: {
       name: displayName,
-      url: 'https://gigmutual.app',
+      url: getSiteUrl(),
     },
     settings: {
       payouts: {
@@ -477,7 +478,7 @@ export async function createDepositPaymentIntent(
 // Create Connect Onboarding Link
 export async function createConnectOnboardingLink(accountId: string, returnUrl?: string): Promise<string> {
   const stripe = getStripe();
-  const baseUrl = returnUrl || process.env.APP_URL || 'https://gigmutual.app';
+  const baseUrl = returnUrl || getSiteUrl();
   try {
     const link = await stripe.accountLinks.create({
       account: accountId,

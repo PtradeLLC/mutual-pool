@@ -4,6 +4,8 @@ import { useCountry } from '../context/CountryContext';
 import { useToast } from '../context/ToastContext';
 import { SUPPORTED_COUNTRIES } from '../config/countries';
 import { FourthwallGearStudio } from './FourthwallGearStudio';
+import { SiteUrlBadge } from './SiteUrlBadge';
+import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
 import { 
   Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, 
   CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, 
@@ -43,6 +45,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
   const [loadingDesigns, setLoadingDesigns] = useState(false);
   const [approvingDesignId, setApprovingDesignId] = useState<string | null>(null);
   const [showGearStudio, setShowGearStudio] = useState(false);
+  const [showSiteUrlModal, setShowSiteUrlModal] = useState(false);
 
   const fetchGearDesigns = async () => {
     setLoadingDesigns(true);
@@ -349,6 +352,38 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* Dynamic Site URL & Deployment Environment Card */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#0B2545] border border-slate-700 rounded-xl p-5 shadow-sm text-white space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-amber-300 shrink-0">
+              <Globe className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-white">Dynamic Site URL & Deployment Resolver</span>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Dev &rarr; Prod
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Automatically resolves between Development (<code className="font-mono text-amber-300">mutual-pool.vercel.app</code>) and Production (<code className="font-mono text-emerald-300">themutualpool.com</code>)
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <SiteUrlBadge variant="pill" showModalOnClick={false} />
+            <button
+              type="button"
+              onClick={() => setShowSiteUrlModal(true)}
+              className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition-colors cursor-pointer"
+            >
+              Switch / Configure URL &rarr;
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Multi-Country Domain Architecture & Market Control Panel */}
@@ -895,6 +930,12 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Dynamic Environment & Site URL Switcher Modal */}
+      <EnvironmentSwitcherModal
+        isOpen={showSiteUrlModal}
+        onClose={() => setShowSiteUrlModal(false)}
+      />
 
     </div>
   );

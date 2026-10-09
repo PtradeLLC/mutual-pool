@@ -9,6 +9,7 @@ import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { useChat } from '../context/ChatContext';
 import { useTranslation, TranslationKey } from '../i18n';
 import { useToast } from '../context/ToastContext';
+import { getPodShareUrl } from '../utils/siteUrl';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
   Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare, Bot, Cpu,
@@ -56,13 +57,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
 
   const getPodDeepLink = () => {
-    if (typeof window === 'undefined') return `https://mutual-pool.vercel.app/?podId=${pod.id}`;
-    const url = new URL(window.location.origin);
-    url.searchParams.set('podId', pod.id);
-    if (pod.inviteCode && pod.podType === 'TRUSTED_CIRCLE') {
-      url.searchParams.set('inviteCode', pod.inviteCode);
-    }
-    return url.toString();
+    return getPodShareUrl(pod.id, pod.podType === 'TRUSTED_CIRCLE' ? pod.inviteCode : undefined);
   };
 
   const getShareMessage = () => {

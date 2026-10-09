@@ -1250,6 +1250,7 @@ export const en = {
   'advertiser.frontView': 'Front View',
   'advertiser.backView': 'Back View',
   'advertiser.sleeveDetail': 'Sleeve Detail',
+  'advertiser.sleeveMockup': 'Sleeve Mock-up',
   'advertiser.panel1Badge': 'Front View',
   'advertiser.panel1Title': 'Chest Print & Brand Emblem',
   'advertiser.panel1Desc': 'High-contrast typography: "FUELED BY HUSTLE. POWERED BY COMMUNITY." with Partner Co-Branding.',

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { InvitedContact, User } from '../types';
 import { useTranslation } from '../i18n/LanguageContext';
+import { getTrustedCircleInviteUrl } from '../utils/siteUrl';
 import { 
   Users, Lock, Plus, CheckCircle2, UserCheck, Mail, Phone, 
   Copy, Check, Sparkles, Smartphone, Share2, ShieldCheck,
@@ -80,8 +81,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
 
   const isNativeContactsSupported = typeof window !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window;
 
-  const refParam = currentUser ? `&ref=${currentUser.id}` : '';
-  const inviteLink = `https://mutualpool.org/join?code=${inviteCode}${refParam}`;
+  const inviteLink = getTrustedCircleInviteUrl(inviteCode, currentUser?.id);
 
   const handleCopy = () => {
     const text = `Hey! Join my private Trusted Circle savings pod "${podName}" on MutualPool. Use my invite code: ${inviteCode} or tap: ${inviteLink}`;

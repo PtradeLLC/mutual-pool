@@ -4,6 +4,8 @@ import { Logo } from './Logo';
 import { NotificationCenter } from './NotificationCenter';
 import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
+import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
+import { useSiteUrl } from '../utils/siteUrl';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
 import { 
@@ -65,6 +67,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showEnvModal, setShowEnvModal] = useState(false);
+  const { isProduction, siteUrl } = useSiteUrl();
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
 
@@ -525,6 +529,26 @@ export const Header: React.FC<HeaderProps> = ({
                         <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded text-blue-900 font-bold uppercase">{t('header.mediaKitBadge')}</span>
                       </button>
                     )}
+
+                    {/* Dynamic Site URL & Deployment Environment Controller */}
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        setShowEnvModal(true);
+                      }}
+                      className="w-full text-left p-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-between transition-colors border border-slate-200 cursor-pointer"
+                      title="Switch dynamic URL between Development (Vercel) and Production"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-[#005FB8]" />
+                        <span>Dynamic Site URL</span>
+                      </div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-black uppercase ${
+                        isProduction ? 'bg-blue-100 text-[#005FB8]' : 'bg-amber-100 text-amber-900'
+                      }`}>
+                        {isProduction ? 'PROD' : 'DEV (Vercel)'}
+                      </span>
+                    </button>
 
                     {onExitToLanding && (
                       <button
@@ -1186,6 +1210,12 @@ export const Header: React.FC<HeaderProps> = ({
           </aside>
         </div>
       )}
+
+      {/* Dynamic Environment & Site URL Switcher Modal */}
+      <EnvironmentSwitcherModal
+        isOpen={showEnvModal}
+        onClose={() => setShowEnvModal(false)}
+      />
     </header>
   );
 };
