@@ -1595,7 +1595,7 @@ export const en = {
   'hardship.errorJoinPod': 'Please join or select an active pod to request hardship coverage.',
   'hardship.errorGeneral': 'Failed to submit hardship request.',
   'hardship.tradePolicyTitle': 'Instant Spot Trading & Mutual Position Swap',
-  'hardship.tradePolicyDesc': 'Pod members can trade their payout schedule slots with any willing teammate in the order. No committee or admin review required — as long as both members mutually consent, position swaps execute instantly!',
+  'hardship.tradePolicyDesc': 'Pod members and creators can freely trade their payout schedule slots with any willing teammate. When a Pod Creator switches places for an early payout, the 3% weekly Host Stewardship Reward on all teammate payouts automatically transfers to whomever they switch spots with once approved and active!',
   'hardship.tradePolicyHighlight': 'No committee or admin review required',
   'hardship.selectPodTradeLabel': 'Select Pod to View & Trade Payout Positions',
   'hardship.noPodsTradeWarning': 'You have not joined any pods yet. Join a pod to view and trade rotation order slots.',

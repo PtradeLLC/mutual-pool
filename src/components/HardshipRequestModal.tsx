@@ -940,6 +940,32 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   })()}
                                 </div>
 
+                                {(() => {
+                                  const isCreatorSelf = selectedPod.createdBy === currentUser.id;
+                                  const isCreatorTarget = selectedPod.createdBy === (member.userId || member.id);
+                                  if (isCreatorSelf) {
+                                    return (
+                                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
+                                        <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                        <span>
+                                          <strong>Pod Creator Reward Transfer:</strong> As Pod Creator requesting an early payout slot, your <strong>3% weekly Host Stewardship Reward</strong> will automatically transfer to <strong>{memberName}</strong> once this swap is approved and executed.
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                  if (isCreatorTarget) {
+                                    return (
+                                      <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 text-[11px] text-emerald-900 flex items-start gap-2">
+                                        <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                        <span>
+                                          <strong>3% Creator Host Reward Perk:</strong> You are trading slots with the Pod Creator! If {memberName} accepts, you will receive the <strong>3% weekly Host Stewardship Reward</strong> on all teammate payouts for holding the final stewardship slot.
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+
                                 <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
                                   <button
                                     type="button"

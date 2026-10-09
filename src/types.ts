@@ -195,6 +195,8 @@ export interface Pod {
   creatorLastInRotation?: boolean;
   creatorHostRewardRate?: number; // 0.03 (3% of gross pool)
   creatorStewardshipEarningsUsd?: number;
+  hostRewardRecipientUserId?: string; // Current recipient of the 3% weekly payout stewardship reward (defaults to creator; transfers if creator switches spot)
+  hostRewardRecipientName?: string; // Name of the active 3% weekly reward beneficiary
 }
 
 export type HardshipRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID_OFF';

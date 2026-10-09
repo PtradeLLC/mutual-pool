@@ -1597,7 +1597,7 @@ export const fr: Record<TranslationKey, string> = {
   'hardship.errorJoinPod': 'Veuillez rejoindre ou sélectionner un groupe actif pour demander une couverture.',
   'hardship.errorGeneral': 'Échec de l\'envoi de la demande d\'aide.',
   'hardship.tradePolicyTitle': 'Échange Instantané de Places et Permutation Mutuelle',
-  'hardship.tradePolicyDesc': 'Les membres du groupe peuvent échanger leurs places de versement avec tout coéquipier consentant. Aucun examen de comité ni d\'administrateur requis — tant que les deux membres sont d\'accord, les échanges s\'exécutent instantanément !',
+  'hardship.tradePolicyDesc': 'Les membres et le créateur du groupe peuvent échanger librement leurs places de versement avec tout coéquipier consentant. Si le Créateur échange sa place pour un versement anticipé, la prime d\'hôte de 3 % sur tous les versements de l\'équipe sera automatiquement attribuée à la personne avec qui il échange une fois l\'accord validé et actif !',
   'hardship.tradePolicyHighlight': 'Aucun examen de comité ni d\'administrateur requis',
   'hardship.selectPodTradeLabel': 'Sélectionner un Groupe pour Voir et Échanger les Places',
   'hardship.noPodsTradeWarning': 'Vous n\'avez encore rejoint aucun groupe. Rejoignez un groupe pour voir et échanger les places de rotation.',

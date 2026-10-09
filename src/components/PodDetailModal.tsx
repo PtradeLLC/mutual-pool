@@ -1151,6 +1151,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               const isCurrentTurn = pod.status === 'ACTIVE' && member.rotationIndex === currentRecipientIndex;
               const isCurrentUserMember = member.userId === currentUser.id;
               const isPodCreator = member.userId === pod.createdBy;
+              const activeHostRewardUserId = pod.hostRewardRecipientUserId || pod.createdBy;
+              const isHostRewardBeneficiary = member.userId === activeHostRewardUserId;
+              const isTransferredBeneficiary = isHostRewardBeneficiary && !isPodCreator;
 
               return (
                 <div
@@ -1182,7 +1185,20 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                         {isPodCreator && (
                           <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200 flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-purple-700" />
-                            <span>POD CREATOR (Final Rotation • 3% Host Reward: +${(pod.creatorStewardshipEarningsUsd || 0).toFixed(2)})</span>
+                            <span>
+                              POD CREATOR
+                              {isHostRewardBeneficiary
+                                ? ` (3% Host Reward: +$${(pod.creatorStewardshipEarningsUsd || 0).toFixed(2)})`
+                                : ' (Swapped Spot • 3% Reward Transferred)'}
+                            </span>
+                          </span>
+                        )}
+                        {isTransferredBeneficiary && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-emerald-600" />
+                            <span>
+                              3% HOST REWARD BENEFICIARY (+${(pod.creatorStewardshipEarningsUsd || 0).toFixed(2)})
+                            </span>
                           </span>
                         )}
                         {isCurrentUserMember && (
@@ -1397,7 +1413,12 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   ) : (
                     <div className="text-[10px] text-gray-600 font-sans pl-2 border-l-2 border-emerald-400 space-y-0.5">
                       <div className="text-emerald-700 font-semibold">
-                        🎉 <strong>+${(currentActivePool * 0.03).toFixed(2)} (3%)</strong> Host Stewardship Reward to Creator ({pod.creatorName})
+                        🎉 <strong>+${(currentActivePool * 0.03).toFixed(2)} (3%)</strong> Host Stewardship Reward to {pod.hostRewardRecipientName || pod.creatorName}
+                        {pod.hostRewardRecipientUserId && pod.hostRewardRecipientUserId !== pod.createdBy && (
+                          <span className="text-[10px] text-emerald-800 font-normal ml-1">
+                            (Transferred via Creator spot swap)
+                          </span>
+                        )}
                       </div>
                       <div className="text-gray-500">
                         🏛️ <strong>-${(currentActivePool * 0.07).toFixed(2)} (7%)</strong> Platform Treasury & Network Reserves
@@ -1533,6 +1554,21 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <p className="text-[#6B7280]">
                   Swap rotation queue positions with another consenting pod member. Both positions will update instantly and be recorded in the audit log.
                 </p>
+                {pod.createdBy === currentUser.id ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Pod Creator Policy:</strong> As pod creator, you are entitled to switch spots with any member for an early payout. When you switch spots, the <strong>3% weekly Host Stewardship Reward</strong> on all teammate payouts will be transferred to whomever you switch spots with.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-[11px] text-[#005FB8] flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Creator Spot Swap Perk:</strong> If you trade spots with the Pod Creator ({pod.creatorName}), the Creator's <strong>3% weekly Host Stewardship Reward</strong> will automatically transfer to you once the swap is approved and active!
+                    </span>
+                  </div>
+                )}
 
                 <form onSubmit={handleSwap} className="flex items-center gap-2">
                   <select

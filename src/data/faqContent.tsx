@@ -254,6 +254,29 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         )
       },
       {
+        id: 'faq_creator_swap_policy',
+        category: 'CREATOR_REWARDS',
+        question: '¿Puede el Creador del Grupo intercambiar su turno para cobrar antes? ¿Qué pasa con el 3% semanal?',
+        tags: ['creador', 'intercambio turno', 'adelantar cobro', 'recompensa 3%', 'transferencia 3%', 'swap', 'anfitrion'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              <strong>¡Sí, totalmente!</strong> El Creador del pod puede intercambiar puestos en la rotación libremente con cualquier compañero (igual que cualquier otro miembro), por ejemplo si tiene una avería urgente del vehículo o un gasto imprevisto.
+            </p>
+            <p>
+              Sin embargo, debido a que el <strong>corte semanal del 3% sobre todos los cobros de compañeros</strong> se otorga como compensación por asumir el riesgo y la responsabilidad de ocupar el último puesto de la rotación:
+            </p>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium space-y-1">
+              <div>⚖️ <strong>Regla de Transferencia del 3% Semanal:</strong></div>
+              <div>El corte del 3% semanal en los cobros de los compañeros <strong>se otorgará a la persona con quien el Creador intercambie el turno</strong> una vez que el intercambio sea aprobado y quede activo.</div>
+            </div>
+            <p className="text-[11px] text-slate-600">
+              <strong>Ejemplo Práctico:</strong> Si el Creador solicita adelantar su cobro intercambiando lugar con el 'Miembro X' (el Creador pasa al Turno #3 y el 'Miembro X' pasa al último Turno #20), el 3% semanal de compensación ($12.00 por desembolso en un grupo de $400) se pagará automáticamente al 'Miembro X' por ocupar la posición final.
+            </p>
+          </div>
+        )
+      },
+      {
         id: 'faq_invite_expiration_flexible',
         category: 'CREATOR_REWARDS',
         question: '¿Qué ocurre si un grupo no se llena antes de que expire la ventana de invitación?',
@@ -450,16 +473,19 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       {
         id: 'faq_slot_swap',
         category: 'SECURITY_FDIC',
-        question: '¿Puedo intercambiar mi turno de cobro en caso de una emergencia?',
-        tags: ['intercambio', 'cambio turno', 'emergencia', 'orden rotacion', 'swap'],
+        question: '¿Pueden los miembros intercambiar turnos para cobrar antes? ¿Aplica también al Creador?',
+        tags: ['intercambio', 'cambio turno', 'adelantar cobro', 'creador swap', 'emergencia', 'orden rotacion', 'swap'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              <strong>¡Sí!</strong> Si necesitas adelantar tu cobro por un imprevisto (como cambio de neumáticos o reparación mecánica), puedes enviar una <strong>Solicitud de Intercambio de Turno</strong> a otro compañero de tu grupo.
+              <strong>¡Sí, confirmado!</strong> Los miembros de un grupo pueden intercambiar puestos de rotación para recibir un cobro anticipado (por ejemplo, si te toca cobrar semanas después pero necesitas adelantar tu pago para la próxima semana por una reparación urgente).
             </p>
             <p>
-              En cuanto el otro miembro acepte la solicitud en su aplicación, las posiciones de cobro se intercambian automáticamente sin trámites manuales.
+              <strong>¿El Creador también puede intercambiar turnos?</strong> ¡Sí! El Creador puede intercambiar posiciones como cualquier otro participante. Sin embargo, el <strong>corte semanal del 3% sobre todos los cobros de compañeros se transferirá automáticamente a la persona con quien intercambie el turno</strong> una vez aprobado el cambio.
             </p>
+            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
+              🤝 <strong>Aprobación Mutua y Registro Seguro:</strong> Cuando la contraparte acepta la propuesta en su app, las posiciones se actualizan instantáneamente y la transacción queda sellada en el registro de auditoría.
+            </div>
           </div>
         )
       },
@@ -622,6 +648,29 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             </div>
             <p className="text-[11px] text-slate-600">
               Sur 19 versements de coéquipiers, le Créateur accumule <strong>228,00 $ de primes</strong> versées directement sur son compte Stripe Treasury !
+            </p>
+          </div>
+        )
+      },
+      {
+        id: 'faq_creator_swap_policy',
+        category: 'CREATOR_REWARDS',
+        question: 'Le Créateur du groupe peut-il échanger sa place pour un versement anticipé ? Qu\'advient-il des 3 % ?',
+        tags: ['createur', 'echange place', 'versement anticipe', 'prime 3%', 'transfert 3%', 'swap', 'hote'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              <strong>Oui, absolument !</strong> Le Créateur du groupe peut librement échanger son rang dans la rotation avec n'importe quel coéquipier (exactement comme tout autre membre), par exemple en cas de réparation urgente de véhicule ou d'imprévu financier.
+            </p>
+            <p>
+              Cependant, comme la <strong>prime hebdomadaire de 3 % sur tous les versements des coéquipiers</strong> rémunère l'engagement d'occuper la dernière place de la rotation :
+            </p>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium space-y-1">
+              <div>⚖️ <strong>Règle de Transfert des 3 % Hebdomadaires :</strong></div>
+              <div>La prime de 3 % sur les versements des coéquipiers <strong>sera attribuée au membre avec lequel le Créateur a échangé sa place</strong> dès que l'échange est validé et actif.</div>
+            </div>
+            <p className="text-[11px] text-slate-600">
+              <strong>Exemple Pratique :</strong> Si le Créateur demande à avancer son versement au Tour n°3 et échange avec le « Membre X » (qui récupère la dernière place au Tour n°20), la prime de 3 % (12,00 $/versement sur un pot de 400 $) sera versée au Membre X pour tous les versements ultérieurs.
             </p>
           </div>
         )
@@ -823,16 +872,19 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       {
         id: 'faq_slot_swap',
         category: 'SECURITY_FDIC',
-        question: 'Puis-je échanger ma place dans la rotation en cas d\'urgence ?',
-        tags: ['echange', 'creneau', 'urgence', 'ordre rotation', 'swap'],
+        question: 'Les membres peuvent-ils échanger leur place dans la rotation pour un versement anticipé ? Est-ce aussi valable pour le Créateur ?',
+        tags: ['echange', 'creneau', 'versement anticipe', 'createur swap', 'urgence', 'ordre rotation', 'swap'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              <strong>Oui !</strong> Si vous avez besoin d'encaisser votre cagnotte plus tôt pour faire face à une dépense imprévue (changement de pneus, réparation mécanique), vous pouvez envoyer une <strong>Demande d'Échange de Créneau</strong> à un autre membre de votre groupe.
+              <strong>Oui, tout à fait !</strong> Les membres d'un groupe peuvent échanger leurs places dans le calendrier de rotation pour recevoir une cagnotte anticipée (par exemple pour parer à une dépense imprévue ou une réparation de véhicule).
             </p>
             <p>
-              Dès que ce dernier accepte la demande dans son application, vos rangs s'échangent instantanément et sans aucune démarche administrative fastidieuse.
+              <strong>Le Créateur peut-il aussi échanger sa place ?</strong> Oui ! Le Créateur peut échanger sa place selon ses besoins comme tout autre membre. Toutefois, la <strong>prime hebdomadaire de 3 % sur tous les versements des coéquipiers sera transférée au membre avec lequel le Créateur a échangé sa place</strong> dès l'activation de l'échange.
             </p>
+            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
+              🤝 <strong>Validation Mutuelle & Audit Inaltérable :</strong> Dès validation par les deux parties, les rangs s'inversent immédiatement et l'opération est inscrite dans le journal d'audit de sécurité.
+            </div>
           </div>
         )
       },
@@ -995,6 +1047,29 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
           </div>
           <p className="text-[11px] text-slate-600">
             Over 19 teammate payouts, the Creator earns <strong>$228.00 in cumulative host rewards</strong> credited directly to their Stripe Treasury balance!
+          </p>
+        </div>
+      )
+    },
+    {
+      id: 'faq_creator_swap_policy',
+      category: 'CREATOR_REWARDS',
+      question: 'Can the Pod Creator switch places for an early payout? What happens to the 3% cut?',
+      tags: ['creator', 'swap spot', 'early payout', 'switch places', '3% cut', 'host reward', 'transfer cut', 'stewardship'],
+      answer: (
+        <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+          <p>
+            <strong>Yes, absolutely!</strong> The Pod Creator can switch places with any teammate just like any other pod member (for instance, if the Creator encounters an unexpected mechanical breakdown or urgent expense and needs an early payout).
+          </p>
+          <p>
+            However, because the <strong>3% weekly stewardship cut on teammate payouts</strong> is compensation for holding the final payout position and maintaining skin-in-the-game:
+          </p>
+          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium space-y-1">
+            <div>⚖️ <strong>3% Stewardship Transfer Policy:</strong></div>
+            <div>The 3% weekly cut on all teammate payouts <strong>will be given to whomever the Creator switches spots with</strong> once the switch is approved and active.</div>
+          </div>
+          <p className="text-[11px] text-slate-600">
+            <strong>Example:</strong> If the Creator asks to switch places for an early payout with 'Member X' (e.g. Creator moves from Week 20 to Week 3, and Member X moves to the final Week 20 slot), the 3% weekly cut ($12.00/payout in a $400 pod) will be paid directly to Member X for taking on the final payout slot!
           </p>
         </div>
       )
@@ -1196,16 +1271,19 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
     {
       id: 'faq_slot_swap',
       category: 'SECURITY_FDIC',
-      question: 'Can I swap my rotation payout spot if I have an emergency?',
-      tags: ['swap', 'reprioritize', 'trade slot', 'emergency', 'rotation order', 'peer swap'],
+      question: 'Can members of a pod switch places for an early payout? Can the Pod Creator switch too?',
+      tags: ['swap', 'reprioritize', 'trade slot', 'early payout', 'creator swap', 'emergency', 'rotation order', 'peer swap'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            <strong>Yes!</strong> If you need an earlier payout for an unexpected expense (such as a tire replacement or transmission repair), you can send a <strong>Peer Rotation Swap Request</strong> to another member in your pod.
+            <strong>Yes!</strong> Any member who needs an earlier payout for an unexpected expense (such as vehicle repairs or medical bills) can send a <strong>Spot Trade Proposal</strong> to another member in their pod.
           </p>
           <p>
-            Once the other member accepts the swap request in their app, your rotation positions trade automatically with zero manual paperwork.
+            <strong>Can the Creator switch places too?</strong> Yes! The Creator can switch places as they please just like any other member. However, the <strong>3% weekly cut on all teammate payouts will be given to whomever the Creator switches spots with</strong> once the switch is approved and active.
           </p>
+          <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
+            🤝 <strong>Mutual Consent & Instant Realignment:</strong> Once both members consent in the app, queue positions trade atomically, the payout schedule updates across the pod, and an audit trail entry is permanently logged.
+          </div>
         </div>
       )
     },

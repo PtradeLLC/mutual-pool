@@ -2842,38 +2842,62 @@ app.use((req, res, next) => {
       const netPayoutAmount = grossPayoutAmount - totalPayoutFee;
 
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
-      const creatorUser = users.find(u => u.id === pod.createdBy);
-      const isCreatorActiveInPod = pod.members.some(m => m.userId === pod.createdBy);
+      // Identify active 3% weekly reward beneficiary (defaults to creator; transfers if creator switches spot)
+      const activeRewardRecipientUserId = pod.hostRewardRecipientUserId || pod.createdBy;
+      const hostRewardUser = users.find(u => u.id === activeRewardRecipientUserId);
+      const isBeneficiaryActiveInPod = pod.members.some(m => m.userId === activeRewardRecipientUserId);
+      const isTransferredFromCreator = Boolean(pod.hostRewardRecipientUserId && pod.hostRewardRecipientUserId !== pod.createdBy);
 
       let creatorHostReward = 0;
       let platformFeeRetained = totalPayoutFee;
 
-      if (!isAutonomousAI && creatorUser && isCreatorActiveInPod) {
+      if (!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod) {
         creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100; // 3% of gross pool
         platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100; // 7% retained by platform
         
-        // Credit Creator Treasury with 3% host stewardship reward
-        creatorUser.treasury.balanceUsd += creatorHostReward;
-        creatorUser.treasury.totalPayoutsReceivedUsd += creatorHostReward;
+        // Defensive check: ensure beneficiary treasury exists
+        if (!hostRewardUser.treasury) {
+          hostRewardUser.treasury = {
+            stripeAccountId: '',
+            stripeFinAccountId: '',
+            balanceUsd: 0,
+            pendingInboundUsd: 0,
+            totalPayoutsReceivedUsd: 0,
+            fdicPassThroughEligible: true,
+            status: 'ACTIVE',
+          };
+        }
+
+        // Credit Active Host/Spot Beneficiary Treasury with 3% host stewardship reward
+        hostRewardUser.treasury.balanceUsd += creatorHostReward;
+        hostRewardUser.treasury.totalPayoutsReceivedUsd += creatorHostReward;
         pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
 
-        // Notify Creator of Host Reward disbursement
+        // Notify Beneficiary of Host Reward disbursement
+        const rewardTitle = isTransferredFromCreator
+          ? '🎉 3% Weekly Spot Stewardship Reward Disbursed'
+          : '🎉 3% Host Stewardship Reward Disbursed';
+        const rewardMsg = isTransferredFromCreator
+          ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" (Week ${pod.currentCycleWeek} payout)! Funds added to your Stripe Treasury.`
+          : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your Stripe Treasury.`;
+
         createNotification({
-          userId: creatorUser.id,
+          userId: hostRewardUser.id,
           type: 'PAYOUT_RECEIVED',
-          title: '🎉 3% Host Stewardship Reward Disbursed',
-          message: `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your Stripe Treasury.`,
+          title: rewardTitle,
+          message: rewardMsg,
           podId: pod.id,
         });
 
         addAuditLog(
           pod.id,
-          creatorUser.id,
-          creatorUser.displayName,
+          hostRewardUser.id,
+          hostRewardUser.displayName,
           'CREATOR_HOST_REWARD_DISBURSED',
-          `🎉 Disbursed 3% Host Stewardship Reward ($${creatorHostReward.toFixed(2)}) to Pod Creator ${creatorUser.displayName} for Week ${pod.currentCycleWeek} payout. Remaining 7% ($${platformFeeRetained.toFixed(2)}) retained for Platform Treasury.`,
+          `🎉 Disbursed 3% Host Stewardship Reward ($${creatorHostReward.toFixed(2)}) to ${isTransferredFromCreator ? 'Spot Beneficiary (Transferred via Creator Swap)' : 'Pod Creator'} ${hostRewardUser.displayName} for Week ${pod.currentCycleWeek} payout. Remaining 7% ($${platformFeeRetained.toFixed(2)}) retained for Platform Treasury.`,
           { 
-            creatorUserId: creatorUser.id, 
+            recipientUserId: hostRewardUser.id,
+            isTransferredFromCreator,
             creatorHostReward, 
             platformFeeRetained, 
             grossPayoutAmount, 
@@ -3349,18 +3373,20 @@ app.use((req, res, next) => {
       const netPayoutAmount = Math.max(0, grossPayoutAmount - totalPayoutFee);
 
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
-      const creatorUser = users.find(u => u && u.id === pod.createdBy);
-      const isCreatorActiveInPod = pod.members.some(m => m && m.userId === pod.createdBy);
+      const activeRewardRecipientUserId = pod.hostRewardRecipientUserId || pod.createdBy;
+      const hostRewardUser = users.find(u => u && u.id === activeRewardRecipientUserId);
+      const isBeneficiaryActiveInPod = pod.members.some(m => m && m.userId === activeRewardRecipientUserId);
+      const isTransferredFromCreator = Boolean(pod.hostRewardRecipientUserId && pod.hostRewardRecipientUserId !== pod.createdBy);
 
       let creatorHostReward = 0;
       let platformFeeRetained = totalPayoutFee;
 
-      if (!isAutonomousAI && creatorUser && isCreatorActiveInPod) {
+      if (!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod) {
         creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100;
         platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100;
 
-        if (!creatorUser.treasury) {
-          creatorUser.treasury = {
+        if (!hostRewardUser.treasury) {
+          hostRewardUser.treasury = {
             stripeAccountId: '',
             stripeFinAccountId: '',
             balanceUsd: 0,
@@ -3370,16 +3396,23 @@ app.use((req, res, next) => {
             status: 'ACTIVE',
           };
         }
-        creatorUser.treasury.balanceUsd = (creatorUser.treasury.balanceUsd || 0) + creatorHostReward;
-        creatorUser.treasury.totalPayoutsReceivedUsd = (creatorUser.treasury.totalPayoutsReceivedUsd || 0) + creatorHostReward;
+        hostRewardUser.treasury.balanceUsd = (hostRewardUser.treasury.balanceUsd || 0) + creatorHostReward;
+        hostRewardUser.treasury.totalPayoutsReceivedUsd = (hostRewardUser.treasury.totalPayoutsReceivedUsd || 0) + creatorHostReward;
         pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
 
         try {
+          const rewardTitle = isTransferredFromCreator
+            ? '🎉 Friday 3% Spot Stewardship Reward Disbursed'
+            : '🎉 Friday 3% Host Stewardship Reward Disbursed';
+          const rewardMsg = isTransferredFromCreator
+            ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your Stripe Treasury.`
+            : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your Stripe Treasury.`;
+
           createNotification({
-            userId: creatorUser.id,
+            userId: hostRewardUser.id,
             type: 'PAYOUT_RECEIVED',
-            title: '🎉 Friday 3% Host Stewardship Reward Disbursed',
-            message: `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your Stripe Treasury.`,
+            title: rewardTitle,
+            message: rewardMsg,
             podId: pod.id,
           });
         } catch (notifErr) {
@@ -4533,6 +4566,18 @@ Return ONLY a valid JSON object in this exact schema:
     }
     saveSwapRequestsToDisk();
 
+    const isCreatorInvolved = (pod.createdBy && (user.id === pod.createdBy || targetUserIdToNotify === pod.createdBy));
+    const creatorMemberInPod = pod.members.find(m => m.userId === pod.createdBy);
+    const creatorSlot = (creatorMemberInPod?.rotationIndex ?? (pod.members.length - 1)) + 1;
+    let creatorNoteSuffix = '';
+    if (isCreatorInvolved) {
+      if (user.id === pod.createdBy) {
+        creatorNoteSuffix = ` 🌟 Notice: As Pod Creator requesting to switch spots, your 3% weekly Host Stewardship Reward on all teammate payouts will automatically transfer to ${targetMember.displayName} upon execution.`;
+      } else {
+        creatorNoteSuffix = ` 🌟 Notice: You are trading spots with Pod Creator ${user.displayName}. If accepted, the Creator's 3% weekly Host Stewardship Reward on all teammate payouts will transfer to YOU!`;
+      }
+    }
+
     const notification = createNotification({
       userId: targetUserIdToNotify,
       senderUserId: user.id,
@@ -4541,7 +4586,7 @@ Return ONLY a valid JSON object in this exact schema:
       podName: pod.name,
       type: 'SWAP_REQUESTED',
       title: 'Spot Trade Request Received',
-      message: `${user.displayName} (Slot #${(senderMember?.rotationIndex ?? 0) + 1}) sent you a spot trade request for Slot #${(targetMember.rotationIndex ?? 0) + 1} in "${pod.name}". Please accept or decline to confirm.`,
+      message: `${user.displayName} (Slot #${(senderMember?.rotationIndex ?? 0) + 1}) sent you a spot trade request for Slot #${(targetMember.rotationIndex ?? 0) + 1} in "${pod.name}". Please accept or decline to confirm.${creatorNoteSuffix}`,
       metadata: {
         requestId: swapReq.id,
         swapRequestId: swapReq.id,
@@ -4554,6 +4599,7 @@ Return ONLY a valid JSON object in this exact schema:
         targetMemberUserId: targetMember.userId,
         targetName: targetMember.displayName,
         targetEmail: targetMember.email || (matchedTargetUser ? matchedTargetUser.email : undefined),
+        isCreatorInvolved,
       }
     });
 
@@ -4682,22 +4728,64 @@ Return ONLY a valid JSON object in this exact schema:
     const tempIndex = member1.rotationIndex;
     member1.rotationIndex = member2.rotationIndex;
     member2.rotationIndex = tempIndex;
+
+    // Check if the Pod Creator is one of the members switching spots
+    let hostRewardTransferred = false;
+    let oldRewardRecipientId = pod.hostRewardRecipientUserId || pod.createdBy;
+    let newRewardRecipientId = oldRewardRecipientId;
+    let newRewardRecipientName = pod.hostRewardRecipientName || pod.creatorName;
+
+    if (pod.createdBy) {
+      const isMember1Creator = member1.userId === pod.createdBy || (user.id === pod.createdBy && (member1.userId === user.id || member1.id === user.id));
+      const isMember2Creator = member2.userId === pod.createdBy || (targetId === pod.createdBy);
+
+      if (isMember1Creator) {
+        // Creator switched spots with Member 2 -> Member 2 now gets the 3% weekly payout cut
+        pod.hostRewardRecipientUserId = member2.userId || member2.id;
+        pod.hostRewardRecipientName = member2.displayName;
+        newRewardRecipientId = pod.hostRewardRecipientUserId;
+        newRewardRecipientName = member2.displayName;
+        hostRewardTransferred = true;
+      } else if (isMember2Creator) {
+        // Creator was Member 2 and switched with Member 1 -> Member 1 gets the 3% weekly payout cut
+        pod.hostRewardRecipientUserId = member1.userId || member1.id;
+        pod.hostRewardRecipientName = member1.displayName;
+        newRewardRecipientId = pod.hostRewardRecipientUserId;
+        newRewardRecipientName = member1.displayName;
+        hostRewardTransferred = true;
+      }
+    }
+
     savePodsToDisk();
 
     validRequest.status = 'EXECUTED';
     validRequest.updatedAt = new Date().toISOString();
     saveSwapRequestsToDisk();
 
+    const auditMessage = hostRewardTransferred
+      ? `Voluntary rotation slot swap executed between ${member1.displayName} (now #${member1.rotationIndex + 1}) and ${member2.displayName} (now #${member2.rotationIndex + 1}) following mutual confirmation. 🌟 Pod Creator switched places: 3% weekly Host Stewardship Reward on all teammate payouts successfully transferred to ${newRewardRecipientName}.`
+      : `Voluntary rotation slot swap executed between ${member1.displayName} (now #${member1.rotationIndex + 1}) and ${member2.displayName} (now #${member2.rotationIndex + 1}) following mutual confirmation.`;
+
     addAuditLog(
       pod.id,
       user.id,
       user.displayName,
       'SLOT_SWAP_EXECUTED',
-      `Voluntary rotation slot swap executed between ${member1.displayName} (now #${member1.rotationIndex + 1}) and ${member2.displayName} (now #${member2.rotationIndex + 1}) following mutual confirmation.`,
-      { member1Id: member1.userId || member1.id, member2Id: member2.userId || member2.id }
+      auditMessage,
+      { 
+        member1Id: member1.userId || member1.id, 
+        member2Id: member2.userId || member2.id,
+        hostRewardTransferred,
+        hostRewardRecipientUserId: pod.hostRewardRecipientUserId,
+        hostRewardRecipientName: pod.hostRewardRecipientName,
+      }
     );
 
     // Notify target member
+    const targetRewardExtraMsg = (hostRewardTransferred && newRewardRecipientId === (member2.userId || member2.id))
+      ? ` 🌟 As part of this spot swap with the Pod Creator, you are now the active beneficiary of the 3% weekly Host Stewardship Reward on all teammate payouts!`
+      : '';
+
     createNotification({
       userId: member2.userId || member2.id,
       senderUserId: user.id,
@@ -4706,17 +4794,25 @@ Return ONLY a valid JSON object in this exact schema:
       podName: pod.name,
       type: 'SWAP_EXECUTED',
       title: 'Spot Swap Executed!',
-      message: `${user.displayName} executed the mutual spot swap with you in "${pod.name}". You are now assigned to Slot #${member2.rotationIndex + 1} (Week ${member2.rotationIndex + 1}).`,
+      message: `${user.displayName} executed the mutual spot swap with you in "${pod.name}". You are now assigned to Slot #${member2.rotationIndex + 1} (Week ${member2.rotationIndex + 1}).${targetRewardExtraMsg}`,
       metadata: {
         podId: pod.id,
         podName: pod.name,
         targetUserId: member2.userId || member2.id,
         targetName: member2.displayName,
         targetEmail: member2.email,
+        hostRewardTransferred,
+        newRewardRecipientId,
       }
     });
 
     // Notify initiator
+    const initiatorRewardExtraMsg = (hostRewardTransferred && newRewardRecipientId === (member1.userId || member1.id))
+      ? ` 🌟 As part of this spot swap with the Pod Creator, you are now the active beneficiary of the 3% weekly Host Stewardship Reward on all teammate payouts!`
+      : (hostRewardTransferred && user.id === pod.createdBy)
+      ? ` 🌟 Notice: You traded spots for an early payout. Your 3% weekly Host Stewardship Reward has been transferred to ${member2.displayName}.`
+      : '';
+
     createNotification({
       userId: member1.userId || member1.id,
       senderUserId: member2.userId || member2.id,
@@ -4725,13 +4821,15 @@ Return ONLY a valid JSON object in this exact schema:
       podName: pod.name,
       type: 'SWAP_EXECUTED',
       title: 'Spot Swap Completed',
-      message: `You successfully completed the spot swap with ${member2.displayName} in "${pod.name}". You are now assigned to Slot #${member1.rotationIndex + 1} (Week ${member1.rotationIndex + 1}).`,
+      message: `You successfully completed the spot swap with ${member2.displayName} in "${pod.name}". You are now assigned to Slot #${member1.rotationIndex + 1} (Week ${member1.rotationIndex + 1}).${initiatorRewardExtraMsg}`,
       metadata: {
         podId: pod.id,
         podName: pod.name,
         targetUserId: member1.userId || member1.id,
         targetName: member1.displayName,
         targetEmail: member1.email,
+        hostRewardTransferred,
+        newRewardRecipientId,
       }
     });
 
@@ -5925,6 +6023,44 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         };
       }
 
+      // 1.5 Creator Payout Spot Swapping & 3% Cut Transfer Policy
+      const isCreatorSwap = (q.includes('creator') || q.includes('creador') || q.includes('créateur') || q.includes('host') || q.includes('anfitrión') || q.includes('hôte')) &&
+        (q.includes('swap') || q.includes('switch') || q.includes('trade') || q.includes('spot') || q.includes('cambi') || q.includes('échang') || q.includes('early payout') || q.includes('adelant') || q.includes('cut') || q.includes('lugar') || q.includes('place'));
+
+      if (isCreatorSwap) {
+        if (isEs) {
+          return {
+            spokenText: "El Creador del grupo puede intercambiar su puesto para cobrar antes como cualquier miembro. Sin embargo, el corte del 3% semanal sobre los cobros de compañeros se transferirá a la persona con quien intercambie el turno.",
+            displayText: "🔄 Intercambio de Puestos del Creador y Transferencia del 3%\n\n• Flexibilidad Total: El Creador del grupo puede intercambiar turnos con cualquier compañero (igual que cualquier miembro) para recibir un cobro anticipado por emergencias.\n• Transferencia del Corte del 3%: El corte del 3% semanal sobre los cobros de compañeros que recibía el Creador por ser el último se otorgará a quien intercambie el lugar una vez aprobado y activo el cambio.\n• Ejemplo: Si el Creador intercambia lugares con el 'Miembro X' para un cobro anticipado, el Miembro X pasa a la posición final y recibe el 3% semanal en cada cobro siguiente.",
+            suggestedActions: [
+              { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" },
+              { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Le Créateur peut échanger sa place pour un versement anticipé. Toutefois, la prime hebdomadaire de 3 % sur les versements des coéquipiers sera attribuée au membre avec lequel il échange sa place dès l'activation.",
+            displayText: "🔄 Échange de Place du Créateur & Transfert des 3 %\n\n• Liberté Totale : Le Créateur peut échanger sa place avec un coéquipier (comme tout autre membre) pour obtenir un versement anticipé en cas d'urgence.\n• Transfert de la Prime de 3 % : La prime hebdomadaire de 3 % sur tous les versements des coéquipiers est transmise au membre qui prend sa place finale dès validation de l'échange.\n• Exemple : Si le Créateur échange avec le Membre X pour un versement anticipé, le Membre X prend la place finale et perçoit les 3 % hebdomadaires.",
+            suggestedActions: [
+              { label: "Voir Mes Groupes", action: "NAVIGATE_TAB", tab: "my-pods" },
+              { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        return {
+          spokenText: "The Pod Creator can switch places as they please for an early payout. However, the 3% weekly cut on all teammate payouts will be given to whomever they switch spots with once the switch is approved and active.",
+          displayText: "🔄 Creator Spot Switch & 3% Cut Transfer Policy\n\n• Full Flexibility to Switch: The Pod Creator can switch places as they please (just like any other member) for an early payout.\n• 3% Weekly Cut Transfers: The 3% weekly cut on all teammate payouts that the Creator gets for being last is transferred to whomever they switch spots with once approved and active.\n• Example: If the Creator asks to switch places for an early payout with 'Member X', Member X takes the later/final position and receives the 3% weekly cut going forward.",
+          suggestedActions: [
+            { label: "View My Pods", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      }
+
       // 2. Creator Host Stewardship Reward (3%) & Skin in the Game
       if (q.includes('host') || q.includes('creator') || q.includes('skin in the game') || q.includes('3%') || q.includes('last slot') || q.includes('final slot') || q.includes('anfitrión') || q.includes('creador') || q.includes('recompensa') || q.includes('último turno') || q.includes('hôte') || q.includes('créateur') || q.includes('récompense')) {
         if (isEs) {
@@ -6142,32 +6278,32 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       if (q.includes('swap') || q.includes('spot') || q.includes('trade') || q.includes('turn') || q.includes('turno') || q.includes('intercamb') || q.includes('tour') || q.includes('échange')) {
         if (isEs) {
           return {
-            spokenText: "Para intercambiar tu turno de cobro, abre los detalles de tu grupo activo, ve a la pestaña Rotación y pulsa Solicitar Intercambio junto a cualquier miembro. Ambos deben aceptar para confirmar.",
-            displayText: "🔄 Cómo Funcionan los Intercambios de Turno\n\n1. Ve a Mis Grupos y abre tu grupo activo.\n2. Navega a la pestaña Rotación.\n3. Haz clic en 'Solicitar Intercambio' junto al turno de otro compañero.\n4. Cuando el otro miembro acepte, el calendario se actualiza automáticamente sin penalizaciones.",
+            spokenText: "Los miembros pueden intercambiar turnos para cobrar antes. El Creador del grupo también puede cambiar su puesto, transfiriendo su corte semanal del 3% a su compañero de intercambio.",
+            displayText: "🔄 Intercambios de Turno de Cobro y Regla del Creador\n\n1. Solicitud entre Pares: En la pestaña Rotación de tu grupo, pulsa 'Solicitar Intercambio' junto a cualquier compañero.\n2. Aprobación Mutua: Cuando el otro miembro acepte, los turnos se intercambian al instante y sin penalizaciones.\n3. Regla del Creador: El Creador puede intercambiar su puesto para un cobro anticipado; en ese caso, el corte semanal del 3% sobre los cobros de compañeros se transferirá automáticamente a quien tome su lugar.",
             suggestedActions: [
               { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" },
-              { label: "¿Cómo funciona la rotación fija?", action: "SPEAK_EXPLANATION", prompt: "¿Cómo funciona la rotación fija?" }
+              { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" }
             ],
             navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
           };
         }
         if (isFr) {
           return {
-            spokenText: "Pour échanger votre tour de versement, ouvrez votre groupe actif, allez dans l'onglet Rotation et cliquez sur Échanger le tour. Les deux membres doivent approuver pour confirmer.",
-            displayText: "🔄 Fonctionnement des Échanges de Tours\n\n1. Rendez-vous dans Mes Groupes et ouvrez votre groupe actif.\n2. Accédez à l'onglet Rotation.\n3. Cliquez sur 'Demander un Échange' à côté du tour d'un autre membre.\n4. Dès validation mutuelle, le calendrier est mis à jour sans pénalité.",
+            spokenText: "Les membres peuvent échanger leur tour pour un versement anticipé. Le Créateur peut aussi échanger sa place, et sa prime de 3 % est alors transmise au membre qui prend sa place.",
+            displayText: "🔄 Échanges de Tours de Versement & Règle Créateur\n\n1. Demande Entre Pairs : Dans l'onglet Rotation de votre groupe, cliquez sur 'Demander un Échange' à côté d'un autre membre.\n2. Approbation Mutuelle : Dès acceptation mutuelle, les positions s'échangent sans pénalité.\n3. Règle du Créateur : Le Créateur peut également échanger sa place pour un versement anticipé ; dans ce cas, la prime hebdomadaire de 3 % est transférée au membre avec lequel il échange sa place.",
             suggestedActions: [
               { label: "Voir Mes Groupes", action: "NAVIGATE_TAB", tab: "my-pods" },
-              { label: "Rotation fixe", action: "SPEAK_EXPLANATION", prompt: "Comment fonctionne la rotation fixe ?" }
+              { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
             ],
             navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
           };
         }
         return {
-          spokenText: "To swap your payout spot, open your active Pod details, go to the Rotation tab, and click Swap Spot next to any available member. Both members must approve the request to finalize the swap.",
-          displayText: "🔄 How Spot Swaps Work\n\n1. Go to My Pods and open your active Pod.\n2. Navigate to the Rotation tab.\n3. Click 'Request Spot Swap' next to another member's rotation slot.\n4. Once the other member accepts, the payout schedule updates automatically with no penalty.",
+          spokenText: "Pod members can switch places for an earlier payout with mutual consent. The Pod Creator can switch places too, and their 3% weekly cut transfers to whomever they switch spots with.",
+          displayText: "🔄 Payout Spot Swaps & Creator Rule\n\n1. Request Spot Swap: In your active Pod's Rotation tab, click 'Request Spot Swap' next to any member.\n2. Mutual Consent: Once the other member accepts, positions trade immediately with zero penalty and full audit logging.\n3. Creator Switch Rule: The Creator can switch places as they please; the 3% weekly cut on teammate payouts is given to whomever the Creator switches spots with once active.",
           suggestedActions: [
             { label: "View My Pods", action: "NAVIGATE_TAB", tab: "my-pods" },
-            { label: "How fixed rotation works", action: "SPEAK_EXPLANATION", prompt: "How does fixed rotation work?" }
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
           ],
           navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
         };
@@ -6416,6 +6552,7 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 2. CATEGORY: CREATOR HOST REWARDS & SKIN-IN-THE-GAME
 - Skin-in-the-Game Guarantee: The Pod Creator is architecturally pinned to the FINAL rotation slot (Turn #N). This prevents early cash-out fraud and aligns incentives.
 - 3% Host Stewardship Reward: In exchange for hosting and taking the last slot, the Creator earns 3% on every teammate payout (e.g., $12/payout on a $400 pool = $228 in cumulative passive rewards on a 20-member pod), credited directly to their Stripe Treasury balance.
+- Creator Payout Spot Swapping & 3% Cut Transfer Policy: Pod Creators can switch places as they please (just like any other member) for an early payout. However, because the 3% weekly cut is given for being the last to be paid out, whomever the Creator switches spots with will be given the 3% weekly cut on all teammate payouts once the switch is approved and active. For example, if the Pod Creator asks to switch places for an early payout with 'Member X', the 3% weekly cut is transferred to 'Member X' once active.
 - Invite Window & Flexible Early Launch:
   * Invite Windows: 3, 7, 14, or 30 days. Creators choose to auto-open vacant slots to the public or keep waiting upon expiration.
   * Flexible Early Launch: Creators can launch as soon as 2 or more members join without waiting for all 20 slots. Payouts scale dynamically.
@@ -6436,7 +6573,7 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 5. CATEGORY: SECURITY, FDIC INSURANCE & KYC VERIFICATION
 - FDIC Pass-Through Insurance: Dedicated Stripe Treasury accounts held at FDIC-insured partner institutions (such as Evolve Bank & Trust or Fifth Third Bank) with pass-through insurance up to $250,000 per member.
 - Stripe Identity KYC: Required under Bank Secrecy Act / AML regulations to prevent duplicate accounts and fraud.
-- Peer Rotation Slot Swaps: Members can request peer-to-peer payout slot swaps with mutual approval and zero fees.
+- Peer Rotation Slot Swaps: Members of a pod can trade or switch places for early payout with mutual consent. The Pod Creator can also switch places as they please (just like any other member); however, the 3% weekly cut on all teammate payouts will be given to whomever the Creator switches spots with once the switch is approved and active.
 
 6. CATEGORY: BRAND AMBASSADOR SPONSORSHIP CAMPAIGNS
 - Daily Campaign Earnings: Couriers earn guaranteed daily payouts of $55-$75/day based on active participation in their selected brand campaigns.

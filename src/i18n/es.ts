@@ -1597,7 +1597,7 @@ export const es: Record<TranslationKey, string> = {
   'hardship.errorJoinPod': 'Por favor, únete o selecciona un grupo activo para solicitar cobertura de dificultad.',
   'hardship.errorGeneral': 'Error al enviar la solicitud de dificultad.',
   'hardship.tradePolicyTitle': 'Intercambio Instantáneo de Turnos y Permuta Mutua',
-  'hardship.tradePolicyDesc': 'Los miembros del grupo pueden intercambiar sus turnos de pago con cualquier compañero dispuesto en el orden. No se requiere revisión de comité ni administrador: ¡con el consentimiento mutuo de ambos miembros, los intercambios se ejecutan al instante!',
+  'hardship.tradePolicyDesc': 'Los miembros y el creador del grupo pueden intercambiar libremente sus turnos de pago con cualquier compañero dispuesto. Si el Creador cambia de lugar para un cobro anticipado, la recompensa semanal del 3% sobre todos los pagos del equipo se transferirá automáticamente a la persona con quien cambie su lugar una vez aprobado y activo.',
   'hardship.tradePolicyHighlight': 'No se requiere revisión de comité ni administrador',
   'hardship.selectPodTradeLabel': 'Seleccionar Grupo para Ver e Intercambiar Posiciones de Pago',
   'hardship.noPodsTradeWarning': 'Aún no te has unido a ningún grupo. Únete a un grupo para ver e intercambiar turnos de rotación.',

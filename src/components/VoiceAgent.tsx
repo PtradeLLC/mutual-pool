@@ -434,6 +434,61 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
           ],
           navigationAction: null
         };
+      } else if (
+        (q.includes('creator') || q.includes('creador') || q.includes('créateur') || q.includes('host') || q.includes('anfitrión') || q.includes('hôte')) &&
+        (q.includes('swap') || q.includes('switch') || q.includes('trade') || q.includes('spot') || q.includes('cambi') || q.includes('échang') || q.includes('early payout') || q.includes('adelant') || q.includes('cut') || q.includes('lugar') || q.includes('place'))
+      ) {
+        data = isEs ? {
+          spokenText: "El Creador puede intercambiar su puesto para cobrar antes como cualquier miembro. Sin embargo, el corte semanal del 3% en los cobros de compañeros se transferirá a la persona con quien intercambie el turno.",
+          displayText: "🔄 Intercambio de Puestos del Creador y Transferencia del 3%\n\n• Flexibilidad Total: El Creador puede intercambiar turnos con cualquier compañero para recibir un cobro anticipado por emergencias.\n• Transferencia del 3% Semanal: El corte del 3% semanal sobre los cobros de compañeros que recibía el Creador por ser el último se otorgará a quien intercambie el lugar una vez aprobado y activo el cambio.\n• Ejemplo: Si el Creador adelanta su cobro intercambiando con el Miembro X, el Miembro X pasa al último puesto y recibe el 3% semanal en cada cobro posterior.",
+          suggestedActions: [
+            { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        } : isFr ? {
+          spokenText: "Le Créateur peut échanger sa place pour un versement anticipé. Toutefois, la prime hebdomadaire de 3 % sur les versements des coéquipiers sera transmise au membre qui prend sa place finale.",
+          displayText: "🔄 Échange de Place du Créateur & Transfert des 3 %\n\n• Liberté d'Échange : Le Créateur peut échanger sa place avec un coéquipier pour obtenir un versement anticipé en cas d'urgence.\n• Transfert de la Prime de 3 % : La prime de 3 % sur tous les versements des coéquipiers est transmise au membre qui prend sa place finale dès validation de l'échange.\n• Exemple : Si le Créateur échange avec le Membre X, ce dernier prend la place finale et perçoit les 3 % hebdomadaires.",
+          suggestedActions: [
+            { label: "Voir Mes Groupes", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        } : {
+          spokenText: "The Pod Creator can switch places as they please for an early payout. However, the 3% weekly cut on all teammate payouts will be given to whomever they switch spots with once the switch is approved and active.",
+          displayText: "🔄 Creator Spot Switch & 3% Cut Transfer Policy\n\n• Full Flexibility to Switch: The Pod Creator can switch places with any member as they please (just like any other participant) for an early payout.\n• 3% Weekly Cut Transfers: The 3% weekly cut on all teammate payouts that the Creator gets for being last is transferred to whomever they switch spots with once approved and active.\n• Example: If the Creator asks to switch places for an early payout with 'Member X', Member X takes the later/final position and receives the 3% weekly cut going forward.",
+          suggestedActions: [
+            { label: "View My Pods", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      } else if (q.includes('swap') || q.includes('spot') || q.includes('trade') || q.includes('turno') || q.includes('intercamb') || q.includes('tour') || q.includes('échange')) {
+        data = isEs ? {
+          spokenText: "Los miembros pueden intercambiar turnos para cobrar antes. El Creador del grupo también puede cambiar su puesto, transfiriendo su corte semanal del 3% a su compañero de intercambio.",
+          displayText: "🔄 Intercambios de Turno de Cobro y Regla del Creador\n\n1. Solicitud entre Pares: En la pestaña Rotación de tu grupo, pulsa 'Solicitar Intercambio' junto a cualquier compañero.\n2. Aprobación Mutua: Cuando el otro miembro acepte, los turnos se intercambian al instante y sin penalizaciones.\n3. Regla del Creador: El Creador puede intercambiar su puesto para un cobro anticipado; en ese caso, el corte semanal del 3% sobre los cobros de compañeros se transferirá automáticamente a quien tome su lugar.",
+          suggestedActions: [
+            { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
+        } : isFr ? {
+          spokenText: "Les membres peuvent échanger leur tour pour un versement anticipé. Le Créateur peut aussi échanger sa place, et sa prime de 3 % est alors transmise au membre qui prend sa place.",
+          displayText: "🔄 Échanges de Tours de Versement & Règle Créateur\n\n1. Demande Entre Pairs : Dans l'onglet Rotation de votre groupe, cliquez sur 'Demander un Échange' à côté d'un autre membre.\n2. Approbation Mutuelle : Dès acceptation mutuelle, les positions s'échangent sans pénalité.\n3. Règle du Créateur : Le Créateur peut également échanger sa place pour un versement anticipé ; dans ce cas, la prime hebdomadaire de 3 % est transférée au membre avec lequel il échange sa place.",
+          suggestedActions: [
+            { label: "Voir Mes Groupes", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
+        } : {
+          spokenText: "Pod members can switch places for an earlier payout with mutual consent. The Pod Creator can switch places too, and their 3% weekly cut transfers to whomever they switch spots with.",
+          displayText: "🔄 Payout Spot Swaps & Creator Rule\n\n1. Request Spot Swap: In your active Pod's Rotation tab, click 'Request Spot Swap' next to any member.\n2. Mutual Consent: Once the other member accepts, positions trade immediately with zero penalty and full audit logging.\n3. Creator Switch Rule: The Creator can switch places as they please; the 3% weekly cut on teammate payouts is given to whomever the Creator switches spots with once active.",
+          suggestedActions: [
+            { label: "View My Pods", action: "NAVIGATE_TAB", tab: "my-pods" },
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" }
+          ],
+          navigationAction: { type: "NAVIGATE_TAB", target: "my-pods" }
+        };
       } else if (q.includes('host') || q.includes('creator') || q.includes('skin in the game') || q.includes('3%') || q.includes('last slot') || q.includes('anfitrión') || q.includes('creador') || q.includes('recompensa') || q.includes('hôte') || q.includes('créateur') || q.includes('prime')) {
         data = isEs ? {
           spokenText: "Los Creadores de grupos toman el último turno de cobro como garantía de confianza y reciben una recompensa de anfitrión del 3% en cada desembolso semanal de sus compañeros.",
