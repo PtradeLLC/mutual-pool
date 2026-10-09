@@ -43,7 +43,7 @@ export const en = {
   'hero.savingsCircleTitle': 'Peer Savings Circles',
   'hero.savingsCircleSub': 'Couriers, Trades, Freelancers & Contractors',
   'hero.interestFree': '0% Interest',
-  'hero.featurePodInviteTitle': 'Invite Crew & Friends',
+  'hero.featurePodInviteTitle': 'Invite Crew|Friends',
   'hero.featurePodInviteDesc': 'Create or join trusted pods',
   'hero.featureSafeDepositsTitle': 'FDIC Pass-Through',
   'hero.featureSafeDepositsDesc': 'Insured deposits up to $250k',
