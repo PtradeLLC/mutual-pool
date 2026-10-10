@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest } from '../types';
+import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest, PodDetailTab } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { CampaignAdAgreementModal } from './CampaignAdAgreementModal';
 import { PodMilestoneProgress } from './PodMilestoneProgress';
 import { PlatformScheduleBanner } from './PlatformScheduleBanner';
+import { ActivityFeed } from './ActivityFeed';
 import { subscribeToAuditLogs } from '../lib/firestoreService';
 import { useChat } from '../context/ChatContext';
 import { useTranslation, TranslationKey } from '../i18n';
@@ -18,7 +19,7 @@ import {
 
 interface PodDetailModalProps {
   pod: Pod;
-  initialTab?: 'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship';
+  initialTab?: PodDetailTab;
   currentUser: User;
   allUsers: User[];
   onClose: () => void;
@@ -38,7 +39,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const { t, language } = useTranslation();
   const { openPodChat, startDirectChat } = useChat();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>(initialTab);
+  const [activeTab, setActiveTab] = useState<PodDetailTab>(initialTab);
   const [podLogs, setPodLogs] = useState<AuditLogEntry[]>([]);
   const [depositing, setDepositing] = useState(false);
   const [processingPayout, setProcessingPayout] = useState(false);
@@ -822,6 +823,25 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('activity')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              activeTab === 'activity'
+                ? 'bg-[#005FB8] text-white shadow-xs'
+                : 'text-[#4B5563] hover:bg-gray-200/60'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Activity Feed</span>
+            {podLogs.length > 0 && (
+              <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
+                activeTab === 'activity' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {podLogs.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('reprioritize')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
               activeTab === 'reprioritize'
@@ -1486,57 +1506,55 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             </div>
 
             {/* Pod Deposit & Payout Activity Ledger */}
-            <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
+            <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-[#005FB8]" />
-                  <h4 className="font-bold text-[#111827] text-xs">
-                    {t('audit.podLedgerTitle', { count: podLogs.length })}
-                  </h4>
-                </div>
-                <span className="text-[10px] text-gray-500 font-mono">
-                  {t('audit.podIdLabel')} {pod.id}
-                </span>
+                <h4 className="font-bold text-[#111827] text-xs flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-[#005FB8]" />
+                  <span>{t('audit.podLedgerTitle', { count: podLogs.length })}</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('activity')}
+                  className="text-xs text-[#005FB8] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Open Full Activity Feed</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
               </div>
 
-              {podLogs.length === 0 ? (
-                <div className="p-4 bg-white border border-gray-200 rounded-lg text-center text-xs text-gray-500">
-                  {t('audit.podLedgerEmpty')}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {podLogs.map((log) => {
-                    const actionKey = `audit.action.${log.action}` as TranslationKey;
-                    const actionLabel = t(actionKey) !== (actionKey as string) ? t(actionKey) : log.action;
-                    const locale = language === 'es' ? 'es-US' : language === 'fr' ? 'fr-FR' : 'en-US';
-
-                    return (
-                      <div key={log.id} className="p-3 bg-white border border-gray-200 rounded-lg text-xs space-y-1 shadow-2xs">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-blue-50 text-[#005FB8] border border-blue-200">
-                            {actionLabel}
-                          </span>
-                          <span className="text-[10px] font-mono text-gray-500">
-                            {new Date(log.createdAt).toLocaleString(locale)}
-                          </span>
-                        </div>
-                        <p className="text-[#111827] font-medium leading-relaxed">
-                          {log.detail}
-                        </p>
-                        <div className="text-[10px] text-gray-500 flex items-center justify-between pt-1 border-t border-gray-100">
-                          <span>{t('audit.actor')} <strong>{log.actorName}</strong></span>
-                          {Boolean(log.metadata?.stripeTransferId) && (
-                            <span className="font-mono text-[#005FB8]">
-                              {t('audit.refLabel')} {String(log.metadata?.stripeTransferId)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <ActivityFeed
+                pod={pod}
+                currentUser={currentUser}
+                allUsers={allUsers}
+                auditLogs={podLogs}
+                onRefresh={onRefreshPod}
+              />
             </div>
+          </div>
+        )}
+
+        {/* TAB: ACTIVITY FEED */}
+        {activeTab === 'activity' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-[#005FB8]" />
+                  <span>Pod Activity Feed</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Chronological timeline of member deposits, rotational payouts, and delinquency status changes.
+                </p>
+              </div>
+            </div>
+
+            <ActivityFeed
+              pod={pod}
+              currentUser={currentUser}
+              allUsers={allUsers}
+              auditLogs={podLogs}
+              onRefresh={onRefreshPod}
+            />
           </div>
         )}
 

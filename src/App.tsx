@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin } from './types';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin, PodDetailTab } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -23,16 +23,16 @@ const StripeBankModal = lazy(() => import('./components/StripeBankModal').then((
 const AddFundsModal = lazy(() => import('./components/AddFundsModal').then((module) => ({ default: module.AddFundsModal })));
 const KycVerificationModal = lazy(() => import('./components/KycVerificationModal').then((module) => ({ default: module.KycVerificationModal })));
 const PodAgreementModal = lazy(() => import('./components/PodAgreementModal').then((module) => ({ default: module.PodAgreementModal })));
-const PerksMarketplace = lazy(() => import('./components/PerksMarketplace').then((module) => ({ default: module.PerksMarketplace })));
-const AuditLogViewer = lazy(() => import('./components/AuditLogViewer').then((module) => ({ default: module.AuditLogViewer })));
-const AdminOpsView = lazy(() => import('./components/AdminOpsView').then((module) => ({ default: module.AdminOpsView })));
+import { PerksMarketplace } from './components/PerksMarketplace';
+import { AuditLogViewer } from './components/AuditLogViewer';
+import { AdminOpsView } from './components/AdminOpsView';
+import { CampaignsPage } from './components/CampaignsPage';
 const EditProfileModal = lazy(() => import('./components/EditProfileModal').then((module) => ({ default: module.EditProfileModal })));
 const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.AboutUsModal })));
 const HowItWorksModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
 const ContactUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
 const FaqModal = lazy(() => import('./components/FaqModal').then((module) => ({ default: module.FaqModal })));
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
-const CampaignsPage = lazy(() => import('./components/CampaignsPage').then((module) => ({ default: module.CampaignsPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
 import { INITIAL_USERS, INITIAL_PODS, INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from './data/initialData';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -96,6 +96,18 @@ export default function App() {
     }
   });
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops'>('my-pods');
+
+  // Auto-scroll directly to section whenever activeTab changes on Dashboard
+  const initialTabScrollRef = useRef(true);
+  useEffect(() => {
+    if (initialTabScrollRef.current) {
+      initialTabScrollRef.current = false;
+      return;
+    }
+    if (viewMode === 'DASHBOARD') {
+      scrollToTabSection(activeTab);
+    }
+  }, [activeTab, viewMode]);
   const [scannedSleeveNotice, setScannedSleeveNotice] = useState<boolean>(false);
   const [campaigns, setCampaigns] = useState<AdCampaign[]>(() => {
     try {
@@ -272,6 +284,8 @@ export default function App() {
         }
       }
 
+      // console.log(activeDel)
+
       const updatedUser: User = {
         ...currentUser,
         treasury: {
@@ -385,7 +399,7 @@ export default function App() {
   const [hardshipModalTab, setHardshipModalTab] = useState<'hardship' | 'trade'>('hardship');
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [selectedPodDetail, setSelectedPodDetail] = useState<Pod | null>(null);
-  const [selectedPodDetailTab, setSelectedPodDetailTab] = useState<'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship'>('rotation');
+  const [selectedPodDetailTab, setSelectedPodDetailTab] = useState<PodDetailTab>('rotation');
   const [agreementPod, setAgreementPod] = useState<Pod | null>(null);
   const [repayingHardship, setRepayingHardship] = useState(false);
   const [openSubmitPerkDirectly, setOpenSubmitPerkDirectly] = useState(false);
@@ -1533,6 +1547,7 @@ export default function App() {
         myPods={myPods}
         activeTab={activeTab}
         setActiveTab={(tab) => {
+          setViewMode('DASHBOARD');
           setActiveTab(tab);
           scrollToTabSection(tab);
         }}
@@ -1550,6 +1565,7 @@ export default function App() {
             setOpenSubmitPerkDirectly(true);
             handleOpenAuth('LOGIN');
           } else {
+            setViewMode('DASHBOARD');
             setActiveTab('perks');
             setOpenSubmitPerkDirectly(true);
             scrollToTabSection('perks');
@@ -2010,11 +2026,15 @@ export default function App() {
         {/* ------------------------------------------------------------- */}
         {/* ROLE-GATED TAB CONTENTS                                      */}
         {/* ------------------------------------------------------------- */}
-        <div id="main-tab-content" className="scroll-mt-28 space-y-6">
+        <div id="main-tab-content" data-section="main-tab-content" className="scroll-mt-24 sm:scroll-mt-28 space-y-6">
 
           {/* 1 & 2. MY MUTUAL PODS & EXPLORE PODS TABS (Couriers & Admin only) */}
           {!isAdvertiser && (activeTab === 'my-pods' || activeTab === 'explore-pods') && (
-            <div id={activeTab === 'my-pods' ? 'section-my-pods' : 'section-explore-pods'} className="scroll-mt-28">
+            <div 
+              id={activeTab === 'my-pods' ? 'section-my-pods' : 'section-explore-pods'} 
+              data-section={activeTab}
+              className="scroll-mt-24 sm:scroll-mt-28 min-h-[450px]"
+            >
               <SwipeablePodContainer
                 activeTab={activeTab}
                 onTabChange={(tab) => {
@@ -2038,77 +2058,69 @@ export default function App() {
 
           {/* 3. PERKS MARKETPLACE TAB (Couriers & Admin only) */}
           {!isAdvertiser && activeTab === 'perks' && (
-            <div id="section-perks" className="scroll-mt-28">
-              <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading marketplace…</div>}>
-                <PerksMarketplace
-                  currentUser={currentUser || {
-                    id: 'usr_guest',
-                    email: '',
-                    displayName: 'Guest Partner',
-                    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-                    platform: 'Partner Provider',
-                    role: 'RIDER',
-                    accountAgeDays: 0,
-                    kycStatus: 'VERIFIED',
-                    treasury: { stripeAccountId: '', stripeFinAccountId: '', balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'ACTIVE' },
-                    externalBank: { bankName: '', last4: '', routingNumber: '', accountType: 'CHECKING', status: 'NOT_LINKED' },
-                    completedPodsCount: 0,
-                  }}
-                  initialOpenSubmitModal={openSubmitPerkDirectly}
-                  onClearInitialSubmitModal={() => setOpenSubmitPerkDirectly(false)}
-                  onSelectUser={handleAuthSuccess}
-                  onOpenAuth={handleOpenAuth}
-                />
-              </Suspense>
+            <div id="section-perks" data-section="perks" className="scroll-mt-24 sm:scroll-mt-28 min-h-[500px]">
+              <PerksMarketplace
+                currentUser={currentUser || {
+                  id: 'usr_guest',
+                  email: '',
+                  displayName: 'Guest Partner',
+                  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+                  platform: 'Partner Provider',
+                  role: 'RIDER',
+                  accountAgeDays: 0,
+                  kycStatus: 'VERIFIED',
+                  treasury: { stripeAccountId: '', stripeFinAccountId: '', balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'ACTIVE' },
+                  externalBank: { bankName: '', last4: '', routingNumber: '', accountType: 'CHECKING', status: 'NOT_LINKED' },
+                  completedPodsCount: 0,
+                }}
+                initialOpenSubmitModal={openSubmitPerkDirectly}
+                onClearInitialSubmitModal={() => setOpenSubmitPerkDirectly(false)}
+                onSelectUser={handleAuthSuccess}
+                onOpenAuth={handleOpenAuth}
+              />
             </div>
           )}
 
           {/* 4. AD CAMPAIGNS TAB (All Roles: Advertisers, Couriers, and Admins) */}
           {activeTab === 'campaigns' && (
-            <div id="section-campaigns" className="scroll-mt-28">
-              <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading brand campaigns…</div>}>
-                <CampaignsPage
-                  currentUser={currentUser}
-                  campaigns={campaigns}
-                  participations={participations}
-                  activeShiftSession={activeShiftSession}
-                  onApplyParticipation={handleApplyParticipation}
-                  onStartShift={handleStartShift}
-                  onUpdateShiftSession={handleUpdateShiftSession}
-                  onCompleteShift={handleCompleteShift}
-                  onOpenAuth={handleOpenAuth}
-                  onOpenAdvertiser={handleOpenAdvertiser}
-                  onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
-                  onStartPod={() => {
-                    setActiveTab('my-pods');
-                    scrollToTabSection('my-pods');
-                    setShowCreatePodModal(true);
-                  }}
-                />
-              </Suspense>
+            <div id="section-campaigns" data-section="campaigns" className="scroll-mt-24 sm:scroll-mt-28 min-h-[450px]">
+              <CampaignsPage
+                currentUser={currentUser}
+                campaigns={campaigns}
+                participations={participations}
+                activeShiftSession={activeShiftSession}
+                onApplyParticipation={handleApplyParticipation}
+                onStartShift={handleStartShift}
+                onUpdateShiftSession={handleUpdateShiftSession}
+                onCompleteShift={handleCompleteShift}
+                onOpenAuth={handleOpenAuth}
+                onOpenAdvertiser={handleOpenAdvertiser}
+                onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
+                onStartPod={() => {
+                  setActiveTab('my-pods');
+                  scrollToTabSection('my-pods');
+                  setShowCreatePodModal(true);
+                }}
+              />
             </div>
           )}
 
           {/* 5. AUDIT LOG LEDGER TAB (Couriers & Admin only) */}
           {!isAdvertiser && activeTab === 'audit-log' && (
-            <div id="section-audit-log" className="scroll-mt-28">
-              <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading audit log…</div>}>
-                <AuditLogViewer />
-              </Suspense>
+            <div id="section-audit-log" data-section="audit-log" className="scroll-mt-24 sm:scroll-mt-28 min-h-[450px]">
+              <AuditLogViewer />
             </div>
           )}
 
           {/* 6. OPERATIONS & WEBHOOKS TAB (Admin Only) */}
           {isAdmin && activeTab === 'admin-ops' && currentUser && (
-            <div id="section-admin-ops" className="scroll-mt-28">
-              <Suspense fallback={<div className="text-center py-10 text-sm text-slate-500">Loading admin tools…</div>}>
-                <AdminOpsView
-                  currentUser={currentUser}
-                  allUsers={allUsers}
-                  allPods={allPods}
-                  onRefreshData={fetchAppData}
-                />
-              </Suspense>
+            <div id="section-admin-ops" data-section="admin-ops" className="scroll-mt-24 sm:scroll-mt-28 min-h-[450px]">
+              <AdminOpsView
+                currentUser={currentUser}
+                allUsers={allUsers}
+                allPods={allPods}
+                onRefreshData={fetchAppData}
+              />
             </div>
           )}
         </div>

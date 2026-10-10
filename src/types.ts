@@ -212,6 +212,8 @@ export interface Pod {
   hostRewardRecipientName?: string; // Name of the active 3% weekly reward beneficiary
 }
 
+export type PodDetailTab = 'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship' | 'activity';
+
 export type HardshipRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID_OFF';
 
 export interface HardshipFundRequest {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Pod, User } from '../types';
+import { Pod, User, PodDetailTab } from '../types';
 import { PodCard } from './PodCard';
 import { PlusCircle, Layers, Users, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useTranslation } from '../i18n';
@@ -10,7 +10,7 @@ interface SwipeablePodContainerProps {
   myPods: Pod[];
   explorePods: Pod[];
   activeUser: User;
-  onSelectPod: (pod: Pod, initialTab?: 'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship') => void;
+  onSelectPod: (pod: Pod, initialTab?: PodDetailTab) => void;
   onJoinPod: (pod: Pod) => void;
   onLeavePod?: (pod: Pod) => void;
   onSignAgreement: (pod: Pod) => void;

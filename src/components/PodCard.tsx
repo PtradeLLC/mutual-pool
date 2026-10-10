@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pod, User } from '../types';
+import { Pod, User, PodDetailTab } from '../types';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
 import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Lock, Sparkles, Clock, Zap, LogOut, MessageSquare, Bot, AlertTriangle } from 'lucide-react';
@@ -7,7 +7,7 @@ import { Users, DollarSign, Calendar, ShieldCheck, ArrowRight, CheckCircle2, Loc
 interface PodCardProps {
   pod: Pod;
   currentUser: User;
-  onSelectPod: (pod: Pod, initialTab?: 'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship') => void;
+  onSelectPod: (pod: Pod, initialTab?: PodDetailTab) => void;
   onJoinPod: (pod: Pod) => void;
   onLeavePod?: (pod: Pod) => void;
   onSignAgreement: (pod: Pod) => void;
