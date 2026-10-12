@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getUpcomingCycleDates, formatTimeRemaining } from '../src/utils/platformSchedule';
 
-const BASE_URL = 'http://127.0.0.1:3000';
+// Runs against a DEMO_MODE server (npm run test:integration), where x-user-* headers
+// stand in for Firebase sign-in and the demo top-up endpoint funds test accounts.
+const BASE_URL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
+const CRON_HEADERS = { 'content-type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || '' };
 
 function makeTestUser(prefix: string) {
   const nonce = `${Date.now()}_${Math.floor(Math.random() * 100000)}`;
@@ -29,8 +32,29 @@ function getUserHeaders(user: ReturnType<typeof makeTestUser>) {
   };
 }
 
+// Pods charge deposits from the member's Treasury balance, so fund test users first.
+async function fund(user: ReturnType<typeof makeTestUser>, amount = 500) {
+  const res = await fetch(`${BASE_URL}/api/users/treasury/topup`, {
+    method: 'POST',
+    headers: getUserHeaders(user),
+    body: JSON.stringify({ amount }),
+  });
+  assert.equal(res.status, 200, `demo top-up failed with ${res.status}`);
+}
+
+test('0. Pod creation is rejected when the Treasury balance cannot cover the deposit', async () => {
+  const broke = makeTestUser('broke_t0');
+  const res = await fetch(`${BASE_URL}/api/pods`, {
+    method: 'POST',
+    headers: getUserHeaders(broke),
+    body: JSON.stringify({ name: `Unfunded Pod ${Date.now()}`, sizeTier: 20, depositTier: 20 }),
+  });
+  assert.equal(res.status, 402);
+});
+
 test('1. Pod Creation Flow: POST /api/pods creates a new savings pod as expected', async () => {
   const creator = makeTestUser('creator_t1');
+  await fund(creator);
   const podPayload = {
     name: `Test Pod 1 - ${Date.now()}`,
     description: 'Automated test pod for deposit and payout verification',
@@ -67,6 +91,8 @@ test('1. Pod Creation Flow: POST /api/pods creates a new savings pod as expected
 test('2. Member Join, Pod Agreement Signing & Pod Activation', async () => {
   const creator = makeTestUser('creator_t2');
   const member = makeTestUser('member_t2');
+  await fund(creator);
+  await fund(member);
 
   // Step A: Create pod
   const podRes = await fetch(`${BASE_URL}/api/pods`, {
@@ -142,6 +168,8 @@ test('2. Member Join, Pod Agreement Signing & Pod Activation', async () => {
 test('3. Deposits Process: Manual Deposit & Automated Thursday Deposit Sweep', async () => {
   const creator = makeTestUser('creator_t3');
   const member = makeTestUser('member_t3');
+  await fund(creator);
+  await fund(member);
 
   // Step A: Create pod
   const podRes = await fetch(`${BASE_URL}/api/pods`, {
@@ -193,23 +221,27 @@ test('3. Deposits Process: Manual Deposit & Automated Thursday Deposit Sweep', a
   });
   assert.equal(lockRes.status, 200);
 
-  // Test Manual Member Deposit: POST /api/pods/:id/deposit
+  // Week 1 deposits were charged at create/join time, so a manual deposit is a duplicate.
   const depositRes = await fetch(`${BASE_URL}/api/pods/${pod.id}/deposit`, {
     method: 'POST',
     headers: getUserHeaders(creator),
   });
-  assert.equal(depositRes.status, 200);
+  assert.equal(depositRes.status, 409);
   const depositData = await depositRes.json();
-  assert.equal(depositData.success, true);
-  assert.equal(depositData.deposit.amount, 50);
-  assert.equal(depositData.deposit.status, 'COMPLETE');
+  assert.equal(depositData.error, 'ALREADY_DEPOSITED');
 
-  // Test Automated Thursday Deposit Sweep: POST /api/platform/schedule/sweep
+  // Members cannot trigger sweeps themselves
+  const memberSweepRes = await fetch(`${BASE_URL}/api/platform/schedule/sweep`, {
+    method: 'POST',
+    headers: getUserHeaders(member),
+    body: JSON.stringify({ sweepType: 'THURSDAY_DEPOSITS' }),
+  });
+  assert.equal(memberSweepRes.status, 403);
+
+  // Test Automated Thursday Deposit Sweep (scheduler): POST /api/platform/schedule/sweep
   const sweepRes = await fetch(`${BASE_URL}/api/platform/schedule/sweep`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
+    headers: CRON_HEADERS,
     body: JSON.stringify({
       sweepType: 'THURSDAY_DEPOSITS',
     }),
@@ -225,6 +257,8 @@ test('3. Deposits Process: Manual Deposit & Automated Thursday Deposit Sweep', a
 test('4. Withdrawal & Payout Process: Friday Payout Sweep & Treasury Bank Withdrawal', async () => {
   const creator = makeTestUser('creator_t4');
   const member = makeTestUser('member_t4');
+  await fund(creator);
+  await fund(member);
 
   // Create an active pod for payout testing
   const podRes = await fetch(`${BASE_URL}/api/pods`, {
@@ -276,9 +310,7 @@ test('4. Withdrawal & Payout Process: Friday Payout Sweep & Treasury Bank Withdr
   // Trigger Friday Payout Sweep: POST /api/platform/schedule/sweep
   const payoutSweepRes = await fetch(`${BASE_URL}/api/platform/schedule/sweep`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
+    headers: CRON_HEADERS,
     body: JSON.stringify({
       sweepType: 'FRIDAY_PAYOUTS',
     }),
@@ -297,7 +329,9 @@ test('4. Withdrawal & Payout Process: Friday Payout Sweep & Treasury Bank Withdr
   const recipient = (updatedPod.members || []).find((m: any) => m.rotationIndex === 0);
   assert.ok(recipient, 'Recipient member at rotation index 0 should exist');
   assert.equal(recipient.hasReceivedPayout, true, 'Recipient should have hasReceivedPayout = true');
-  assert.ok(recipient.payoutStripeTransferId, 'Recipient should have a Stripe transfer ID recorded');
+  assert.ok(recipient.payoutStripeTransferId, 'Recipient should have a ledger payout reference recorded');
+  // 2 members x $50 collected, minus the 10% payout fee
+  assert.equal(recipient.payoutNetAmountUsd, 90);
 
   // Test Treasury Payout Withdrawal to External Bank: POST /api/treasury/payouts/withdraw
   const withdrawRes = await fetch(`${BASE_URL}/api/treasury/payouts/withdraw`, {
@@ -324,9 +358,10 @@ test('4. Withdrawal & Payout Process: Friday Payout Sweep & Treasury Bank Withdr
 
 test('5. Upcoming Payments & Payment History Endpoints & Schedule Calculations', async () => {
   const creator = makeTestUser('creator_t5');
+  await fund(creator);
 
   // Test Schedule Status endpoint
-  const scheduleRes = await fetch(`${BASE_URL}/api/platform/schedule`);
+  const scheduleRes = await fetch(`${BASE_URL}/api/platform/schedule`, { headers: getUserHeaders(creator) });
   assert.equal(scheduleRes.status, 200);
   const scheduleData = await scheduleRes.json();
   assert.equal(scheduleData.weeklyDepositDay, 'THURSDAY');

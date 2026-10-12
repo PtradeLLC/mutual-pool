@@ -53,6 +53,9 @@ export const en = {
   'hero.featureEmergencySwapDesc': 'Peer payout rotation swaps',
 
   // Interactive ROSCA Calculator Simulator
+  // Gig platform strip (landing page)
+  'partners.heading': 'Used by workers from these companies',
+  'partners.disclaimer': 'MutualPool is independent and not affiliated with, sponsored by, or endorsed by these companies. Names are trademarks of their respective owners.',
   'calculator.badge': 'Interactive Calculator',
   'calculator.title': 'Calculate Your Mutual Pool Payout',
   'calculator.subtitle': 'See how a small weekly commitment turns into lump-sum emergency fund for impromptu financial hardships.',
@@ -1584,14 +1587,14 @@ export const en = {
   'hardship.weeklyDepositTier': 'Weekly Deposit Tier',
   'hardship.serviceFee7': '7% Service Fee',
   'hardship.totalPayoffAmount': 'Total Payoff Amount',
-  'hardship.breakdownNote': 'Upon Creator approval, ${deposit}.00 is deposited directly into the pool. Your account is placed on hold until the total payoff of ${payoff} is repaid.',
+  'hardship.breakdownNote': 'If MutualPool approves your request, ${deposit}.00 is deposited directly into the pool. Your account is placed on hold until the total payoff of ${payoff} is repaid.',
   'hardship.reasonLabel': 'Reason for Emergency Hardship Request',
   'hardship.reasonPlaceholder': 'e.g. Unforeseen vehicle repair (alternator failure) requiring immediate funds...',
   'hardship.closeBtn': 'Close',
   'hardship.submitBtn': 'Submit Hardship Request',
   'hardship.submittingBtn': 'Submitting Request...',
   'hardship.successTitle': 'Request Submitted Successfully!',
-  'hardship.successMsg': 'Your Financial Hardship Fund request for ${amount}.00 was submitted! Request forwarded to Pool Creator ({creator}) for approval.',
+  'hardship.successMsg': 'Your Financial Hardship Fund request for ${amount}.00 was submitted! MutualPool will review it and notify you and your Pool Creator ({creator}) of the decision.',
   'hardship.errorJoinPod': 'Please join or select an active pod to request hardship coverage.',
   'hardship.errorGeneral': 'Failed to submit hardship request.',
   'hardship.tradePolicyTitle': 'Instant Spot Trading & Mutual Position Swap',

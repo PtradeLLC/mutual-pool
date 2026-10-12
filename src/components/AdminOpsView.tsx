@@ -6,6 +6,7 @@ import { SUPPORTED_COUNTRIES } from '../config/countries';
 import { FourthwallGearStudio } from './FourthwallGearStudio';
 import { SiteUrlBadge } from './SiteUrlBadge';
 import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
+import { HardshipReviewQueue } from './HardshipReviewQueue';
 import { 
   Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, 
   CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, 
@@ -353,6 +354,9 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         </div>
 
       </div>
+
+      {/* Hardship requests awaiting MutualPool review */}
+      <HardshipReviewQueue allPods={allPods} onDecision={onRefreshData} />
 
       {/* Dynamic Site URL & Deployment Environment Card */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#0B2545] border border-slate-700 rounded-xl p-5 shadow-sm text-white space-y-3">

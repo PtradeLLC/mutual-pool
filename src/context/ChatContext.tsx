@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ChatMessage, ChatThread, ChatMessageType, User, Pod } from '../types';
+import { auth } from '../lib/firebase';
 
 interface ChatContextType {
   threads: ChatThread[];
@@ -59,21 +60,7 @@ export const ChatProvider: React.FC<{
 
   const refreshThreads = useCallback(async () => {
     try {
-      const uEmail = currentUser?.email || '';
-      const uName = currentUser?.displayName || '';
-      const params = new URLSearchParams({
-        userId: currentUserId,
-        userEmail: uEmail,
-        userName: uName,
-      });
-
-      const res = await fetch(`/api/chats/threads?${params.toString()}`, {
-        headers: {
-          'x-user-id': currentUserId,
-          'x-user-email': uEmail,
-          'x-user-name': uName,
-        }
-      });
+      const res = await fetch('/api/chats/threads');
 
       let serverThreads: ChatThread[] = [];
       if (res.ok) {
@@ -179,18 +166,16 @@ export const ChatProvider: React.FC<{
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
-        ws.onopen = () => {
+        ws.onopen = async () => {
           if (!isMounted) return;
           retryCountRef.current = 0;
-          setIsConnected(true);
-          // Authenticate with server
-          ws.send(JSON.stringify({
-            type: 'AUTH',
-            userId: currentUserId,
-            displayName: currentUserName,
-            avatarUrl: currentUserAvatar,
-            platform: currentUserPlatform,
-          }));
+          // Authenticate with the server using the Firebase ID token
+          const token = await auth.currentUser?.getIdToken().catch(() => null);
+          if (!token || ws.readyState !== WebSocket.OPEN) {
+            ws.close();
+            return;
+          }
+          ws.send(JSON.stringify({ type: 'AUTH', token }));
         };
 
         ws.onmessage = (event) => {

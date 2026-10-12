@@ -7,7 +7,7 @@ import {
   GearColor, 
   GearDesignZoneConfig 
 } from '../types';
-import { FOURTHWALL_GEAR_CATALOG, dispatchOrderToFourthwall } from '../services/fourthwall';
+import { FOURTHWALL_GEAR_CATALOG } from '../services/fourthwall';
 import { useToast } from '../context/ToastContext';
 import { 
   CheckCircle2, 
@@ -278,28 +278,15 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ adminNotes: 'Approved directly by Administrator' }),
           });
-          if (approveRes.ok) {
-            const approveData = await approveRes.json();
-            if (approveData.design) {
-              serverDesign = approveData.design;
-            }
-          } else {
-            const fwResult = await dispatchOrderToFourthwall(serverDesign);
-            serverDesign.status = 'DISPATCHED_TO_FOURTHWALL';
-            serverDesign.approvedAt = new Date().toISOString();
-            serverDesign.fourthwallOrderId = fwResult.fourthwallOrderId;
-            serverDesign.fourthwallOrderNumber = fwResult.fourthwallOrderNumber;
-            serverDesign.fourthwallTrackingUrl = fwResult.fourthwallTrackingUrl;
-            serverDesign.fourthwallProductionStage = fwResult.productionStage;
+          // Orders are only ever placed by the server (admin-verified).
+          const approveData = await approveRes.json().catch(() => ({}));
+          if (!approveRes.ok || !approveData.design) {
+            throw new Error(approveData.error || 'Fourthwall dispatch failed');
           }
-        } catch {
-          const fwResult = await dispatchOrderToFourthwall(serverDesign);
-          serverDesign.status = 'DISPATCHED_TO_FOURTHWALL';
-          serverDesign.approvedAt = new Date().toISOString();
-          serverDesign.fourthwallOrderId = fwResult.fourthwallOrderId;
-          serverDesign.fourthwallOrderNumber = fwResult.fourthwallOrderNumber;
-          serverDesign.fourthwallTrackingUrl = fwResult.fourthwallTrackingUrl;
-          serverDesign.fourthwallProductionStage = fwResult.productionStage;
+          serverDesign = approveData.design;
+        } catch (dispatchErr) {
+          toast.error(dispatchErr instanceof Error ? dispatchErr.message : 'Fourthwall dispatch failed', { title: 'Order Not Dispatched' });
+          return;
         }
 
         setDispatchedOrder(serverDesign);

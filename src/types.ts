@@ -10,8 +10,7 @@ export const isAdminUser = (user?: User | null): boolean => {
     role === 'ADMIN' ||
     role === 'SUPER_ADMIN' ||
     role === 'PLATFORM_ADMIN' ||
-    role === 'SITE_ADMIN' ||
-    user.email?.toLowerCase() === 'chrisbitoy@gmail.com'
+    role === 'SITE_ADMIN'
   );
 };
 
@@ -68,6 +67,10 @@ export interface StripeTreasuryAccount {
 export interface User {
   id: string;
   email: string;
+  emailVerified?: boolean;
+  // Stripe bank-account fingerprints from Connect onboarding: identify the same
+  // person across accounts (one welcome match per person, host-reward checks).
+  identityFingerprints?: string[];
   displayName: string;
   name?: string;
   city?: string;
@@ -138,6 +141,7 @@ export interface PodMembership {
   payoutClaimStatus?: PayoutClaimStatus;
   payoutStripeTransferId?: string;
   payoutProcessedAt?: string;
+  payoutNetAmountUsd?: number;
   agreementSignedAt?: string;
   agreementSignatureName?: string;
   delinquencyStatus: DelinquencyStatus;
@@ -229,8 +233,17 @@ export interface HardshipFundRequest {
   status: HardshipRequestStatus;
   requestedAt: string;
   approvedAt?: string;
+  approvedByUserId?: string;
+  approvedCycleWeek?: number;
+  rejectedAt?: string;
+  rejectedByUserId?: string;
+  rejectionReason?: string;
   paidOffAt?: string;
   reason?: string;
+  // Advisory fraud-risk assessment shown to the reviewing admin (src/server/hardshipRisk.ts).
+  riskScore?: number;
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskReasons?: string[];
 }
 
 export type CycleStatus = 'COLLECTING' | 'PAID_OUT' | 'DELINQUENT_GAP' | 'FAILED';
@@ -885,6 +898,7 @@ export interface GearCatalogItem {
 
 export interface GearDesignOrder {
   id: string;
+  ownerUserId?: string;
   campaignId?: string;
   campaignTitle?: string;
   sponsorBrand: string;

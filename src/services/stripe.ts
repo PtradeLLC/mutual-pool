@@ -2,12 +2,16 @@ import Stripe from 'stripe';
 import { getDb, COLLECTIONS, timestampToISO } from '../config/firebase';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getSiteUrl } from '../utils/siteUrl';
+import { DEMO_MODE } from '../server/runtime';
 
 // Initialize Stripe lazily
 let stripeClient: Stripe | null = null;
 export function getStripe(): Stripe {
   if (!stripeClient) {
-    const key = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_mutualpool';
+    const key = process.env.STRIPE_SECRET_KEY || (DEMO_MODE ? 'sk_test_placeholder_key_mutualpool' : '');
+    if (!key) {
+      throw new Error('STRIPE_SECRET_KEY is not configured.');
+    }
     stripeClient = new Stripe(key, {
       apiVersion: '2024-06-20' as any,
       typescript: true,
@@ -100,31 +104,15 @@ export async function createConnectAccount(userId: string, email: string, displa
     business_type: 'individual',
     capabilities: {
       transfers: { requested: true },
-      treasury: { requested: true },
     },
     business_profile: {
       name: displayName,
       url: getSiteUrl(),
     },
-    settings: {
-      payouts: {
-        schedule: {
-          interval: 'manual',
-        },
-      },
-    },
     metadata: {
       userId,
       platform: 'gig-mutual-pool',
     },
-  });
-
-  // Create Account Link for onboarding
-  const accountLink = await stripe.accountLinks.create({
-    account: account.id,
-    refresh_url: `${process.env.APP_URL}/dashboard?stripe_refresh=true`,
-    return_url: `${process.env.APP_URL}/dashboard?stripe_success=true`,
-    type: 'account_onboarding',
   });
 
   return {
@@ -441,7 +429,8 @@ export async function createDepositPaymentIntent(
   amountUsd: number,
   userId: string,
   podId?: string,
-  description?: string
+  description?: string,
+  depositAmountUsd?: number
 ): Promise<{ clientSecret: string; paymentIntentId: string; amountCents: number }> {
   const stripe = getStripe();
   const amountCents = Math.round(amountUsd * 100);
@@ -456,6 +445,8 @@ export async function createDepositPaymentIntent(
         userId,
         podId: podId || '',
         platform: 'gig-mutual-pool',
+        kind: 'treasury_topup',
+        depositAmountUsd: String(depositAmountUsd ?? amountUsd),
       },
     });
 
@@ -465,7 +456,8 @@ export async function createDepositPaymentIntent(
       amountCents,
     };
   } catch (err: any) {
-    console.warn('[Stripe] Real PaymentIntent creation fallback:', err?.message);
+    if (!DEMO_MODE) throw err;
+    console.warn('[Stripe] PaymentIntent creation fallback (DEMO_MODE):', err?.message);
     const mockId = `pi_test_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     return {
       clientSecret: `${mockId}_secret_test`,
@@ -475,10 +467,14 @@ export async function createDepositPaymentIntent(
   }
 }
 
-// Create Connect Onboarding Link
-export async function createConnectOnboardingLink(accountId: string, returnUrl?: string): Promise<string> {
+function getServerBaseUrl(): string {
+  return (process.env.APP_URL || getSiteUrl()).replace(/\/+$/, '');
+}
+
+// Create Connect Onboarding Link. Redirect URLs always point at our own APP_URL.
+export async function createConnectOnboardingLink(accountId: string): Promise<string> {
   const stripe = getStripe();
-  const baseUrl = returnUrl || getSiteUrl();
+  const baseUrl = getServerBaseUrl();
   try {
     const link = await stripe.accountLinks.create({
       account: accountId,
@@ -488,9 +484,80 @@ export async function createConnectOnboardingLink(accountId: string, returnUrl?:
     });
     return link.url;
   } catch (err: any) {
-    console.warn('[Stripe] Account link fallback:', err?.message);
+    if (!DEMO_MODE) throw err;
+    console.warn('[Stripe] Account link fallback (DEMO_MODE):', err?.message);
     return `${baseUrl}?stripe_simulated_onboarding=success`;
   }
+}
+
+// Hosted Stripe Checkout for Treasury top-ups. Card details never touch our
+// servers; the ledger is credited only from the verified
+// `checkout.session.completed` webhook.
+export async function createDepositCheckoutSession(params: {
+  userId: string;
+  email?: string;
+  depositAmountUsd: number;
+  platformFeeUsd: number;
+}): Promise<{ id: string; url: string }> {
+  const stripe = getStripe();
+  const baseUrl = getServerBaseUrl();
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    customer_email: params.email || undefined,
+    client_reference_id: params.userId,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount: Math.round(params.depositAmountUsd * 100),
+          product_data: { name: 'MutualPool Treasury deposit' },
+        },
+      },
+      ...(params.platformFeeUsd > 0
+        ? [{
+            quantity: 1,
+            price_data: {
+              currency: 'usd',
+              unit_amount: Math.round(params.platformFeeUsd * 100),
+              product_data: { name: 'Platform fee' },
+            },
+          }]
+        : []),
+    ],
+    metadata: {
+      userId: params.userId,
+      kind: 'treasury_topup',
+      depositAmountUsd: params.depositAmountUsd.toFixed(2),
+    },
+    success_url: `${baseUrl}/?topup=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/?topup=cancelled`,
+  });
+  if (!session.url) throw new Error('Stripe did not return a Checkout URL');
+  return { id: session.id, url: session.url };
+}
+
+// Move funds from the platform balance to a member's connected account. Stripe
+// then pays them out to the bank account collected during Connect onboarding.
+export async function transferToConnectedAccount(params: {
+  destinationAccountId: string;
+  amountUsd: number;
+  idempotencyKey: string;
+  description: string;
+  metadata: Record<string, string>;
+}): Promise<{ id: string }> {
+  const stripe = getStripe();
+  const transfer = await stripe.transfers.create(
+    {
+      amount: Math.round(params.amountUsd * 100),
+      currency: 'usd',
+      destination: params.destinationAccountId,
+      description: params.description,
+      metadata: params.metadata,
+    },
+    { idempotencyKey: params.idempotencyKey }
+  );
+  return { id: transfer.id };
 }
 
 export { stripe };

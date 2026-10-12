@@ -1,61 +1,72 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import type { Server as HttpServer } from 'http';
+import type { Server as HttpServer, IncomingMessage } from 'http';
 import path from 'path';
 import fs from 'fs';
-import { ChatMessage, ChatThread, ChatParticipant, User, Pod } from '../types';
+import { ChatMessage, ChatThread, Pod } from '../types';
+import { IS_PRODUCTION, DATA_DIR } from './runtime';
 
-const CHATS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'chats_data.json');
-
-function safeWriteFile(filePath: string, data: string): void {
-  try {
-    fs.writeFileSync(filePath, data, 'utf8');
-  } catch {
-    try {
-      const tmpPath = path.join('/tmp', path.basename(filePath));
-      fs.writeFileSync(tmpPath, data, 'utf8');
-    } catch {
-      // Quietly ignore in read-only serverless
-    }
-  }
-}
-
-function safeReadFile(filePath: string): string | null {
-  try {
-    if (fs.existsSync(filePath)) {
-      return fs.readFileSync(filePath, 'utf8');
-    }
-  } catch {}
-  try {
-    const tmpPath = path.join('/tmp', path.basename(filePath));
-    if (fs.existsSync(tmpPath)) {
-      return fs.readFileSync(tmpPath, 'utf8');
-    }
-  } catch {}
-  return null;
-}
+const CHATS_FILE = path.join(DATA_DIR, 'chats_data.json');
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_METADATA_BYTES = 2000;
 
 interface StoredChatData {
   threads: ChatThread[];
   messages: ChatMessage[];
 }
 
+export interface VerifiedSocketUser {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
+  platform?: string;
+}
+
+// Wired up by server.ts: token verification, the pod list (for pod channels),
+// allowed WebSocket origins and the persistence hook.
+interface ChatManagerConfig {
+  verifyToken: (token: string) => Promise<VerifiedSocketUser | null>;
+  getPods: () => Pod[];
+  allowedOrigins: string[];
+  onChange: () => void;
+}
+
+let config: ChatManagerConfig = {
+  verifyToken: async () => null,
+  getPods: () => [],
+  allowedOrigins: [],
+  onChange: () => {},
+};
+
+export function configureChatManager(partial: Partial<ChatManagerConfig>): void {
+  config = { ...config, ...partial };
+}
+
 // In-memory chat storage
 let threads: ChatThread[] = [];
 let messages: ChatMessage[] = [];
 
-// WebSocket active connection registry: userId -> Set<WebSocket>
-const userSockets = new Map<string, Set<WebSocket>>();
-const socketUserMap = new Map<WebSocket, { userId: string; displayName: string; avatarUrl?: string }>();
-
-function getOnlineUserIds(): string[] {
-  return Array.from(userSockets.keys());
+export function getChatThreads(): ChatThread[] {
+  return threads;
+}
+export function setChatThreads(next: ChatThread[]): void {
+  threads = next;
+}
+export function getChatMessages(): ChatMessage[] {
+  return messages;
+}
+export function setChatMessages(next: ChatMessage[]): void {
+  messages = next;
 }
 
+// WebSocket active connection registry: userId -> Set<WebSocket>
+const userSockets = new Map<string, Set<WebSocket>>();
+const socketUserMap = new Map<WebSocket, VerifiedSocketUser>();
+
 function loadChatDataFromDisk(): StoredChatData {
+  if (IS_PRODUCTION) return { threads: [], messages: [] };
   try {
-    const raw = safeReadFile(CHATS_FILE);
-    if (raw) {
-      const parsed = JSON.parse(raw);
+    if (fs.existsSync(CHATS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(CHATS_FILE, 'utf8'));
       if (parsed && Array.isArray(parsed.threads) && Array.isArray(parsed.messages)) {
         return parsed;
       }
@@ -63,25 +74,24 @@ function loadChatDataFromDisk(): StoredChatData {
   } catch (err) {
     console.error('[ChatManager] Error reading chats_data.json:', err);
   }
-
-  // Production clean start: empty threads and messages until real chats/messages occur
   return { threads: [], messages: [] };
 }
 
-function saveChatDataToDisk() {
+function saveChatData() {
+  config.onChange();
+  if (IS_PRODUCTION) return;
   try {
-    safeWriteFile(CHATS_FILE, JSON.stringify({ threads, messages }, null, 2));
+    fs.writeFileSync(CHATS_FILE, JSON.stringify({ threads, messages }, null, 2), 'utf8');
   } catch (err) {
     console.error('[ChatManager] Error saving chats_data.json:', err);
   }
 }
 
-// Initialize chat data
+// Initialize chat data (development only; production hydrates from Firestore)
 const initialData = loadChatDataFromDisk();
 threads = initialData.threads;
 messages = initialData.messages;
 
-// Helper to broadcast message to sockets of target users
 function broadcastToUsers(targetUserIds: string[], payload: any) {
   const serialized = JSON.stringify(payload);
   const sentSockets = new Set<WebSocket>();
@@ -99,15 +109,43 @@ function broadcastToUsers(targetUserIds: string[], payload: any) {
   }
 }
 
-function broadcastToAll(payload: any) {
-  const serialized = JSON.stringify(payload);
-  for (const sockets of userSockets.values()) {
-    for (const ws of sockets) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(serialized);
-      }
+// Users who share at least one thread with userId (presence is only visible to them).
+function getContactsOf(userId: string): string[] {
+  const contacts = new Set<string>();
+  for (const t of threads) {
+    if (t?.participantIds?.includes(userId)) {
+      t.participantIds.forEach(id => contacts.add(id));
     }
   }
+  contacts.delete(userId);
+  return Array.from(contacts);
+}
+
+function getOnlineContacts(userId: string): string[] {
+  return getContactsOf(userId).filter(id => userSockets.has(id));
+}
+
+function broadcastPresence(userId: string, isOnline: boolean) {
+  for (const contactId of getContactsOf(userId)) {
+    if (!userSockets.has(contactId)) continue;
+    broadcastToUsers([contactId], {
+      type: 'PRESENCE_UPDATE',
+      userId,
+      isOnline,
+      onlineUsers: getOnlineContacts(contactId),
+    });
+  }
+}
+
+export function isThreadParticipant(threadId: string, userId: string): boolean {
+  const thread = threads.find(t => t.id === threadId);
+  return Boolean(thread && thread.participantIds.includes(userId));
+}
+
+function podMemberIds(pod: Pod): string[] {
+  const ids = (pod.members || []).map(m => m.userId).filter(Boolean) as string[];
+  if (pod.createdBy && !ids.includes(pod.createdBy)) ids.push(pod.createdBy);
+  return ids;
 }
 
 export function getOrCreateDirectThread(
@@ -126,42 +164,30 @@ export function getOrCreateDirectThread(
       avatar: user2.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user2.displayName)}&background=005FB8&color=fff`,
       participantIds: [user1.id, user2.id],
       participantProfiles: [
-        {
-          userId: user1.id,
-          displayName: user1.displayName,
-          avatarUrl: user1.avatarUrl,
-          platform: user1.platform,
-          isOnline: userSockets.has(user1.id),
-        },
-        {
-          userId: user2.id,
-          displayName: user2.displayName,
-          avatarUrl: user2.avatarUrl,
-          platform: user2.platform,
-          isOnline: userSockets.has(user2.id),
-        }
+        { userId: user1.id, displayName: user1.displayName, avatarUrl: user1.avatarUrl, platform: user1.platform },
+        { userId: user2.id, displayName: user2.displayName, avatarUrl: user2.avatarUrl, platform: user2.platform },
       ],
       unreadCount: 0,
       updatedAt: new Date().toISOString(),
-      isOnline: userSockets.has(user2.id),
     };
     threads.unshift(thread);
-    saveChatDataToDisk();
+    saveChatData();
   }
   return thread;
 }
 
-export function getOrCreatePodThread(pod: Pod, currentUserId?: string): ChatThread {
+// Pod channel participants always mirror the pod's current members + creator,
+// so members who leave or are removed lose access.
+export function getOrCreatePodThread(pod: Pod): ChatThread {
   const threadId = `thread_pod_${pod.id}`;
-  let thread = threads.find(t => t.id === threadId || (t.podId && t.podId === pod.id));
-
-  const memberIds = (pod.members || []).map(m => m.userId || m.id).filter(Boolean);
-  if (pod.createdBy && !memberIds.includes(pod.createdBy)) {
-    memberIds.push(pod.createdBy);
-  }
-  if (currentUserId && !memberIds.includes(currentUserId)) {
-    memberIds.push(currentUserId);
-  }
+  let thread = threads.find(t => t.id === threadId);
+  const memberIds = podMemberIds(pod);
+  const profiles = (pod.members || []).filter(m => m.userId).map(m => ({
+    userId: m.userId,
+    displayName: m.displayName || 'Member',
+    avatarUrl: m.avatarUrl,
+    platform: m.platform,
+  }));
 
   if (!thread) {
     thread = {
@@ -172,205 +198,172 @@ export function getOrCreatePodThread(pod: Pod, currentUserId?: string): ChatThre
       podId: pod.id,
       podName: pod.name,
       participantIds: memberIds,
-      participantProfiles: (pod.members || []).map(m => ({
-        userId: m.userId || m.id,
-        displayName: m.displayName || 'Member',
-        avatarUrl: m.avatarUrl,
-        platform: m.platform,
-        isOnline: userSockets.has(m.userId || m.id),
-      })),
+      participantProfiles: profiles,
       unreadCount: 0,
       updatedAt: pod.createdAt || new Date().toISOString(),
-      isOnline: true,
     };
     threads.unshift(thread);
-    saveChatDataToDisk();
-  } else {
-    // Sync participant ids & profiles if pod members changed
-    thread.participantIds = Array.from(new Set([...thread.participantIds, ...memberIds]));
+    saveChatData();
+    return thread;
+  }
+
+  const changed =
+    thread.participantIds.length !== memberIds.length ||
+    thread.participantIds.some(id => !memberIds.includes(id)) ||
+    thread.name !== (pod.name || thread.name);
+  if (changed) {
+    thread.participantIds = memberIds;
+    thread.participantProfiles = profiles;
     thread.podName = pod.name || thread.podName;
     thread.name = pod.name || thread.name;
-    if (pod.members && pod.members.length > 0) {
-      thread.participantProfiles = pod.members.map(m => ({
-        userId: m.userId || m.id,
-        displayName: m.displayName || 'Member',
-        avatarUrl: m.avatarUrl,
-        platform: m.platform,
-        isOnline: userSockets.has(m.userId || m.id),
-      }));
-    }
-    saveChatDataToDisk();
+    saveChatData();
   }
   return thread;
 }
 
-export function getThreadsForUser(userId: string, availablePods?: Pod[], userEmail?: string, userName?: string): ChatThread[] {
-  const uId = String(userId || '').trim().toLowerCase();
-  const uEmail = String(userEmail || '').trim().toLowerCase();
-  const uName = String(userName || '').trim().toLowerCase();
-
-  // Ensure Pod threads exist for all user's pods
-  if (availablePods && Array.isArray(availablePods)) {
-    for (const pod of availablePods) {
-      if (pod && pod.id) {
-        const creatorId = String(pod.createdBy || '').trim().toLowerCase();
-        const creatorName = String(pod.creatorName || '').trim().toLowerCase();
-        const isCreator = (creatorId && (creatorId === uId || (uEmail && creatorId === uEmail))) ||
-          (creatorName && uName && (creatorName === uName || creatorName.includes(uName) || uName.includes(creatorName)));
-
-        const isMember = (pod.members || []).some(m => {
-          if (!m) return false;
-          const mUserId = String(m.userId || '').trim().toLowerCase();
-          const mId = String(m.id || '').trim().toLowerCase();
-          const mEmail = String((m as any).email || '').trim().toLowerCase();
-          const mName = String(m.displayName || '').trim().toLowerCase();
-          if (mUserId && (mUserId === uId || (uEmail && mUserId === uEmail))) return true;
-          if (mId && (mId === uId || (uEmail && mId === uEmail))) return true;
-          if (uEmail && mEmail && mEmail === uEmail) return true;
-          if (uName && mName && (mName === uName || mName.includes(uName) || uName.includes(mName))) return true;
-          return false;
-        });
-
-        if (isCreator || isMember) {
-          const thread = getOrCreatePodThread(pod, userId);
-          if (!thread.participantIds.includes(userId)) {
-            thread.participantIds.push(userId);
-          }
-        }
-      }
+function syncPodThreadsForUser(userId: string): void {
+  for (const pod of config.getPods()) {
+    if (pod && pod.id && podMemberIds(pod).includes(userId)) {
+      getOrCreatePodThread(pod);
     }
   }
-
-  // Filter threads where user is an actual participant
-  const userThreads = threads.filter(t => {
-    if (!t) return false;
-    if (t.participantIds && t.participantIds.some(pid => {
-      const p = String(pid || '').trim().toLowerCase();
-      return p === uId || (uEmail && p === uEmail) || (uName && p === uName);
-    })) {
-      return true;
-    }
-    return false;
-  });
-
-  // Calculate unread counts and recipient names per user view
-  return userThreads.map(t => {
-    const threadMessages = messages.filter(m => m.threadId === t.id);
-    const unread = threadMessages.filter(m => m.senderId !== userId && (!m.readBy || !m.readBy.includes(userId))).length;
-    const lastMsg = threadMessages[threadMessages.length - 1];
-
-    let dynamicName = t.name;
-    let dynamicAvatar = t.avatar;
-    let isPeerOnline = false;
-
-    if (t.type === 'DIRECT' && t.participantProfiles) {
-      const peer = t.participantProfiles.find(p => p.userId !== userId);
-      if (peer) {
-        dynamicName = peer.displayName;
-        dynamicAvatar = peer.avatarUrl || dynamicAvatar;
-        isPeerOnline = userSockets.has(peer.userId);
-      }
-    }
-
-    return {
-      ...t,
-      name: dynamicName,
-      avatar: dynamicAvatar,
-      unreadCount: unread,
-      isOnline: t.type === 'POD' ? true : isPeerOnline,
-      lastMessage: lastMsg ? {
-        content: lastMsg.content,
-        senderName: lastMsg.senderName,
-        senderId: lastMsg.senderId,
-        createdAt: lastMsg.createdAt,
-      } : t.lastMessage,
-      updatedAt: lastMsg ? lastMsg.createdAt : t.updatedAt,
-    };
-  }).sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
 }
 
-export function getMessagesForThread(threadId: string, userId?: string): ChatMessage[] {
-  const threadMsgs = messages.filter(m => m.threadId === threadId);
-  
-  // Auto mark read if userId provided
-  if (userId) {
-    let hasChanges = false;
-    threadMsgs.forEach(m => {
-      if (!m.readBy) m.readBy = [];
-      if (!m.readBy.includes(userId)) {
-        m.readBy.push(userId);
-        hasChanges = true;
-      }
-    });
-    if (hasChanges) {
-      saveChatDataToDisk();
-    }
-  }
+// Make sure a pod channel exists (and is in sync) before checking participation.
+export function ensureThreadForUser(threadId: string, userId: string): void {
+  if (!threadId.startsWith('thread_pod_')) return;
+  const pod = config.getPods().find(p => p && `thread_pod_${p.id}` === threadId);
+  if (pod && podMemberIds(pod).includes(userId)) getOrCreatePodThread(pod);
+}
 
+export function getThreadsForUser(userId: string): ChatThread[] {
+  syncPodThreadsForUser(userId);
+
+  return threads
+    .filter(t => t && t.participantIds?.includes(userId))
+    .map(t => {
+      const threadMessages = messages.filter(m => m.threadId === t.id);
+      const unread = threadMessages.filter(m => m.senderId !== userId && (!m.readBy || !m.readBy.includes(userId))).length;
+      const lastMsg = threadMessages[threadMessages.length - 1];
+
+      let dynamicName = t.name;
+      let dynamicAvatar = t.avatar;
+      let isPeerOnline = false;
+
+      if (t.type === 'DIRECT' && t.participantProfiles) {
+        const peer = t.participantProfiles.find(p => p.userId !== userId);
+        if (peer) {
+          dynamicName = peer.displayName;
+          dynamicAvatar = peer.avatarUrl || dynamicAvatar;
+          isPeerOnline = userSockets.has(peer.userId);
+        }
+      }
+
+      return {
+        ...t,
+        name: dynamicName,
+        avatar: dynamicAvatar,
+        unreadCount: unread,
+        isOnline: t.type === 'POD' ? true : isPeerOnline,
+        participantProfiles: t.participantProfiles?.map(p => ({ ...p, isOnline: userSockets.has(p.userId) })),
+        lastMessage: lastMsg ? {
+          content: lastMsg.content,
+          senderName: lastMsg.senderName,
+          senderId: lastMsg.senderId,
+          createdAt: lastMsg.createdAt,
+        } : t.lastMessage,
+        updatedAt: lastMsg ? lastMsg.createdAt : t.updatedAt,
+      };
+    })
+    .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+}
+
+// Callers must check isThreadParticipant first.
+export function getMessagesForThread(threadId: string, userId: string): ChatMessage[] {
+  const threadMsgs = messages.filter(m => m.threadId === threadId);
+  let hasChanges = false;
+  threadMsgs.forEach(m => {
+    if (!m.readBy) m.readBy = [];
+    if (!m.readBy.includes(userId)) {
+      m.readBy.push(userId);
+      hasChanges = true;
+    }
+  });
+  if (hasChanges) saveChatData();
   return threadMsgs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
+export interface CreateMessageResult {
+  ok: boolean;
+  message?: ChatMessage;
+  error?: 'THREAD_NOT_FOUND' | 'NOT_A_PARTICIPANT' | 'INVALID_MESSAGE';
+}
+
+// The sender must already be a participant; sending never adds anyone to a thread.
 export function createMessage(payload: {
   threadId: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar?: string;
-  senderPlatform?: string;
-  recipientId?: string;
-  podId?: string;
-  content: string;
+  sender: VerifiedSocketUser;
+  content: unknown;
   type?: ChatMessage['type'];
-  metadata?: Record<string, unknown>;
-}): ChatMessage {
-  const msg: ChatMessage = {
-    id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    threadId: payload.threadId,
-    senderId: payload.senderId,
-    senderName: payload.senderName || 'Driver',
-    senderAvatar: payload.senderAvatar,
-    senderPlatform: payload.senderPlatform || 'DoorDash',
-    recipientId: payload.recipientId,
-    podId: payload.podId,
-    content: payload.content,
-    type: payload.type || 'TEXT',
-    createdAt: new Date().toISOString(),
-    readBy: [payload.senderId],
-    metadata: payload.metadata,
-  };
+  metadata?: unknown;
+}): CreateMessageResult {
+  const content = typeof payload.content === 'string' ? payload.content.trim() : '';
+  if (!content || content.length > MAX_MESSAGE_LENGTH) return { ok: false, error: 'INVALID_MESSAGE' };
 
-  messages.push(msg);
+  ensureThreadForUser(payload.threadId, payload.sender.userId);
+  const thread = threads.find(t => t.id === payload.threadId);
+  if (!thread) return { ok: false, error: 'THREAD_NOT_FOUND' };
+  if (!thread.participantIds.includes(payload.sender.userId)) return { ok: false, error: 'NOT_A_PARTICIPANT' };
 
-  // Update thread's updatedAt and lastMessage
-  let thread = threads.find(t => t.id === payload.threadId);
-  if (thread) {
-    thread.lastMessage = {
-      content: msg.content,
-      senderName: msg.senderName,
-      senderId: msg.senderId,
-      createdAt: msg.createdAt,
-    };
-    thread.updatedAt = msg.createdAt;
-    if (payload.recipientId && !thread.participantIds.includes(payload.recipientId)) {
-      thread.participantIds.push(payload.recipientId);
-    }
-    if (!thread.participantIds.includes(payload.senderId)) {
-      thread.participantIds.push(payload.senderId);
+  let metadata: Record<string, unknown> | undefined;
+  if (payload.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)) {
+    try {
+      const serialized = JSON.stringify(payload.metadata);
+      // Firestore cannot store arrays nested in arrays; keep metadata small and flat.
+      if (serialized.length <= MAX_METADATA_BYTES && !/\[\s*\[/.test(serialized)) {
+        metadata = JSON.parse(serialized);
+      }
+    } catch {
+      metadata = undefined;
     }
   }
 
-  saveChatDataToDisk();
+  const msg: ChatMessage = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+    threadId: thread.id,
+    senderId: payload.sender.userId,
+    senderName: payload.sender.displayName || 'Member',
+    senderAvatar: payload.sender.avatarUrl,
+    senderPlatform: payload.sender.platform || 'DoorDash',
+    recipientId: thread.type === 'DIRECT' ? thread.participantIds.find(id => id !== payload.sender.userId) : undefined,
+    podId: thread.podId,
+    content,
+    type: payload.type === 'SYSTEM' ? 'TEXT' : (payload.type || 'TEXT'),
+    createdAt: new Date().toISOString(),
+    readBy: [payload.sender.userId],
+    metadata,
+  };
 
-  // Broadcast in real-time to all thread participants
-  const targetIds = thread ? thread.participantIds : (payload.recipientId ? [payload.recipientId, payload.senderId] : [payload.senderId]);
-  broadcastToUsers(targetIds, {
+  messages.push(msg);
+  thread.lastMessage = {
+    content: msg.content,
+    senderName: msg.senderName,
+    senderId: msg.senderId,
+    createdAt: msg.createdAt,
+  };
+  thread.updatedAt = msg.createdAt;
+  saveChatData();
+
+  broadcastToUsers(thread.participantIds, {
     type: 'RECEIVE_MESSAGE',
     message: msg,
     threadId: msg.threadId,
   });
 
-  return msg;
+  return { ok: true, message: msg };
 }
 
+// Callers must check isThreadParticipant first.
 export function markThreadMessagesAsRead(threadId: string, userId: string): void {
   let changed = false;
   for (const m of messages) {
@@ -383,7 +376,7 @@ export function markThreadMessagesAsRead(threadId: string, userId: string): void
     }
   }
   if (changed) {
-    saveChatDataToDisk();
+    saveChatData();
     const thread = threads.find(t => t.id === threadId);
     if (thread) {
       broadcastToUsers(thread.participantIds, {
@@ -396,135 +389,136 @@ export function markThreadMessagesAsRead(threadId: string, userId: string): void
   }
 }
 
+function isAllowedOrigin(request: IncomingMessage): boolean {
+  const origin = request.headers.origin;
+  if (!origin) return !IS_PRODUCTION;
+  if (config.allowedOrigins.includes(origin)) return true;
+  // Same-origin connections (the SPA is served by this server).
+  try {
+    return new URL(origin).host === request.headers.host;
+  } catch {
+    return false;
+  }
+}
+
 // WebSocket Server initialization
 export function setupWebSocketServer(httpServer: HttpServer) {
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 
   httpServer.on('upgrade', (request, socket, head) => {
     try {
       const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
-      if (url.pathname === '/ws' || url.pathname === '/ws/' || url.pathname.startsWith('/ws')) {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit('connection', ws, request);
-        });
+      if (url.pathname !== '/ws' && url.pathname !== '/ws/') return;
+      if (!isAllowedOrigin(request)) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
       }
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
     } catch (err) {
       console.warn('[WebSocket] Upgrade error:', err);
     }
   });
 
   wss.on('connection', (ws: WebSocket) => {
-    let currentUserId: string | null = null;
+    let currentUser: VerifiedSocketUser | null = null;
 
-    ws.on('message', (data) => {
+    // Unauthenticated sockets are closed after 10s.
+    const authTimeout = setTimeout(() => {
+      if (!currentUser) ws.close(4001, 'Authentication required');
+    }, 10_000);
+
+    ws.on('message', async (data) => {
       try {
         const text = typeof data === 'string' ? data : data.toString('utf8');
         const parsed = JSON.parse(text);
 
-        switch (parsed.type) {
-          case 'AUTH': {
-            const { userId, displayName, avatarUrl, platform } = parsed;
-            if (!userId) return;
+        if (parsed.type === 'PING') {
+          ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+          return;
+        }
 
-            currentUserId = userId;
-            if (!userSockets.has(userId)) {
-              userSockets.set(userId, new Set());
-            }
-            userSockets.get(userId)!.add(ws);
-            socketUserMap.set(ws, { userId, displayName, avatarUrl });
-
-            // Acknowledge auth and send presence list
-            ws.send(JSON.stringify({
-              type: 'AUTH_SUCCESS',
-              userId,
-              onlineUsers: getOnlineUserIds(),
-            }));
-
-            // Broadcast presence to all other connected clients
-            broadcastToAll({
-              type: 'PRESENCE_UPDATE',
-              userId,
-              isOnline: true,
-              onlineUsers: getOnlineUserIds(),
-            });
-            break;
+        if (parsed.type === 'AUTH') {
+          const verified = typeof parsed.token === 'string' ? await config.verifyToken(parsed.token) : null;
+          if (!verified) {
+            ws.send(JSON.stringify({ type: 'AUTH_FAILED' }));
+            ws.close(4001, 'Invalid token');
+            return;
           }
+          clearTimeout(authTimeout);
+          currentUser = verified;
+          if (!userSockets.has(verified.userId)) {
+            userSockets.set(verified.userId, new Set());
+          }
+          userSockets.get(verified.userId)!.add(ws);
+          socketUserMap.set(ws, verified);
+          syncPodThreadsForUser(verified.userId);
 
+          ws.send(JSON.stringify({
+            type: 'AUTH_SUCCESS',
+            userId: verified.userId,
+            onlineUsers: getOnlineContacts(verified.userId),
+          }));
+          broadcastPresence(verified.userId, true);
+          return;
+        }
+
+        if (!currentUser) {
+          ws.send(JSON.stringify({ type: 'ERROR', error: 'UNAUTHENTICATED' }));
+          return;
+        }
+
+        switch (parsed.type) {
           case 'SEND_MESSAGE': {
-            const { threadId, content, recipientId, podId, msgType, metadata, senderName, senderAvatar, senderPlatform } = parsed;
-            const senderId = currentUserId || parsed.senderId || 'usr_guest';
-            if (!threadId || !content) return;
-
-            const newMsg = createMessage({
-              threadId,
-              senderId,
-              senderName: senderName || 'Driver',
-              senderAvatar,
-              senderPlatform,
-              recipientId,
-              podId,
-              content,
-              type: msgType || 'TEXT',
-              metadata,
-            });
-
-            ws.send(JSON.stringify({
-              type: 'MESSAGE_SENT_ACK',
-              messageId: newMsg.id,
-              threadId,
-            }));
+            const { threadId, content, msgType, metadata } = parsed;
+            if (typeof threadId !== 'string') return;
+            const result = createMessage({ threadId, sender: currentUser, content, type: msgType, metadata });
+            if (result.ok) {
+              ws.send(JSON.stringify({ type: 'MESSAGE_SENT_ACK', messageId: result.message.id, threadId }));
+            } else {
+              ws.send(JSON.stringify({ type: 'ERROR', error: result.error, threadId }));
+            }
             break;
           }
 
           case 'TYPING': {
             const { threadId, isTyping } = parsed;
-            if (!threadId || !currentUserId) return;
-            const thread = threads.find(t => t.id === threadId);
-            const userMeta = socketUserMap.get(ws);
-            if (thread) {
-              const otherParticipants = thread.participantIds.filter(id => id !== currentUserId);
-              broadcastToUsers(otherParticipants, {
-                type: 'USER_TYPING',
-                threadId,
-                userId: currentUserId,
-                displayName: userMeta?.displayName || 'A member',
-                isTyping: !!isTyping,
-              });
-            }
+            if (typeof threadId !== 'string' || !isThreadParticipant(threadId, currentUser.userId)) return;
+            const thread = threads.find(t => t.id === threadId)!;
+            broadcastToUsers(thread.participantIds.filter(id => id !== currentUser!.userId), {
+              type: 'USER_TYPING',
+              threadId,
+              userId: currentUser.userId,
+              displayName: currentUser.displayName || 'A member',
+              isTyping: !!isTyping,
+            });
             break;
           }
 
           case 'MARK_READ': {
             const { threadId } = parsed;
-            if (threadId && currentUserId) {
-              markThreadMessagesAsRead(threadId, currentUserId);
+            if (typeof threadId === 'string' && isThreadParticipant(threadId, currentUser.userId)) {
+              markThreadMessagesAsRead(threadId, currentUser.userId);
             }
-            break;
-          }
-
-          case 'PING': {
-            ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
             break;
           }
         }
       } catch (err) {
-        console.error('[WebSocket] Error parsing message:', err);
+        console.error('[WebSocket] Error handling message:', err);
       }
     });
 
     ws.on('close', () => {
-      if (currentUserId) {
-        const userSet = userSockets.get(currentUserId);
+      clearTimeout(authTimeout);
+      if (currentUser) {
+        const userSet = userSockets.get(currentUser.userId);
         if (userSet) {
           userSet.delete(ws);
           if (userSet.size === 0) {
-            userSockets.delete(currentUserId);
-            broadcastToAll({
-              type: 'PRESENCE_UPDATE',
-              userId: currentUserId,
-              isOnline: false,
-              onlineUsers: getOnlineUserIds(),
-            });
+            userSockets.delete(currentUser.userId);
+            broadcastPresence(currentUser.userId, false);
           }
         }
       }

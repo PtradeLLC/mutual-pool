@@ -38,7 +38,7 @@ export function initializeFirebase(): void {
         : undefined;
 
       const localConfig = loadOptionalLocalConfig();
-      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || localConfig.projectId || 'gen-lang-client-0970051758';
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || localConfig.projectId || 'gen-lang-client-0970051758';
       const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || localConfig.storageBucket;
 
       if (serviceAccount) {
@@ -59,7 +59,9 @@ export function initializeFirebase(): void {
     if (app) {
       try { auth = getAuth(app); } catch {}
       try { 
-        db = getFirestore(app);
+        // Must match the database the client listens to (VITE_FIREBASE_DATABASE_ID).
+        const databaseId = process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID;
+        db = databaseId && databaseId !== '(default)' ? getFirestore(app, databaseId) : getFirestore(app);
         db.settings({ ignoreUndefinedProperties: true });
       } catch {}
       try { storage = getStorage(app); } catch {}
@@ -76,7 +78,23 @@ export function getAuthAdmin(): Auth | null {
   return auth || null;
 }
 
+// Firestore needs real credentials (token verification does not: it only uses
+// Google's public certificates). Without them, attempting any Firestore call
+// fails asynchronously inside gRPC, so don't hand out a client at all.
+export function hasFirestoreCredentials(): boolean {
+  return Boolean(
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    process.env.K_SERVICE ||            // Cloud Run
+    process.env.FUNCTION_TARGET ||      // Cloud Functions
+    process.env.GAE_SERVICE             // App Engine
+  );
+}
+
 export function getDb(): Firestore | null {
+  // Test runs must never touch a real Firestore project.
+  if (process.env.DISABLE_FIRESTORE === 'true') return null;
+  if (!hasFirestoreCredentials()) return null;
   if (!db) {
     initializeFirebase();
   }

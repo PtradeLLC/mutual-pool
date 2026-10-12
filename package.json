@@ -1,16 +1,20 @@
 {
-  "name": "react-example",
+  "name": "mutual-pool",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
+    "dev:demo": "DEMO_MODE=true VITE_DEMO_MODE=true tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
+    "start": "NODE_ENV=production node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts && tsx --test tests/feature-integration.test.ts"
+    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-firestore.test.ts tests/hardship-risk.test.ts && npm run test:security && npm run test:integration",
+    "test:security": "tsx scripts/run-server-tests.ts --env=secure tests/security.test.ts",
+    "test:integration": "tsx scripts/run-server-tests.ts --env=demo tests/feature-integration.test.ts tests/anti-collusion.test.ts",
+    "set-admin": "tsx scripts/set-admin-claim.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -51,5 +55,8 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

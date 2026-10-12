@@ -113,7 +113,6 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [showHardshipForm, setShowHardshipForm] = useState(false);
   const [hardshipReason, setHardshipReason] = useState('');
   const [submittingHardship, setSubmittingHardship] = useState(false);
-  const [approvingHardship, setApprovingHardship] = useState(false);
   const [repayingHardship, setRepayingHardship] = useState(false);
 
   // Partner Ad Campaign Agreement Modal States (For Pod Creator right before Active status)
@@ -174,7 +173,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       if (firestoreLogs && firestoreLogs.length > 0) {
         setPodLogs(firestoreLogs.filter(l => l.podId === pod.id));
       }
-    });
+    }, undefined, pod.id);
     return () => unsubscribe();
   }, [pod.id, currentUser.id]);
 
@@ -200,7 +199,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Request failed');
 
-      setActionSuccess(`Financial Hardship Fund requested ($${data.depositAmount}.00). Sent to Pool Creator (${pod.creatorName}) for approval.`);
+      setActionSuccess(`Financial Hardship Fund requested ($${data.depositAmount}.00). MutualPool will review it and notify you of the decision.`);
       setShowHardshipForm(false);
       setHardshipReason('');
       fetchHardshipRequests();
@@ -209,34 +208,6 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       setActionError(err instanceof Error ? err.message : 'Hardship request failed');
     } finally {
       setSubmittingHardship(false);
-    }
-  };
-
-  const handleApproveHardship = async (requestId: string) => {
-    setApprovingHardship(true);
-    setActionError(null);
-    setActionSuccess(null);
-
-    try {
-      const res = await fetch('/api/hardship/approve', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-        },
-        body: JSON.stringify({ requestId }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Approval failed');
-
-      setActionSuccess(`Financial Hardship Fund APPROVED! System disbursed $${data.request.depositAmount}.00 deposit into pool. User account placed on hold, and pool converted to OPEN to recruit replacement.`);
-      fetchHardshipRequests();
-      onRefreshPod();
-    } catch (err: unknown) {
-      setActionError(err instanceof Error ? err.message : 'Approval failed');
-    } finally {
-      setApprovingHardship(false);
     }
   };
 
@@ -1735,7 +1706,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       <div>• Frequency: Subsequent requests allowed every 4 months once account is paid up</div>
                       <div>• Deposit Funded: ${pod.depositTier}.00</div>
                       <div>• 7% Fee Added on Payoff: +${(pod.depositTier * 0.07).toFixed(2)} (${(pod.depositTier * 1.07).toFixed(2)} total)</div>
-                      <div>• Account Status: Set to INACTIVE / HOLD upon Creator approval until paid off</div>
+                      <div>• Account Status: Set to INACTIVE / HOLD once approved by MutualPool, until paid off</div>
                     </div>
                     <div className="flex justify-end gap-2">
                       <button
@@ -1762,7 +1733,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                         Need Help Covering This Week's ${pod.depositTier}.00 Deposit?
                       </span>
                       <span className="text-[11px] text-[#6B7280]">
-                        Request a hardship fund. Creator approval disburses ${pod.depositTier}.00 to the pool. Payoff is ${(pod.depositTier * 1.07).toFixed(2)}.
+                        Request a hardship fund. If approved by MutualPool, ${pod.depositTier}.00 is deposited into the pool. Payoff is ${(pod.depositTier * 1.07).toFixed(2)}.
                       </span>
                     </div>
                     <button
@@ -1777,14 +1748,14 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               </div>
             )}
 
-            {/* Section 2: Pool Creator Review Section */}
-            {(isCreator || currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'POD_ADMIN') && (
+            {/* Section 2: Pending requests (read-only for creators; MutualPool admins decide in Admin Ops) */}
+            {isCreator && (
               <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-3">
                 <div className="flex items-center justify-between">
                   <h5 className="font-bold text-[#111827]">
-                    Pending Creator Approval Requests ({hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length})
+                    Pending Hardship Requests ({hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length})
                   </h5>
-                  <span className="text-[10px] text-[#005FB8] font-mono font-bold">Pool Creator Dashboard</span>
+                  <span className="text-[10px] text-[#005FB8] font-mono font-bold">Reviewed by MutualPool</span>
                 </div>
 
                 {hardshipRequests.filter(r => r.podId === pod.id && r.status === 'PENDING').length === 0 ? (
@@ -1814,14 +1785,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                           <span>Requested {new Date(req.requestedAt).toLocaleDateString()}</span>
                         </div>
 
-                        <button
-                          onClick={() => handleApproveHardship(req.id)}
-                          disabled={approvingHardship}
-                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>{approvingHardship ? 'Approving...' : `Approve & Disburse $${req.depositAmount}.00 Deposit`}</span>
-                        </button>
+                        <div className="w-full py-2 bg-amber-50 border border-amber-200 text-amber-800 font-bold text-[11px] rounded-lg text-center">
+                          Awaiting MutualPool review. You'll be notified of the decision.
+                        </div>
                       </div>
                     ))}
                   </div>

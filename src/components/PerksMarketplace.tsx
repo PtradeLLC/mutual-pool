@@ -108,10 +108,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const isAdmin = currentUser.role === 'Admin' ||
     currentUser.role === 'SUPER_ADMIN' ||
     currentUser.role === 'POD_ADMIN' ||
-    (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) ||
-    currentUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' ||
-    currentUser.id === 'usr_chris' ||
-    currentUser.id === 'usr_chris_admin';
+    (typeof currentUser.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN'));
 
   const fetchPerks = async () => {
     if (allAdminPerks.length > 0) return;
@@ -166,18 +163,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (!map.has(p.id)) map.set(p.id, p);
     });
 
-    const userEmail = currentUser?.email?.toLowerCase();
-    const userName = currentUser?.displayName?.toLowerCase();
     const userId = currentUser?.id;
 
     const filtered = Array.from(map.values()).filter(p => {
       if (isAdmin) return true; // Platform Admins oversee all partner submitted offer performances & approvals
-      if (userId && p.submittedByUserId && (p.submittedByUserId === userId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
-      if (userEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === userEmail) return true;
-      if (userName && p.submittedBy && p.submittedBy.toLowerCase() === userName) return true;
-      if (userName && p.provider && p.provider.toLowerCase() === userName) return true;
-      if (p.status === 'PENDING') return true; // Show pending offers so submitters see their pending approval
-      return false;
+      return Boolean(userId && p.submittedByUserId === userId);
     });
 
     setMySubmittedOffers(filtered);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { 
   ShieldCheck, X, CheckCircle2, Lock, Building2, Sparkles, 
   CreditCard, AlertCircle, FileText, UserCheck, ChevronRight, ExternalLink
@@ -18,10 +19,10 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
 }) => {
   const [fullName, setFullName] = useState(user.displayName || '');
   const [idType, setIdType] = useState<'DRIVER_LICENSE' | 'PASSPORT' | 'STATE_ID'>('DRIVER_LICENSE');
-  const [documentNumber, setDocumentNumber] = useState('D9842103');
-  const [ssnLast4, setSsnLast4] = useState('8821');
-  const [dob, setDob] = useState('1992-05-14');
-  const [address, setAddress] = useState('123 Market St, San Francisco, CA 94105');
+  const [documentNumber, setDocumentNumber] = useState(CLIENT_DEMO_MODE ? 'D9842103' : '');
+  const [ssnLast4, setSsnLast4] = useState(CLIENT_DEMO_MODE ? '8821' : '');
+  const [dob, setDob] = useState(CLIENT_DEMO_MODE ? '1992-05-14' : '');
+  const [address, setAddress] = useState(CLIENT_DEMO_MODE ? '123 Market St, San Francisco, CA 94105' : '');
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,22 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  // Production: identity and payout bank details are collected by Stripe's hosted
+  // Connect onboarding. KYC status is updated by Stripe webhooks, not by this form.
+  const startStripeOnboarding = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/users/connect/onboarding-link', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.message || 'Could not start Stripe verification.');
+      window.location.assign(data.url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not start Stripe verification.');
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,6 +132,55 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
       setLoading(false);
     }
   };
+
+  if (!CLIENT_DEMO_MODE && user.kycStatus !== 'VERIFIED') {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827]">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Verification Modal"
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-5 h-5 pointer-events-none" />
+          </button>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 rounded-xl bg-blue-50 text-[#005FB8] border border-blue-100">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Verify your identity</h3>
+              <p className="text-xs text-[#6B7280]">Required to create or join savings pods and to receive payouts.</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-700 mb-4">
+            {user.kycStatus === 'PENDING'
+              ? 'Stripe is reviewing your details. You can reopen Stripe to finish any remaining steps.'
+              : 'You will be redirected to Stripe to securely verify your identity and add the bank account for payouts. We never see your full SSN or bank credentials.'}
+          </p>
+          {error && (
+            <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={startStripeOnboarding}
+            disabled={loading}
+            className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {loading ? 'Opening Stripe…' : 'Continue to Stripe'}
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 

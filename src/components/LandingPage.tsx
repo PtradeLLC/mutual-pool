@@ -10,6 +10,7 @@ import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
 import { SiteUrlBadge } from './SiteUrlBadge';
+import { PartnerLogoStrip } from './PartnerLogoStrip';
 import { useTranslation } from '../i18n';
 import { useCountry } from '../context/CountryContext';
 import { 
@@ -693,6 +694,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
     );
   })()}
+
+      {/* 2b. GIG PLATFORMS OUR MEMBERS WORK FOR */}
+      <PartnerLogoStrip />
 
       {/* 3. INTERACTIVE ROSCA CALCULATOR SIMULATOR */}
       <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">

@@ -18,6 +18,7 @@ import {
   Radio
 } from 'lucide-react';
 import { saveUserToFirestore } from '../lib/firestoreService';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { useLanguage } from '../i18n';
 
 interface AddFundsModalProps {
@@ -291,10 +292,105 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
     }
   };
 
+  // Production: hosted Stripe Checkout. Card details are entered on Stripe's page
+  // and the balance is credited by the verified webhook after payment.
+  const startCheckout = async () => {
+    if (effectiveDepositAmount < 1) {
+      setError('Please enter an amount of at least $1.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/users/treasury/checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: effectiveDepositAmount }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.message || 'Could not start checkout.');
+      window.location.assign(data.url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not start checkout.');
+      setLoading(false);
+    }
+  };
+
   const handleResetForMore = () => {
     setSuccessData(null);
     setError(null);
   };
+
+
+  if (!CLIENT_DEMO_MODE) {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827]">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100"
+          >
+            <X className="w-5 h-5 pointer-events-none" />
+          </button>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 rounded-xl bg-blue-50 text-[#005FB8] border border-blue-100">
+              <Wallet className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Add funds</h3>
+              <p className="text-xs text-[#6B7280]">Current balance: ${currentBalance.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            {[25, 50, 100, 250].map(val => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => handleQuickPreset(val)}
+                className={`py-2 rounded-lg border text-sm font-bold ${!isCustomAmount && amount === val ? 'border-[#005FB8] bg-blue-50 text-[#005FB8]' : 'border-[#DDE1E6]'}`}
+              >
+                ${val}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            inputMode="decimal"
+            placeholder="Custom amount"
+            value={customAmountStr}
+            onChange={(e) => handleCustomChange(e.target.value)}
+            className="w-full mb-3 px-3 py-2 rounded-lg border border-[#DDE1E6] text-sm"
+          />
+          <div className="text-xs text-slate-600 space-y-1 mb-4">
+            <div className="flex justify-between"><span>Deposit</span><span>${effectiveDepositAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Platform fee (5%)</span><span>${platformFee.toFixed(2)}</span></div>
+            <div className="flex justify-between font-bold text-[#111827]"><span>Total charged</span><span>${totalCharged.toFixed(2)}</span></div>
+          </div>
+          {error && (
+            <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={startCheckout}
+            disabled={loading}
+            className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            <Lock className="w-4 h-4" />
+            {loading ? 'Opening secure checkout…' : 'Continue to secure checkout'}
+          </button>
+          <p className="mt-3 text-[11px] text-slate-500 text-center">Payments are processed by Stripe. Your balance updates once the payment is confirmed.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 

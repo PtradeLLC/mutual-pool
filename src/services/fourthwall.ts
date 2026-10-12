@@ -1,4 +1,5 @@
 import { GearCatalogItem, GearDesignOrder, GearProductType } from '../types';
+import { DEMO_MODE } from '../server/runtime';
 
 export const FOURTHWALL_GEAR_CATALOG: GearCatalogItem[] = [
   {
@@ -374,7 +375,13 @@ export async function dispatchOrderToFourthwall(
     }
   }
 
-  // Authentic Fourthwall Sandbox Simulation
+  // Outside DEMO_MODE a failed or unconfigured dispatch must surface as an error,
+  // never as a simulated confirmation.
+  if (!DEMO_MODE) {
+    throw new Error('Fourthwall order dispatch failed or FOURTHWALL_API_KEY is not configured.');
+  }
+
+  // DEMO_MODE Fourthwall sandbox simulation
   const randomSuffix = Math.floor(100000 + Math.random() * 900000);
   const fwOrderId = `fw_ord_${Date.now()}_${randomSuffix.toString().slice(-4)}`;
   const fwOrderNum = `FW-${randomSuffix}`;

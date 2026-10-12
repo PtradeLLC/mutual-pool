@@ -1,6 +1,10 @@
+import 'dotenv/config';
 process.noDeprecation = true;
+// An uncaught exception leaves in-memory state undefined: persist what we can and
+// let the platform restart the instance.
 process.on('uncaughtException', (err) => {
-  console.error('[Process UncaughtException]', err?.message || err);
+  console.error('[Process UncaughtException]', err);
+  flushNow().finally(() => process.exit(1));
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[Process UnhandledRejection]', reason);
@@ -11,6 +15,7 @@ type Response = express.Response;
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { 
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
@@ -26,27 +31,38 @@ import {
 import { 
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
 } from './src/data/initialData';
-import { getDb, getAuthAdmin } from './src/config/firebase';
-import { apiRateLimiter, authRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
+import { getAuthAdmin } from './src/config/firebase';
+import { IS_PRODUCTION, DEMO_MODE, DATA_DIR, assertProductionConfig, getAllowedOrigins, parseMoneyAmount } from './src/server/runtime';
+import { createStorageAdapter, storageConfigProblems } from './src/server/storage';
+import { assessHardshipRisk } from './src/server/hardshipRisk';
+import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFlush, flushNow, persistNow, startAutoFlush, getPersistenceHealth, onBeforeShutdown } from './src/server/persistence';
+import { apiRateLimiter, authRateLimiter, aiRateLimiter, publicFormRateLimiter, moneyRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
 import { SUPPORTED_COUNTRIES, US_CONFIG } from './src/config/countries';
 import { PaymentProviderFactory } from './src/services/payments/factory';
-import { 
-  handleStripeWebhook, 
-  getStripe, 
-  createDepositPaymentIntent, 
+import {
+  getStripe,
+  createDepositPaymentIntent,
   createConnectOnboardingLink,
-  createOutboundTransfer 
+  createConnectAccount,
+  createDepositCheckoutSession,
+  transferToConnectedAccount,
 } from './src/services/stripe';
 import { GoogleGenAI, Modality, Type } from '@google/genai';
 import Groq from 'groq-sdk';
 import {
   setupWebSocketServer,
+  configureChatManager,
   getThreadsForUser,
   getMessagesForThread,
   createMessage,
   markThreadMessagesAsRead,
   getOrCreateDirectThread,
-  getOrCreatePodThread
+  isThreadParticipant,
+  ensureThreadForUser,
+  getChatThreads,
+  setChatThreads,
+  getChatMessages,
+  setChatMessages,
 } from './src/server/chatManager';
 import { FOURTHWALL_GEAR_CATALOG, INITIAL_GEAR_DESIGNS, dispatchOrderToFourthwall } from './src/services/fourthwall';
 import { GearDesignOrder } from './src/types';
@@ -78,12 +94,14 @@ function getGroqClient(): Groq | null {
   return groqClient;
 }
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
-const PODS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'pods_data.json');
-const USERS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'users_data.json');
+const PODS_FILE = path.join(DATA_DIR, 'pods_data.json');
+const USERS_FILE = path.join(DATA_DIR, 'users_data.json');
 
 function safeWriteFile(filePath: string, data: string): void {
+  // Production state lives in Firestore (src/server/persistence.ts); JSON files are a dev convenience.
+  if (IS_PRODUCTION) return;
   try {
     fs.writeFileSync(filePath, data, 'utf8');
   } catch {
@@ -97,6 +115,7 @@ function safeWriteFile(filePath: string, data: string): void {
 }
 
 function safeReadFile(filePath: string): string | null {
+  if (IS_PRODUCTION) return null;
   try {
     if (fs.existsSync(filePath)) {
       return fs.readFileSync(filePath, 'utf8');
@@ -109,21 +128,6 @@ function safeReadFile(filePath: string): string | null {
     }
   } catch {}
   return null;
-}
-
-function sanitizeForServerFirestore(obj: any): any {
-  if (!obj || typeof obj !== 'object') return obj;
-  const clean: any = Array.isArray(obj) ? [] : {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined) {
-      if (v !== null && typeof v === 'object' && !(v instanceof Date)) {
-        clean[k] = sanitizeForServerFirestore(v);
-      } else {
-        clean[k] = v;
-      }
-    }
-  }
-  return clean;
 }
 
 function mergeMembers(members1: PodMembership[] = [], members2: PodMembership[] = []): PodMembership[] {
@@ -223,81 +227,24 @@ function loadPodsFromDisk(): Pod[] {
 }
 
 function savePodsToDisk() {
+  if (isPersistenceEnabled()) {
+    requestFlush();
+    return;
+  }
   try {
-    const cleanPods = pods.filter(p => p && p.id);
-    safeWriteFile(PODS_FILE, JSON.stringify(cleanPods, null, 2));
+    safeWriteFile(PODS_FILE, JSON.stringify(pods.filter(p => p && p.id), null, 2));
   } catch (err) {
     console.error('Error saving pods_data.json:', err);
   }
-
-  // Asynchronously sync all pods to Firestore
-  try {
-    const db = getDb();
-    if (db) {
-      const batch = db.batch();
-      for (const p of pods) {
-        if (p && p.id) {
-          const ref = db.collection('pods').doc(p.id);
-          batch.set(ref, sanitizeForServerFirestore(p), { merge: true });
-        }
-      }
-      batch.commit().catch((err) => console.warn('[Server] Firestore batch sync info:', err?.message || err));
-    }
-  } catch (err) {
-    // quiet catch if admin DB not configured
-  }
 }
 
+// Storage is read once at boot (hydrateFromStorage); memory is the source of truth.
 async function syncPodsFromFirestore(): Promise<Pod[]> {
-  try {
-    const db = getDb();
-    if (!db) return pods.filter(p => p && p.id);
-    const snap = await db.collection('pods').get();
-    const firestorePods: Pod[] = [];
-
-    if (!snap.empty) {
-      snap.docs.forEach((doc) => {
-        const raw = doc.data();
-        if (!raw) return;
-        const p: Pod = raw.pod && typeof raw.pod === 'object' ? raw.pod : (raw as Pod);
-        if (p) {
-          if (!p.id) p.id = doc.id;
-          if (isDemoPodServer(p)) return;
-          if (!p.status) p.status = 'FORMING';
-          firestorePods.push(p);
-        }
-      });
-    }
-
-    const map = new Map<string, Pod>();
-    for (const p of pods) {
-      if (p && p.id) {
-        map.set(p.id, p);
-      }
-    }
-    for (const fp of firestorePods) {
-      if (fp && fp.id) {
-        const existing = map.get(fp.id);
-        map.set(fp.id, existing ? mergePodObjects(existing, fp) : fp);
-      }
-    }
-    pods = Array.from(map.values());
-    try {
-      safeWriteFile(PODS_FILE, JSON.stringify(pods, null, 2));
-    } catch (e) {
-      // quiet catch
-    }
-  } catch (err: any) {
-    if (err?.code === 5 || (typeof err?.message === 'string' && err.message.includes('NOT_FOUND'))) {
-      // Quietly fallback
-    } else {
-      console.warn('[Server] syncPodsFromFirestore note:', err?.message || err);
-    }
-  }
   return pods;
 }
 
 function loadUsersFromDisk(): User[] {
+  if (IS_PRODUCTION) return [];
   try {
     const raw = safeReadFile(USERS_FILE);
     if (raw) {
@@ -318,27 +265,14 @@ function loadUsersFromDisk(): User[] {
 }
 
 function saveUsersToDisk() {
+  if (isPersistenceEnabled()) {
+    requestFlush();
+    return;
+  }
   try {
     safeWriteFile(USERS_FILE, JSON.stringify(users, null, 2));
   } catch (err) {
     console.error('Error saving users_data.json:', err);
-  }
-
-  // Asynchronously sync all users to Firestore
-  try {
-    const db = getDb();
-    if (db) {
-      const batch = db.batch();
-      for (const u of users) {
-        if (u && u.id) {
-          const ref = db.collection('users').doc(u.id);
-          batch.set(ref, sanitizeForServerFirestore(u), { merge: true });
-        }
-      }
-      batch.commit().catch((err) => console.warn('[Server] Firestore users batch sync info:', err?.message || err));
-    }
-  } catch (err) {
-    // quiet catch if admin DB not configured
   }
 }
 
@@ -346,9 +280,10 @@ function saveUsersToDisk() {
 let users: User[] = loadUsersFromDisk();
 let pods: Pod[] = loadPodsFromDisk();
 
-const NOTIFICATIONS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'notifications_data.json');
+const NOTIFICATIONS_FILE = path.join(DATA_DIR, 'notifications_data.json');
 
 function loadNotificationsFromDisk(): AppNotification[] {
+  if (IS_PRODUCTION) return [];
   try {
     const raw = safeReadFile(NOTIFICATIONS_FILE);
     if (raw) {
@@ -398,54 +333,24 @@ function loadNotificationsFromDisk(): AppNotification[] {
 }
 
 function saveNotificationsToDisk() {
+  if (isPersistenceEnabled()) {
+    requestFlush();
+    return;
+  }
   try {
     safeWriteFile(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2));
   } catch (err) {
     console.error('Error saving notifications_data.json:', err);
   }
-  try {
-    const db = getDb();
-    if (db) {
-      const batch = db.batch();
-      for (const n of notifications.slice(0, 50)) {
-        if (n && n.id) {
-          const ref = db.collection('notifications').doc(n.id);
-          batch.set(ref, sanitizeForServerFirestore(n), { merge: true });
-        }
-      }
-      batch.commit().catch(() => {});
-    }
-  } catch (e) {}
 }
 
 async function syncNotificationsFromFirestore(): Promise<AppNotification[]> {
-  try {
-    const db = getDb();
-    if (!db) return notifications;
-    const snap = await db.collection('notifications').get();
-    if (!snap.empty) {
-      const map = new Map<string, AppNotification>();
-      for (const n of notifications) {
-        if (n && n.id) map.set(n.id, n);
-      }
-      snap.docs.forEach(doc => {
-        const raw = doc.data();
-        if (raw && raw.id) {
-          map.set(raw.id, raw as AppNotification);
-        }
-      });
-      notifications = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-      try {
-        safeWriteFile(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2));
-      } catch (e) {}
-    }
-  } catch (err) {}
   return notifications;
 }
 
 let notifications: AppNotification[] = loadNotificationsFromDisk();
 
-const SWAP_REQUESTS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'swap_requests_data.json');
+const SWAP_REQUESTS_FILE = path.join(DATA_DIR, 'swap_requests_data.json');
 
 function loadSwapRequestsFromDisk(): SwapRequest[] {
   try {
@@ -461,155 +366,49 @@ function loadSwapRequestsFromDisk(): SwapRequest[] {
 }
 
 function saveSwapRequestsToDisk() {
+  if (isPersistenceEnabled()) {
+    requestFlush();
+    return;
+  }
   try {
     safeWriteFile(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2));
   } catch (err) {
     console.error('Error saving swap_requests_data.json:', err);
   }
-  try {
-    const db = getDb();
-    if (db) {
-      const batch = db.batch();
-      for (const sr of swapRequests.slice(0, 50)) {
-        if (sr && sr.id) {
-          const ref = db.collection('swap_requests').doc(sr.id);
-          batch.set(ref, sanitizeForServerFirestore(sr), { merge: true });
-        }
-      }
-      batch.commit().catch(() => {});
-    }
-  } catch (e) {}
 }
 
 async function syncSwapRequestsFromFirestore(): Promise<SwapRequest[]> {
-  try {
-    const db = getDb();
-    if (!db) return swapRequests;
-    const snap = await db.collection('swap_requests').get();
-    if (!snap.empty) {
-      const map = new Map<string, SwapRequest>();
-      for (const sr of swapRequests) {
-        if (sr && sr.id) map.set(sr.id, sr);
-      }
-      snap.docs.forEach(doc => {
-        const raw = doc.data();
-        if (raw && raw.id) {
-          map.set(raw.id, raw as SwapRequest);
-        }
-      });
-      swapRequests = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-      try {
-        safeWriteFile(SWAP_REQUESTS_FILE, JSON.stringify(swapRequests, null, 2));
-      } catch (e) {}
-    }
-  } catch (err) {}
   return swapRequests;
 }
 
 let swapRequests: SwapRequest[] = loadSwapRequestsFromDisk();
 
+// Records are matched to users by exact user id only. Matching on display
+// names or emails (and substrings of them) let users read and act on each
+// other's notifications, swaps and payments.
 function isUserTargetMatch(targetKey: string | undefined, user: User): boolean {
-  if (!targetKey || !user) return false;
-  const targetClean = String(targetKey).trim().toLowerCase();
-  if (!targetClean) return false;
-
-  const uId = String(user.id || '').trim().toLowerCase();
-  const uEmail = String(user.email || '').trim().toLowerCase();
-  const uName = String(user.displayName || '').trim().toLowerCase();
-
-  if (targetClean === uId) return true;
-  if (uEmail && targetClean === uEmail) return true;
-  if (uName && targetClean === uName) return true;
-
-  if (uEmail && (targetClean.includes(uEmail) || uEmail.includes(targetClean))) return true;
-  if (uName && (targetClean.includes(uName) || uName.includes(targetClean))) return true;
-
-  if (targetClean.startsWith('pm_')) {
-    if (uId && targetClean.includes(uId)) return true;
-    if (uEmail && targetClean.includes(uEmail)) return true;
-    if (uName && targetClean.includes(uName)) return true;
-  }
-
-  return false;
+  return Boolean(targetKey && user && user.id && targetKey === user.id);
 }
 
 function isNotificationForUser(n: AppNotification, user: User): boolean {
   if (!n || !user) return false;
-
-  // Direct target match on userId
   if (isUserTargetMatch(n.userId, user)) return true;
 
-  const uId = String(user.id || '').trim().toLowerCase();
-  const uEmail = String(user.email || '').trim().toLowerCase();
-  const uName = String(user.displayName || '').trim().toLowerCase();
+  const meta = (n.metadata || {}) as Record<string, any>;
+  if (isUserTargetMatch(meta.targetUserId, user) || isUserTargetMatch(meta.targetMemberUserId, user)) return true;
 
-  // Check direct recipient fields if present
-  if ((n as any).targetEmail && uEmail && String((n as any).targetEmail).trim().toLowerCase() === uEmail) return true;
-  if ((n as any).targetName && uName && String((n as any).targetName).trim().toLowerCase() === uName) return true;
-
-  // Check metadata target indicators
-  if (n.metadata) {
-    const meta = n.metadata as Record<string, any>;
-    if (meta.targetUserId && isUserTargetMatch(meta.targetUserId, user)) return true;
-    if (meta.targetMemberUserId && isUserTargetMatch(meta.targetMemberUserId, user)) return true;
-    if (meta.targetMemberId && isUserTargetMatch(meta.targetMemberId, user)) return true;
-    if (meta.targetEmail && uEmail && String(meta.targetEmail).trim().toLowerCase() === uEmail) return true;
-    if (meta.targetName && uName && String(meta.targetName).trim().toLowerCase() === uName) return true;
-    if (meta.targetUserName && uName && String(meta.targetUserName).trim().toLowerCase() === uName) return true;
-
-    // If this notification references a swap request
-    const swapReqId = (meta.requestId || meta.swapRequestId) as string | undefined;
-    if (swapReqId) {
-      const sr = swapRequests.find(s => s && s.id === swapReqId);
-      if (sr) {
-        if (n.type === 'SWAP_REQUESTED') {
-          // Intended for target of swap request
-          if (isUserTargetMatch(sr.targetUserId, user)) return true;
-          if (sr.targetName && uName && sr.targetName.trim().toLowerCase() === uName) return true;
-          if (uEmail && sr.targetUserId && sr.targetUserId.trim().toLowerCase() === uEmail) return true;
-        } else if (n.type === 'SWAP_ACCEPTED' || n.type === 'SWAP_DECLINED') {
-          // Intended for requester of swap request
-          if (isUserTargetMatch(sr.requesterUserId, user)) return true;
-          if (sr.requesterName && uName && sr.requesterName.trim().toLowerCase() === uName) return true;
-          if (uEmail && sr.requesterUserId && sr.requesterUserId.trim().toLowerCase() === uEmail) return true;
-        }
-      }
-    }
-  }
-
-  // Check across all pod memberships
+  // Notifications addressed to a pod membership id belong to that membership's user.
   for (const p of pods) {
-    if (!p || !p.members) continue;
-    for (const m of p.members) {
-      if (!m) continue;
-      const mId = String(m.id || '').trim().toLowerCase();
-      const mUserId = String(m.userId || '').trim().toLowerCase();
-      const mEmail = String(m.email || '').trim().toLowerCase();
-      const mName = String(m.displayName || '').trim().toLowerCase();
-
-      const isUserMember = (mUserId && mUserId === uId) || (mEmail && uEmail && mEmail === uEmail) || (mName && uName && mName === uName) || (mId && uId && mId.includes(uId));
-      if (isUserMember) {
-        const targetClean = String(n.userId || '').trim().toLowerCase();
-        if (targetClean === mId || targetClean === mUserId || (mEmail && targetClean === mEmail) || (mName && targetClean === mName)) {
-          return true;
-        }
-        if (n.metadata) {
-          const meta = n.metadata as Record<string, any>;
-          if (meta.targetUserId && (meta.targetUserId === mId || meta.targetUserId === mUserId || meta.targetUserId === mEmail || meta.targetUserId === mName)) {
-            return true;
-          }
-        }
-      }
-    }
+    const membership = p?.members?.find(m => m && m.userId === user.id);
+    if (membership && membership.id && (n.userId === membership.id || meta.targetMemberId === membership.id)) return true;
   }
-
   return false;
 }
 
 function createNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): AppNotification {
   const newNotif: AppNotification = {
     ...notif,
-    id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: `notif_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
     isRead: false,
     createdAt: new Date().toISOString(),
   };
@@ -618,10 +417,14 @@ function createNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'i
   return newNotif;
 }
 
-async function findPodById(id: string, currentUser?: User): Promise<Pod | undefined> {
+// Pure lookup. This must never create pods or add the caller as a member:
+// membership checks throughout the routes depend on it.
+async function findPodById(id: string, _currentUser?: User): Promise<Pod | undefined> {
   if (!id) return undefined;
 
   let pod = pods.find(p => p && p.id === id);
+  // With Firestore persistence enabled, memory is the source of truth.
+  if (pod || isPersistenceEnabled()) return pod;
 
   if (!pod) {
     try {
@@ -642,182 +445,235 @@ async function findPodById(id: string, currentUser?: User): Promise<Pod | undefi
     pod = pods.find(p => p && p.id === id);
   }
 
-  if (!pod) {
-    try {
-      await syncPodsFromFirestore();
-      pod = pods.find(p => p && p.id === id);
-    } catch (err) {
-      console.error('Error syncing pods in findPodById:', err);
-    }
-  }
-
-  if (!pod) {
-    try {
-      const db = getDb();
-      if (db) {
-        const docSnap = await db.collection('pods').doc(id).get();
-        if (docSnap.exists) {
-          const raw = docSnap.data();
-          if (raw) {
-            const p: Pod = raw.pod && typeof raw.pod === 'object' ? raw.pod : (raw as Pod);
-            if (p) {
-              if (!p.id) p.id = docSnap.id;
-              if (!p.status) p.status = 'FORMING';
-              const idx = pods.findIndex(exist => exist.id === p.id);
-              if (idx >= 0) {
-                pods[idx] = mergePodObjects(pods[idx], p);
-                pod = pods[idx];
-              } else {
-                pods.push(p);
-                pod = p;
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Direct Firestore pod lookup error:', err);
-    }
-  }
-
-  if (!pod && id && (id.startsWith('pod_') || id.startsWith('pod-'))) {
-    pod = {
-      id,
-      name: 'Mutual Savings Pod',
-      description: 'Mutual savings and yield pod',
-      category: 'General Gig Workers',
-      podType: 'TRUSTED_CIRCLE',
-      sizeTier: 20,
-      depositTier: 100,
-      weeklyPoolTarget: 500,
-      status: 'FORMING',
-      members: [],
-      memberCount: 0,
-      currentCycleWeek: 1,
-      totalCycles: 5,
-      currentWeeklyCollected: 0,
-      createdAt: new Date().toISOString(),
-      agreementVersion: 'v2.0-2026',
-      activationPolicy: 'WHEN_FULL',
-      inviteWindowDays: 7,
-      autoOpenOnExpire: true,
-      inviteCode: 'JOIN' + id.slice(-4),
-      invitedContacts: [],
-      holdingFinAccountId: 'fa_demo',
-      createdBy: currentUser?.id || 'system',
-      creatorName: currentUser?.displayName || 'Gig Member',
-    };
-    pods.push(pod);
-    savePodsToDisk();
-  }
-
-  // Ensure currentUser is present in pod.members if pod exists
-  if (pod && currentUser && pod.members && !pod.members.some(m => m && (m.userId === currentUser.id || m.id === currentUser.id || (currentUser.email && m.email === currentUser.email) || (m.displayName && m.displayName.toLowerCase().trim() === currentUser.displayName.toLowerCase().trim())))) {
-    pod.members.push({
-      id: `pm_${pod.id}_${currentUser.id}`,
-      podId: pod.id,
-      userId: currentUser.id,
-      displayName: currentUser.displayName,
-      email: currentUser.email,
-      avatarUrl: currentUser.avatarUrl || '',
-      platform: currentUser.platform || 'DoorDash',
-      rotationIndex: pod.members.length,
-      hasReceivedPayout: false,
-      delinquencyStatus: 'CLEAN',
-      joinedAt: new Date().toISOString(),
-    } as any);
-    pod.memberCount = pod.members.length;
-    savePodsToDisk();
-  }
-
   return pod;
 }
 
-function findOrEnsureMember(pod: Pod, targetKey: string, requestingUser?: User): PodMembership | undefined {
-  if (!pod || !pod.members) return undefined;
-  if (!targetKey) return undefined;
-
-  const keyClean = String(targetKey).trim().toLowerCase();
-
-  // 1. Direct match on userId, membership id, displayName, or email
-  let member = pod.members.find(m => {
-    if (!m) return false;
-    if (m.userId && m.userId.toLowerCase() === keyClean) return true;
-    if (m.id && m.id.toLowerCase() === keyClean) return true;
-    if (m.displayName && m.displayName.toLowerCase().trim() === keyClean) return true;
-    if (m.email && m.email.toLowerCase().trim() === keyClean) return true;
-    return false;
-  });
-
-  if (member) return member;
-
-  // 2. Lookup in users array to find matching User
-  const matchedUser = users.find(u => {
-    if (!u) return false;
-    if (u.id && u.id.toLowerCase() === keyClean) return true;
-    if (u.email && u.email.toLowerCase().trim() === keyClean) return true;
-    if (u.displayName && u.displayName.toLowerCase().trim() === keyClean) return true;
-    return false;
-  }) || (requestingUser && (requestingUser.id.toLowerCase() === keyClean || (requestingUser.displayName && requestingUser.displayName.toLowerCase().trim() === keyClean)) ? requestingUser : undefined);
-
-  if (matchedUser) {
-    // Check if matchedUser is already in pod.members by user id/email/displayName
-    member = pod.members.find(m => {
-      if (!m) return false;
-      if (m.userId && m.userId === matchedUser.id) return true;
-      if (m.email && matchedUser.email && m.email.toLowerCase().trim() === matchedUser.email.toLowerCase().trim()) return true;
-      if (m.displayName && matchedUser.displayName && m.displayName.toLowerCase().trim() === matchedUser.displayName.toLowerCase().trim()) return true;
-      return false;
-    });
-
-    if (member) return member;
-
-    // Synthesize and add missing member to pod.members
-    const newMember: PodMembership = {
-      id: `pm_${pod.id}_${matchedUser.id}`,
-      podId: pod.id,
-      userId: matchedUser.id,
-      displayName: matchedUser.displayName || 'Pod Member',
-      email: matchedUser.email,
-      avatarUrl: matchedUser.avatarUrl || '',
-      platform: matchedUser.platform || 'DoorDash',
-      rotationIndex: pod.members.length,
-      hasReceivedPayout: false,
-      delinquencyStatus: 'CLEAN',
-      joinedAt: new Date().toISOString()
-    };
-    pod.members.push(newMember);
-    pod.memberCount = pod.members.length;
-    savePodsToDisk();
-    return newMember;
+// Only store the contact fields we define, never arbitrary client objects.
+function sanitizeInvitedContacts(raw: unknown, inviter: User): InvitedContact[] {
+  if (!Array.isArray(raw)) return [];
+  const out: InvitedContact[] = [];
+  for (const c of raw.slice(0, 200)) {
+    if (!c || typeof c !== 'object') continue;
+    const emailOrPhone = typeof (c as any).emailOrPhone === 'string' ? (c as any).emailOrPhone.trim().slice(0, 254) : '';
+    if (!emailOrPhone) continue;
+    const name = typeof (c as any).name === 'string' ? (c as any).name.trim().slice(0, 120) : '';
+    out.push({
+      id: `ic_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      name: name || emailOrPhone,
+      emailOrPhone,
+      isExistingMember: false,
+      status: 'INVITED',
+      invitedAt: new Date().toISOString(),
+      invitedByUserId: inviter.id,
+      invitedByName: inviter.displayName,
+    } as InvitedContact);
   }
-
-  // 3. Fallback: If targetKey is a string, synthesize a member record for this pod
-  if (typeof targetKey === 'string' && targetKey.length > 0 && targetKey !== 'undefined' && targetKey !== 'null') {
-    const fallbackMember: PodMembership = {
-      id: `pm_${pod.id}_${Date.now()}`,
-      podId: pod.id,
-      userId: targetKey.startsWith('usr_') ? targetKey : `usr_${Date.now()}`,
-      displayName: targetKey,
-      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(targetKey)}&background=005FB8&color=fff`,
-      platform: 'DoorDash',
-      rotationIndex: pod.members.length,
-      hasReceivedPayout: false,
-      delinquencyStatus: 'CLEAN',
-      joinedAt: new Date().toISOString()
-    };
-    pod.members.push(fallbackMember);
-    pod.memberCount = pod.members.length;
-    savePodsToDisk();
-    return fallbackMember;
-  }
-
-  return undefined;
+  return out;
 }
-let perks: Perk[] = [...INITIAL_PERKS];
-let auditLogs: AuditLogEntry[] = [...INITIAL_AUDIT_LOGS];
+
+// Exact lookup of a pod member by user id or membership id. Never adds members.
+function findPodMember(pod: Pod, targetKey: string | undefined): PodMembership | undefined {
+  if (!pod || !pod.members || !targetKey) return undefined;
+  return pod.members.find(m => m && (m.userId === targetKey || m.id === targetKey));
+}
+
+function isPodMember(pod: Pod | undefined, user: User | null | undefined): boolean {
+  return Boolean(pod && user && pod.members?.some(m => m && m.userId === user.id));
+}
+
+// --- ANTI-COLLUSION ---
+// Hardship caps: platform money a single pod can draw through hardship requests.
+const HARDSHIP_MAX_APPROVED_PER_POD_PER_CYCLE = 1;
+const HARDSHIP_MAX_OUTSTANDING_PER_POD = 2;
+
+// Stable identifiers for the real person behind an account. In production these
+// are the Stripe bank-account fingerprints captured from Connect onboarding, so
+// a second account paid out to the same bank counts as the same person. Without
+// any (demo/dev), the account id stands in.
+function getIdentityKeys(user: User | null | undefined): string[] {
+  if (!user) return [];
+  const fingerprints = (user.identityFingerprints || []).filter(Boolean).map(f => `bank:${f}`);
+  if (fingerprints.length) return fingerprints;
+  return IS_PRODUCTION ? [] : [`user:${user.id}`];
+}
+
+function sharesIdentity(a: User | null | undefined, b: User | null | undefined): boolean {
+  if (!a || !b) return false;
+  if (a.id === b.id) return true;
+  const keysA = new Set((a.identityFingerprints || []).filter(Boolean));
+  return (b.identityFingerprints || []).some(f => keysA.has(f));
+}
+
+// The creator's 3% host reward applies once the pod has at least one other
+// member who is KYC-verified and is not the creator under a second account.
+function isHostRewardEligible(pod: Pod): boolean {
+  const creator = users.find(u => u && u.id === pod.createdBy);
+  return (pod.members || []).some(m => {
+    if (!m || !m.userId || m.userId === pod.createdBy) return false;
+    const memberUser = users.find(u => u && u.id === m.userId);
+    return Boolean(memberUser && memberUser.kycStatus === 'VERIFIED' && !sharesIdentity(creator, memberUser));
+  });
+}
+
+// --- ROTATION ORDER ---
+// The creator is placed in the final rotation slot when the pod locks: being paid
+// last is what makes members trust the pod. The 3% host reward is the incentive
+// for holding that slot, so it always belongs to whoever holds the final slot:
+// the creator, or a member who took it over through a swap or reprioritization.
+function getFinalSlotMember(pod: Pod): PodMembership | undefined {
+  let last: PodMembership | undefined;
+  for (const m of pod.members || []) {
+    if (m && m.userId && (!last || m.rotationIndex > last.rotationIndex)) last = m;
+  }
+  return last;
+}
+
+// Keep the stored reward recipient (used in audit logs/notifications) in step
+// with the final slot. Unset means the creator holds it.
+function syncHostRewardRecipient(pod: Pod): void {
+  const last = getFinalSlotMember(pod);
+  if (!last || last.userId === pod.createdBy) {
+    delete pod.hostRewardRecipientUserId;
+    delete pod.hostRewardRecipientName;
+  } else {
+    pod.hostRewardRecipientUserId = last.userId;
+    pod.hostRewardRecipientName = last.displayName;
+  }
+}
+
+// Remove a member without disturbing anyone else's turn. Slots already paid out
+// keep their week numbers; only unpaid slots after the removed one move up by
+// one week, so nobody is paid twice or skipped and the final slot stays final.
+function removeMemberFromRotation(pod: Pod, userId: string): void {
+  const removed = pod.members.find(m => m && m.userId === userId);
+  if (!removed) return;
+  pod.members = pod.members.filter(m => m && m.userId !== userId);
+  pod.memberCount = pod.members.length;
+
+  if (pod.status === 'ACTIVE') {
+    const currentSlot = (pod.currentCycleWeek || 1) - 1; // this week's (unpaid) recipient
+    if (removed.rotationIndex >= currentSlot) {
+      for (const m of pod.members) {
+        if (m.rotationIndex > removed.rotationIndex) m.rotationIndex -= 1;
+      }
+      pod.totalCycles = Math.max(0, (pod.totalCycles || pod.members.length + 1) - 1);
+    }
+    pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
+  }
+  pod.members.sort((a, b) => a.rotationIndex - b.rotationIndex);
+  syncHostRewardRecipient(pod);
+}
+
+// When a pod completes, any welcome-match cushion it didn't need goes back to
+// the platform (it is never paid out as a bonus).
+function releaseContingencyBuffer(pod: Pod): void {
+  const remaining = roundCents(Number(pod.contingencyBufferUsd) || 0);
+  const initial = roundCents(Number(pod.contingencyBufferInitialUsd) || 0);
+  const grant = welcomeMatchGrants.find(g => g.podId === pod.id && g.status === 'ACTIVE');
+  pod.contingencyBufferUsd = 0;
+  for (const g of welcomeMatchGrants.filter(g => g.podId === pod.id && g.status === 'ACTIVE')) {
+    g.usedUsd = roundCents(Math.max(0, initial - remaining));
+    g.releasedUsd = remaining;
+    g.status = 'RELEASED';
+    g.releasedAt = new Date().toISOString();
+  }
+  if (initial > 0 || grant) {
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Treasury', 'WELCOME_MATCH_RELEASED' as any,
+      `Pod "${pod.name}" completed. Welcome match cushion: $${roundCents(initial - remaining).toFixed(2)} used to cover missed deposits; $${remaining.toFixed(2)} unused, returned to the platform.`,
+      { initialUsd: initial, usedUsd: roundCents(initial - remaining), returnedUsd: remaining });
+  }
+}
+
+function assessHardshipRequest(request: HardshipFundRequest) {
+  const others = hardshipRequests.filter(r => r.id !== request.id && r.userId === request.userId && r.status !== 'REJECTED');
+  const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const requester = users.find(u => u.id === request.userId);
+  return assessHardshipRisk({
+    priorRequestsWithSameCreator: others.filter(r => r.creatorUserId === request.creatorUserId).length,
+    priorRequestsTotal: others.length,
+    creatorRecentApprovals: hardshipRequests.filter(r =>
+      r.id !== request.id && r.creatorUserId === request.creatorUserId && r.userId !== request.userId &&
+      (r.status === 'APPROVED' || r.status === 'PAID_OFF') && new Date(r.approvedAt || r.requestedAt).getTime() >= ninetyDaysAgo
+    ).length,
+    memberDepositsInPod: deposits.filter(d => d && d.podId === request.podId && d.userId === request.userId && d.status === 'COMPLETE' && !String(d.stripePaymentId || '').startsWith('ledger_hardship')).length,
+    accountAgeDays: calculateAccountAgeDays(requester?.createdAt, requester?.accountAgeDays),
+    requesterIsCreator: request.userId === request.creatorUserId,
+  });
+}
+
+// Why a pod can't take on another approved hardship right now (null = ok).
+function hardshipCapProblem(pod: Pod): string | null {
+  const forPod = hardshipRequests.filter(r => r.podId === pod.id);
+  const approvedThisCycle = forPod.filter(r => (r.status === 'APPROVED' || r.status === 'PAID_OFF') && r.approvedCycleWeek === pod.currentCycleWeek).length;
+  if (approvedThisCycle >= HARDSHIP_MAX_APPROVED_PER_POD_PER_CYCLE) {
+    return `This pod has already used its hardship allowance for week ${pod.currentCycleWeek}.`;
+  }
+  const outstanding = forPod.filter(r => r.status === 'APPROVED').length;
+  if (outstanding >= HARDSHIP_MAX_OUTSTANDING_PER_POD) {
+    return `This pod already has ${outstanding} unpaid hardship advances; one must be repaid first.`;
+  }
+  return null;
+}
+
+// --- INTERNAL LEDGER ---
+// Pod deposits and payouts move money between members' Treasury ledger
+// balances. Real money only enters via verified Stripe webhooks and only leaves
+// via Stripe transfers (withdrawals), so a ledger debit must never go negative.
+function newLedgerId(prefix: string): string {
+  return `${prefix}_${crypto.randomUUID()}`;
+}
+
+function roundCents(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+function debitLedger(user: User, amount: number): boolean {
+  if (!user.treasury || !Number.isFinite(amount) || amount <= 0) return false;
+  const balance = Number(user.treasury.balanceUsd) || 0;
+  if (balance + 1e-9 < amount) return false;
+  user.treasury.balanceUsd = roundCents(balance - amount);
+  return true;
+}
+
+function creditLedger(user: User, amount: number): void {
+  if (!user.treasury) user.treasury = createUserRecord(user.id, user.email, user.displayName).treasury;
+  user.treasury.balanceUsd = roundCents((Number(user.treasury.balanceUsd) || 0) + amount);
+}
+
+function insufficientFunds(res: Response, required: number, user: User) {
+  return res.status(402).json({
+    error: 'INSUFFICIENT_FUNDS',
+    message: `This requires $${required.toFixed(2)} but your Treasury balance is $${(Number(user.treasury?.balanceUsd) || 0).toFixed(2)}. Add funds first.`,
+    requiredUsd: required,
+  });
+}
+
+function isPodCreator(pod: Pod | undefined, user: User | null | undefined): boolean {
+  return Boolean(pod && user && pod.createdBy === user.id);
+}
+
+// Non-members see a pod's public listing only: no invite code, contacts,
+// member emails or payout transfer ids.
+function toPodView(pod: Pod, viewer: User | null, viewerIsAdmin: boolean): Pod {
+  if (viewerIsAdmin || isPodMember(pod, viewer) || isPodCreator(pod, viewer)) return pod;
+  const { inviteCode: _code, invitedContacts: _contacts, holdingFinAccountId: _fa, ...rest } = pod as any;
+  return {
+    ...rest,
+    inviteCode: '',
+    invitedContacts: [],
+    holdingFinAccountId: '',
+    members: (pod.members || []).map(m => {
+      const { email: _email, payoutStripeTransferId: _tr, ...publicMember } = m as any;
+      return publicMember;
+    }),
+  } as Pod;
+}
+
+// Seed data is for local development only; production state is hydrated from Firestore at boot.
+let perks: Perk[] = IS_PRODUCTION ? [] : [...INITIAL_PERKS];
+let auditLogs: AuditLogEntry[] = IS_PRODUCTION ? [] : [...INITIAL_AUDIT_LOGS];
 let hardshipRequests: HardshipFundRequest[] = [];
-let reprioritizationRequests: ReprioritizationRequest[] = [
+let reprioritizationRequests: ReprioritizationRequest[] = IS_PRODUCTION ? [] : [
   {
     id: 'req_1',
     podId: 'pod_metro_riders_20',
@@ -835,7 +691,7 @@ let reprioritizationRequests: ReprioritizationRequest[] = [
     createdAt: new Date(Date.now() - 86400000).toISOString(),
   }
 ];
-let deposits: Deposit[] = [
+let deposits: Deposit[] = IS_PRODUCTION ? [] : [
   {
     id: 'dep_101',
     membershipId: 'pm_1',
@@ -874,6 +730,37 @@ let deposits: Deposit[] = [
   }
 ];
 let redemptions: Redemption[] = [];
+// Stripe objects (Checkout sessions / PaymentIntents) already credited to a
+// member's ledger. Makes webhook redelivery idempotent.
+let processedPayments: Array<{ id: string; userId: string; amountUsd: number; processedAt: string }> = [];
+// Member withdrawals (Stripe transfers). Persisted BEFORE the transfer is created so
+// a crash or ambiguous Stripe error can be reconciled instead of paying twice.
+interface WithdrawalRecord {
+  id: string;
+  userId: string;
+  amountUsd: number;
+  destinationAccountId: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'NEEDS_REVIEW';
+  stripeTransferId?: string;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+let withdrawals: WithdrawalRecord[] = [];
+// One welcome match per verified person, keyed on identity (see getIdentityKeys).
+interface WelcomeMatchGrant {
+  id: string;
+  identityKey: string;
+  userId: string;
+  podId: string;
+  amountUsd: number;
+  usedUsd: number;
+  releasedUsd: number;
+  status: 'ACTIVE' | 'RELEASED';
+  grantedAt: string;
+  releasedAt?: string;
+}
+let welcomeMatchGrants: WelcomeMatchGrant[] = [];
 
 // Helper: Add immutable Audit Log entry
 function addAuditLog(
@@ -885,7 +772,7 @@ function addAuditLog(
   metadata?: Record<string, unknown>
 ): AuditLogEntry {
   const entry: AuditLogEntry = {
-    id: `log_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    id: `log_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
     podId,
     actorId,
     actorName,
@@ -945,7 +832,15 @@ function getHeaderNumber(req: Request, headerName: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function getProfileFromHeaders(req: Request) {
+// --- IDENTITY ---
+// Identity comes only from a verified Firebase ID token (see the auth middleware
+// below). Admin rights come only from the `admin` custom claim on that token,
+// set with scripts/set-admin-claim.ts.
+//
+// DEMO_MODE (development only) additionally accepts x-user-id / demo tokens and
+// x-user-* profile headers so the integration tests can simulate many users.
+
+function getDemoProfileFromHeaders(req: Request) {
   const rawKycStatus = getHeaderValue(req, 'x-user-kyc-status')?.toUpperCase();
   const kycStatus: User['kycStatus'] = rawKycStatus === 'VERIFIED' || rawKycStatus === 'PENDING' || rawKycStatus === 'FAILED' || rawKycStatus === 'UNVERIFIED'
     ? rawKycStatus
@@ -971,148 +866,118 @@ function getProfileFromHeaders(req: Request) {
   };
 }
 
-// Helper: Get Current User from Request Header/Query or default
-function getCurrentUser(req: Request): User | null {
-  try {
-    if ((req as any).authenticatedUser) {
-      return (req as any).authenticatedUser;
-    }
-    const rawUserId = (req as any).user?.uid || getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId');
-    const userId = rawUserId || undefined;
-    if (!userId) {
-      return null;
-    }
+function createUserRecord(id: string, email: string, displayName: string, avatarUrl?: string | null): User {
+  const nowIso = new Date().toISOString();
+  return {
+    id,
+    email,
+    displayName,
+    avatarUrl: avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=005FB8&color=fff&size=200`,
+    platform: 'DoorDash',
+    role: 'RIDER',
+    createdAt: nowIso,
+    accountAgeDays: calculateAccountAgeDays(nowIso, 1),
+    kycStatus: 'UNVERIFIED',
+    treasury: {
+      stripeAccountId: '',
+      stripeFinAccountId: '',
+      balanceUsd: 0,
+      pendingInboundUsd: 0,
+      totalPayoutsReceivedUsd: 0,
+      fdicPassThroughEligible: false,
+      status: 'UNINITIALIZED' as User['treasury']['status'],
+    },
+    externalBank: {
+      bankName: '',
+      last4: '',
+      routingNumber: '',
+      accountType: 'CHECKING',
+      status: 'NOT_LINKED',
+    },
+    completedPodsCount: 0,
+  };
+}
 
-    let found: User | undefined = users.find(u => u && u.id === userId);
-    if (!found) {
-      const userEmail = getHeaderValue(req, 'x-user-email') || `${userId.substring(0, 8)}@mutualpool.org`;
-      const userNameHeader = getHeaderValue(req, 'x-user-name');
-      const fallbackName = userNameHeader && userNameHeader !== 'Verified Member' ? userNameHeader : (userEmail.split('@')[0] || 'Mutual Member');
-      const profile = getProfileFromHeaders(req);
-      const nowIso = new Date().toISOString();
-      found = {
-        id: userId,
-        email: userEmail,
-        displayName: fallbackName,
-        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=005FB8&color=fff&size=200`,
-        platform: profile.platform as any,
-        role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : (profile.role === 'Admin' ? 'Admin' : profile.role),
-        createdAt: nowIso,
-        accountAgeDays: calculateAccountAgeDays(nowIso, profile.accountAgeDays),
-        kycStatus: profile.kycStatus,
-        treasury: {
-          stripeAccountId: profile.treasuryStripeAccountId,
-          stripeFinAccountId: profile.treasuryStripeFinAccountId,
-          balanceUsd: 0.00,
-          pendingInboundUsd: 0.00,
-          totalPayoutsReceivedUsd: 0.00,
-          fdicPassThroughEligible: profile.kycStatus === 'VERIFIED',
-          status: profile.treasuryStatus as User['treasury']['status'],
-        },
-        externalBank: {
-          bankName: '',
-          last4: '',
-          routingNumber: '',
-          accountType: 'CHECKING',
-          status: 'NOT_LINKED',
-        },
-        completedPodsCount: profile.completedPodsCount,
+// DEMO_MODE only: lets tests seed KYC status, account age, etc. through x-user-* headers.
+function applyDemoProfileHeaders(found: User, req: Request): void {
+  const profile = getDemoProfileFromHeaders(req);
+  found.platform = found.platform || (profile.platform as any);
+  if (profile.role && !found.role) found.role = profile.role;
+  if (profile.accountAgeDays > (found.accountAgeDays || 0)) {
+    found.accountAgeDays = profile.accountAgeDays;
+  }
+  if (found.accountAgeDays && found.accountAgeDays > 1) {
+    const createdTime = found.createdAt ? new Date(found.createdAt).getTime() : NaN;
+    const elapsed = isNaN(createdTime) ? 0 : Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
+    if (elapsed < found.accountAgeDays) {
+      found.createdAt = new Date(Date.now() - found.accountAgeDays * 24 * 60 * 60 * 1000).toISOString();
+    }
+  } else if (!found.createdAt) {
+    found.createdAt = new Date().toISOString();
+  }
+  found.accountAgeDays = calculateAccountAgeDays(found.createdAt, found.accountAgeDays);
+  if (profile.completedPodsCount > (found.completedPodsCount || 0)) {
+    found.completedPodsCount = profile.completedPodsCount;
+  }
+  if (profile.kycStatus === 'VERIFIED' || found.kycStatus === 'VERIFIED') {
+    found.kycStatus = 'VERIFIED';
+    found.kycVerifiedAt = found.kycVerifiedAt || new Date().toISOString();
+    if (!found.treasury) {
+      found.treasury = {
+        stripeAccountId: profile.treasuryStripeAccountId || `acct_1xCustom_${Date.now()}`,
+        stripeFinAccountId: profile.treasuryStripeFinAccountId || `fa_1xTreasury_${Date.now()}`,
+        balanceUsd: 0.00,
+        pendingInboundUsd: 0.00,
+        totalPayoutsReceivedUsd: 0.00,
+        fdicPassThroughEligible: true,
+        status: 'ACTIVE',
       };
-      users.push(found);
-    }
-    if (found) {
-      const profile = getProfileFromHeaders(req);
-      if (profile.accountAgeDays > (found.accountAgeDays || 0)) {
-        found.accountAgeDays = profile.accountAgeDays;
+    } else {
+      found.treasury.status = 'ACTIVE';
+      found.treasury.fdicPassThroughEligible = true;
+      if (!found.treasury.stripeAccountId) {
+        found.treasury.stripeAccountId = profile.treasuryStripeAccountId || `acct_1xCustom_${Date.now()}`;
       }
-      if (found.accountAgeDays && found.accountAgeDays > 1) {
-        const createdTime = found.createdAt ? new Date(found.createdAt).getTime() : NaN;
-        const elapsed = isNaN(createdTime) ? 0 : Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
-        if (elapsed < found.accountAgeDays) {
-          found.createdAt = new Date(Date.now() - found.accountAgeDays * 24 * 60 * 60 * 1000).toISOString();
-        }
-      } else if (!found.createdAt) {
-        found.createdAt = new Date().toISOString();
-      }
-      found.accountAgeDays = calculateAccountAgeDays(found.createdAt, found.accountAgeDays);
-      if (profile.completedPodsCount > (found.completedPodsCount || 0)) {
-        found.completedPodsCount = profile.completedPodsCount;
-      }
-      if (profile.kycStatus === 'VERIFIED' || found.kycStatus === 'VERIFIED') {
-        found.kycStatus = 'VERIFIED';
-        found.kycVerifiedAt = found.kycVerifiedAt || new Date().toISOString();
-        if (!found.treasury) {
-          found.treasury = {
-            stripeAccountId: profile.treasuryStripeAccountId || `acct_1xCustom_${Date.now()}`,
-            stripeFinAccountId: profile.treasuryStripeFinAccountId || `fa_1xTreasury_${Date.now()}`,
-            balanceUsd: 0.00,
-            pendingInboundUsd: 0.00,
-            totalPayoutsReceivedUsd: 0.00,
-            fdicPassThroughEligible: true,
-            status: 'ACTIVE',
-          };
-        } else {
-          found.treasury.status = 'ACTIVE';
-          found.treasury.fdicPassThroughEligible = true;
-          if (!found.treasury.stripeAccountId) {
-            found.treasury.stripeAccountId = profile.treasuryStripeAccountId || `acct_1xCustom_${Date.now()}`;
-          }
-          if (!found.treasury.stripeFinAccountId) {
-            found.treasury.stripeFinAccountId = profile.treasuryStripeFinAccountId || `fa_1xTreasury_${Date.now()}`;
-          }
-        }
+      if (!found.treasury.stripeFinAccountId) {
+        found.treasury.stripeFinAccountId = profile.treasuryStripeFinAccountId || `fa_1xTreasury_${Date.now()}`;
       }
     }
-    if (found && found.email?.toLowerCase() === 'chrisbitoy@gmail.com' && found.role !== 'Admin') {
-      found.role = 'Admin';
-    }
-    return found;
-  } catch (err) {
-    console.error('Error in getCurrentUser:', err);
-    return null;
   }
 }
 
-// Helper: Check if Request Sender Has Admin Role
-function checkIsAdmin(req: Request): boolean {
-  try {
-    const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId');
-    const userId = rawUserId && rawUserId !== 'usr_guest' ? rawUserId : undefined;
-    const rawEmail = getQueryValue(req, 'email');
-    const userEmail = rawEmail?.toLowerCase();
+// Scheduled jobs (cycle payouts, settlement sweeps) may be triggered by an admin
+// or by the scheduler presenting CRON_SECRET in the x-cron-secret header.
+function isSystemRequest(req: Request): boolean {
+  if (checkIsAdmin(req)) return true;
+  const secret = process.env.CRON_SECRET;
+  const provided = getHeaderValue(req, 'x-cron-secret');
+  if (!secret || !provided || secret.length !== provided.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(secret), Buffer.from(provided));
+}
 
-    if (userEmail === 'chrisbitoy@gmail.com' || userId === 'usr_chris' || userId === 'usr_chris_admin') {
-      return true;
-    }
-
-    const user = getCurrentUser(req);
-    if (!user) return false;
-    return (
-      user.role === 'Admin' ||
-      user.role === 'SUPER_ADMIN' ||
-      user.role === 'POD_ADMIN' ||
-      (typeof user.role === 'string' && user.role.toUpperCase().includes('ADMIN')) ||
-      user.email?.toLowerCase() === 'chrisbitoy@gmail.com' ||
-      user.id === 'usr_chris' ||
-      user.id === 'usr_chris_admin'
-    );
-  } catch (err) {
-    console.error('Error in checkIsAdmin:', err);
-    return false;
+// Routes that only exist to simulate money/KYC flows in development.
+function requireDemoMode(_req: Request, res: Response, next: express.NextFunction) {
+  if (!DEMO_MODE) {
+    return res.status(404).json({ error: 'NOT_AVAILABLE', message: 'This endpoint is only available in demo mode.' });
   }
+  next();
+}
+
+function isAdminRole(role: unknown): boolean {
+  return typeof role === 'string' && role.toUpperCase().includes('ADMIN');
+}
+
+function getCurrentUser(req: Request): User | null {
+  return ((req as any).authenticatedUser as User | undefined) || null;
+}
+
+function checkIsAdmin(req: Request): boolean {
+  return (req as any).authIsAdmin === true;
 }
 
 export const app = express();
 app.set('trust proxy', 1);
 
-export function isServerlessRuntime(): boolean {
-  return Boolean(
-    process.env.VERCEL ||
-    process.env.AWS_LAMBDA_FUNCTION_NAME ||
-    process.env.NETLIFY ||
-    process.env.CF_PAGES
-  );
-}
 
 // Serverless & Standard Express socket / connection stabilizer
 app.use((req, res, next) => {
@@ -1145,7 +1010,11 @@ app.use((req, res, next) => {
     return next();
   }
 
-  express.json({ limit: '10mb' })(req, res, () => {
+  express.json({
+    limit: '10mb',
+    // Keep the exact bytes: Stripe/Fourthwall webhook signatures are computed over the raw body.
+    verify: (r, _res, buf) => { (r as any).rawBody = buf; },
+  })(req, res, () => {
     express.urlencoded({ extended: true, limit: '10mb' })(req, res, () => {
       if (req.body !== undefined && req.body !== null) {
         if (typeof req.body === 'string' && req.body.trim().length > 0) {
@@ -1166,20 +1035,45 @@ app.use((req, res, next) => {
   });
 });
 
-// Enable CORS and OPTIONS preflight for all routes
+// CORS (allowlisted origins only) + security headers
+const allowedOrigins = new Set(getAllowedOrigins());
 app.use((req, res, next) => {
   if (res.headersSent) return next();
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, x-user-name, x-user-email, Idempotency-Key');
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
+  }
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (IS_PRODUCTION) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(origin && allowedOrigins.has(origin) ? 204 : 403).end();
   }
   next();
 });
+
+// Never leak internal error details to clients in production: strip
+// message/details/stack from generic 500 JSON bodies. Other 5xx codes (502/503)
+// carry deliberate, user-facing messages.
+if (IS_PRODUCTION) {
+  app.use((req, res, next) => {
+    const originalJson = res.json.bind(res);
+    res.json = (body: any) => {
+      if (res.statusCode === 500 && body && typeof body === 'object' && !Array.isArray(body)) {
+        const { message: _m, details: _d, stack: _s, ...rest } = body;
+        return originalJson({ ...rest, error: rest.error || 'SERVER_ERROR' });
+      }
+      return originalJson(body);
+    };
+    next();
+  });
+}
 
 // Attach Server-Side Country Context (derived strictly from host / domain)
 app.use(countryContextMiddleware);
@@ -1238,225 +1132,190 @@ app.get('/api/country/all', (_req: Request, res: Response) => {
   });
 });
 
-// Rate limiting middleware (skipped in serverless like Vercel where edge proxies protect endpoints)
-if (!isServerlessRuntime()) {
-  app.use('/api/', apiRateLimiter);
-  app.use(['/api/users/login', '/api/users/register', '/api/users/switch'], authRateLimiter);
-}
+// Several routes are also registered without the /api prefix; limiters must cover both.
+const API_PATH = /^\/(api\/)?(admin|campaigns|chats|fourthwall|health|notifications|perks|platform|pods|user|users|treasury|hardship|audit-logs|ai|webhooks|country)(\/|$)/;
+const MONEY_PATH = /^\/(api\/)?(users\/treasury|treasury|pods\/[^/]+\/(join|deposit)|hardship|perks\/(redeem|submit))(\/|$)/;
+const AI_PATH = /^\/(api\/)?(ai\/|campaigns\/gear-verify)/;
+const limitWhen = (pattern: RegExp, limiter: express.RequestHandler): express.RequestHandler =>
+  (req, res, next) => (pattern.test(req.path) ? limiter(req, res, next) : next());
 
-// Unified Firebase ID Token Verification Middleware for all API routes
+// Pre-auth limiter for the (demo-only) credential routes.
+app.use(['/api/users/login', '/api/users/register', '/api/users/switch'], authRateLimiter);
+
+// Firebase ID token verification for all routes. This is the ONLY place identity
+// is established; handlers read it through getCurrentUser()/checkIsAdmin().
 app.use(async (req: Request, res: Response, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    let verifiedUid: string | null = null;
-    let verifiedEmail: string | null = null;
-    let verifiedName: string | null = null;
-    let verifiedPicture: string | null = null;
+  let uid: string | null = null;
+  let email: string | null = null;
+  let emailVerified = false;
+  let name: string | null = null;
+  let picture: string | null = null;
+  let isAdmin = false;
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7).trim();
-      const authAdmin = getAuthAdmin();
-      if (authAdmin && token) {
-        try {
-          const decoded = await authAdmin.verifyIdToken(token);
-          verifiedUid = decoded.uid;
-          verifiedEmail = decoded.email || null;
-          verifiedName = (decoded.name as string) || null;
-          verifiedPicture = (decoded.picture as string) || null;
-        } catch (err: any) {
-          // Check for demo token format in preview/testing environments
-          if (token.startsWith('demo_token_') || token.startsWith('usr_')) {
-            verifiedUid = token.replace('demo_token_', '');
-          } else {
-            console.warn('[Auth Middleware] Invalid Firebase ID Token:', err?.message);
-          }
-        }
-      } else if (token.startsWith('demo_token_') || token.startsWith('usr_')) {
-        verifiedUid = token.replace('demo_token_', '');
-      }
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+
+  if (token && !(DEMO_MODE && (token.startsWith('demo_token_') || token.startsWith('usr_')))) {
+    const authAdmin = getAuthAdmin();
+    if (!authAdmin) {
+      console.error('[Auth] Firebase Admin is not initialised; cannot verify ID tokens.');
+      return res.status(503).json({ error: 'AUTH_UNAVAILABLE', message: 'Authentication is temporarily unavailable.' });
+    }
+    try {
+      const decoded = await authAdmin.verifyIdToken(token);
+      uid = decoded.uid;
+      email = decoded.email || null;
+      emailVerified = decoded.email_verified === true;
+      name = (decoded.name as string) || null;
+      picture = (decoded.picture as string) || null;
+      isAdmin = decoded.admin === true;
+    } catch (err: any) {
+      return res.status(401).json({ error: 'INVALID_TOKEN', message: 'Your session has expired. Please sign in again.' });
+    }
+  }
+
+  if (!uid && DEMO_MODE) {
+    const demoToken = token.startsWith('demo_token_') ? token.replace('demo_token_', '') : token.startsWith('usr_') ? token : '';
+    uid = demoToken || getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId') || null;
+    email = getHeaderValue(req, 'x-user-email') || null;
+    emailVerified = Boolean(email);
+    name = getHeaderValue(req, 'x-user-name') || null;
+  }
+
+  if (uid) {
+    let found = users.find(u => u && u.id === uid);
+    if (!found) {
+      const userEmail = email || '';
+      const displayName = (name && name !== 'Verified Member' ? name : '') || userEmail.split('@')[0] || 'Mutual Member';
+      found = createUserRecord(uid, userEmail, displayName, picture);
+      found.emailVerified = emailVerified;
+      users.push(found);
+      saveUsersToDisk();
+    } else if (email && (found.email !== email || found.emailVerified !== emailVerified)) {
+      // An unverified address must not be able to claim another member's invites.
+      found.email = email;
+      found.emailVerified = emailVerified;
     }
 
-    // Determine effective user ID (verified token takes precedence, fallback to header for backwards compatibility)
-    const effectiveUserId = verifiedUid || getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId');
-    if (effectiveUserId) {
-      let found = users.find(u => u && u.id === effectiveUserId);
-      if (!found) {
-        const userEmail = verifiedEmail || getHeaderValue(req, 'x-user-email') || `${effectiveUserId.substring(0, 8)}@mutualpool.org`;
-        const userNameHeader = verifiedName || getHeaderValue(req, 'x-user-name');
-        const fallbackName = userNameHeader && userNameHeader !== 'Verified Member' ? userNameHeader : (userEmail.split('@')[0] || 'Mutual Member');
-        const profile = getProfileFromHeaders(req);
-        const nowIso = new Date().toISOString();
-        found = {
-          id: effectiveUserId,
-          email: userEmail,
-          displayName: fallbackName,
-          avatarUrl: verifiedPicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=005FB8&color=fff&size=200`,
-          platform: profile.platform as any,
-          role: userEmail.toLowerCase() === 'chrisbitoy@gmail.com' ? 'Admin' : (profile.role === 'Admin' ? 'Admin' : profile.role),
-          createdAt: nowIso,
-          accountAgeDays: calculateAccountAgeDays(nowIso, profile.accountAgeDays),
-          kycStatus: profile.kycStatus,
-          treasury: {
-            stripeAccountId: profile.treasuryStripeAccountId,
-            stripeFinAccountId: profile.treasuryStripeFinAccountId,
-            balanceUsd: 0.00,
-            pendingInboundUsd: 0.00,
-            totalPayoutsReceivedUsd: 0.00,
-            fdicPassThroughEligible: profile.kycStatus === 'VERIFIED',
-            status: profile.treasuryStatus as User['treasury']['status'],
-          },
-          externalBank: {
-            bankName: '',
-            last4: '',
-            routingNumber: '',
-            accountType: 'CHECKING',
-            status: 'NOT_LINKED',
-          },
-          completedPodsCount: profile.completedPodsCount,
-        };
-        users.push(found);
-      }
-      (req as any).authenticatedUser = found;
-      (req as any).user = {
-        uid: found.id,
-        email: found.email,
-        displayName: found.displayName,
-      };
+    if (DEMO_MODE) {
+      applyDemoProfileHeaders(found, req);
+      isAdmin = isAdmin || isAdminRole(found.role) || isAdminRole(getHeaderValue(req, 'x-user-role'));
+    } else if (isAdmin) {
+      found.role = 'Admin';
+      found.isAdmin = true;
+    } else if (isAdminRole(found.role) || found.isAdmin) {
+      // Stored roles never grant admin; only the verified custom claim does.
+      found.role = 'RIDER';
+      found.isAdmin = false;
     }
-  } catch (authErr) {
-    console.warn('[Auth Middleware] Resolution error:', authErr);
+
+    (req as any).authenticatedUser = found;
+    (req as any).authIsAdmin = isAdmin;
+    (req as any).user = { uid: found.id, email: found.email, displayName: found.displayName };
   }
   next();
 });
+
+// After any mutating API request, persist changed state promptly.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    res.on('finish', () => requestFlush());
+  }
+  next();
+});
+
+// Limiters keyed by the authenticated user (falling back to IP for anonymous callers).
+app.use(limitWhen(API_PATH, apiRateLimiter));
+app.use(limitWhen(AI_PATH, aiRateLimiter));
+app.use(['/api/campaigns/advertiser-inquiry'], publicFormRateLimiter);
+app.use(limitWhen(MONEY_PATH, moneyRateLimiter));
 
 // Production-ready Health check endpoint
 app.get(['/api/health', '/health'], (req, res) => {
-  const db = getDb();
-  res.json({
-    status: 'ok',
+  const persistence = getPersistenceHealth();
+  const healthy = !IS_PRODUCTION || (persistence.enabled && persistence.consecutiveFailures < 3);
+  const body: Record<string, unknown> = {
+    status: healthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    database: db ? 'connected' : 'disconnected',
-    stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
-    uptime: Math.floor(process.uptime()),
-    version: '1.0.0',
-    mode: process.env.NODE_ENV || 'development'
-  });
-});
-
-function normalizeApiUrl(req: express.Request): string {
-  try {
-    // 1. Check path parameter from req.query or req.url (Vercel serverless rewrite)
-    let pathParam: string | null = null;
-    if (req.query && typeof req.query.path === 'string' && req.query.path.trim()) {
-      pathParam = req.query.path.trim();
-    } else if (req.url && req.url.includes('path=')) {
-      const u = new URL(req.url, 'http://localhost');
-      pathParam = u.searchParams.get('path');
-    }
-
-    if (pathParam) {
-      const clean = pathParam.startsWith('/') ? pathParam : '/' + pathParam;
-      const basePath = clean.startsWith('/api') ? clean : `/api${clean}`;
-      const queryIdx = req.url.indexOf('?');
-      if (queryIdx !== -1) {
-        const queryParams = new URLSearchParams(req.url.slice(queryIdx + 1));
-        queryParams.delete('path');
-        const qs = queryParams.toString();
-        return qs ? `${basePath}?${qs}` : basePath;
-      }
-      return basePath;
-    }
-
-    // 2. Check x-forwarded-uri, x-invoke-path, x-now-route-matches
-    const fwd = req.headers['x-forwarded-uri'] || req.headers['x-invoke-path'] || req.headers['x-now-route-matches'];
-    const fwdStr = Array.isArray(fwd) ? fwd[0] : fwd;
-    if (typeof fwdStr === 'string' && (fwdStr.includes('/api/') || fwdStr.endsWith('/api') || fwdStr.startsWith('/api')) && !fwdStr.startsWith('/api/index')) {
-      return fwdStr;
-    }
-
-    // 3. Check req.originalUrl
-    if (req.originalUrl && (req.originalUrl.includes('/api/') || req.originalUrl.startsWith('/api')) && !req.originalUrl.startsWith('/api/index')) {
-      return req.originalUrl;
-    }
-
-    // 4. Check req.url if already valid API route
-    if (req.url && (req.url.includes('/api/') || req.url.startsWith('/api')) && !req.url.startsWith('/api/index')) {
-      return req.url;
-    }
-  } catch (err) {
-    console.error('[URL Normalization Error]', err);
+  };
+  if (checkIsAdmin(req)) {
+    Object.assign(body, {
+      persistence,
+      stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+      uptime: Math.floor(process.uptime()),
+      mode: process.env.NODE_ENV || 'development',
+      demoMode: DEMO_MODE,
+    });
   }
-
-  return req.url;
-}
-
-// Normalize request URL for serverless environments (e.g., Vercel proxy rewrites)
-app.use((req, res, next) => {
-  if (res.headersSent) return next();
-  const normalized = normalizeApiUrl(req);
-  if (normalized && normalized !== req.url && !normalized.startsWith('/api/index')) {
-    req.url = normalized;
-    delete (req as any)._parsedUrl;
-    delete (req as any)._parsedOriginalUrl;
-  }
-  next();
+  res.status(healthy ? 200 : 503).json(body);
 });
 
 // --- API ROUTES ---
 
-  // 1. Current User Profile, Sync, Login, Registration & User Switcher
+  // 1. Current user profile & member directory
   app.get(['/api/users/current', '/users/current'], (req: Request, res: Response) => {
-    try {
-      const user = getCurrentUser(req);
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      res.json(user);
-    } catch (err) {
-      console.error('[/api/users/current] error:', err);
-      res.status(500).json({ error: 'Failed to retrieve user.' });
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
+    user.accountAgeDays = calculateAccountAgeDays(user.createdAt, user.accountAgeDays);
+    res.json(user);
   });
 
+  // Members may only edit plain profile fields on their own record. Balances,
+  // KYC, roles, Stripe and bank details are server-controlled.
   app.post(['/api/users/sync', '/users/sync'], (req: Request, res: Response) => {
-    try {
-      const syncUser = req.body as User;
-      if (!syncUser || !syncUser.id) {
-        return res.status(400).json({ error: 'Invalid user payload' });
-      }
-      if (!syncUser.createdAt) {
-        syncUser.createdAt = new Date().toISOString();
-      }
-      syncUser.accountAgeDays = calculateAccountAgeDays(syncUser.createdAt, syncUser.accountAgeDays);
-      const index = users.findIndex(u => u.id === syncUser.id);
-      if (index >= 0) {
-        users[index] = { ...users[index], ...syncUser };
-      } else {
-        users.push(syncUser);
-      }
-      saveUsersToDisk();
-      res.json({ success: true, user: syncUser });
-    } catch (err) {
-      console.error('[/api/users/sync] error:', err);
-      res.status(500).json({ error: 'Failed to sync user.' });
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
+    const body = (req.body || {}) as Partial<User>;
+    const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
+
+    const displayName = text(body.displayName, 80);
+    if (displayName) user.displayName = displayName;
+    const name = text(body.name, 120);
+    if (name) user.name = name;
+    const city = text(body.city, 120);
+    if (city !== undefined) user.city = city;
+    const avatarUrl = text(body.avatarUrl, 2048);
+    if (avatarUrl && /^https:\/\//i.test(avatarUrl)) user.avatarUrl = avatarUrl;
+    const platform = text(body.platform, 40);
+    if (platform) user.platform = platform as User['platform'];
+    if (Array.isArray(body.deliveryPlatforms)) {
+      user.deliveryPlatforms = body.deliveryPlatforms.filter(p => typeof p === 'string').map(p => p.slice(0, 40)).slice(0, 10);
+    }
+    saveUsersToDisk();
+    res.json({ success: true, user });
   });
 
   app.get(['/api/users', '/users'], (req: Request, res: Response) => {
-    try {
-      users.forEach(u => {
-        if (u) {
-          u.accountAgeDays = calculateAccountAgeDays(u.createdAt, u.accountAgeDays);
-        }
-      });
-      res.json(users);
-    } catch (err) {
-      console.error('[/api/users] error:', err);
-      res.status(500).json({ error: 'Failed to retrieve users.' });
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
+    if (checkIsAdmin(req)) {
+      users.forEach(u => {
+        if (u) u.accountAgeDays = calculateAccountAgeDays(u.createdAt, u.accountAgeDays);
+      });
+      return res.json(users);
+    }
+    // Public directory only: no emails, balances, bank or KYC details.
+    res.json(users.filter(Boolean).map(u => ({
+      id: u.id,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrl,
+      platform: u.platform,
+      city: u.city,
+      role: isAdminRole(u.role) ? 'RIDER' : u.role,
+      completedPodsCount: u.completedPodsCount,
+    })));
   });
 
-  app.post('/api/users/login', (req: Request, res: Response) => {
+  // --- DEMO_MODE-only simulations (development & integration tests) ---
+  // In production, sign-in is Firebase Auth, KYC and bank linking happen in
+  // Stripe Connect onboarding, and deposits go through Stripe Checkout.
+  app.post('/api/users/login', requireDemoMode, (req: Request, res: Response) => {
     const { email, userId } = req.body;
     let found = users.find(u => u.id === userId);
     if (!found && email) {
@@ -1468,7 +1327,7 @@ app.use((req, res, next) => {
     res.json(found);
   });
 
-  app.post('/api/users/register', (req: Request, res: Response) => {
+  app.post('/api/users/register', requireDemoMode, (req: Request, res: Response) => {
     const { displayName, email, platform, initialDeposit, autoVerifyKyc } = req.body;
 
     if (!displayName || !email) {
@@ -1480,7 +1339,7 @@ app.use((req, res, next) => {
       return res.status(400).json({ error: 'An account with this email already exists' });
     }
 
-    const newUserId = `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const newUserId = `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
     const avatars = [
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
       'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
@@ -1539,7 +1398,7 @@ app.use((req, res, next) => {
     });
   });
 
-  app.post('/api/users/switch', (req: Request, res: Response) => {
+  app.post('/api/users/switch', requireDemoMode, (req: Request, res: Response) => {
     const { userId } = req.body;
     const found = users.find(u => u.id === userId);
     if (!found) {
@@ -1549,7 +1408,7 @@ app.use((req, res, next) => {
   });
 
   // 2. Stripe Identity KYC Verification Simulation
-  app.post(['/api/users/kyc/verify', '/users/kyc/verify'], (req: Request, res: Response) => {
+  app.post(['/api/users/kyc/verify', '/users/kyc/verify'], requireDemoMode, (req: Request, res: Response) => {
     try {
       if (res.headersSent) return;
 
@@ -1644,11 +1503,11 @@ app.use((req, res, next) => {
   });
 
   // 3. Bank Account Linking (Stripe Financial Connections)
-  app.post('/api/users/bank/link', (req: Request, res: Response) => {
+  app.post('/api/users/bank/link', requireDemoMode, (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'Please sign in.' });
       }
 
       const body = req.body || {};
@@ -1692,11 +1551,11 @@ app.use((req, res, next) => {
   });
 
   // 3b. Stripe Treasury Account Test Deposit / Top-up Endpoint
-  app.post('/api/users/treasury/topup', (req: Request, res: Response) => {
+  app.post('/api/users/treasury/topup', requireDemoMode, (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
 
       const { amount, sourceCardNumber } = req.body || {};
@@ -1725,7 +1584,7 @@ app.use((req, res, next) => {
       const cleanCard = (sourceCardNumber || '4242424242424242').replace(/\D/g, '');
       const last4 = cleanCard.slice(-4) || '4242';
       const { paymentIntentId } = req.body || {};
-      const inboundTransferId = paymentIntentId || `it_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      const inboundTransferId = paymentIntentId || `it_stripe_treasury_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
       targetUser.treasury.balanceUsd += depositAmount;
       saveUsersToDisk();
@@ -1754,17 +1613,48 @@ app.use((req, res, next) => {
     }
   });
 
+  // 3a. Stripe Checkout session for Treasury top-ups (production deposit flow)
+  app.post('/api/users/treasury/checkout-session', async (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+      }
+      const depositAmount = parseMoneyAmount(req.body?.amount, { max: 10_000 });
+      if (depositAmount === null || depositAmount < 1) {
+        return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter an amount between $1 and $10,000.' });
+      }
+      const country = req.country || US_CONFIG;
+      const feePercentage = country.payment.payoutFeePercentage || 0.05;
+      const platformFee = Math.round(depositAmount * feePercentage * 100) / 100;
+
+      const session = await createDepositCheckoutSession({
+        userId: user.id,
+        email: user.email,
+        depositAmountUsd: depositAmount,
+        platformFeeUsd: platformFee,
+      });
+      res.json({ success: true, url: session.url, sessionId: session.id, depositAmount, platformFee, totalCharged: depositAmount + platformFee });
+    } catch (err: any) {
+      console.error('[/api/users/treasury/checkout-session] error:', err);
+      res.status(500).json({ error: 'FAILED_TO_CREATE_CHECKOUT_SESSION' });
+    }
+  });
+
   // 3b-1. Create Stripe PaymentIntent for secure client-side Elements checkout (PCI SAQ A Compliant)
   app.post('/api/users/treasury/create-payment-intent', validateCountryCurrency, async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
 
       const country = req.country || US_CONFIG;
       const { amount, podId, description } = req.body || {};
-      const depositAmount = Number(amount) || 100;
+      const depositAmount = parseMoneyAmount(amount, { max: 10_000 });
+      if (depositAmount === null) {
+        return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter an amount between $0.01 and $10,000.' });
+      }
       const feePercentage = country.payment.payoutFeePercentage || 0.05;
       const platformFee = Math.round(depositAmount * feePercentage * 100) / 100;
       const totalCharged = depositAmount + platformFee;
@@ -1799,7 +1689,8 @@ app.use((req, res, next) => {
         totalCharged,
         user.id,
         podId,
-        description || `MutualPool Treasury Top-up for ${user.displayName || user.email}`
+        description || `MutualPool Treasury Top-up for ${user.displayName || user.email}`,
+        depositAmount
       );
 
       return res.json({
@@ -1818,45 +1709,56 @@ app.use((req, res, next) => {
     }
   });
 
-  // 3b-2. Create Stripe Connect Custom Onboarding Link
+  // 3b-2. Stripe Connect onboarding (identity verification + payout bank account)
   app.post('/api/users/connect/onboarding-link', async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
 
-      let accountId = user.treasury?.stripeAccountId;
-      if (!accountId) {
-        accountId = `acct_1xCustom_${Date.now()}`;
-        const targetUser = users.find(u => u.id === user.id);
-        if (targetUser) {
-          if (!targetUser.treasury) {
-            targetUser.treasury = {
-              stripeAccountId: accountId,
-              stripeFinAccountId: `fa_1xTreasury_${Date.now()}`,
-              balanceUsd: 0,
-              pendingInboundUsd: 0,
-              totalPayoutsReceivedUsd: 0,
-              status: 'PENDING_REQUIREMENTS',
-              fdicPassThroughEligible: false,
-            };
-          } else {
-            targetUser.treasury.stripeAccountId = accountId;
-          }
-          saveUsersToDisk();
+      if (!user.treasury) {
+        user.treasury = createUserRecord(user.id, user.email, user.displayName).treasury;
+      }
+      let accountId = user.treasury.stripeAccountId;
+      if (!accountId || (!DEMO_MODE && !accountId.startsWith('acct_')) || accountId.startsWith('acct_1xCustom_')) {
+        if (DEMO_MODE) {
+          accountId = `acct_1xCustom_${Date.now()}`;
+        } else {
+          const account = await createConnectAccount(user.id, user.email, user.displayName);
+          accountId = account.id;
         }
+        user.treasury.stripeAccountId = accountId;
+        user.treasury.status = 'PENDING_REQUIREMENTS';
+        saveUsersToDisk();
       }
 
-      const onboardingUrl = await createConnectOnboardingLink(accountId, req.body?.returnUrl);
-      return res.json({
-        success: true,
-        url: onboardingUrl,
-        accountId,
-      });
+      const onboardingUrl = await createConnectOnboardingLink(accountId);
+      return res.json({ success: true, url: onboardingUrl, accountId });
     } catch (err: any) {
       console.error('[/api/users/connect/onboarding-link] error:', err);
-      return res.status(500).json({ error: 'FAILED_TO_GENERATE_ONBOARDING_LINK', message: err?.message });
+      return res.status(500).json({ error: 'FAILED_TO_GENERATE_ONBOARDING_LINK' });
+    }
+  });
+
+  // 3b-3. Refresh Stripe Connect status (called when the member returns from onboarding;
+  // the account.updated webhook keeps it current afterwards).
+  app.post('/api/users/connect/refresh', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
+    const accountId = user.treasury?.stripeAccountId || '';
+    if (DEMO_MODE || !accountId.startsWith('acct_')) {
+      return res.json({ success: true, user });
+    }
+    try {
+      const account = await getStripe().accounts.retrieve(accountId, { expand: ['external_accounts'] });
+      applyConnectAccountUpdate(account);
+      return res.json({ success: true, user });
+    } catch (err: any) {
+      console.error('[/api/users/connect/refresh] error:', err?.message);
+      return res.status(502).json({ error: 'STRIPE_UNAVAILABLE', message: 'Could not refresh your verification status. Please try again shortly.' });
     }
   });
 
@@ -1865,7 +1767,7 @@ app.use((req, res, next) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
       const pod = await findPodById(req.params.id, user);
       if (!pod) {
@@ -1881,17 +1783,10 @@ app.use((req, res, next) => {
         });
       }
 
-      // Remove user membership from pod
-      const cleanUserEmail = user.email?.trim().toLowerCase();
-      const cleanUserName = user.displayName?.trim().toLowerCase();
-
-      pod.members = pod.members.filter(m => {
-        if (!m) return false;
-        if (m.userId === user.id) return false;
-        if (cleanUserName && m.displayName && m.displayName.trim().toLowerCase() === cleanUserName) return false;
-        if (cleanUserEmail && (m as any).email && (m as any).email.trim().toLowerCase() === cleanUserEmail) return false;
-        return true;
-      });
+      if (!isPodMember(pod, user)) {
+        return res.status(403).json({ error: 'NOT_A_MEMBER', message: 'You are not a member of this pod.' });
+      }
+      pod.members = pod.members.filter(m => m && m.userId !== user.id);
 
       savePodsToDisk();
 
@@ -1912,23 +1807,34 @@ app.use((req, res, next) => {
 
   // 4. Pods List & Details
   app.get(['/api/pods', '/pods'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
     try {
       await syncPodsFromFirestore();
-      res.json(pods.filter(p => !isDemoPodServer(p)));
     } catch (err) {
-      console.error('[/api/pods] error:', err);
-      res.json(pods.filter(p => !isDemoPodServer(p)));
+      console.error('[/api/pods] sync error:', err);
     }
+    const isAdmin = checkIsAdmin(req);
+    res.json(pods.filter(p => !isDemoPodServer(p)).map(p => toPodView(p, user, isAdmin)));
   });
 
   app.get(['/api/pods/:id', '/pods/:id'], async (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+      }
       const pod = await findPodById(req.params.id, user);
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
       }
-      
+      const isAdmin = checkIsAdmin(req);
+      if (!isAdmin && !isPodMember(pod, user) && !isPodCreator(pod, user)) {
+        return res.json(toPodView(pod, user, false));
+      }
+
       // Attached deposits and requests
       const podDeposits = deposits.filter(d => d.podId === pod.id);
       const podRequests = reprioritizationRequests.filter(r => r.podId === pod.id);
@@ -1951,7 +1857,7 @@ app.use((req, res, next) => {
    try {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const body = req.body || {};
     const { 
@@ -1968,8 +1874,17 @@ app.use((req, res, next) => {
     } = body;
 
     // Validate required fields before doing any money math
-    if (!name || typeof name !== 'string') {
-      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Pod name is required.' });
+    if (!name || typeof name !== 'string' || !name.trim() || name.length > 120) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Pod name is required (max 120 characters).' });
+    }
+    if (description !== undefined && (typeof description !== 'string' || description.length > 2000)) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Description must be at most 2000 characters.' });
+    }
+    if (invitedContacts !== undefined && (!Array.isArray(invitedContacts) || invitedContacts.length > 200)) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'invitedContacts must be a list of at most 200 contacts.' });
+    }
+    if (category !== undefined && (typeof category !== 'string' || category.length > 80)) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'category must be at most 80 characters.' });
     }
     const validSizeTiers = [20, 50, 100, 500, 1000, 5000, 10000];
     const validDepositTiers = [5, 10, 20, 50, 100];
@@ -1993,9 +1908,7 @@ app.use((req, res, next) => {
     // Hard Gate: Maximum 3 Created Pods per User Limit (Anti-Fraud & Financial Integrity Policy)
     const userActiveCreatedPodsCount = pods.filter(p => {
       if (!p || !p.id) return false;
-      const isCreator = p.createdBy === user.id || 
-        (p.creatorName && user.displayName && p.creatorName.trim().toLowerCase() === user.displayName.trim().toLowerCase());
-      return isCreator && p.status !== 'COMPLETED';
+      return p.createdBy === user.id && p.status !== 'COMPLETED';
     }).length;
 
     if (userActiveCreatedPodsCount >= 3) {
@@ -2031,8 +1944,8 @@ app.use((req, res, next) => {
       });
     }
 
-    const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const podId = `pod_${Date.now()}`;
+    const randomCode = crypto.randomBytes(5).toString('base64url').replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase().padEnd(6, 'X');
+    const podId = `pod_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 
     const baseDepositAmount = Number(depositTier);
     const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
@@ -2041,41 +1954,48 @@ app.use((req, res, next) => {
     // Check Welcome Match Eligibility (Matches 100% of selected deposit tier for verified KYC first pod creation)
     const creatorUser = users.find(u => u.id === user.id);
     const isKycVerified = user.kycStatus === 'VERIFIED' || creatorUser?.kycStatus === 'VERIFIED';
-    const isEligibleForWelcomeMatch = isKycVerified && !creatorUser?.welcomeMatchReceived;
+    // One welcome match per verified person: checked against every identity key
+    // (bank fingerprint) this person has, not just this account.
+    const creatorIdentityKeys = getIdentityKeys(creatorUser || user);
+    const identityAlreadyMatched = creatorIdentityKeys.some(key => welcomeMatchGrants.some(g => g.identityKey === key));
+    const isEligibleForWelcomeMatch = isKycVerified && !creatorUser?.welcomeMatchReceived && creatorIdentityKeys.length > 0 && !identityAlreadyMatched;
     const welcomeMatchAmount = isEligibleForWelcomeMatch ? baseDepositAmount : 0;
 
-    // Deduct initial total deposit payment from creator's treasury balance if available
-    if (creatorUser) {
-      // Defensive guard: some seeded/legacy user records may predate the treasury shape
-      if (!creatorUser.treasury) {
-        creatorUser.treasury = {
-          stripeAccountId: '',
-          stripeFinAccountId: '',
-          balanceUsd: 0,
-          pendingInboundUsd: 0,
-          totalPayoutsReceivedUsd: 0,
-          fdicPassThroughEligible: false,
-          status: 'UNINITIALIZED',
-        };
-      }
-      creatorUser.treasury.balanceUsd = Math.max(0, (creatorUser.treasury.balanceUsd || 0) - totalChargedAmount) + welcomeMatchAmount;
-      if (welcomeMatchAmount > 0) {
-        creatorUser.welcomeMatchReceived = true;
-        creatorUser.welcomeMatchAmountUsd = welcomeMatchAmount;
+    // Charge the creator's first deposit from their Treasury balance. The welcome
+    // match goes only to the pod's non-withdrawable contingency buffer.
+    if (!creatorUser || !debitLedger(creatorUser, totalChargedAmount)) {
+      return insufficientFunds(res, totalChargedAmount, creatorUser || user);
+    }
+    if (welcomeMatchAmount > 0) {
+      creatorUser.welcomeMatchReceived = true;
+      creatorUser.welcomeMatchAmountUsd = welcomeMatchAmount;
+      const grantedAt = new Date().toISOString();
+      for (const identityKey of creatorIdentityKeys) {
+        welcomeMatchGrants.push({
+          id: newLedgerId('wm'),
+          identityKey,
+          userId: creatorUser.id,
+          podId,
+          amountUsd: welcomeMatchAmount,
+          usedUsd: 0,
+          releasedUsd: 0,
+          status: 'ACTIVE',
+          grantedAt,
+        });
       }
     }
 
     // Process initial deposit record for creator (Member #1)
     const creatorMemberId = `pm_${Date.now()}_1`;
     const initialDeposit: Deposit = {
-      id: `dep_init_${Date.now()}`,
+      id: newLedgerId('dep_init'),
       membershipId: creatorMemberId,
       podId: podId,
       cycleId: `cyc_w1`,
       userId: user.id,
       userName: user.displayName,
       amount: baseDepositAmount,
-      stripePaymentId: `pi_create_pod_${Date.now()}`,
+      stripePaymentId: newLedgerId('ledger_create_pod'),
       status: 'COMPLETE',
       createdAt: new Date().toISOString(),
     };
@@ -2083,7 +2003,7 @@ app.use((req, res, next) => {
 
     const newPod: Pod = {
       id: podId,
-      name,
+      name: name.trim(),
       description: description || 'Community gig worker mutual savings pool',
       category: category || 'General Gig Workers',
       podType: requestedPodType,
@@ -2091,7 +2011,7 @@ app.use((req, res, next) => {
       inviteWindowDays: Number(inviteWindowDays) || 7,
       autoOpenOnExpire: autoOpenOnExpire !== false,
       inviteCode: randomCode,
-      invitedContacts: Array.isArray(invitedContacts) ? invitedContacts : [],
+      invitedContacts: sanitizeInvitedContacts(invitedContacts, user),
       sizeTier: Number(sizeTier) as Pod['sizeTier'],
       depositTier: Number(depositTier) as Pod['depositTier'],
       status: 'FORMING',
@@ -2172,7 +2092,7 @@ app.use((req, res, next) => {
   app.post(['/api/pods/:id/contacts', '/pods/:id/contacts'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const pod = await findPodById(req.params.id, user);
 
@@ -2187,8 +2107,8 @@ app.use((req, res, next) => {
     }
 
     const { contacts } = req.body || {}; // array of { name, emailOrPhone }
-    if (!Array.isArray(contacts)) {
-      return res.status(400).json({ error: 'Contacts list must be an array' });
+    if (!Array.isArray(contacts) || contacts.length > 100) {
+      return res.status(400).json({ error: 'Contacts list must be an array of at most 100 contacts' });
     }
 
     if (!pod.invitedContacts) pod.invitedContacts = [];
@@ -2196,7 +2116,8 @@ app.use((req, res, next) => {
     const addedContacts: InvitedContact[] = [];
 
     contacts.forEach((c: { name: string; emailOrPhone: string }) => {
-      if (!c.emailOrPhone) return;
+      if (!c || typeof c.emailOrPhone !== 'string' || !c.emailOrPhone.trim() || c.emailOrPhone.length > 254) return;
+      if (c.name !== undefined && (typeof c.name !== 'string' || c.name.length > 120)) return;
       const cleanContact = c.emailOrPhone.trim().toLowerCase();
       
       // Check if existing
@@ -2204,13 +2125,10 @@ app.use((req, res, next) => {
       if (existsInPod) return;
 
       // Cross reference with registered users
-      const registeredUser = users.find(u => 
-        u.email.toLowerCase() === cleanContact || 
-        (u.displayName && u.displayName.toLowerCase() === c.name.toLowerCase())
-      );
+      const registeredUser = users.find(u => u && u.email && u.email.toLowerCase() === cleanContact);
 
       const newInvitedContact: InvitedContact = {
-        id: `ic_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        id: `ic_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
         name: c.name || c.emailOrPhone,
         emailOrPhone: c.emailOrPhone,
         isExistingMember: !!registeredUser,
@@ -2251,7 +2169,7 @@ app.use((req, res, next) => {
   app.post(['/api/pods/:id/convert-open', '/pods/:id/convert-open'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const pod = await findPodById(req.params.id, user);
 
@@ -2282,7 +2200,7 @@ app.use((req, res, next) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
       const { inviteCode, refUserId, refName } = req.body || {};
       const pod = await findPodById(req.params.id);
@@ -2314,8 +2232,8 @@ app.use((req, res, next) => {
         return res.status(400).json({ error: 'Pod has reached its maximum size tier capacity.' });
       }
 
-      if (pod.status === 'COMPLETED' || (pod.status === 'LOCKED' && pod.members.length >= sizeTier)) {
-        return res.status(400).json({ error: 'This pod is completed or locked and cannot accept new members.' });
+      if (pod.status !== 'FORMING') {
+        return res.status(400).json({ error: 'POD_NOT_FORMING', message: 'This pod is no longer accepting new members.' });
       }
 
       const existing = pod.members.find(m => m && m.userId === user.id);
@@ -2328,21 +2246,15 @@ app.use((req, res, next) => {
       const contactMatch = pod.invitedContacts.find(ic => {
         if (!ic) return false;
         const icEmail = (ic.emailOrPhone || '').trim().toLowerCase();
-        return (userEmailClean && icEmail === userEmailClean) || (ic.memberUserId && ic.memberUserId === user.id);
+        return (user.emailVerified && userEmailClean && icEmail === userEmailClean) || (ic.memberUserId && ic.memberUserId === user.id);
       });
 
       // Check Trusted Circle restrictions if pod is TRUSTED_CIRCLE and user is not creator
       if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== user.id) {
         const isInvited = !!contactMatch;
-        const expectedCode = String(pod.inviteCode || 'BAY2026').trim().toUpperCase();
+        const expectedCode = String(pod.inviteCode || '').trim().toUpperCase();
         const providedCode = String(inviteCode || '').trim().toUpperCase();
-        const isCodeValid = providedCode.length > 0 && (
-          providedCode === expectedCode || 
-          providedCode === 'BAY2026' || 
-          providedCode === 'START50' || 
-          providedCode === 'VET100' || 
-          providedCode === 'POOL2026'
-        );
+        const isCodeValid = expectedCode.length > 0 && providedCode === expectedCode;
 
         if (!isInvited && !isCodeValid) {
           return res.status(403).json({
@@ -2376,6 +2288,16 @@ app.use((req, res, next) => {
         inviterDisplayName = pod.creatorName;
       }
 
+      // Charge the first deposit + 5% platform fee before adding the member.
+      const baseDepositAmount = pod.depositTier || 20;
+      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+      const totalChargedAmount = baseDepositAmount + platformFee;
+      const targetUser = users.find(u => u && u.id === user.id) || user;
+      if (!debitLedger(targetUser, totalChargedAmount)) {
+        return insufficientFunds(res, totalChargedAmount, targetUser);
+      }
+      saveUsersToDisk();
+
       const memberDisplayName = user.displayName && user.displayName !== 'Verified Member' ? user.displayName : (user.email ? user.email.split('@')[0] : 'Member');
       const newMember: PodMembership = {
         id: `pm_${Date.now()}_${pod.members.length + 1}`,
@@ -2396,42 +2318,16 @@ app.use((req, res, next) => {
       pod.members.push(newMember);
       pod.memberCount = pod.members.length;
 
-      // Deduct initial deposit + 5% platform fee from user Treasury balance
-      const baseDepositAmount = pod.depositTier || 20;
-      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
-      const totalChargedAmount = baseDepositAmount + platformFee;
-
-      const targetUser = users.find(u => u && u.id === user.id);
-      if (targetUser) {
-        if (!targetUser.treasury) {
-          targetUser.treasury = {
-            stripeAccountId: `acct_test_${Date.now()}`,
-            stripeFinAccountId: `fa_test_${Date.now()}`,
-            balanceUsd: 0,
-            pendingInboundUsd: 0,
-            totalPayoutsReceivedUsd: 0,
-            fdicPassThroughEligible: true,
-            status: 'ACTIVE'
-          };
-        }
-        targetUser.treasury.balanceUsd = Math.max(0, (targetUser.treasury.balanceUsd || 0) - totalChargedAmount);
-        try {
-          saveUsersToDisk();
-        } catch (uErr) {
-          console.warn('[Join Pod] saveUsersToDisk error:', uErr);
-        }
-      }
-
       // Record completed deposit for joining member
       const joinDeposit: Deposit = {
-        id: `dep_join_${Date.now()}`,
+        id: newLedgerId('dep_join'),
         membershipId: newMember.id,
         podId: pod.id,
         cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
         userId: user.id,
         userName: user.displayName || 'Verified Member',
         amount: baseDepositAmount,
-        stripePaymentId: `pi_join_pod_${Date.now()}`,
+        stripePaymentId: newLedgerId('ledger_join_pod'),
         status: 'COMPLETE',
         createdAt: new Date().toISOString(),
       };
@@ -2485,7 +2381,7 @@ app.use((req, res, next) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
       const { signatureName } = req.body || {};
       const pod = await findPodById(req.params.id, user);
@@ -2494,25 +2390,14 @@ app.use((req, res, next) => {
         return res.status(404).json({ error: 'Pod not found' });
       }
 
-      let member = pod.members.find(m => m.userId === user.id);
+      // Signing never adds members: joining (with invite, KYC and payment checks) does.
+      const member = pod.members.find(m => m.userId === user.id);
       if (!member) {
-        member = {
-          id: `pm_${pod.id}_${user.id}`,
-          podId: pod.id,
-          userId: user.id,
-          displayName: user.displayName,
-          avatarUrl: user.avatarUrl,
-          platform: user.platform,
-          rotationIndex: pod.members.length,
-          hasReceivedPayout: false,
-          delinquencyStatus: 'CLEAN',
-          joinedAt: new Date().toISOString(),
-        } as any;
-        pod.members.push(member);
+        return res.status(403).json({ error: 'NOT_A_MEMBER', message: 'Join this pod before signing its agreement.' });
       }
 
       member.agreementSignedAt = new Date().toISOString();
-      member.agreementSignatureName = signatureName || user.displayName;
+      member.agreementSignatureName = (typeof signatureName === 'string' && signatureName.trim() ? signatureName.trim().slice(0, 120) : '') || user.displayName;
 
       savePodsToDisk();
 
@@ -2535,7 +2420,7 @@ app.use((req, res, next) => {
   app.post(['/api/pods/:id/lock', '/pods/:id/lock'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const pod = await findPodById(req.params.id, user);
 
@@ -2545,10 +2430,11 @@ app.use((req, res, next) => {
 
     const { forceEarly } = req.body || {};
 
-    // Check if creator or admin
-    const isCreatorOrAdmin = pod.createdBy === user.id || user.role === 'POD_ADMIN' || pod.members.some(m => m.userId === user.id);
-    if (!isCreatorOrAdmin) {
-      return res.status(403).json({ error: 'Only members or creator can request rotation locking.' });
+    if (pod.createdBy !== user.id && !checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Only the pod creator can lock rotation and activate the pod.' });
+    }
+    if (pod.status !== 'FORMING') {
+      return res.status(400).json({ error: 'POD_NOT_FORMING', message: 'This pod has already been activated.' });
     }
 
     if (pod.members.length < 2) {
@@ -2584,7 +2470,7 @@ app.use((req, res, next) => {
     // Fixed 1-time random shuffle algorithm (Fisher-Yates) on non-creator members
     const shuffledNonCreators = [...nonCreatorMembers];
     for (let i = shuffledNonCreators.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = crypto.randomInt(i + 1);
       [shuffledNonCreators[i], shuffledNonCreators[j]] = [shuffledNonCreators[j], shuffledNonCreators[i]];
     }
 
@@ -2601,6 +2487,7 @@ app.use((req, res, next) => {
 
     pod.members = finalOrderedMembers;
     pod.creatorLastInRotation = true;
+    syncHostRewardRecipient(pod);
     pod.status = 'ACTIVE';
     pod.cycleStartDate = new Date().toISOString();
     pod.totalCycles = pod.members.length;
@@ -2671,14 +2558,14 @@ app.use((req, res, next) => {
     try {
       const user = getCurrentUser(req);
       if (!user) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
       const pod = await findPodById(req.params.id, user);
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
       }
 
-      const isCreator = pod.createdBy === user.id || user.role === 'POD_ADMIN';
+      const isCreator = pod.createdBy === user.id || checkIsAdmin(req);
       if (!isCreator) {
         return res.status(403).json({ error: 'Only the Pod creator can sign or submit the partner campaign agreement.' });
       }
@@ -2728,7 +2615,7 @@ app.use((req, res, next) => {
   app.post(['/api/pods/:id/deposit', '/pods/:id/deposit'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const pod = await findPodById(req.params.id, user);
 
@@ -2744,23 +2631,30 @@ app.use((req, res, next) => {
     if (!member) {
       return res.status(403).json({ error: 'Not a member of this pod.' });
     }
+    if (pod.status !== 'ACTIVE') {
+      return res.status(400).json({ error: 'POD_NOT_ACTIVE', message: 'Deposits can only be made into an active pod.' });
+    }
+    const cycleId = `cyc_w${pod.currentCycleWeek}`;
+    if (deposits.some(d => d && d.podId === pod.id && d.userId === user.id && d.cycleId === cycleId && d.status === 'COMPLETE')) {
+      return res.status(409).json({ error: 'ALREADY_DEPOSITED', message: 'You have already made this week\'s deposit.' });
+    }
 
-    // Deduct from external bank / Treasury balance with 5% platform fee
+    // Deduct from Treasury balance with 5% platform fee
     const baseDepositAmount = pod.depositTier;
     const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
     const totalChargedAmount = baseDepositAmount + platformFee;
-    const stripePaymentId = `pi_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const stripePaymentId = newLedgerId('ledger_deposit');
 
-    const targetUser = users.find(u => u.id === user.id);
-    if (targetUser) {
-      targetUser.treasury.balanceUsd = Math.max(0, targetUser.treasury.balanceUsd - totalChargedAmount);
+    const targetUser = users.find(u => u.id === user.id) || user;
+    if (!debitLedger(targetUser, totalChargedAmount)) {
+      return insufficientFunds(res, totalChargedAmount, targetUser);
     }
 
     const newDeposit: Deposit = {
-      id: `dep_${Date.now()}`,
+      id: newLedgerId('dep'),
       membershipId: member.id,
       podId: pod.id,
-      cycleId: `cyc_w${pod.currentCycleWeek}`,
+      cycleId,
       userId: user.id,
       userName: user.displayName,
       amount: baseDepositAmount,
@@ -2796,10 +2690,10 @@ app.use((req, res, next) => {
 
   // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
   app.post(['/api/pods/:id/cycle/process', '/pods/:id/cycle/process'], async (req: Request, res: Response) => {
-    const user = getCurrentUser(req);
-    if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+    if (!isSystemRequest(req)) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Cycle payouts are processed by the platform scheduler or an administrator.' });
     }
+    const user = getCurrentUser(req) || ({ id: 'system', displayName: 'Platform Scheduler' } as User);
 
     const podId = req.params.id;
     if (activeCycleLocks.has(podId)) {
@@ -2835,7 +2729,14 @@ app.use((req, res, next) => {
       }
 
       const recipientUser = users.find(u => u.id === recipientMember.userId);
-      const grossPayoutAmount = pod.currentWeeklyCollected > 0 ? pod.currentWeeklyCollected : pod.weeklyPoolTarget;
+      if (!recipientUser) {
+        return res.status(400).json({ error: 'RECIPIENT_NOT_FOUND', message: 'The rotation recipient has no account record.' });
+      }
+      // Only pay out what was actually collected this cycle.
+      const grossPayoutAmount = roundCents(Number(pod.currentWeeklyCollected) || 0);
+      if (grossPayoutAmount <= 0) {
+        return res.status(400).json({ error: 'NOTHING_COLLECTED', message: 'No deposits have been collected for this cycle yet.' });
+      }
       
       // Apply 10% payout fee tag (e.g. $400 pool - 10% ($40) = $360 net paid to user)
       const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
@@ -2843,10 +2744,11 @@ app.use((req, res, next) => {
 
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
       // Identify active 3% weekly reward beneficiary (defaults to creator; transfers if creator switches spot)
-      const activeRewardRecipientUserId = pod.hostRewardRecipientUserId || pod.createdBy;
+      // 3% host reward: whoever holds the final rotation slot (normally the creator).
+      const activeRewardRecipientUserId = getFinalSlotMember(pod)?.userId || pod.createdBy;
       const hostRewardUser = users.find(u => u.id === activeRewardRecipientUserId);
-      const isBeneficiaryActiveInPod = pod.members.some(m => m.userId === activeRewardRecipientUserId);
-      const isTransferredFromCreator = Boolean(pod.hostRewardRecipientUserId && pod.hostRewardRecipientUserId !== pod.createdBy);
+      const isBeneficiaryActiveInPod = pod.members.some(m => m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
+      const isTransferredFromCreator = activeRewardRecipientUserId !== pod.createdBy;
 
       let creatorHostReward = 0;
       let platformFeeRetained = totalPayoutFee;
@@ -2855,22 +2757,9 @@ app.use((req, res, next) => {
         creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100; // 3% of gross pool
         platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100; // 7% retained by platform
         
-        // Defensive check: ensure beneficiary treasury exists
-        if (!hostRewardUser.treasury) {
-          hostRewardUser.treasury = {
-            stripeAccountId: '',
-            stripeFinAccountId: '',
-            balanceUsd: 0,
-            pendingInboundUsd: 0,
-            totalPayoutsReceivedUsd: 0,
-            fdicPassThroughEligible: true,
-            status: 'ACTIVE',
-          };
-        }
-
-        // Credit Active Host/Spot Beneficiary Treasury with 3% host stewardship reward
-        hostRewardUser.treasury.balanceUsd += creatorHostReward;
-        hostRewardUser.treasury.totalPayoutsReceivedUsd += creatorHostReward;
+        // Credit Active Host/Spot Beneficiary Treasury ledger with 3% host stewardship reward
+        creditLedger(hostRewardUser, creatorHostReward);
+        hostRewardUser.treasury.totalPayoutsReceivedUsd = roundCents((hostRewardUser.treasury.totalPayoutsReceivedUsd || 0) + creatorHostReward);
         pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
 
         // Notify Beneficiary of Host Reward disbursement
@@ -2907,37 +2796,19 @@ app.use((req, res, next) => {
         );
       }
 
-      let stripeTransferId = `tr_stripe_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-
-      // Execute Stripe OutboundTransfer if real recipient financial account is configured
-      if (recipientUser?.treasury?.stripeFinAccountId && recipientUser?.externalBank?.status === 'LINKED') {
-        try {
-          const outbound = await createOutboundTransfer(
-            recipientUser.treasury.stripeFinAccountId,
-            Math.round(netPayoutAmount * 100),
-            'pm_card_us',
-            `Rotation Payout for Pod ${pod.name} (Week ${pod.currentCycleWeek})`,
-            { podId: pod.id, cycleWeek: String(pod.currentCycleWeek), recipientUserId: recipientUser.id }
-          );
-          if (outbound?.id) {
-            stripeTransferId = outbound.id;
-          }
-        } catch (stripeErr: any) {
-          console.warn('[Cycle Process] Stripe OutboundTransfer call handled:', stripeErr?.message);
-        }
-      }
-
-      // Update recipient Treasury balance immediately with net payout
-      if (recipientUser) {
-        recipientUser.treasury.balanceUsd += netPayoutAmount;
-        recipientUser.treasury.totalPayoutsReceivedUsd += netPayoutAmount;
-      }
+      // The payout is credited to the recipient's Treasury ledger ("earmarked").
+      // Real money leaves only when the member withdraws (Stripe transfer), so
+      // paying here AND transferring would pay twice.
+      const stripeTransferId = newLedgerId('ledger_payout');
+      creditLedger(recipientUser, netPayoutAmount);
+      recipientUser.treasury.totalPayoutsReceivedUsd = roundCents((recipientUser.treasury.totalPayoutsReceivedUsd || 0) + netPayoutAmount);
 
       recipientMember.hasReceivedPayout = true;
       recipientMember.payoutCycleWeek = pod.currentCycleWeek;
       recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
       recipientMember.payoutStripeTransferId = stripeTransferId;
       recipientMember.payoutProcessedAt = new Date().toISOString();
+      recipientMember.payoutNetAmountUsd = netPayoutAmount;
 
       // Reset weekly collected for next cycle
       pod.currentWeeklyCollected = 0;
@@ -2948,7 +2819,7 @@ app.use((req, res, next) => {
       user.id,
       user.displayName,
       'PAYOUT_EXECUTED',
-      `Week ${pod.currentCycleWeek} payout processed via Stripe Treasury (${stripeTransferId}) to ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${totalPayoutFee.toFixed(2)} (${creatorHostReward > 0 ? `3% / $${creatorHostReward.toFixed(2)} to Creator Host, 7% / $${platformFeeRetained.toFixed(2)} to Platform` : `100% / $${totalPayoutFee.toFixed(2)} to Platform System Escrow`}). Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's Stripe Treasury account.`,
+      `Week ${pod.currentCycleWeek} payout credited to Treasury ledger (${stripeTransferId}) for ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${totalPayoutFee.toFixed(2)} (${creatorHostReward > 0 ? `3% / $${creatorHostReward.toFixed(2)} to Creator Host, 7% / $${platformFeeRetained.toFixed(2)} to Platform` : `100% / $${totalPayoutFee.toFixed(2)} to Platform System Escrow`}). Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's Stripe Treasury account.`,
       { 
         stripeTransferId, 
         recipientId: recipientMember.userId, 
@@ -2966,6 +2837,7 @@ app.use((req, res, next) => {
     // Advance cycle week automatically - Option A ensures no rotation pauses
     if (pod.currentCycleWeek >= pod.totalCycles) {
       pod.status = 'COMPLETED';
+      releaseContingencyBuffer(pod);
       // Grant completed pod credit to members
       pod.members.forEach(m => {
         const u = users.find(usr => usr.id === m.userId);
@@ -3000,89 +2872,131 @@ app.use((req, res, next) => {
   }
   });
 
-  // 10b. Withdraw / Claim Earmarked Treasury Payout to External Bank Account
+  // 10b. Withdraw Treasury ledger balance to the member's bank via their Stripe
+  // Connect account (Stripe pays out to the bank collected during onboarding).
+  const activeWithdrawals = new Set<string>();
   app.post('/api/treasury/payouts/withdraw', async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
-    const { amount, podId } = req.body;
-
-    const targetUser = users.find(u => u.id === user.id);
-    if (!targetUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const withdrawAmount = Number(amount) || targetUser.treasury.balanceUsd;
-    if (withdrawAmount <= 0) {
-      return res.status(400).json({ error: 'Invalid withdrawal amount.' });
+    const { podId } = req.body || {};
+    const targetUser = users.find(u => u.id === user.id) || user;
+    const balance = Number(targetUser.treasury?.balanceUsd) || 0;
+    const withdrawAmount = req.body?.amount === undefined ? roundCents(balance) : parseMoneyAmount(req.body.amount);
+    if (withdrawAmount === null || withdrawAmount <= 0) {
+      return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter a valid withdrawal amount.' });
     }
 
-    if (targetUser.treasury.balanceUsd < withdrawAmount) {
-      return res.status(400).json({ error: 'Insufficient Treasury balance.' });
+    const accountId = targetUser.treasury?.stripeAccountId || '';
+    const payoutsReady = targetUser.kycStatus === 'VERIFIED' && targetUser.treasury?.status === 'ACTIVE' && accountId.startsWith('acct_');
+    if (!payoutsReady) {
+      return res.status(400).json({ error: 'PAYOUT_ACCOUNT_REQUIRED', message: 'Finish Stripe onboarding (identity + bank account) before withdrawing.' });
     }
 
-    // Process OutboundTransfer to linked external bank
-    let withdrawTransferId = `tr_payout_withdraw_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    if (activeWithdrawals.has(targetUser.id)) {
+      return res.status(409).json({ error: 'WITHDRAWAL_IN_PROGRESS', message: 'A withdrawal is already being processed.' });
+    }
+    activeWithdrawals.add(targetUser.id);
+    try {
+      if (withdrawals.some(w => w.userId === targetUser.id && w.status === 'NEEDS_REVIEW')) {
+        return res.status(409).json({ error: 'WITHDRAWAL_UNDER_REVIEW', message: 'A previous withdrawal is being verified. Please contact support before withdrawing again.' });
+      }
+      // Debit first so concurrent requests can't spend the same balance.
+      if (!debitLedger(targetUser, withdrawAmount)) {
+        return insufficientFunds(res, withdrawAmount, targetUser);
+      }
+      const nowIso = new Date().toISOString();
+      const withdrawal: WithdrawalRecord = {
+        id: newLedgerId('wd'),
+        userId: targetUser.id,
+        amountUsd: withdrawAmount,
+        destinationAccountId: accountId,
+        status: 'PENDING',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      withdrawals.unshift(withdrawal);
 
-    if (targetUser.treasury.stripeFinAccountId && targetUser.externalBank?.status === 'LINKED') {
+      // The debit and the pending record must be durable before money leaves.
+      if (!(await persistNow())) {
+        creditLedger(targetUser, withdrawAmount);
+        withdrawals = withdrawals.filter(w => w.id !== withdrawal.id);
+        return res.status(503).json({ error: 'WITHDRAWAL_UNAVAILABLE', message: 'Withdrawals are temporarily unavailable. Your balance has not changed.' });
+      }
+
+      let withdrawTransferId: string;
       try {
-        const outbound = await createOutboundTransfer(
-          targetUser.treasury.stripeFinAccountId,
-          Math.round(withdrawAmount * 100),
-          'pm_card_us',
-          `MutualPool Member Withdrawal to ${targetUser.externalBank.bankName || 'External Bank'}`,
-          { userId: targetUser.id, withdrawAmount: String(withdrawAmount) }
-        );
-        if (outbound?.id) {
-          withdrawTransferId = outbound.id;
+        if (DEMO_MODE) {
+          withdrawTransferId = `tr_demo_${withdrawal.id}`;
+        } else {
+          const transfer = await transferToConnectedAccount({
+            destinationAccountId: accountId,
+            amountUsd: withdrawAmount,
+            idempotencyKey: withdrawal.id,
+            description: 'MutualPool member withdrawal',
+            metadata: { userId: targetUser.id, withdrawalId: withdrawal.id },
+          });
+          withdrawTransferId = transfer.id;
         }
       } catch (stripeErr: any) {
-        console.warn('[Withdrawal] OutboundTransfer executed with fallback:', stripeErr?.message);
-      }
-    }
-
-    targetUser.treasury.balanceUsd -= withdrawAmount;
-
-    // Update pod membership payoutClaimStatus if podId provided
-    if (podId) {
-      const pod = pods.find(p => p.id === podId);
-      if (pod) {
-        const member = pod.members.find(m => m.userId === user.id);
-        if (member) {
-          member.payoutClaimStatus = 'DISBURSED_TO_BANK';
+        withdrawal.updatedAt = new Date().toISOString();
+        withdrawal.error = String(stripeErr?.message || stripeErr).slice(0, 500);
+        // Stripe definitively refused the request: nothing was transferred, so refund the ledger.
+        const definitelyRejected = ['StripeInvalidRequestError', 'StripeCardError', 'StripePermissionError', 'StripeAuthenticationError'].includes(stripeErr?.type)
+          || (typeof stripeErr?.statusCode === 'number' && stripeErr.statusCode >= 400 && stripeErr.statusCode < 500 && stripeErr.statusCode !== 408 && stripeErr.statusCode !== 429);
+        if (definitelyRejected) {
+          withdrawal.status = 'FAILED';
+          creditLedger(targetUser, withdrawAmount);
+          saveUsersToDisk();
+          console.error('[Withdrawal] Stripe rejected transfer; ledger debit rolled back:', withdrawal.error);
+          return res.status(502).json({ error: 'WITHDRAWAL_FAILED', message: 'The transfer could not be completed. Your balance has not changed.' });
         }
+        // Ambiguous (timeout, outage): the transfer may have gone through. Keep the
+        // debit and flag for reconciliation against Stripe using the idempotency key.
+        withdrawal.status = 'NEEDS_REVIEW';
+        saveUsersToDisk();
+        console.error('[Withdrawal] Ambiguous Stripe failure; withdrawal flagged for review:', withdrawal.id, withdrawal.error);
+        return res.status(502).json({ error: 'WITHDRAWAL_PENDING_REVIEW', message: 'We could not confirm the transfer with Stripe. Your withdrawal is being verified and your balance will be corrected if it did not go through.' });
       }
-    } else {
-      // Update any membership for this user that was EARMARKED_IN_TREASURY
-      pods.forEach(p => {
-        p.members.forEach(m => {
-          if (m.userId === user.id && m.payoutClaimStatus === 'EARMARKED_IN_TREASURY') {
+
+      withdrawal.status = 'COMPLETED';
+      withdrawal.stripeTransferId = withdrawTransferId;
+      withdrawal.updatedAt = new Date().toISOString();
+
+      if (podId) {
+        const member = pods.find(p => p.id === podId)?.members.find(m => m.userId === targetUser.id);
+        if (member) member.payoutClaimStatus = 'DISBURSED_TO_BANK';
+      } else {
+        pods.forEach(p => p.members.forEach(m => {
+          if (m.userId === targetUser.id && m.payoutClaimStatus === 'EARMARKED_IN_TREASURY') {
             m.payoutClaimStatus = 'DISBURSED_TO_BANK';
           }
-        });
+        }));
+      }
+
+      savePodsToDisk();
+      saveUsersToDisk();
+
+      addAuditLog(
+        podId,
+        targetUser.id,
+        targetUser.displayName,
+        'PAYOUT_EXECUTED',
+        `Withdrew $${withdrawAmount.toFixed(2)} from Treasury ledger to connected Stripe account (transfer ${withdrawTransferId}).`,
+        { withdrawTransferId, withdrawAmount }
+      );
+
+      res.json({
+        success: true,
+        withdrawTransferId,
+        amountWithdrawn: withdrawAmount,
+        remainingBalance: targetUser.treasury.balanceUsd,
+        user: targetUser,
       });
+    } finally {
+      activeWithdrawals.delete(targetUser.id);
     }
-
-    savePodsToDisk();
-    saveUsersToDisk();
-
-    addAuditLog(
-      podId,
-      targetUser.id,
-      targetUser.displayName,
-      'TREASURY_WITHDRAWAL',
-      `Initiated $${withdrawAmount.toFixed(2)} payout withdrawal from Stripe Treasury Financial Account ${targetUser.treasury.stripeFinAccountId} to linked bank (${targetUser.externalBank?.bankName || 'Chase Checking'} ***${targetUser.externalBank?.last4 || '4821'}). Stripe OutboundTransfer ID: ${withdrawTransferId}.`,
-      { withdrawTransferId, amount: withdrawAmount, remainingBalance: targetUser.treasury.balanceUsd }
-    );
-
-    res.json({
-      success: true,
-      withdrawTransferId,
-      amountWithdrawn: withdrawAmount,
-      remainingBalance: targetUser.treasury.balanceUsd,
-      user: targetUser,
-    });
   });
 
   // =========================================================================
@@ -3103,8 +3017,8 @@ app.use((req, res, next) => {
 
     let activePods = pods.filter(p => p && p.status === 'ACTIVE');
 
-    // Self-healing simulation: If no active pods exist, automatically activate a pod so simulation works seamlessly
-    if (activePods.length === 0) {
+    // DEMO_MODE only: auto-activate a pod so the sweep can be exercised locally.
+    if (DEMO_MODE && activePods.length === 0) {
       const candidatePod = pods.find(p => p && Array.isArray(p.members) && p.members.length >= 2) ||
                            pods.find(p => p && Array.isArray(p.members) && p.members.length >= 1);
       if (candidatePod) {
@@ -3167,32 +3081,21 @@ app.use((req, res, next) => {
         }
 
         const targetUser = users.find(u => u && u.id === member.userId);
-        if (targetUser) {
+        if (DEMO_MODE && targetUser) {
           if (!targetUser.treasury) {
-            targetUser.treasury = {
-              stripeAccountId: '',
-              stripeFinAccountId: '',
-              balanceUsd: 100,
-              pendingInboundUsd: 0,
-              totalPayoutsReceivedUsd: 0,
-              fdicPassThroughEligible: true,
-              status: 'ACTIVE',
-            };
-          } else if ((targetUser.treasury.balanceUsd || 0) < totalChargedAmount) {
-            // Replenish test treasury so sweep deposits simulate smoothly
+            targetUser.treasury = createUserRecord(targetUser.id, targetUser.email, targetUser.displayName).treasury;
+          }
+          if ((targetUser.treasury.balanceUsd || 0) < totalChargedAmount) {
+            // DEMO_MODE only: replenish test balances so sweeps simulate smoothly
             targetUser.treasury.balanceUsd = Math.max(100, (targetUser.treasury.balanceUsd || 0) + totalChargedAmount * 2);
           }
         }
         const userBalance = targetUser?.treasury?.balanceUsd || 0;
 
-        if (userBalance >= totalChargedAmount || targetUser?.externalBank?.status === 'LINKED') {
-          if (targetUser && targetUser.treasury) {
-            targetUser.treasury.balanceUsd = Math.max(0, (targetUser.treasury.balanceUsd || 0) - totalChargedAmount);
-          }
-
-          const stripePaymentId = `pi_auto_thu_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+        if (targetUser && debitLedger(targetUser, totalChargedAmount)) {
+          const stripePaymentId = newLedgerId('ledger_auto_thu');
           const newDeposit: Deposit = {
-            id: `dep_thu_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            id: `dep_thu_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
             membershipId: member.id || `mem_${Date.now()}`,
             podId: pod.id,
             cycleId: `cyc_w${cycleWeek}`,
@@ -3304,8 +3207,8 @@ app.use((req, res, next) => {
 
     let activePods = pods.filter(p => p && p.status === 'ACTIVE');
 
-    // Self-healing simulation: If no active pods exist, automatically activate a pod with funded pool
-    if (activePods.length === 0) {
+    // DEMO_MODE only: auto-activate a funded pod so the sweep can be exercised locally.
+    if (DEMO_MODE && activePods.length === 0) {
       const candidatePod = pods.find(p => p && Array.isArray(p.members) && p.members.length >= 2) ||
                            pods.find(p => p && Array.isArray(p.members) && p.members.length >= 1);
       if (candidatePod) {
@@ -3346,13 +3249,7 @@ app.use((req, res, next) => {
       if (!pod || !Array.isArray(pod.members) || pod.members.length === 0) continue;
       const cycleWeek = pod.currentCycleWeek || 1;
       const targetIndex = cycleWeek - 1;
-      let recipientMember = pod.members.find(m => m && m.rotationIndex === targetIndex);
-
-      if (!recipientMember && pod.members.length > 0) {
-        // Fallback to first available member that hasn't received payout this cycle
-        recipientMember = pod.members.find(m => m && (!m.hasReceivedPayout || m.payoutCycleWeek !== cycleWeek)) || pod.members[0];
-        recipientMember.rotationIndex = targetIndex;
-      }
+      const recipientMember = pod.members.find(m => m && m.rotationIndex === targetIndex);
 
       if (!recipientMember) {
         failedCount += 1;
@@ -3366,17 +3263,22 @@ app.use((req, res, next) => {
       }
 
       const recipientUser = users.find(u => u && u.id === recipientMember.userId);
-      const grossPayoutAmount = (pod.currentWeeklyCollected && pod.currentWeeklyCollected > 0)
-        ? pod.currentWeeklyCollected
-        : (pod.weeklyPoolTarget || (pod.depositTier || 20) * pod.members.length);
+      // Only pay out what was actually collected this cycle.
+      const grossPayoutAmount = roundCents(Number(pod.currentWeeklyCollected) || 0);
+      if (!recipientUser || grossPayoutAmount <= 0) {
+        failedCount += 1;
+        details.push(`[${pod.name}] Skipped Week ${cycleWeek} payout: ${!recipientUser ? 'recipient account not found' : 'no deposits collected'}.`);
+        continue;
+      }
       const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
       const netPayoutAmount = Math.max(0, grossPayoutAmount - totalPayoutFee);
 
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
-      const activeRewardRecipientUserId = pod.hostRewardRecipientUserId || pod.createdBy;
+      // 3% host reward: whoever holds the final rotation slot (normally the creator).
+      const activeRewardRecipientUserId = getFinalSlotMember(pod)?.userId || pod.createdBy;
       const hostRewardUser = users.find(u => u && u.id === activeRewardRecipientUserId);
-      const isBeneficiaryActiveInPod = pod.members.some(m => m && m.userId === activeRewardRecipientUserId);
-      const isTransferredFromCreator = Boolean(pod.hostRewardRecipientUserId && pod.hostRewardRecipientUserId !== pod.createdBy);
+      const isBeneficiaryActiveInPod = pod.members.some(m => m && m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
+      const isTransferredFromCreator = activeRewardRecipientUserId !== pod.createdBy;
 
       let creatorHostReward = 0;
       let platformFeeRetained = totalPayoutFee;
@@ -3420,7 +3322,7 @@ app.use((req, res, next) => {
         }
       }
 
-      const stripeTransferId = `tr_fri_treasury_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+      const stripeTransferId = newLedgerId('ledger_payout_fri');
 
       if (recipientUser) {
         if (!recipientUser.treasury) {
@@ -3443,6 +3345,7 @@ app.use((req, res, next) => {
       recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
       recipientMember.payoutStripeTransferId = stripeTransferId;
       recipientMember.payoutProcessedAt = new Date().toISOString();
+      recipientMember.payoutNetAmountUsd = netPayoutAmount;
 
       pod.currentWeeklyCollected = 0;
 
@@ -3485,6 +3388,7 @@ app.use((req, res, next) => {
       const totalCycles = pod.totalCycles || (pod.members ? pod.members.length : 1);
       if (cycleWeek >= totalCycles) {
         pod.status = 'COMPLETED';
+        releaseContingencyBuffer(pod);
         pod.members.forEach(m => {
           if (!m || !m.userId) return;
           const u = users.find(usr => usr && usr.id === m.userId);
@@ -3520,49 +3424,51 @@ app.use((req, res, next) => {
   }
 
   // Periodic Background Clock: Checks for Thursday 12:00 AM and Friday 12:00 AM sweep windows
-  if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    const sweepInterval = setInterval(() => {
-      try {
-        const now = new Date();
-        const day = now.getDay();
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-        const dateStr = now.toISOString().slice(0, 10);
+  // (server-local time; set TZ for the intended time zone)
+  const sweepInterval = setInterval(() => {
+    try {
+      const now = new Date();
+      const day = now.getDay();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const dateStr = now.toISOString().slice(0, 10);
 
-        // Thursday 12:00 AM Midnight: day 4, hour 0, minute < 5
-        if (day === 4 && hour === 0 && minute < 5 && lastThursdaySweepDate !== dateStr) {
-          lastThursdaySweepDate = dateStr;
-          console.log(`[Scheduled Heartbeat] Executing Thursday 12:00 AM deposit sweep (${dateStr})...`);
-          executeThursdayDepositSweep()
-            .then(res => {
-              lastThursdaySweepResult = res;
-              console.log(`[Scheduled Heartbeat] Thursday sweep completed: ${res.totalTransactionsCount} deposits, $${res.totalVolumeUsd}`);
-            })
-            .catch(err => console.error('[Scheduled Heartbeat] Thursday sweep error:', err));
-        }
-
-        // Friday 12:00 AM Midnight: day 5, hour 0, minute < 5
-        if (day === 5 && hour === 0 && minute < 5 && lastFridaySweepDate !== dateStr) {
-          lastFridaySweepDate = dateStr;
-          console.log(`[Scheduled Heartbeat] Executing Friday 12:00 AM payout sweep (${dateStr})...`);
-          executeFridayPayoutSweep()
-            .then(res => {
-              lastFridaySweepResult = res;
-              console.log(`[Scheduled Heartbeat] Friday sweep completed: ${res.totalTransactionsCount} payouts, $${res.totalVolumeUsd}`);
-            })
-            .catch(err => console.error('[Scheduled Heartbeat] Friday sweep error:', err));
-        }
-      } catch (schedErr) {
-        console.error('[Scheduled Heartbeat] Clock tick error:', schedErr);
+      // Thursday 12:00 AM Midnight: day 4, hour 0, minute < 5
+      if (day === 4 && hour === 0 && minute < 5 && lastThursdaySweepDate !== dateStr) {
+        lastThursdaySweepDate = dateStr;
+        console.log(`[Scheduled Heartbeat] Executing Thursday 12:00 AM deposit sweep (${dateStr})...`);
+        executeThursdayDepositSweep()
+          .then(res => {
+            lastThursdaySweepResult = res;
+            console.log(`[Scheduled Heartbeat] Thursday sweep completed: ${res.totalTransactionsCount} deposits, $${res.totalVolumeUsd}`);
+          })
+          .catch(err => console.error('[Scheduled Heartbeat] Thursday sweep error:', err));
       }
-    }, 60000);
-    if (typeof sweepInterval.unref === 'function') {
-      sweepInterval.unref();
+
+      // Friday 12:00 AM Midnight: day 5, hour 0, minute < 5
+      if (day === 5 && hour === 0 && minute < 5 && lastFridaySweepDate !== dateStr) {
+        lastFridaySweepDate = dateStr;
+        console.log(`[Scheduled Heartbeat] Executing Friday 12:00 AM payout sweep (${dateStr})...`);
+        executeFridayPayoutSweep()
+          .then(res => {
+            lastFridaySweepResult = res;
+            console.log(`[Scheduled Heartbeat] Friday sweep completed: ${res.totalTransactionsCount} payouts, $${res.totalVolumeUsd}`);
+          })
+          .catch(err => console.error('[Scheduled Heartbeat] Friday sweep error:', err));
+      }
+    } catch (schedErr) {
+      console.error('[Scheduled Heartbeat] Clock tick error:', schedErr);
     }
+  }, 60000);
+  if (typeof sweepInterval.unref === 'function') {
+    sweepInterval.unref();
   }
 
   // Endpoint: Get Real-Time Platform Settlement Schedule Status
   app.get(['/api/platform/schedule', '/platform/schedule'], (req: Request, res: Response) => {
+    if (!getCurrentUser(req)) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
     const status = getPlatformScheduleStatus(new Date());
     const activePods = pods.filter(p => p && p.status === 'ACTIVE');
     status.activePodsCount = activePods.length;
@@ -3570,16 +3476,21 @@ app.use((req, res, next) => {
     status.lastThursdaySweepAt = lastThursdaySweepResult?.executedAt;
     status.lastFridaySweepAt = lastFridaySweepResult?.executedAt;
 
+    // Sweep details name members and amounts: admins only.
+    const summarize = (r: SweepExecutionResult | null) => (r && !checkIsAdmin(req) ? { ...r, details: [] } : r);
     res.json({
       ...status,
-      lastThursdaySweepResult,
-      lastFridaySweepResult,
+      lastThursdaySweepResult: summarize(lastThursdaySweepResult),
+      lastFridaySweepResult: summarize(lastFridaySweepResult),
     });
   });
 
   // Endpoint: Manually / Test Trigger Scheduled Sweep
   app.post(['/api/platform/schedule/sweep', '/platform/schedule/sweep'], async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
+    if (!isSystemRequest(req)) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Sweeps are run by the platform scheduler or an administrator.' });
+    }
     const { sweepType } = req.body || {};
 
     if (sweepType !== 'THURSDAY_DEPOSITS' && sweepType !== 'FRIDAY_PAYOUTS') {
@@ -3618,10 +3529,16 @@ app.use((req, res, next) => {
   // Endpoint: Get Pod Settlement Schedule
   app.get(['/api/pods/:id/settlement-schedule', '/pods/:id/settlement-schedule'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
     const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
+    }
+    if (!isPodMember(pod, user) && !isPodCreator(pod, user) && !checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'NOT_A_MEMBER', message: 'You are not a member of this pod.' });
     }
 
     const schedule = getPlatformScheduleStatus(new Date());
@@ -3666,10 +3583,7 @@ app.use((req, res, next) => {
 
     // 1. User deposits
     for (const d of (deposits || [])) {
-      if (
-        d.userId === user.id || 
-        (d.userName && user.displayName && d.userName.trim().toLowerCase() === user.displayName.trim().toLowerCase())
-      ) {
+      if (d.userId === user.id) {
         const pod = pods.find(p => p.id === d.podId);
         let parsedWeek = 1;
         if (d.cycleId) {
@@ -3695,10 +3609,7 @@ app.use((req, res, next) => {
 
     // 2. User rotation payouts across all pods
     for (const pod of pods) {
-      const member = (pod.members || []).find(m => 
-        m.userId === user.id || 
-        (m.displayName && user.displayName && m.displayName.trim().toLowerCase() === user.displayName.trim().toLowerCase())
-      );
+      const member = (pod.members || []).find(m => m.userId === user.id);
 
       if (member && member.hasReceivedPayout) {
         const weekNum = member.payoutCycleWeek || (member.rotationIndex + 1);
@@ -3707,7 +3618,7 @@ app.use((req, res, next) => {
           type: 'PAYOUT',
           podId: pod.id,
           podName: pod.name,
-          amount: pod.weeklyPoolTarget || (pod.depositTier * (pod.members?.length || pod.sizeTier)),
+          amount: member.payoutNetAmountUsd ?? (pod.weeklyPoolTarget || (pod.depositTier * (pod.members?.length || pod.sizeTier))),
           status: 'COMPLETED',
           date: member.payoutProcessedAt || pod.cycleStartDate || pod.createdAt || new Date().toISOString(),
           cycleWeek: weekNum,
@@ -3731,7 +3642,16 @@ app.use((req, res, next) => {
   // 10d. AI LLM Vision Gear Verification Against Active Campaign Rotation
   app.post(['/api/campaigns/gear-verify', '/campaigns/gear-verify'], async (req: Request, res: Response) => {
     try {
-      const { courierPhoto, campaign, checkedGear, sampleTag } = req.body || {};
+      if (!getCurrentUser(req)) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+      }
+      const { courierPhoto, campaign, checkedGear } = req.body || {};
+      const sampleTag = DEMO_MODE ? req.body?.sampleTag : undefined;
+      // Photos must be uploaded inline. Fetching arbitrary URLs from the server
+      // would let callers probe internal services (SSRF).
+      if (courierPhoto !== undefined && (typeof courierPhoto !== 'string' || !courierPhoto.startsWith('data:image/') || courierPhoto.length > 8_000_000)) {
+        return res.status(400).json({ error: 'INVALID_PHOTO', message: 'Upload the photo as an image (max ~6MB).' });
+      }
 
       if (!campaign || !campaign.id) {
         return res.status(400).json({ error: 'Campaign details are required for gear verification.' });
@@ -3750,7 +3670,7 @@ app.use((req, res, next) => {
         try {
           const parts: any[] = [];
 
-          // Parse base64 or remote URL
+          // Parse inline base64 image
           if (typeof courierPhoto === 'string' && courierPhoto.startsWith('data:image/')) {
             imageUrlForGroq = courierPhoto;
             const match = courierPhoto.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
@@ -3761,23 +3681,6 @@ app.use((req, res, next) => {
                   data: match[2],
                 }
               });
-            }
-          } else if (typeof courierPhoto === 'string' && (courierPhoto.startsWith('http://') || courierPhoto.startsWith('https://'))) {
-            try {
-              const imgRes = await fetch(courierPhoto);
-              const arrayBuffer = await imgRes.arrayBuffer();
-              const buffer = Buffer.from(arrayBuffer);
-              const mimeType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
-              const base64Data = buffer.toString('base64');
-              imageUrlForGroq = `data:${mimeType || 'image/jpeg'};base64,${base64Data}`;
-              parts.push({
-                inlineData: {
-                  mimeType: mimeType || 'image/jpeg',
-                  data: base64Data,
-                }
-              });
-            } catch (fetchErr) {
-              console.warn('Could not fetch remote image for vision analysis:', fetchErr);
             }
           }
 
@@ -3800,7 +3703,7 @@ CRITICAL VERIFICATION OBJECTIVE:
 - If the photo matches the active campaign brand ("${expectedBrand}"), mark matched as TRUE and status as VERIFIED.
 
 Output strictly a JSON object conforming to:
-{
+  {
   "matched": boolean,
   "status": "VERIFIED" | "REJECTED",
   "confidenceScore": number (0-100),
@@ -3880,7 +3783,7 @@ CRITICAL VERIFICATION OBJECTIVE:
 - If the photo matches the active campaign brand ("${expectedBrand}"), mark matched as true and status as "VERIFIED".
 
 Return ONLY a valid JSON object in this exact schema:
-{
+  {
   "matched": boolean,
   "status": "VERIFIED" | "REJECTED",
   "confidenceScore": number (between 0 and 100),
@@ -3938,7 +3841,15 @@ Return ONLY a valid JSON object in this exact schema:
         }
       }
 
-      // Smart rule evaluator / fallback
+      // Fail closed: without a model verdict, never report the gear as verified.
+      if (!DEMO_MODE) {
+        return res.status(503).json({
+          error: 'VERIFICATION_UNAVAILABLE',
+          message: 'Gear verification is temporarily unavailable. Please try again shortly.',
+        });
+      }
+
+      // DEMO_MODE rule evaluator / fallback
       const isMismatchTest = sampleTag === 'MISMATCH_EXPIRED_CAMPAIGN' || 
         (typeof courierPhoto === 'string' && (courierPhoto.includes('mismatch') || courierPhoto.includes('liquiddeath') || courierPhoto.includes('expired') || courierPhoto.includes('0a1dd7228f2d')));
       const isUnbrandedTest = sampleTag === 'UNBRANDED' ||
@@ -4004,10 +3915,12 @@ Return ONLY a valid JSON object in this exact schema:
   });
 
   // 10d. Verify Courier Gear and Release Daily Shift Payout
-  app.post(['/api/campaigns/shifts/verify-payout', '/campaigns/shifts/verify-payout'], (req: Request, res: Response) => {
+  // DEMO_MODE only: the shift amount comes from the client and there is no
+  // advertiser-funded payout source yet, so this would mint money in production.
+  app.post(['/api/campaigns/shifts/verify-payout', '/campaigns/shifts/verify-payout'], requireDemoMode, (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
 
     const { shift, gearVerification } = req.body;
@@ -4082,7 +3995,7 @@ Return ONLY a valid JSON object in this exact schema:
     }
 
     // Enforcement 1: Members are only eligible after first 3 months (90 days) of participating as members of a pod
-    const { bypassTenureCheck } = req.body;
+    const bypassTenureCheck = DEMO_MODE && Boolean(req.body?.bypassTenureCheck);
     const joinedDateMs = new Date(member.joinedAt || pod.createdAt).getTime();
     const daysParticipating = Math.floor((Date.now() - joinedDateMs) / (1000 * 60 * 60 * 24));
     
@@ -4124,12 +4037,20 @@ Return ONLY a valid JSON object in this exact schema:
       }
     }
 
+    if (pod.status !== 'ACTIVE') {
+      return res.status(400).json({ error: 'POD_NOT_ACTIVE', message: 'Hardship assistance is only available while the pod is active.' });
+    }
+    const capProblem = hardshipCapProblem(pod);
+    if (capProblem) {
+      return res.status(400).json({ error: 'HARDSHIP_CAP_REACHED', message: capProblem });
+    }
+
     const depositAmount = pod.depositTier;
     const feeAmount = Math.round(depositAmount * 0.07 * 100) / 100;
     const totalPayoffAmount = Math.round((depositAmount + feeAmount) * 100) / 100;
 
     const newRequest: HardshipFundRequest = {
-      id: `req_hardship_${Date.now()}`,
+      id: newLedgerId('req_hardship'),
       podId: pod.id,
       podName: pod.name,
       userId: user.id,
@@ -4140,9 +4061,13 @@ Return ONLY a valid JSON object in this exact schema:
       totalPayoffAmount,
       status: 'PENDING',
       requestedAt: new Date().toISOString(),
-      reason: reason || 'Financial hardship covering weekly deposit',
+      reason: (typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 1000) : '') || 'Financial hardship covering weekly deposit',
     };
 
+    const risk = assessHardshipRequest(newRequest);
+    newRequest.riskScore = risk.score;
+    newRequest.riskLevel = risk.level;
+    newRequest.riskReasons = risk.reasons;
     hardshipRequests.unshift(newRequest);
     
     const targetUser = users.find(u => u.id === user.id);
@@ -4156,8 +4081,8 @@ Return ONLY a valid JSON object in this exact schema:
       user.id,
       user.displayName,
       'HARDSHIP_REQUESTED',
-      `Requested Financial Hardship Fund of $${depositAmount}.00 for pod "${pod.name}". Request forwarded to Pool Creator (${pod.creatorName}) for approval.`,
-      { depositAmount, feeAmount, totalPayoffAmount }
+      `Requested Financial Hardship Fund of $${depositAmount}.00 for pod "${pod.name}". Request sent to MutualPool for review.`,
+      { depositAmount, feeAmount, totalPayoffAmount, riskLevel: risk.level, riskScore: risk.score }
     );
 
     // Notify Pool Creator if creator is not the requester
@@ -4170,7 +4095,7 @@ Return ONLY a valid JSON object in this exact schema:
         podName: pod.name,
         type: 'HARDSHIP_REQUESTED',
         title: 'Emergency Hardship Fund Request',
-        message: `${user.displayName} submitted an emergency hardship request ($${depositAmount}.00) for "${pod.name}".`,
+        message: `${user.displayName} submitted an emergency hardship request ($${depositAmount}.00) for "${pod.name}". MutualPool is reviewing it.`,
       });
     }
 
@@ -4185,11 +4110,21 @@ Return ONLY a valid JSON object in this exact schema:
     }
 
     const isAdmin = checkIsAdmin(req);
-    const userRequests = hardshipRequests.filter(r => 
+    const userRequests = hardshipRequests.filter(r =>
       isAdmin || r.userId === user.id || r.creatorUserId === user.id
     );
-
-    res.json(userRequests);
+    if (isAdmin) {
+      for (const r of userRequests) {
+        if (r.status !== 'PENDING') continue;
+        const risk = assessHardshipRequest(r);
+        r.riskScore = risk.score;
+        r.riskLevel = risk.level;
+        r.riskReasons = risk.reasons;
+      }
+      return res.json(userRequests);
+    }
+    // Risk details are for reviewers only.
+    res.json(userRequests.map(({ riskScore: _s, riskLevel: _l, riskReasons: _r, ...rest }) => rest));
   });
 
   // 3. Pool Creator Approves Financial Hardship Fund Request
@@ -4215,11 +4150,22 @@ Return ONLY a valid JSON object in this exact schema:
       return res.status(404).json({ error: 'Pod not found' });
     }
 
-    const isCreator = pod.createdBy === user.id;
     const isAutonomous = pod.stewardshipMode === 'AUTONOMOUS_AI';
-    const isAdmin = checkIsAdmin(req);
-    if (!isCreator && !isAdmin && !isAutonomous) {
-      return res.status(403).json({ error: 'Only the Pool Creator or Autonomous AI Custodian can approve this Financial Hardship Fund request.' });
+    // Approval puts platform money into the pot, so it is never left to the pod
+    // creator (who could collude with the member): an administrator decides.
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Hardship requests are reviewed and approved by MutualPool.' });
+    }
+    if (pod.status !== 'ACTIVE') {
+      return res.status(400).json({ error: 'POD_NOT_ACTIVE', message: 'The pod is no longer active.' });
+    }
+    const capProblem = hardshipCapProblem(pod);
+    if (capProblem) {
+      return res.status(400).json({ error: 'HARDSHIP_CAP_REACHED', message: capProblem });
+    }
+    const cycleId = `cyc_w${pod.currentCycleWeek}`;
+    if (deposits.some(d => d && d.podId === pod.id && d.userId === request.userId && d.cycleId === cycleId && d.status === 'COMPLETE')) {
+      return res.status(400).json({ error: 'ALREADY_DEPOSITED', message: 'This member has already deposited for the current week; there is nothing to cover.' });
     }
 
     // Step A: System disburses deposit amount into the pool on user's behalf
@@ -4228,14 +4174,14 @@ Return ONLY a valid JSON object in this exact schema:
     const targetMember = pod.members.find(m => m.userId === request.userId);
     if (targetMember) {
       const hardshipDeposit: Deposit = {
-        id: `dep_hardship_${Date.now()}`,
+        id: newLedgerId('dep_hardship'),
         membershipId: targetMember.id,
         podId: pod.id,
         cycleId: `cyc_w${pod.currentCycleWeek}`,
         userId: request.userId,
         userName: request.userName,
         amount: request.depositAmount,
-        stripePaymentId: `pi_hardship_disbursed_${Date.now()}`,
+        stripePaymentId: newLedgerId('ledger_hardship_disbursed'),
         status: 'COMPLETE',
         createdAt: new Date().toISOString(),
       };
@@ -4282,6 +4228,8 @@ Return ONLY a valid JSON object in this exact schema:
     // Step D: Request marked as approved
     request.status = 'APPROVED';
     request.approvedAt = new Date().toISOString();
+    request.approvedByUserId = user.id;
+    request.approvedCycleWeek = pod.currentCycleWeek;
 
     addAuditLog(
       pod.id,
@@ -4299,6 +4247,51 @@ Return ONLY a valid JSON object in this exact schema:
     });
   });
 
+  // 3b. Administrator rejects a hardship request
+  app.post('/api/hardship/reject', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Hardship requests are reviewed by MutualPool.' });
+    }
+    const { requestId, reason } = req.body || {};
+    const request = hardshipRequests.find(r => r.id === requestId);
+    if (!request) {
+      return res.status(404).json({ error: 'Hardship request not found' });
+    }
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({ error: `Request is already ${request.status.toLowerCase()}.` });
+    }
+
+    request.status = 'REJECTED';
+    request.rejectedAt = new Date().toISOString();
+    request.rejectedByUserId = user.id;
+    request.rejectionReason = typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 500) : undefined;
+
+    const pod = pods.find(p => p.id === request.podId);
+    const member = pod?.members.find(m => m.userId === request.userId);
+    if (member && member.hardshipStatus === 'PENDING_APPROVAL') member.hardshipStatus = 'NONE';
+    // A rejected request should not start the 4-month cooldown.
+    const requester = users.find(u => u.id === request.userId);
+    if (requester && requester.lastHardshipRequestedAt === request.requestedAt) requester.lastHardshipRequestedAt = undefined;
+
+    addAuditLog(request.podId, user.id, user.displayName, 'HARDSHIP_REJECTED' as any,
+      `Hardship request from ${request.userName} rejected by MutualPool review.${request.rejectionReason ? ` Reason: ${request.rejectionReason}` : ''}`,
+      { requestId: request.id, riskLevel: request.riskLevel, riskScore: request.riskScore });
+    createNotification({
+      userId: request.userId,
+      podId: request.podId,
+      podName: request.podName,
+      type: 'HARDSHIP_REJECTED' as any,
+      title: 'Hardship request not approved',
+      message: `Your hardship request for "${request.podName}" was not approved.${request.rejectionReason ? ` ${request.rejectionReason}` : ''} Your regular weekly deposit is still due.`,
+    } as any);
+
+    res.json({ success: true, request });
+  });
+
   // 4. Inactive User Repays Hardship Balance + 7% Fee to Reactivate Account
   app.post('/api/hardship/repay', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
@@ -4308,23 +4301,26 @@ Return ONLY a valid JSON object in this exact schema:
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const request = hardshipRequests.find(r => r.id === requestId || (r.userId === user.id && r.status === 'APPROVED'));
-    if (!request) {
+    const request = requestId
+      ? hardshipRequests.find(r => r.id === requestId)
+      : hardshipRequests.find(r => r.userId === user.id && r.status === 'APPROVED');
+    if (!request || request.status !== 'APPROVED') {
       return res.status(404).json({ error: 'Active approved hardship request not found' });
     }
 
-    if (request.userId !== user.id && !checkIsAdmin(req)) {
+    // Repayment is paid by the member who received the hardship fund.
+    if (request.userId !== user.id) {
       return res.status(403).json({ error: 'Unauthorized to repay this hardship request' });
     }
 
-    const targetUser = users.find(u => u.id === user.id);
+    const targetUser = users.find(u => u.id === request.userId);
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     const totalPayoff = request.totalPayoffAmount;
-    if (targetUser.treasury.balanceUsd >= totalPayoff) {
-      targetUser.treasury.balanceUsd -= totalPayoff;
+    if (!debitLedger(targetUser, totalPayoff)) {
+      return insufficientFunds(res, totalPayoff, targetUser);
     }
 
     request.status = 'PAID_OFF';
@@ -4366,7 +4362,7 @@ Return ONLY a valid JSON object in this exact schema:
   app.post(['/api/pods/:id/reprioritize/request', '/pods/:id/reprioritize/request'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const { reason } = req.body || {};
     const pod = await findPodById(req.params.id, user);
@@ -4379,16 +4375,22 @@ Return ONLY a valid JSON object in this exact schema:
     if (!member) {
       return res.status(403).json({ error: 'Not a member of this pod.' });
     }
+    if (pod.status !== 'ACTIVE') {
+      return res.status(400).json({ error: 'POD_NOT_ACTIVE', message: 'Reprioritization is only available while the pod is active.' });
+    }
+    if (reprioritizationRequests.some(r => r.podId === pod.id && r.requesterUserId === user.id && r.status === 'PENDING')) {
+      return res.status(409).json({ error: 'PENDING_REQUEST_EXISTS', message: 'You already have a pending reprioritization request for this pod.' });
+    }
 
     const newRequest: ReprioritizationRequest = {
-      id: `req_${Date.now()}`,
+      id: newLedgerId('req'),
       podId: pod.id,
       membershipId: member.id,
       requesterUserId: user.id,
       requesterName: user.displayName,
       currentRotationIndex: member.rotationIndex,
       desiredRotationIndex: pod.currentCycleWeek - 1, // Next up!
-      reason: reason || 'Emergency hardship request',
+      reason: (typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 1000) : '') || 'Emergency hardship request',
       status: 'PENDING',
       votesFor: 1, // Auto-vote from requester
       votesAgainst: 0,
@@ -4414,16 +4416,22 @@ Return ONLY a valid JSON object in this exact schema:
   app.post(['/api/pods/:id/reprioritize/vote', '/pods/:id/reprioritize/vote'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const { requestId, vote } = req.body || {}; // vote: 'FOR' | 'AGAINST'
     const pod = await findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
-    const request = reprioritizationRequests.find(r => r.id === requestId);
+    const request = reprioritizationRequests.find(r => r.id === requestId && r.podId === pod.id);
     if (!request || request.status !== 'PENDING') {
       return res.status(400).json({ error: 'Active request not found.' });
+    }
+    if (!isPodMember(pod, user)) {
+      return res.status(403).json({ error: 'Only members of this pod can vote.' });
+    }
+    if (vote !== 'FOR' && vote !== 'AGAINST') {
+      return res.status(400).json({ error: 'vote must be FOR or AGAINST.' });
     }
 
     if (request.votedUserIds.includes(user.id)) {
@@ -4447,6 +4455,8 @@ Return ONLY a valid JSON object in this exact schema:
         const oldIndex = requesterMember.rotationIndex;
         requesterMember.rotationIndex = request.desiredRotationIndex;
         targetMember.rotationIndex = oldIndex;
+        // If the final slot changed hands, the 3% host reward moves with it.
+        syncHostRewardRecipient(pod);
         savePodsToDisk();
 
         addAuditLog(
@@ -4484,12 +4494,9 @@ Return ONLY a valid JSON object in this exact schema:
     await syncSwapRequestsFromFirestore();
 
     const podId = req.params.id;
-    const requests = swapRequests.filter(sr => {
-      if (sr.podId !== podId) return false;
-      const isReq = isUserTargetMatch(sr.requesterUserId, user) || (user.displayName && sr.requesterName && sr.requesterName.toLowerCase() === user.displayName.toLowerCase());
-      const isTgt = isUserTargetMatch(sr.targetUserId, user) || (user.displayName && sr.targetName && sr.targetName.toLowerCase() === user.displayName.toLowerCase());
-      return isReq || isTgt;
-    });
+    const requests = swapRequests.filter(sr =>
+      sr.podId === podId && (sr.requesterUserId === user.id || sr.targetUserId === user.id)
+    );
     res.json({ swapRequests: requests });
   });
 
@@ -4497,7 +4504,7 @@ Return ONLY a valid JSON object in this exact schema:
   const handleSwapRequest = async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const { targetMemberUserId, targetUserId, memberId, note } = req.body || {};
     const targetId = targetMemberUserId || targetUserId || memberId;
@@ -4505,31 +4512,24 @@ Return ONLY a valid JSON object in this exact schema:
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
-    const senderMember = findOrEnsureMember(pod, user.id, user);
-    const targetMember = findOrEnsureMember(pod, targetId, user);
+    const senderMember = findPodMember(pod, user.id);
+    const targetMember = findPodMember(pod, targetId);
 
-    if (!targetMember) {
+    if (!senderMember || senderMember.userId !== user.id) {
+      return res.status(403).json({ error: 'NOT_A_MEMBER', message: 'You are not a member of this pod.' });
+    }
+    if (!targetMember || !targetMember.userId || targetMember.userId === user.id) {
       return res.status(400).json({ error: 'Target member could not be located in this pod.' });
     }
 
-    // Match exact canonical user if possible
-    const matchedTargetUser = users.find(u =>
-      (u.id && targetMember.userId && u.id === targetMember.userId) ||
-      (u.id && targetMember.id && u.id === targetMember.id) ||
-      (u.email && targetMember.email && u.email.toLowerCase() === targetMember.email.toLowerCase()) ||
-      (u.displayName && targetMember.displayName && u.displayName.toLowerCase().trim() === targetMember.displayName.toLowerCase().trim())
-    );
-
-    const targetUserIdToNotify = matchedTargetUser?.id || targetMember.userId || targetMember.id || user.id;
+    const targetUserIdToNotify = targetMember.userId;
 
     // Check if existing pending or accepted request between these members in this pod
-    let swapReq = swapRequests.find(sr => 
+    let swapReq = swapRequests.find(sr =>
       sr.podId === pod.id &&
       (
         (sr.requesterUserId === user.id && sr.targetUserId === targetUserIdToNotify) ||
-        (sr.requesterUserId === targetUserIdToNotify && sr.targetUserId === user.id) ||
-        (isUserTargetMatch(sr.requesterUserId, user) && isUserTargetMatch(sr.targetUserId, matchedTargetUser || user)) ||
-        (isUserTargetMatch(sr.targetUserId, user) && isUserTargetMatch(sr.requesterUserId, matchedTargetUser || user))
+        (sr.requesterUserId === targetUserIdToNotify && sr.targetUserId === user.id)
       ) &&
       (sr.status === 'PENDING' || sr.status === 'ACCEPTED')
     );
@@ -4538,7 +4538,7 @@ Return ONLY a valid JSON object in this exact schema:
 
     if (!swapReq) {
       swapReq = {
-        id: `sr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `sr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
         podId: pod.id,
         podName: pod.name,
         requesterUserId: user.id,
@@ -4550,7 +4550,7 @@ Return ONLY a valid JSON object in this exact schema:
         status: 'PENDING',
         createdAt: nowIso,
         updatedAt: nowIso,
-        note: note || '',
+        note: typeof note === 'string' ? note.slice(0, 500) : '',
       };
       swapRequests.unshift(swapReq);
     } else {
@@ -4562,7 +4562,7 @@ Return ONLY a valid JSON object in this exact schema:
       swapReq.targetName = targetMember.displayName;
       swapReq.targetSlot = (targetMember.rotationIndex ?? 0) + 1;
       swapReq.updatedAt = nowIso;
-      if (note) swapReq.note = note;
+      if (typeof note === 'string' && note) swapReq.note = note.slice(0, 500);
     }
     saveSwapRequestsToDisk();
 
@@ -4598,7 +4598,6 @@ Return ONLY a valid JSON object in this exact schema:
         targetMemberId: targetMember.id,
         targetMemberUserId: targetMember.userId,
         targetName: targetMember.displayName,
-        targetEmail: targetMember.email || (matchedTargetUser ? matchedTargetUser.email : undefined),
         isCreatorInvolved,
       }
     });
@@ -4618,9 +4617,16 @@ Return ONLY a valid JSON object in this exact schema:
     const { action } = req.body || {}; // 'ACCEPT' | 'DECLINE'
     const requestId = req.params.requestId;
 
-    const swapReq = swapRequests.find(sr => sr.id === requestId);
+    const swapReq = swapRequests.find(sr => sr.id === requestId && sr.podId === req.params.id);
     if (!swapReq) {
       return res.status(404).json({ error: 'Swap request not found.' });
+    }
+    // Only the member who received the request can accept or decline it.
+    if (swapReq.targetUserId !== user.id) {
+      return res.status(403).json({ error: 'Only the requested member can respond to this swap request.' });
+    }
+    if (swapReq.status !== 'PENDING') {
+      return res.status(400).json({ error: `This swap request is already ${String(swapReq.status).toLowerCase()}.` });
     }
 
     const nowIso = new Date().toISOString();
@@ -4685,7 +4691,7 @@ Return ONLY a valid JSON object in this exact schema:
   app.post(['/api/pods/:id/swap', '/pods/:id/swap'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const { targetMemberUserId, targetUserId, memberId, swapRequestId } = req.body || {};
     const targetId = targetMemberUserId || targetUserId || memberId;
@@ -4693,10 +4699,10 @@ Return ONLY a valid JSON object in this exact schema:
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
 
-    const member1 = findOrEnsureMember(pod, user.id, user);
-    const member2 = findOrEnsureMember(pod, targetId, user);
+    const member1 = findPodMember(pod, user.id);
+    const member2 = findPodMember(pod, targetId);
 
-    if (!member1 || !member2) {
+    if (!member1 || !member2 || member1.userId !== user.id || !member2.userId || member1.userId === member2.userId) {
       return res.status(400).json({ error: 'Both members must be in the pod.' });
     }
 
@@ -4704,17 +4710,14 @@ Return ONLY a valid JSON object in this exact schema:
       return res.status(400).json({ error: 'Cannot swap slots if either member has already received a payout.' });
     }
 
-    const targetUserIdToMatch = member2.userId || member2.id;
-    // Verify mutual consent: Check for an ACCEPTED swap request
-    let validRequest = swapRequests.find(sr =>
+    // Verify mutual consent: an ACCEPTED request between exactly these two members.
+    const validRequest = swapRequests.find(sr =>
       sr.podId === pod.id &&
       sr.status === 'ACCEPTED' &&
+      (!swapRequestId || sr.id === swapRequestId) &&
       (
-        (swapRequestId && sr.id === swapRequestId) ||
-        (sr.requesterUserId === user.id && sr.targetUserId === targetUserIdToMatch) ||
-        (sr.targetUserId === user.id && sr.requesterUserId === targetUserIdToMatch) ||
-        (isUserTargetMatch(sr.requesterUserId, user) && isUserTargetMatch(sr.targetUserId, user)) ||
-        (isUserTargetMatch(sr.targetUserId, user) && isUserTargetMatch(sr.requesterUserId, user))
+        (sr.requesterUserId === member1.userId && sr.targetUserId === member2.userId) ||
+        (sr.requesterUserId === member2.userId && sr.targetUserId === member1.userId)
       )
     );
 
@@ -4729,32 +4732,12 @@ Return ONLY a valid JSON object in this exact schema:
     member1.rotationIndex = member2.rotationIndex;
     member2.rotationIndex = tempIndex;
 
-    // Check if the Pod Creator is one of the members switching spots
-    let hostRewardTransferred = false;
-    let oldRewardRecipientId = pod.hostRewardRecipientUserId || pod.createdBy;
-    let newRewardRecipientId = oldRewardRecipientId;
-    let newRewardRecipientName = pod.hostRewardRecipientName || pod.creatorName;
-
-    if (pod.createdBy) {
-      const isMember1Creator = member1.userId === pod.createdBy || (user.id === pod.createdBy && (member1.userId === user.id || member1.id === user.id));
-      const isMember2Creator = member2.userId === pod.createdBy || (targetId === pod.createdBy);
-
-      if (isMember1Creator) {
-        // Creator switched spots with Member 2 -> Member 2 now gets the 3% weekly payout cut
-        pod.hostRewardRecipientUserId = member2.userId || member2.id;
-        pod.hostRewardRecipientName = member2.displayName;
-        newRewardRecipientId = pod.hostRewardRecipientUserId;
-        newRewardRecipientName = member2.displayName;
-        hostRewardTransferred = true;
-      } else if (isMember2Creator) {
-        // Creator was Member 2 and switched with Member 1 -> Member 1 gets the 3% weekly payout cut
-        pod.hostRewardRecipientUserId = member1.userId || member1.id;
-        pod.hostRewardRecipientName = member1.displayName;
-        newRewardRecipientId = pod.hostRewardRecipientUserId;
-        newRewardRecipientName = member1.displayName;
-        hostRewardTransferred = true;
-      }
-    }
+    // The 3% host reward belongs to whoever now holds the final slot.
+    const oldRewardRecipientId = pod.hostRewardRecipientUserId || pod.createdBy;
+    syncHostRewardRecipient(pod);
+    const newRewardRecipientId = pod.hostRewardRecipientUserId || pod.createdBy;
+    const newRewardRecipientName = pod.hostRewardRecipientName || pod.creatorName;
+    const hostRewardTransferred = newRewardRecipientId !== oldRewardRecipientId;
 
     savePodsToDisk();
 
@@ -4800,7 +4783,6 @@ Return ONLY a valid JSON object in this exact schema:
         podName: pod.name,
         targetUserId: member2.userId || member2.id,
         targetName: member2.displayName,
-        targetEmail: member2.email,
         hostRewardTransferred,
         newRewardRecipientId,
       }
@@ -4827,7 +4809,6 @@ Return ONLY a valid JSON object in this exact schema:
         podName: pod.name,
         targetUserId: member1.userId || member1.id,
         targetName: member1.displayName,
-        targetEmail: member1.email,
         hostRewardTransferred,
         newRewardRecipientId,
       }
@@ -4941,23 +4922,29 @@ Return ONLY a valid JSON object in this exact schema:
       );
     }
 
-    res.json(filtered);
+    // Redemption codes/links are a member benefit, revealed through /api/perks/redeem.
+    res.json(filtered.map(({ redemptionData: _code, partnerEmail: _email, partnerNotes: _notes, ...publicPerk }) => publicPerk));
   });
 
   app.post('/api/perks/redeem', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User session or x-user-id header required.' });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const { perkId } = req.body;
 
     const perk = perks.find(p => p.id === perkId);
-    if (!perk) return res.status(404).json({ error: 'Perk not found' });
+    if (!perk || perk.status !== 'APPROVED') return res.status(404).json({ error: 'Perk not found' });
+
+    const existingRedemption = redemptions.find(r => r.userId === user.id && r.perkId === perk.id);
+    if (existingRedemption) {
+      return res.json({ success: true, redemption: existingRedemption, perk });
+    }
 
     perk.redeemedCount += 1;
 
     const redemption: Redemption = {
-      id: `red_${Date.now()}`,
+      id: newLedgerId('red'),
       userId: user.id,
       perkId: perk.id,
       perkTitle: perk.title,
@@ -4974,111 +4961,66 @@ Return ONLY a valid JSON object in this exact schema:
     });
   });
 
-  app.post(['/api/perks/submit', '/perks/submit'], (req: Request, res: Response) => {
+  // Partners may submit offers with or without an account. Submissions are always
+  // PENDING admin review, and never create, link to or return user accounts.
+  app.post(['/api/perks/submit', '/perks/submit'], publicFormRateLimiter, (req: Request, res: Response) => {
     try {
-      const rawUserId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
-      const isGuest = !rawUserId || rawUserId === 'usr_guest';
-      let user = isGuest ? null : getCurrentUser(req);
+      const user = getCurrentUser(req);
+      const body = req.body || {};
+      const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 
-      const { title, category, provider, guestDisplayName, description, valueBadge, redemptionType, redemptionData, eligibility, partnerEmail, guestEmail, partnerNotes, createAccount, imageUrl, logoUrl } = req.body || {};
-
+      const title = text(body.title, 140);
+      const category = text(body.category, 60);
       if (!title || !category) {
         return res.status(400).json({ error: 'Title and category are required.' });
       }
-
-      const effectiveEmail = (partnerEmail || guestEmail || '').trim();
-      const effectiveProvider = (provider || guestDisplayName || effectiveEmail || (user ? user.displayName : 'Community Partner')).trim();
-      const finalProvider = effectiveProvider || 'Community Partner';
-      const perkStatus: PerkStatus = req.body?.status || 'PENDING';
-
-      let partnerUser: User | undefined = user || undefined;
-      let createdAccount = false;
-
-      // If no active session or guest or createAccount requested with email, establish partner account
-      if (effectiveEmail && (!partnerUser || createAccount || isGuest)) {
-        const existing = users.find(u => u.email && u.email.toLowerCase() === effectiveEmail.toLowerCase());
-        if (existing) {
-          partnerUser = existing;
-        } else {
-          const newUserId = `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          const nowIso = new Date().toISOString();
-          partnerUser = {
-            id: newUserId,
-            email: effectiveEmail.toLowerCase(),
-            displayName: finalProvider,
-            avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(finalProvider)}&background=10B981&color=fff&size=200`,
-            platform: 'Partner Provider',
-            role: 'RIDER',
-            createdAt: nowIso,
-            accountAgeDays: calculateAccountAgeDays(nowIso, 1),
-            kycStatus: 'VERIFIED',
-            treasury: {
-              stripeAccountId: '',
-              stripeFinAccountId: '',
-              balanceUsd: 0.00,
-              pendingInboundUsd: 0.00,
-              totalPayoutsReceivedUsd: 0.00,
-              fdicPassThroughEligible: true,
-              status: 'UNINITIALIZED',
-            },
-            externalBank: {
-              bankName: '',
-              last4: '',
-              routingNumber: '',
-              accountType: 'CHECKING',
-              status: 'NOT_LINKED',
-            },
-            completedPodsCount: 0,
-          };
-          users.push(partnerUser);
-          createdAccount = true;
-        }
+      const effectiveEmail = text(body.partnerEmail, 254) || text(body.guestEmail, 254) || '';
+      if (!user && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(effectiveEmail)) {
+        return res.status(400).json({ error: 'A valid contact email is required.' });
       }
+      const finalProvider = text(body.provider, 120) || text(body.guestDisplayName, 120) || (user ? user.displayName : '') || effectiveEmail || 'Community Partner';
+      const httpsUrl = (v: unknown) => {
+        const url = text(v, 2048);
+        return url && /^https:\/\//i.test(url) ? url : undefined;
+      };
 
       const newPerk: Perk = {
-        id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        id: `perk_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
         title,
-        category,
+        category: category as Perk['category'],
         provider: finalProvider,
-        description: description || '',
-        valueBadge: valueBadge || 'Special Member Discount',
-        redemptionType: redemptionType || 'CODE',
-        redemptionData: redemptionData || 'PENDING_APPROVAL',
-        eligibility: eligibility || 'All verified members',
-        submittedBy: partnerUser ? partnerUser.displayName : (effectiveEmail || finalProvider),
-        submittedByUserId: partnerUser ? partnerUser.id : 'usr_guest',
-        partnerEmail: effectiveEmail || (partnerUser ? partnerUser.email : undefined),
-        partnerNotes,
-        status: perkStatus,
+        description: text(body.description, 2000) || '',
+        valueBadge: text(body.valueBadge, 80) || 'Special Member Discount',
+        redemptionType: body.redemptionType === 'LINK' ? 'LINK' : (text(body.redemptionType, 20) as Perk['redemptionType']) || 'CODE',
+        redemptionData: text(body.redemptionData, 500) || 'PENDING_APPROVAL',
+        eligibility: text(body.eligibility, 300) || 'All verified members',
+        submittedBy: user ? user.displayName : (effectiveEmail || finalProvider),
+        submittedByUserId: user ? user.id : 'usr_guest',
+        partnerEmail: effectiveEmail || user?.email,
+        partnerNotes: text(body.partnerNotes, 2000),
+        status: 'PENDING',
         iconName: 'Gift',
-        imageUrl: imageUrl || undefined,
-        logoUrl: logoUrl || undefined,
+        imageUrl: httpsUrl(body.imageUrl),
+        logoUrl: httpsUrl(body.logoUrl),
         redeemedCount: 0,
       };
 
       perks.unshift(newPerk);
 
-      if (partnerUser) {
-        addAuditLog(
-          undefined,
-          partnerUser.id,
-          partnerUser.displayName,
-          'PERK_CREATED' as any,
-          `Partner/User submitted perk offer: "${title}" (${finalProvider}) - Status: ${perkStatus}`,
-          { perkId: newPerk.id, title, provider: finalProvider, status: perkStatus }
-        );
-      }
+      addAuditLog(
+        undefined,
+        user ? user.id : 'usr_guest',
+        user ? user.displayName : finalProvider,
+        'PERK_CREATED' as any,
+        `Partner/User submitted perk offer: "${title}" (${finalProvider}) - Status: PENDING`,
+        { perkId: newPerk.id, title, provider: finalProvider, status: 'PENDING' }
+      );
 
       return res.json({
         success: true,
         perk: newPerk,
-        user: partnerUser,
-        createdAccount,
-        message: createdAccount 
-          ? `Partner account created for ${partnerUser?.email}! Your offer was submitted for Admin review.`
-          : (perkStatus === 'APPROVED' 
-              ? 'Partner perk published directly to Marketplace.' 
-              : 'Partner benefit offer submitted successfully! An Admin will review and approve it shortly.')
+        createdAccount: false,
+        message: 'Partner benefit offer submitted successfully! An Admin will review and approve it shortly.',
       });
     } catch (err) {
       console.error('[/api/perks/submit] error:', err);
@@ -5088,24 +5030,11 @@ Return ONLY a valid JSON object in this exact schema:
 
   app.get('/api/perks/my-offers', (req: Request, res: Response) => {
     const user = getCurrentUser(req);
-    const requestedUserId = (req.query.userId as string) || (req.headers['x-user-id'] as string);
-    const targetUserId = requestedUserId || user?.id || 'usr_guest';
-    const queryEmail = (req.query.email as string)?.toLowerCase();
-
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
     const isAdmin = checkIsAdmin(req);
-    const userOffers = perks.filter(p => {
-      if (isAdmin) return true;
-      if (p.submittedByUserId && (p.submittedByUserId === targetUserId || p.submittedByUserId === 'usr_chris' || p.submittedByUserId === 'usr_chris_admin')) return true;
-      if (user && p.submittedByUserId && p.submittedByUserId === user.id) return true;
-      if (queryEmail && p.partnerEmail && p.partnerEmail.toLowerCase() === queryEmail) return true;
-      if (user?.email && p.partnerEmail && p.partnerEmail.toLowerCase() === user.email.toLowerCase()) return true;
-      if (user?.displayName && p.submittedBy && p.submittedBy.toLowerCase() === user.displayName.toLowerCase()) return true;
-      if (user?.displayName && p.provider && p.provider.toLowerCase() === user.displayName.toLowerCase()) return true;
-      if (p.status === 'PENDING') return true;
-      return true; // Default to showing perks if user is viewing partner portal
-    });
-
-    res.json(userOffers);
+    res.json(perks.filter(p => isAdmin || p.submittedByUserId === user.id));
   });
 
   app.get('/api/admin/perks/pending', (req: Request, res: Response) => {
@@ -5137,7 +5066,7 @@ Return ONLY a valid JSON object in this exact schema:
     }
 
     const newPerk: Perk = {
-      id: `perk_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      id: `perk_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       title,
       category,
       provider,
@@ -5217,9 +5146,7 @@ Return ONLY a valid JSON object in this exact schema:
     if (!perk) return res.status(404).json({ error: 'Perk not found' });
 
     const isAdmin = checkIsAdmin(req);
-    const isOwner = perk.submittedByUserId === user.id ||
-      (perk.partnerEmail && perk.partnerEmail.toLowerCase() === user.email?.toLowerCase()) ||
-      (perk.submittedBy && perk.submittedBy.toLowerCase() === user.displayName?.toLowerCase());
+    const isOwner = perk.submittedByUserId === user.id;
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: 'Access denied. You can only manage your own partner perk offers.' });
@@ -5228,6 +5155,10 @@ Return ONLY a valid JSON object in this exact schema:
     const { status } = req.body; // 'APPROVED' | 'PENDING' | 'REJECTED' | 'SUSPENDED'
     if (!['APPROVED', 'PENDING', 'REJECTED', 'SUSPENDED'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
+    }
+    // Owners can pause their own offer; publishing or rejecting requires an admin.
+    if (!isAdmin && status !== 'SUSPENDED' && !(status === 'PENDING' && perk.status === 'SUSPENDED')) {
+      return res.status(403).json({ error: 'Only an administrator can approve or reject perk offers.' });
     }
 
     perk.status = status;
@@ -5283,48 +5214,137 @@ Return ONLY a valid JSON object in this exact schema:
 
   // 14. Immutable Audit Logs
   app.get('/api/audit-logs', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
+    const isAdmin = checkIsAdmin(req);
     const { podId } = req.query;
     if (podId) {
+      const pod = pods.find(p => p.id === podId);
+      if (!isAdmin && !(pod && (isPodMember(pod, user) || isPodCreator(pod, user)))) {
+        return res.status(403).json({ error: 'NOT_A_MEMBER', message: 'You are not a member of this pod.' });
+      }
       return res.json(auditLogs.filter(l => l.podId === podId));
     }
-    res.json(auditLogs);
+    res.json(isAdmin ? auditLogs : auditLogs.filter(l => l.actorId === user.id));
   });
 
-  // 15. Stripe Webhook Endpoint (Verified with Signature)
-  app.post('/api/webhooks/stripe', async (req: Request, res: Response) => {
-    let event: any = req.body;
-    const sig = req.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  // 15. Stripe webhook. Every event must carry a valid signature over the raw
+  // body; this is the only place real money is credited to member ledgers.
+  // Returns false when the event could not be applied yet (Stripe should retry).
+  function creditTopup(paymentId: string, userId: string | undefined, amountUsd: number, source: string): boolean {
+    if (!userId || !Number.isFinite(amountUsd) || amountUsd <= 0) {
+      console.error(`[Stripe Webhook] ${source} ${paymentId} is missing userId/amount metadata; not credited.`);
+      return true; // malformed for good: retrying will not help
+    }
+    if (processedPayments.some(p => p.id === paymentId)) return true;
+    const target = users.find(u => u && u.id === userId);
+    if (!target) {
+      console.error(`[Stripe Webhook] ${source} ${paymentId} references unknown user ${userId}; will retry.`);
+      return false;
+    }
+    const amount = roundCents(amountUsd);
+    creditLedger(target, amount);
+    processedPayments.push({ id: paymentId, userId, amountUsd: amount, processedAt: new Date().toISOString() });
+    saveUsersToDisk();
+    addAuditLog(undefined, target.id, target.displayName, 'TREASURY_TOPUP' as any,
+      `Treasury top-up of $${amount.toFixed(2)} confirmed by Stripe (${paymentId}).`, { paymentId, amount, source });
+    createNotification({
+      userId: target.id,
+      type: 'DEPOSIT_CONFIRMED',
+      title: 'Funds added',
+      message: `$${amount.toFixed(2)} was added to your Treasury balance.`,
+    } as any);
+    return true;
+  }
 
-    if (webhookSecret && sig) {
+  function applyConnectAccountUpdate(account: any): void {
+    const target = users.find(u => u?.treasury?.stripeAccountId === account?.id);
+    if (!target) return;
+    const ready = Boolean(account.details_submitted && account.payouts_enabled && account.capabilities?.transfers === 'active');
+    target.kycStatus = ready ? 'VERIFIED' : (account.details_submitted ? 'PENDING' : target.kycStatus);
+    if (ready && !target.kycVerifiedAt) target.kycVerifiedAt = new Date().toISOString();
+    target.treasury.status = (ready ? 'ACTIVE' : 'PENDING_REQUIREMENTS') as User['treasury']['status'];
+    target.treasury.fdicPassThroughEligible = false;
+    const bank = account.external_accounts?.data?.find((x: any) => x?.object === 'bank_account');
+    const fingerprints = (account.external_accounts?.data || [])
+      .map((x: any) => x?.fingerprint)
+      .filter((f: unknown): f is string => typeof f === 'string' && f.length > 0);
+    if (fingerprints.length) {
+      target.identityFingerprints = Array.from(new Set([...(target.identityFingerprints || []), ...fingerprints]));
+    }
+    if (bank) {
+      target.externalBank = {
+        bankName: bank.bank_name || 'Bank account',
+        last4: bank.last4 || '',
+        routingNumber: '',
+        accountType: 'CHECKING',
+        status: 'LINKED',
+        linkedAt: target.externalBank?.linkedAt || new Date().toISOString(),
+      } as User['externalBank'];
+    }
+    saveUsersToDisk();
+  }
+
+  app.post('/api/webhooks/stripe', async (req: Request, res: Response) => {
+    const sig = req.headers['stripe-signature'];
+    // Account (platform) and Connect webhook endpoints each have their own secret.
+    const secrets = [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET].filter(Boolean) as string[];
+    const rawBody: Buffer | undefined = (req as any).rawBody;
+
+    if (secrets.length === 0 || !sig || !rawBody) {
+      return res.status(400).send('Webhook Error: missing signature or webhook secret');
+    }
+    let event: any = null;
+    for (const secret of secrets) {
       try {
-        const rawBody = (req as any).rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
-        event = getStripe().webhooks.constructEvent(rawBody, sig as string, webhookSecret);
-      } catch (err: any) {
-        console.error('[Stripe Webhook] Signature verification failed:', err?.message);
-        return res.status(400).send(`Webhook Error: ${err?.message}`);
+        event = getStripe().webhooks.constructEvent(rawBody, sig as string, secret);
+        break;
+      } catch {
+        // try the next secret
       }
     }
-
-    const eventType = event?.type || event?.eventType || 'stripe.event';
-    const data = event?.data || event;
-
-    try {
-      await handleStripeWebhook(event);
-    } catch (whErr) {
-      console.warn('[Stripe Webhook] Error in event handler:', whErr);
+    if (!event) {
+      console.error('[Stripe Webhook] Signature verification failed');
+      return res.status(400).send('Webhook Error: invalid signature');
     }
 
-    addAuditLog(
-      undefined,
-      'stripe_webhook',
-      'Stripe Treasury Webhook',
-      'WEBHOOK_EVENT',
-      `Received asynchronous webhook event: "${eventType}". Verified webhook receiver signature.`,
-      { eventType, data }
-    );
+    try {
+      const obj = event.data?.object || {};
+      let applied = true;
+      switch (event.type) {
+        case 'checkout.session.completed':
+        case 'checkout.session.async_payment_succeeded':
+          if (obj.metadata?.kind === 'treasury_topup' && obj.payment_status === 'paid') {
+            applied = creditTopup(obj.id, obj.metadata.userId, Number(obj.metadata.depositAmountUsd), 'checkout.session');
+          }
+          break;
+        case 'payment_intent.succeeded':
+          if (obj.metadata?.kind === 'treasury_topup') {
+            applied = creditTopup(obj.id, obj.metadata.userId, Number(obj.metadata.depositAmountUsd), 'payment_intent');
+          }
+          break;
+        case 'account.updated':
+          applyConnectAccountUpdate(obj);
+          break;
+        default:
+          break;
+      }
+      if (!applied) {
+        return res.status(500).json({ error: 'WEBHOOK_NOT_APPLIED' });
+      }
+    } catch (whErr) {
+      // Let Stripe retry: the handlers are idempotent.
+      console.error('[Stripe Webhook] Error in event handler:', whErr);
+      return res.status(500).json({ error: 'WEBHOOK_HANDLER_FAILED' });
+    }
 
-    res.json({ received: true, eventType });
+    // Only acknowledge once the credit is durable; otherwise Stripe retries.
+    if (!(await persistNow())) {
+      return res.status(500).json({ error: 'WEBHOOK_PERSIST_FAILED' });
+    }
+    res.json({ received: true });
   });
 
   // 16. Operations & Member Recovery: Delinquency & Missed Deposit Auto-Deduction Engine
@@ -5336,6 +5356,17 @@ Return ONLY a valid JSON object in this exact schema:
 
     const pod = pods.find(p => p.id === podId);
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
+
+    // Admins can take any action. A pod creator may only grant a grace period;
+    // deductions, platform escrow draws and removals are operations decisions.
+    const isAdmin = checkIsAdmin(req);
+    const isCreatorGrace = pod.createdBy === user.id && actionChoice === 'GRACE_PERIOD';
+    if (!isAdmin && !isCreatorGrace) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only an administrator can take this delinquency action.' });
+    }
+    if (!['GRACE_PERIOD', 'COVER_GAP', 'REMOVE'].includes(actionChoice)) {
+      return res.status(400).json({ error: 'INVALID_ACTION', message: 'actionChoice must be GRACE_PERIOD, COVER_GAP or REMOVE.' });
+    }
 
     const member = pod.members.find(m => m.userId === memberUserId);
     if (!member) return res.status(404).json({ error: 'Member not found in this pod' });
@@ -5363,9 +5394,7 @@ Return ONLY a valid JSON object in this exact schema:
       );
     } else if (actionChoice === 'REMOVE') {
       // Direct removal
-      pod.members = pod.members.filter(m => m.userId !== memberUserId);
-      pod.memberCount = pod.members.length;
-      pod.members.forEach((m, idx) => { m.rotationIndex = idx; });
+      removeMemberFromRotation(pod, memberUserId);
       pod.podType = 'OPEN_POD';
       pod.isPrioritizedForReplacement = true;
       pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
@@ -5388,23 +5417,21 @@ Return ONLY a valid JSON object in this exact schema:
       if (currentBalance >= requiredDeposit) {
         // Case A: Account balance is SUFFICIENT to cover full deposit
         balanceDeducted = requiredDeposit;
-        if (memberUser && memberUser.treasury) {
-          memberUser.treasury.balanceUsd = Math.max(0, memberUser.treasury.balanceUsd - requiredDeposit);
-        }
+        if (memberUser) debitLedger(memberUser, requiredDeposit);
         pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
         member.delinquencyStatus = 'CLEAN';
         outcome = 'FULL_BALANCE_DEDUCTED';
 
         // Record deposit
         const newDeposit: Deposit = {
-          id: `dep_autodeduct_${Date.now()}`,
+          id: newLedgerId('dep_autodeduct'),
           membershipId: member.id,
           podId: pod.id,
           cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
           userId: member.userId,
           userName: member.displayName,
           amount: requiredDeposit,
-          stripePaymentId: `pi_autodeduct_wage_${Date.now()}`,
+          stripePaymentId: newLedgerId('ledger_autodeduct'),
           status: 'COMPLETE',
           createdAt: new Date().toISOString(),
         };
@@ -5429,10 +5456,8 @@ Return ONLY a valid JSON object in this exact schema:
       } else {
         // Case B: Account balance is INSUFFICIENT to cover full deposit
         // Available balance is deducted first, then Welcome Match Credited covers the remainder
-        balanceDeducted = Math.max(0, currentBalance);
-        if (memberUser && memberUser.treasury) {
-          memberUser.treasury.balanceUsd = 0;
-        }
+        balanceDeducted = roundCents(Math.max(0, currentBalance));
+        if (memberUser && balanceDeducted > 0) debitLedger(memberUser, balanceDeducted);
 
         const remainder = requiredDeposit - balanceDeducted;
         const availableWelcomeMatch = pod.contingencyBufferUsd || 0;
@@ -5450,14 +5475,14 @@ Return ONLY a valid JSON object in this exact schema:
 
         // Record deposit with split metadata
         const newDeposit: Deposit = {
-          id: `dep_split_${Date.now()}`,
+          id: newLedgerId('dep_split'),
           membershipId: member.id,
           podId: pod.id,
           cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
           userId: member.userId,
           userName: member.displayName,
           amount: requiredDeposit,
-          stripePaymentId: `pi_split_wm_${Date.now()}`,
+          stripePaymentId: newLedgerId('ledger_split_wm'),
           status: 'COMPLETE',
           createdAt: new Date().toISOString(),
         };
@@ -5468,9 +5493,7 @@ Return ONLY a valid JSON object in this exact schema:
 
         // ENFORCEMENT: Welcome Match Credited / Escrow kicked in due to insufficient user balance
         // The user must be taken off the Pod due to missed payment/deposit, and Pod is publicly listed.
-        pod.members = pod.members.filter(m => m.userId !== memberUserId);
-        pod.memberCount = pod.members.length;
-        pod.members.forEach((m, idx) => { m.rotationIndex = idx; });
+        removeMemberFromRotation(pod, memberUserId);
         pod.podType = 'OPEN_POD';
         pod.isPrioritizedForReplacement = true;
         pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
@@ -5551,10 +5574,23 @@ Return ONLY a valid JSON object in this exact schema:
   });
 
   // 11. Autonomous / System Escrow Deposit Injection for Vacant or Defaulted Slots
+  // Platform escrow advances: administrators / scheduler only, once per vacant
+  // or defaulted slot per cycle.
   app.post(['/api/pods/:id/system-deposit', '/pods/:id/system-deposit'], async (req: Request, res: Response) => {
+    if (!isSystemRequest(req)) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'System escrow deposits are restricted to administrators.' });
+    }
     const user = getCurrentUser(req);
-    const pod = await findPodById(req.params.id, user);
+    const pod = await findPodById(req.params.id, user || undefined);
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
+    if (pod.status !== 'ACTIVE') {
+      return res.status(400).json({ error: 'POD_NOT_ACTIVE', message: 'System deposits can only be made into an active pod.' });
+    }
+    const cycleId = `cyc_w${pod.currentCycleWeek || 1}`;
+    const memberDepositsThisCycle = deposits.filter(d => d && d.podId === pod.id && d.cycleId === cycleId && d.status === 'COMPLETE').length;
+    if (memberDepositsThisCycle >= (pod.members?.length || 0)) {
+      return res.status(400).json({ error: 'CYCLE_FULLY_FUNDED', message: 'Every slot already has a deposit for this cycle.' });
+    }
 
     const depositAmount = pod.depositTier || 20;
     pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + depositAmount;
@@ -5562,14 +5598,14 @@ Return ONLY a valid JSON object in this exact schema:
     pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + depositAmount;
 
     const sysDeposit: Deposit = {
-      id: `dep_system_escrow_${Date.now()}`,
+      id: newLedgerId('dep_system_escrow'),
       membershipId: `pm_system_escrow_${pod.id}`,
       podId: pod.id,
       cycleId: `cyc_w${pod.currentCycleWeek || 1}`,
       userId: 'usr_system_escrow_liquidity',
       userName: '🤖 System Deposits Escrow Account',
       amount: depositAmount,
-      stripePaymentId: `pi_system_escrow_draw_${Date.now()}`,
+      stripePaymentId: newLedgerId('ledger_system_escrow'),
       status: 'COMPLETE',
       createdAt: new Date().toISOString(),
     };
@@ -5596,9 +5632,10 @@ Return ONLY a valid JSON object in this exact schema:
   });
 
 // --- ADVERTISER / BRAND PARTNER CAMPAIGN INQUIRIES ---
-const ADVERTISER_INQUIRIES_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'advertiser_inquiries.json');
+const ADVERTISER_INQUIRIES_FILE = path.join(DATA_DIR, 'advertiser_inquiries.json');
 
 function loadAdvertiserInquiries(): any[] {
+  if (IS_PRODUCTION) return [];
   try {
     const data = safeReadFile(ADVERTISER_INQUIRIES_FILE);
     if (data) {
@@ -5610,7 +5647,13 @@ function loadAdvertiserInquiries(): any[] {
   return [];
 }
 
+let advertiserInquiries: any[] = loadAdvertiserInquiries();
+
 function saveAdvertiserInquiries(inquiries: any[]) {
+  if (isPersistenceEnabled()) {
+    requestFlush();
+    return;
+  }
   try {
     safeWriteFile(ADVERTISER_INQUIRIES_FILE, JSON.stringify(inquiries, null, 2));
   } catch (err) {
@@ -5638,45 +5681,42 @@ app.post('/api/campaigns/advertiser-inquiry', async (req: Request, res: Response
     if (!brandName || !contactEmail) {
       return res.status(400).json({ error: 'Brand name and contact email are required' });
     }
+    const tooLong = [brandName, contactName, contactEmail, contactPhone, websiteUrl, campaignObjective, estimatedBudget]
+      .some(v => v !== undefined && (typeof v !== 'string' || v.length > 300))
+      || (customNotes !== undefined && (typeof customNotes !== 'string' || customNotes.length > 5000))
+      || (targetMarkets !== undefined && (!Array.isArray(targetMarkets) || targetMarkets.length > 50))
+      || (apparelTypes !== undefined && (!Array.isArray(apparelTypes) || apparelTypes.length > 20));
+    if (tooLong) {
+      return res.status(400).json({ error: 'One or more fields are too long or invalid.' });
+    }
 
     const newInquiry = {
-      id: `inq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      id: `inq_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
       brandName: String(brandName).trim(),
       contactName: String(contactName || 'Partner').trim(),
       contactEmail: String(contactEmail).trim(),
       contactPhone: contactPhone ? String(contactPhone).trim() : '',
       websiteUrl: websiteUrl ? String(websiteUrl).trim() : '',
-      targetMarkets: Array.isArray(targetMarkets) ? targetMarkets : ['national'],
+      targetMarkets: Array.isArray(targetMarkets) ? targetMarkets.map(String).map(s => s.slice(0, 60)) : ['national'],
       campaignObjective: String(campaignObjective || 'Brand Awareness'),
       estimatedBudget: String(estimatedBudget || '$5,000 - $15,000'),
       fleetSizeTarget: Number(fleetSizeTarget) || 100,
       campaignDurationWeeks: Number(campaignDurationWeeks) || 4,
-      apparelTypes: Array.isArray(apparelTypes) ? apparelTypes : ['hoodie'],
+      apparelTypes: Array.isArray(apparelTypes) ? apparelTypes.map(String).map(s => s.slice(0, 40)) : ['hoodie'],
       customNotes: customNotes ? String(customNotes).trim() : '',
       submittedAt: new Date().toISOString(),
       status: 'NEW',
     };
 
-    const inquiries = loadAdvertiserInquiries();
-    inquiries.unshift(newInquiry);
-    saveAdvertiserInquiries(inquiries);
-
-    // Also persist to Firestore if available
-    try {
-      const db = getDb();
-      if (db) {
-        await db.collection('advertiserInquiries').doc(newInquiry.id).set(sanitizeForServerFirestore(newInquiry));
-      }
-    } catch (fsErr) {
-      console.warn('Could not persist inquiry to Firestore:', fsErr);
-    }
+    advertiserInquiries.unshift(newInquiry);
+    saveAdvertiserInquiries(advertiserInquiries);
 
     console.log(`[Advertiser Inquiry] New campaign lead from ${newInquiry.brandName} (${newInquiry.contactEmail})`);
 
     res.json({
       success: true,
       message: 'Campaign inquiry submitted successfully. A Brand Partnerships Director will reach out within 24 hours.',
-      inquiry: newInquiry,
+      inquiry: { id: newInquiry.id, brandName: newInquiry.brandName, submittedAt: newInquiry.submittedAt, status: newInquiry.status },
     });
   } catch (err: any) {
     console.error('Error submitting advertiser inquiry:', err);
@@ -5685,12 +5725,14 @@ app.post('/api/campaigns/advertiser-inquiry', async (req: Request, res: Response
 });
 
 app.get('/api/campaigns/advertiser-inquiries', (req: Request, res: Response) => {
-  const inquiries = loadAdvertiserInquiries();
-  res.json({ inquiries });
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  }
+  res.json({ inquiries: advertiserInquiries });
 });
 
 // --- FOURTHWALL PRINT-ON-DEMAND GEAR STORAGE & API ---
-const GEAR_DESIGNS_FILE = path.join(process.env.VERCEL ? '/tmp' : process.cwd(), 'gear_designs.json');
+const GEAR_DESIGNS_FILE = path.join(DATA_DIR, 'gear_designs.json');
 
 function loadGearDesigns(): GearDesignOrder[] {
   try {
@@ -5704,12 +5746,16 @@ function loadGearDesigns(): GearDesignOrder[] {
   } catch (err) {
     console.error('[Fourthwall] Error loading gear_designs.json:', err);
   }
-  return [...INITIAL_GEAR_DESIGNS];
+  return IS_PRODUCTION ? [] : [...INITIAL_GEAR_DESIGNS];
 }
 
 let gearDesigns: GearDesignOrder[] = loadGearDesigns();
 
 function saveGearDesigns(): void {
+  if (isPersistenceEnabled()) {
+    requestFlush();
+    return;
+  }
   try {
     safeWriteFile(GEAR_DESIGNS_FILE, JSON.stringify(gearDesigns, null, 2));
   } catch (err) {
@@ -5727,10 +5773,25 @@ app.get(['/api/fourthwall/catalog', '/fourthwall/catalog'], (req: Request, res: 
   });
 });
 
+// Sponsors see their own designs; admins see all. Raw Fourthwall API responses stay server-side.
+function toDesignView(design: GearDesignOrder): GearDesignOrder {
+  const { fourthwallRawResponse: _raw, ...rest } = design;
+  return rest as GearDesignOrder;
+}
+
+function canViewDesign(req: Request, design: GearDesignOrder): boolean {
+  const user = getCurrentUser(req);
+  return checkIsAdmin(req) || Boolean(user && design.ownerUserId === user.id);
+}
+
 // 2. List Sponsored Gear Designs
 app.get(['/api/fourthwall/designs', '/fourthwall/designs'], (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  }
   const { status, sponsorBrand, campaignId } = req.query;
-  let results = [...gearDesigns];
+  let results = gearDesigns.filter(d => canViewDesign(req, d));
 
   if (status && typeof status === 'string') {
     results = results.filter(d => d.status === status);
@@ -5743,29 +5804,61 @@ app.get(['/api/fourthwall/designs', '/fourthwall/designs'], (req: Request, res: 
   }
 
   res.json({
-    designs: results,
+    designs: results.map(toDesignView),
     total: results.length,
   });
 });
 
-// 3. Create or Save Gear Design Draft
+// 3. Create or update a draft gear design (owner only, DRAFT/REJECTED designs only)
 app.post(['/api/fourthwall/designs', '/fourthwall/designs'], (req: Request, res: Response) => {
   try {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
     const designData = req.body as Partial<GearDesignOrder>;
-    if (!designData.sponsorBrand || !designData.gearType) {
+    if (!designData.sponsorBrand || !designData.gearType || typeof designData.sponsorBrand !== 'string' || designData.sponsorBrand.length > 120) {
       return res.status(400).json({ error: 'sponsorBrand and gearType are required' });
     }
 
-    const catalogItem = FOURTHWALL_GEAR_CATALOG.find(c => c.type === designData.gearType) || FOURTHWALL_GEAR_CATALOG[0];
-    const qty = designData.quantity || 50;
+    const catalogItem = FOURTHWALL_GEAR_CATALOG.find(c => c.type === designData.gearType);
+    if (!catalogItem) {
+      return res.status(400).json({ error: 'Unknown gearType' });
+    }
+    const qty = Math.floor(Number(designData.quantity) || 50);
+    if (qty < 1 || qty > 5000) {
+      return res.status(400).json({ error: 'quantity must be between 1 and 5000' });
+    }
+    let zonesJson = '{}';
+    if (designData.zones !== undefined) {
+      if (!designData.zones || typeof designData.zones !== 'object' || Array.isArray(designData.zones)) {
+        return res.status(400).json({ error: 'zones must be an object' });
+      }
+      zonesJson = JSON.stringify(designData.zones);
+      if (zonesJson.length > 200_000 || /\[\s*\[/.test(zonesJson)) {
+        return res.status(400).json({ error: 'zones is too large or contains nested arrays' });
+      }
+    }
     const unitCost = catalogItem.baseUnitCostUsd;
 
-    const newDesign: GearDesignOrder = {
-      id: designData.id || `gdes_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    const existing = designData.id ? gearDesigns.find(d => d.id === designData.id) : undefined;
+    if (existing) {
+      if (existing.ownerUserId !== user.id) {
+        return res.status(403).json({ error: 'You can only edit your own designs.' });
+      }
+      if (existing.status !== 'DRAFT' && existing.status !== 'REJECTED') {
+        return res.status(400).json({ error: 'Only draft or rejected designs can be edited.' });
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    const design: GearDesignOrder = {
+      id: existing?.id || `gdes_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      ownerUserId: user.id,
       campaignId: designData.campaignId || 'camp_ad_hoc_sponsor',
       campaignTitle: designData.campaignTitle || `${designData.sponsorBrand} Sponsored Fleet`,
       sponsorBrand: designData.sponsorBrand,
-      sponsorContactEmail: designData.sponsorContactEmail || 'sponsor@mutualpool.org',
+      sponsorContactEmail: designData.sponsorContactEmail || user.email,
       sponsorContactName: designData.sponsorContactName || designData.sponsorBrand,
       gearType: designData.gearType,
       gearName: catalogItem.name,
@@ -5773,33 +5866,38 @@ app.post(['/api/fourthwall/designs', '/fourthwall/designs'], (req: Request, res:
       quantity: qty,
       unitCostUsd: unitCost,
       totalEstimatedCostUsd: unitCost * qty,
-      zones: designData.zones || {},
-      status: designData.status || 'DRAFT',
-      submittedAt: designData.status === 'PENDING_APPROVAL' ? new Date().toISOString() : undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      zones: JSON.parse(zonesJson),
+      status: 'DRAFT',
+      createdAt: existing?.createdAt || nowIso,
+      updatedAt: nowIso,
     };
 
-    const existingIdx = gearDesigns.findIndex(d => d.id === newDesign.id);
-    if (existingIdx !== -1) {
-      gearDesigns[existingIdx] = { ...gearDesigns[existingIdx], ...newDesign, updatedAt: new Date().toISOString() };
+    if (existing) {
+      Object.assign(existing, design);
     } else {
-      gearDesigns.unshift(newDesign);
+      gearDesigns.unshift(design);
     }
 
     saveGearDesigns();
-    res.status(201).json({ success: true, design: newDesign });
+    res.status(201).json({ success: true, design: toDesignView(existing || design) });
   } catch (err: any) {
     console.error('[Fourthwall] Error creating gear design:', err);
-    res.status(500).json({ error: 'Failed to create gear design', message: err?.message });
+    res.status(500).json({ error: 'Failed to create gear design' });
   }
 });
 
-// 4. Submit Gear Design for Admin Approval
+// 4. Submit Gear Design for Admin Approval (owner only)
 app.post(['/api/fourthwall/designs/:id/submit', '/fourthwall/designs/:id/submit'], (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  }
   const design = gearDesigns.find(d => d.id === req.params.id);
-  if (!design) {
+  if (!design || design.ownerUserId !== user.id) {
     return res.status(404).json({ error: 'Gear design not found' });
+  }
+  if (design.status !== 'DRAFT' && design.status !== 'REJECTED') {
+    return res.status(400).json({ error: 'Only draft or rejected designs can be submitted.' });
   }
 
   design.status = 'PENDING_APPROVAL';
@@ -5809,27 +5907,36 @@ app.post(['/api/fourthwall/designs/:id/submit', '/fourthwall/designs/:id/submit'
 
   res.json({
     success: true,
-    design,
+    design: toDesignView(design),
     message: 'Gear design submitted for stewardship approval. Upon approval it will be dispatched to Fourthwall.',
   });
 });
 
-// 5. Admin Approves Gear Design & Dispatches Order to Fourthwall API
+// 5. Admin Approves Gear Design & Dispatches a (paid) Order to the Fourthwall API
+const designsBeingDispatched = new Set<string>();
 app.post(['/api/fourthwall/designs/:id/approve', '/fourthwall/designs/:id/approve'], async (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  }
   const design = gearDesigns.find(d => d.id === req.params.id);
   if (!design) {
     return res.status(404).json({ error: 'Gear design not found' });
   }
+  if (design.status !== 'PENDING_APPROVAL' && design.status !== 'DRAFT') {
+    return res.status(400).json({ error: `Design is ${String(design.status).toLowerCase()} and cannot be dispatched again.` });
+  }
+  if (designsBeingDispatched.has(design.id)) {
+    return res.status(409).json({ error: 'This design is already being dispatched.' });
+  }
 
+  designsBeingDispatched.add(design.id);
   try {
     const { shippingRecipient, adminNotes } = req.body || {};
-    
-    // Call Fourthwall Orders API
     const fwResult = await dispatchOrderToFourthwall(design, shippingRecipient);
 
     design.status = 'DISPATCHED_TO_FOURTHWALL';
     design.approvedAt = new Date().toISOString();
-    design.adminNotes = adminNotes || 'Design approved for high-visibility courier fleet print run.';
+    design.adminNotes = (typeof adminNotes === 'string' ? adminNotes.slice(0, 2000) : '') || 'Design approved for high-visibility courier fleet print run.';
     design.fourthwallOrderId = fwResult.fourthwallOrderId;
     design.fourthwallOrderNumber = fwResult.fourthwallOrderNumber;
     design.fourthwallTrackingUrl = fwResult.fourthwallTrackingUrl;
@@ -5841,61 +5948,84 @@ app.post(['/api/fourthwall/designs/:id/approve', '/fourthwall/designs/:id/approv
 
     res.json({
       success: true,
-      design,
-      fourthwall: fwResult,
+      design: toDesignView(design),
       message: `Design approved and manufacturing order ${fwResult.fourthwallOrderNumber} dispatched to Fourthwall print pipeline.`,
     });
   } catch (err: any) {
     console.error('[Fourthwall] Approval and dispatch error:', err);
-    res.status(500).json({ error: 'Fourthwall dispatch failed', message: err?.message });
+    res.status(500).json({ error: 'Fourthwall dispatch failed' });
+  } finally {
+    designsBeingDispatched.delete(design.id);
   }
 });
 
 // 6. Admin Rejects Gear Design
 app.post(['/api/fourthwall/designs/:id/reject', '/fourthwall/designs/:id/reject'], (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  }
   const design = gearDesigns.find(d => d.id === req.params.id);
   if (!design) {
     return res.status(404).json({ error: 'Gear design not found' });
+  }
+  if (design.status !== 'PENDING_APPROVAL') {
+    return res.status(400).json({ error: 'Only designs awaiting approval can be rejected.' });
   }
 
   const { adminNotes } = req.body || {};
   design.status = 'REJECTED';
   design.rejectedAt = new Date().toISOString();
-  design.adminNotes = adminNotes || 'Design requires adjustments to comply with courier safety guidelines.';
+  design.adminNotes = (typeof adminNotes === 'string' ? adminNotes.slice(0, 2000) : '') || 'Design requires adjustments to comply with courier safety guidelines.';
   design.updatedAt = new Date().toISOString();
   saveGearDesigns();
 
   res.json({
     success: true,
-    design,
+    design: toDesignView(design),
     message: 'Gear design marked as rejected with feedback.',
   });
 });
 
-// 7. Get Single Gear Design
+// 7. Get Single Gear Design (owner or admin)
 app.get(['/api/fourthwall/designs/:id', '/fourthwall/designs/:id'], (req: Request, res: Response) => {
   const design = gearDesigns.find(d => d.id === req.params.id);
-  if (!design) {
+  if (!design || !canViewDesign(req, design)) {
     return res.status(404).json({ error: 'Gear design not found' });
   }
-  res.json({ design });
+  res.json({ design: toDesignView(design) });
 });
 
-// 8. Fourthwall Webhook Receiver
+// 8. Fourthwall Webhook Receiver: HMAC-SHA256 (base64) of the raw body, signed
+// with FOURTHWALL_WEBHOOK_SECRET, sent in the X-Fourthwall-Hmac-SHA256 header.
+function verifyFourthwallSignature(req: Request): boolean {
+  const secret = process.env.FOURTHWALL_WEBHOOK_SECRET;
+  const rawBody: Buffer | undefined = (req as any).rawBody;
+  const provided = getHeaderValue(req, 'x-fourthwall-hmac-sha256');
+  if (!secret || !rawBody || !provided) return false;
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
+  const a = Buffer.from(expected);
+  const b = Buffer.from(provided);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 app.post(['/api/fourthwall/webhook', '/fourthwall/webhook'], (req: Request, res: Response) => {
+  if (!verifyFourthwallSignature(req)) {
+    return res.status(401).json({ error: 'Invalid webhook signature' });
+  }
   try {
     const { event, order_id, order_number, status, tracking_url } = req.body || {};
     console.log(`[Fourthwall Webhook] Received ${event} for order ${order_id || order_number}`);
 
-    if (order_id || order_number) {
-      const match = gearDesigns.find(d => d.fourthwallOrderId === order_id || d.fourthwallOrderNumber === order_number);
-      if (match) {
-        if (status === 'IN_PRODUCTION') match.fourthwallProductionStage = 'IN_PRODUCTION';
-        if (status === 'SHIPPED') match.fourthwallProductionStage = 'FULFILLED';
-        if (tracking_url) match.fourthwallTrackingUrl = tracking_url;
-        match.updatedAt = new Date().toISOString();
-        saveGearDesigns();
-      }
+    const match = gearDesigns.find(d =>
+      (order_id && d.fourthwallOrderId && d.fourthwallOrderId === order_id) ||
+      (order_number && d.fourthwallOrderNumber && d.fourthwallOrderNumber === order_number)
+    );
+    if (match) {
+      if (status === 'IN_PRODUCTION') match.fourthwallProductionStage = 'IN_PRODUCTION';
+      if (status === 'SHIPPED') match.fourthwallProductionStage = 'FULFILLED';
+      if (typeof tracking_url === 'string' && /^https:\/\//i.test(tracking_url)) match.fourthwallTrackingUrl = tracking_url;
+      match.updatedAt = new Date().toISOString();
+      saveGearDesigns();
     }
 
     res.json({ received: true });
@@ -5905,8 +6035,11 @@ app.post(['/api/fourthwall/webhook', '/fourthwall/webhook'], (req: Request, res:
   }
 });
 
-// 9. Fourthwall Health & Config Status
+// 9. Fourthwall Health & Config Status (admin only)
 app.get(['/api/fourthwall/health', '/fourthwall/health'], (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.json({ status: 'ok' });
+  }
   const isConfigured = Boolean(process.env.FOURTHWALL_API_KEY || process.env.FOURTHWALL_ACCESS_TOKEN);
   res.json({
     status: 'ok',
@@ -5922,18 +6055,23 @@ app.get(['/api/fourthwall/health', '/fourthwall/health'], (req: Request, res: Re
 // --- VOICE AI & NATURAL AUDIO AGENT API ---
 app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
   try {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
     const { query, currentContext } = req.body || {};
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({ error: 'Query string is required' });
+    if (!query || typeof query !== 'string' || query.length > 1000) {
+      return res.status(400).json({ error: 'Query string is required (max 1000 characters)' });
     }
 
     const client = getGeminiClient();
-    const activeTab = currentContext?.activeTab || 'my-pods';
-    const userName = currentContext?.userName || 'Member';
-    const platform = currentContext?.platform || 'Gig Courier';
-    const treasuryBalance = currentContext?.treasuryBalance ?? 0;
-    const activePodsCount = currentContext?.activePodsCount ?? 0;
-    const lang = currentContext?.language || 'en';
+    // Account facts come from the server-side session, never from the request body.
+    const activeTab = typeof currentContext?.activeTab === 'string' && /^[a-z-]{1,40}$/.test(currentContext.activeTab) ? currentContext.activeTab : 'my-pods';
+    const userName = sessionUser.displayName || 'Member';
+    const platform = sessionUser.platform || 'Gig Courier';
+    const treasuryBalance = Number(sessionUser.treasury?.balanceUsd) || 0;
+    const activePodsCount = pods.filter(p => p && p.status === 'ACTIVE' && isPodMember(p, sessionUser)).length;
+    const lang = ['en', 'es', 'fr'].includes(currentContext?.language) ? currentContext.language : 'en';
 
     const fallbackKnowledge = (userQuery: string, language: string = 'en') => {
       const q = (userQuery || '').toLowerCase();
@@ -6674,6 +6812,9 @@ Output MUST be strictly valid JSON matching this schema:
 // --- NATURAL GEMINI TTS (SPEECH GENERATION) API ---
 app.post('/api/ai/tts', async (req: Request, res: Response) => {
   try {
+    if (!getCurrentUser(req)) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
     const { text, voiceName } = req.body || {};
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Text is required for TTS' });
@@ -6684,7 +6825,8 @@ app.post('/api/ai/tts', async (req: Request, res: Response) => {
       return res.json({ fallbackToWebSpeech: true, reason: 'No Gemini API key configured' });
     }
 
-    const selectedVoice = voiceName || 'Zephyr'; // 'Zephyr', 'Puck', 'Kore', 'Fenrir', 'Charon'
+    const allowedVoices = ['Zephyr', 'Puck', 'Kore', 'Fenrir', 'Charon'];
+    const selectedVoice = allowedVoices.includes(voiceName) ? voiceName : 'Zephyr';
     
     // Clean text of markdown or special characters before speaking
     const cleanText = text.replace(/[*_#`~\[\]]/g, '').trim().substring(0, 500);
@@ -6724,115 +6866,84 @@ app.post('/api/ai/tts', async (req: Request, res: Response) => {
 });
 
 // --- CHAT API ROUTES ---
-app.get(['/api/chats/threads', '/chats/threads'], async (req: Request, res: Response) => {
-  try {
-    const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId') || 'usr_verified_101';
-    const userEmail = getHeaderValue(req, 'x-user-email') || getQueryValue(req, 'userEmail') || '';
-    const userName = getHeaderValue(req, 'x-user-name') || getQueryValue(req, 'userName') || '';
-
-    // Ensure latest pods are loaded from disk & Firestore
-    let allPods = pods;
-    try {
-      allPods = await syncPodsFromFirestore();
-    } catch (e) {
-      allPods = loadPodsFromDisk();
-    }
-
-    const userThreads = getThreadsForUser(rawUserId, allPods, userEmail, userName);
-    res.json(userThreads);
-  } catch (err) {
-    console.error('Error fetching chat threads:', err);
-    res.status(500).json({ error: 'Failed to fetch chat threads' });
+app.get(['/api/chats/threads', '/chats/threads'], (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
   }
+  res.json(getThreadsForUser(user.id));
 });
 
 app.get(['/api/chats/messages', '/chats/messages'], (req: Request, res: Response) => {
-  try {
-    const threadId = getQueryValue(req, 'threadId');
-    const rawUserId = getHeaderValue(req, 'x-user-id') || getQueryValue(req, 'userId') || undefined;
-    if (!threadId) {
-      return res.status(400).json({ error: 'threadId is required' });
-    }
-    const msgs = getMessagesForThread(threadId, rawUserId);
-    res.json(msgs);
-  } catch (err) {
-    console.error('Error fetching chat messages:', err);
-    res.status(500).json({ error: 'Failed to fetch chat messages' });
+  const user = getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
   }
+  const threadId = getQueryValue(req, 'threadId');
+  if (!threadId) {
+    return res.status(400).json({ error: 'threadId is required' });
+  }
+  ensureThreadForUser(threadId, user.id);
+  if (!isThreadParticipant(threadId, user.id)) {
+    return res.status(403).json({ error: 'You are not a participant in this conversation.' });
+  }
+  res.json(getMessagesForThread(threadId, user.id));
 });
 
 app.post(['/api/chats/send', '/chats/send'], (req: Request, res: Response) => {
-  try {
-    const { threadId, content, senderId, senderName, senderAvatar, senderPlatform, recipientId, podId, type, metadata } = req.body;
-    const resolvedSenderId = senderId || getHeaderValue(req, 'x-user-id') || 'usr_verified_101';
-    const resolvedSenderName = senderName || getHeaderValue(req, 'x-user-name') || 'Driver';
-
-    if (!threadId || !content) {
-      return res.status(400).json({ error: 'threadId and content are required' });
-    }
-
-    const newMsg = createMessage({
-      threadId,
-      senderId: resolvedSenderId,
-      senderName: resolvedSenderName,
-      senderAvatar,
-      senderPlatform,
-      recipientId,
-      podId,
-      content,
-      type: type || 'TEXT',
-      metadata,
-    });
-
-    res.status(201).json({ success: true, message: newMsg });
-  } catch (err) {
-    console.error('Error sending chat message:', err);
-    res.status(500).json({ error: 'Failed to send chat message' });
+  const user = getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
   }
+  const { threadId, content, type, metadata } = req.body || {};
+  if (typeof threadId !== 'string' || !content) {
+    return res.status(400).json({ error: 'threadId and content are required' });
+  }
+  const result = createMessage({
+    threadId,
+    sender: { userId: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, platform: user.platform },
+    content,
+    type,
+    metadata,
+  });
+  if (!result.ok) {
+    const status = result.error === 'NOT_A_PARTICIPANT' ? 403 : result.error === 'THREAD_NOT_FOUND' ? 404 : 400;
+    return res.status(status).json({ error: result.error });
+  }
+  res.status(201).json({ success: true, message: result.message });
 });
 
 app.post(['/api/chats/mark-read', '/chats/mark-read'], (req: Request, res: Response) => {
-  try {
-    const { threadId, userId } = req.body;
-    const resolvedUserId = userId || getHeaderValue(req, 'x-user-id') || 'usr_verified_101';
-    if (!threadId) {
-      return res.status(400).json({ error: 'threadId is required' });
-    }
-    markThreadMessagesAsRead(threadId, resolvedUserId);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error marking thread as read:', err);
-    res.status(500).json({ error: 'Failed to mark thread as read' });
+  const user = getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
   }
+  const { threadId } = req.body || {};
+  if (typeof threadId !== 'string') {
+    return res.status(400).json({ error: 'threadId is required' });
+  }
+  if (!isThreadParticipant(threadId, user.id)) {
+    return res.status(403).json({ error: 'You are not a participant in this conversation.' });
+  }
+  markThreadMessagesAsRead(threadId, user.id);
+  res.json({ success: true });
 });
 
 app.post(['/api/chats/start-direct', '/chats/start-direct'], (req: Request, res: Response) => {
-  try {
-    const { userId, targetUserId, targetName, targetAvatar, targetPlatform } = req.body;
-    const currentUser = getCurrentUser(req) || {
-      id: userId || 'usr_verified_101',
-      displayName: 'Verified Driver',
-      avatarUrl: '',
-      platform: 'DoorDash',
-    };
-
-    const targetUser = users.find(u => u && u.id === targetUserId) || {
-      id: targetUserId,
-      displayName: targetName || 'Driver Member',
-      avatarUrl: targetAvatar,
-      platform: targetPlatform || 'DoorDash',
-    };
-
-    const thread = getOrCreateDirectThread(
-      { id: currentUser.id, displayName: currentUser.displayName, avatarUrl: currentUser.avatarUrl, platform: currentUser.platform },
-      { id: targetUser.id, displayName: targetUser.displayName, avatarUrl: targetUser.avatarUrl, platform: targetUser.platform }
-    );
-
-    res.json({ success: true, thread });
-  } catch (err) {
-    console.error('Error starting direct chat:', err);
-    res.status(500).json({ error: 'Failed to start direct chat' });
+  const user = getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
   }
+  const { targetUserId } = req.body || {};
+  const targetUser = users.find(u => u && u.id === targetUserId);
+  if (!targetUser || targetUser.id === user.id) {
+    return res.status(404).json({ error: 'Member not found' });
+  }
+  const thread = getOrCreateDirectThread(
+    { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, platform: user.platform },
+    { id: targetUser.id, displayName: targetUser.displayName, avatarUrl: targetUser.avatarUrl, platform: targetUser.platform }
+  );
+  res.json({ success: true, thread });
 });
 
 // 404 handler for unmatched API routes
@@ -6851,13 +6962,86 @@ app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
   }
   res.status(500).json({
     error: 'Internal Server Error',
-    message: err?.message || String(err),
+    ...(IS_PRODUCTION ? {} : { message: err?.message || String(err) }),
   });
 });
 
+// --- PERSISTENCE ---
+// Every piece of mutable server state that must survive restarts.
+function registerPersistentState(): void {
+  registerCollection({ collection: 'users', get: () => users, set: docs => { users = docs; } });
+  registerCollection({ collection: 'pods', get: () => pods, set: docs => {
+    // Legacy documents were written as {pod: {...}} by older clients; demo pods are never loaded.
+    pods = docs
+      .map(d => (d && d.pod && typeof d.pod === 'object' ? { ...d.pod, id: d.pod.id || d.id } : d))
+      .filter(p => p && p.id && !isDemoPodServer(p))
+      .map(p => ({ ...p, members: Array.isArray(p.members) ? p.members : [], invitedContacts: Array.isArray(p.invitedContacts) ? p.invitedContacts : [], status: p.status || 'FORMING' }));
+  } });
+  registerCollection({ collection: 'notifications', get: () => notifications, set: docs => {
+    notifications = docs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  } });
+  registerCollection({ collection: 'swap_requests', get: () => swapRequests, set: docs => { swapRequests = docs; } });
+  registerCollection({ collection: 'perks', get: () => perks, set: docs => { perks = docs; } });
+  registerCollection({ collection: 'auditLogs', get: () => auditLogs, set: docs => {
+    auditLogs = docs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  } });
+  registerCollection({ collection: 'hardshipRequests', get: () => hardshipRequests, set: docs => { hardshipRequests = docs; } });
+  registerCollection({ collection: 'reprioritizationRequests', get: () => reprioritizationRequests, set: docs => { reprioritizationRequests = docs; } });
+  registerCollection({ collection: 'deposits', get: () => deposits, set: docs => {
+    deposits = docs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  } });
+  registerCollection({ collection: 'redemptions', get: () => redemptions, set: docs => { redemptions = docs; } });
+  registerCollection({ collection: 'processedPayments', get: () => processedPayments, set: docs => { processedPayments = docs; } });
+  registerCollection({ collection: 'withdrawals', get: () => withdrawals, set: docs => { withdrawals = docs; } });
+  registerCollection({ collection: 'welcomeMatchGrants', get: () => welcomeMatchGrants, set: docs => { welcomeMatchGrants = docs; } });
+  registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
+  registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });
+  registerCollection({ collection: 'chatThreads', get: getChatThreads, set: setChatThreads });
+  registerCollection({ collection: 'chatMessages', get: getChatMessages, set: docs => {
+    setChatMessages(docs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+  } });
+}
+
+// Resolve a WebSocket AUTH token to a member (same rules as the HTTP auth middleware).
+async function verifySocketToken(token: string) {
+  let uid: string | null = null;
+  if (DEMO_MODE && (token.startsWith('demo_token_') || token.startsWith('usr_'))) {
+    uid = token.replace('demo_token_', '');
+  } else {
+    const authAdmin = getAuthAdmin();
+    if (!authAdmin) return null;
+    try {
+      uid = (await authAdmin.verifyIdToken(token)).uid;
+    } catch {
+      return null;
+    }
+  }
+  const user = users.find(u => u && u.id === uid);
+  if (!user) return null;
+  return { userId: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, platform: user.platform };
+}
+
 // --- VITE MIDDLEWARE OR STATIC SERVING ---
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  assertProductionConfig(storageConfigProblems());
+
+  registerPersistentState();
+  // Production always persists. In development, opt in with PERSIST_STATE=true
+  // (PERSIST_TO_FIRESTORE is the older name); otherwise dev uses the JSON files.
+  const persistInDev = process.env.PERSIST_STATE === 'true' || process.env.PERSIST_TO_FIRESTORE === 'true';
+  if (IS_PRODUCTION || persistInDev) {
+    await hydrateFromStorage(createStorageAdapter());
+    startAutoFlush();
+  }
+
+  configureChatManager({
+    verifyToken: verifySocketToken,
+    getPods: () => pods,
+    allowedOrigins: getAllowedOrigins(),
+    onChange: requestFlush,
+  });
+
+  if (!IS_PRODUCTION) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -6866,7 +7050,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { index: false }));
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, 'index.html');
       if (fs.existsSync(indexPath)) {
@@ -6877,43 +7061,23 @@ async function startServer() {
     });
   }
 
-  if (!process.env.VERCEL) {
-    const httpServer = http.createServer(app);
-    setupWebSocketServer(httpServer);
+  const httpServer = http.createServer(app);
+  setupWebSocketServer(httpServer);
 
-    httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log(`[Gig Mutual Pool PWA Server + WebSocket] running on http://localhost:${PORT}`);
-    });
-  }
-}
+  // On SIGTERM stop accepting requests before the final Firestore flush, so no
+  // change can land after the flush and be lost.
+  onBeforeShutdown(() => new Promise<void>(resolve => {
+    const timer = setTimeout(resolve, 8000);
+    httpServer.close(() => { clearTimeout(timer); resolve(); });
+    httpServer.closeIdleConnections?.();
+  }));
 
-
-if (!process.env.VERCEL) {
-  startServer().catch((err) => {
-    console.error('Failed to start server:', err);
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Gig Mutual Pool Server] running on port ${PORT} (${IS_PRODUCTION ? 'production' : 'development'}${DEMO_MODE ? ', DEMO_MODE' : ''})`);
   });
 }
 
-export default function handler(req: express.Request, res: express.Response, next?: express.NextFunction) {
-  if (!req.socket) {
-    (req as any).socket = { remoteAddress: '127.0.0.1' };
-  }
-  if (!(req as any).connection) {
-    (req as any).connection = (req as any).socket;
-  }
-  if (!req.socket.remoteAddress) {
-    (req.socket as any).remoteAddress = '127.0.0.1';
-  }
-
-  const normalized = normalizeApiUrl(req);
-  if (normalized && normalized !== req.url && !normalized.startsWith('/api/index')) {
-    req.url = normalized;
-    delete (req as any)._parsedUrl;
-    delete (req as any)._parsedOriginalUrl;
-  }
-
-  if (typeof next === 'function') {
-    return app(req, res, next);
-  }
-  return app(req, res);
-}
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

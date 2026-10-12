@@ -55,6 +55,9 @@ export const fr: Record<TranslationKey, string> = {
   'hero.featureEmergencySwapDesc': 'Échanges démocratiques de tours',
 
   // Interactive ROSCA Calculator Simulator
+  // Gig platform strip (landing page)
+  'partners.heading': 'Utilisé par des travailleurs de ces entreprises',
+  'partners.disclaimer': 'MutualPool est indépendant et n’est ni affilié, ni parrainé, ni approuvé par ces entreprises. Les noms sont des marques de leurs propriétaires respectifs.',
   'calculator.badge': 'Calculateur Interactif',
   'calculator.title': 'Calculez Votre Versement Mutual Pool',
   'calculator.subtitle': 'Découvrez comment un petit engagement hebdomadaire se transforme en fonds d’urgence pour faire face aux imprévus.',
@@ -1586,14 +1589,14 @@ export const fr: Record<TranslationKey, string> = {
   'hardship.weeklyDepositTier': 'Niveau de Dépôt Hebdomadaire',
   'hardship.serviceFee7': 'Frais de Service 7 %',
   'hardship.totalPayoffAmount': 'Montant Total à Rembourser',
-  'hardship.breakdownNote': 'Dès l\'approbation du Créateur, {deposit},00 $ sont déposés directement dans le groupe. Votre compte est mis en attente jusqu\'au remboursement total de {payoff} $.',
+  'hardship.breakdownNote': 'Si MutualPool approuve votre demande, {deposit},00 $ sont déposés directement dans le groupe. Votre compte est mis en attente jusqu\'au remboursement total de {payoff} $.',
   'hardship.reasonLabel': 'Motif de la Demande d\'Aide d\'Urgence',
   'hardship.reasonPlaceholder': 'ex. Réparation imprévue de véhicule (panne d\'alternateur) nécessitant des fonds immédiats...',
   'hardship.closeBtn': 'Fermer',
   'hardship.submitBtn': 'Soumettre la Demande d\'Aide',
   'hardship.submittingBtn': 'Envoi de la Demande...',
   'hardship.successTitle': 'Demande Soumise avec Succès !',
-  'hardship.successMsg': 'Votre demande au Fonds de Difficulté Financière de {amount},00 $ a été soumise ! Transmise au Créateur du Groupe ({creator}) pour approbation.',
+  'hardship.successMsg': 'Votre demande au Fonds de Difficulté Financière de {amount},00 $ a été soumise ! MutualPool l\'examinera et vous informera, ainsi que le Créateur du Groupe ({creator}), de sa décision.',
   'hardship.errorJoinPod': 'Veuillez rejoindre ou sélectionner un groupe actif pour demander une couverture.',
   'hardship.errorGeneral': 'Échec de l\'envoi de la demande d\'aide.',
   'hardship.tradePolicyTitle': 'Échange Instantané de Places et Permutation Mutuelle',

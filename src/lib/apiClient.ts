@@ -1,20 +1,29 @@
 import { auth } from './firebase';
 
-// Helper to get active user ID from local state / storage
+// Signed-in Firebase user id (the server derives identity from the ID token only).
 export function getActiveUserId(): string | null {
-  if (auth.currentUser?.uid) {
-    return auth.currentUser.uid;
-  }
+  return auth.currentUser?.uid || null;
+}
+
+// Wait for Firebase to restore a persisted session so early requests carry a token.
+async function getIdTokenWhenReady(): Promise<string | null> {
   try {
-    const saved = localStorage.getItem('mutualpool_active_user');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed?.id || null;
-    }
-  } catch {
-    // Ignore error
+    await auth.authStateReady();
+    return auth.currentUser ? await auth.currentUser.getIdToken() : null;
+  } catch (err) {
+    console.warn('[apiClient] Failed to obtain Firebase ID token:', err);
+    return null;
   }
-  return null;
+}
+
+// Only our own origin's /api routes may receive the ID token.
+function isOwnApiUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.origin === window.location.origin && parsed.pathname.startsWith('/api/');
+  } catch {
+    return false;
+  }
 }
 
 // Generate auth headers including Firebase ID token if authenticated
@@ -36,24 +45,9 @@ export async function getAuthHeaders(customHeaders?: HeadersInit): Promise<Recor
     }
   }
 
-  // Inject Firebase ID Token if user is logged in
-  if (auth.currentUser) {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    } catch (err) {
-      console.warn('[apiClient] Failed to obtain Firebase ID token:', err);
-    }
-  }
-
-  // Inject x-user-id for backward compatibility
-  if (!headers['x-user-id']) {
-    const uId = getActiveUserId();
-    if (uId) {
-      headers['x-user-id'] = uId;
-    }
+  const token = await getIdTokenWhenReady();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   return headers;
@@ -100,25 +94,15 @@ export function installFetchInterceptor(): void {
         url = (input as any).url;
       }
 
-      // Only intercept requests directed to our /api endpoints
-      if (url.startsWith('/api/') || url.includes('/api/')) {
+      // Only intercept requests directed to our own /api endpoints
+      if (isOwnApiUrl(url)) {
         const currentHeaders = new Headers(init?.headers || (input instanceof Request ? input.headers : {}));
 
         // Inject Firebase ID token
-        if (!currentHeaders.has('Authorization') && auth.currentUser) {
-          try {
-            const token = await auth.currentUser.getIdToken();
-            if (token) {
-              currentHeaders.set('Authorization', `Bearer ${token}`);
-            }
-          } catch {}
-        }
-
-        // Inject x-user-id
-        if (!currentHeaders.has('x-user-id')) {
-          const uId = getActiveUserId();
-          if (uId) {
-            currentHeaders.set('x-user-id', uId);
+        if (!currentHeaders.has('Authorization')) {
+          const token = await getIdTokenWhenReady();
+          if (token) {
+            currentHeaders.set('Authorization', `Bearer ${token}`);
           }
         }
 

@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+*_data.json
+gear_designs.json
+.DS_Store

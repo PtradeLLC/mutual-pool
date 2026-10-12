@@ -3,6 +3,8 @@ import { User } from '../types';
 import { Building2, CheckCircle2, AlertCircle, X, CreditCard, ShieldCheck, Wallet, Sparkles } from 'lucide-react';
 import { saveUserToFirestore } from '../lib/firestoreService';
 import { useLanguage } from '../i18n';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
+import { AddFundsModal } from './AddFundsModal';
 
 interface StripeBankModalProps {
   user: User;
@@ -55,6 +57,72 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const effectiveBankName = selectedBankOption === 'OTHER_CUSTOM' ? customBankName.trim() : selectedBankOption;
+
+  // Production: payout bank accounts are managed in Stripe Connect onboarding and
+  // top-ups go through hosted Stripe Checkout (see AddFundsModal).
+  const [showAddFunds, setShowAddFunds] = useState(false);
+  if (!CLIENT_DEMO_MODE) {
+    if (showAddFunds) {
+      return <AddFundsModal isOpen user={user} onClose={onClose} onSuccess={onBankLinked} />;
+    }
+    const openStripeOnboarding = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/users/connect/onboarding-link', { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) throw new Error(data.message || 'Could not open Stripe.');
+        window.location.assign(data.url);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Could not open Stripe.');
+        setLoading(false);
+      }
+    };
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827] space-y-4">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100"
+          >
+            <X className="w-5 h-5 pointer-events-none" />
+          </button>
+          <h3 className="text-xl font-bold">Treasury & payouts</h3>
+          <p className="text-sm text-slate-700">
+            {user.externalBank?.status === 'LINKED'
+              ? `Payouts go to ${user.externalBank.bankName} ••••${user.externalBank.last4}.`
+              : 'Add the bank account for payouts in Stripe. We never see your bank credentials.'}
+          </p>
+          {error && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowAddFunds(true)}
+            className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] flex items-center justify-center gap-2"
+          >
+            <Wallet className="w-4 h-4" /> Add funds
+          </button>
+          <button
+            type="button"
+            onClick={openStripeOnboarding}
+            disabled={loading}
+            className="w-full py-3 rounded-xl border border-[#DDE1E6] font-bold text-sm hover:bg-gray-50 disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            <Building2 className="w-4 h-4" /> {loading ? 'Opening Stripe…' : 'Manage payout bank account'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleLinkBank = async (e: React.FormEvent) => {
     e.preventDefault();

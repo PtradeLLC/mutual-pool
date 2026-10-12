@@ -82,8 +82,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
     currentUser?.role === 'Admin' ||
     currentUser?.role === 'SUPER_ADMIN' ||
     currentUser?.role === 'POD_ADMIN' ||
-    (typeof currentUser?.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN')) ||
-    currentUser?.email?.toLowerCase() === 'chrisbitoy@gmail.com'
+    (typeof currentUser?.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN'))
   );
 
   // Metros and platforms lists

@@ -56,6 +56,7 @@ import {
 import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
 import { scrollToTabSection } from './utils/navigation';
+import { CLIENT_DEMO_MODE } from './lib/demoMode';
 
 export default function App() {
   const { t, formatCurrency } = useTranslation();
@@ -195,8 +196,9 @@ export default function App() {
     // 1. Add shift to campaignShifts
     handleAddNewShift(completedShift);
 
-    // 2. Calculate supplemental wage payout & check for missed weekly pod deposits
-    if (currentUser) {
+    // 2. Supplemental wage payout. Only the demo server credits shift payouts; in
+    // production shift earnings are informational until advertiser funding exists.
+    if (currentUser && CLIENT_DEMO_MODE) {
       const payout = completedShift.courierPayoutEarned || 65;
       let newBalance = (currentUser.treasury?.balanceUsd || 0) + payout;
       const totalPayouts = (currentUser.treasury?.totalPayoutsReceivedUsd || 0) + payout;
@@ -486,6 +488,34 @@ export default function App() {
     }
   };
 
+  // Returning from Stripe-hosted pages: refresh Connect status / wait for the top-up webhook.
+  useEffect(() => {
+    if (!currentUser || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const stripeReturn = params.has('stripe_success') || params.has('stripe_refresh');
+    const topupReturn = params.get('topup');
+    if (!stripeReturn && !topupReturn) return;
+
+    const cleanUrl = () => window.history.replaceState({}, '', window.location.pathname);
+    (async () => {
+      if (stripeReturn) {
+        const res = await fetch('/api/users/connect/refresh', { method: 'POST' }).catch(() => null);
+        if (res?.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.user) setCurrentUser(data.user);
+          toast.success(data?.user?.kycStatus === 'VERIFIED' ? 'Identity verified. You can now create and join pods.' : 'Stripe verification is in progress.');
+        }
+      } else if (topupReturn === 'success') {
+        toast.success('Payment received. Your balance will update in a moment.');
+        setTimeout(() => fetchAppData(currentUser.id), 4000);
+      } else if (topupReturn === 'cancelled') {
+        toast.error('Payment cancelled. Your balance has not changed.');
+      }
+      cleanUrl();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
   const syncUserWithBackend = async (user: User) => {
     try {
       const syncRes = await fetch('/api/users/sync', {
@@ -534,15 +564,11 @@ export default function App() {
             firestoreUser.createdAt = new Date().toISOString();
           }
           firestoreUser.accountAgeDays = calculateAccountAgeDays(firestoreUser.createdAt, firestoreUser.accountAgeDays);
-          if (firestoreUser.email?.toLowerCase() === 'chrisbitoy@gmail.com' && firestoreUser.role !== 'Admin') {
-            firestoreUser.role = 'Admin';
-            saveUserToFirestore(firestoreUser).catch(() => {});
-          }
           setCurrentUser(firestoreUser);
           await syncUserWithBackend(firestoreUser);
         } else {
           // Fetch current user from backend
-          const userRes = await fetch(`/api/users/current?userId=${uId}`).catch(() => null);
+          const userRes = await fetch('/api/users/current').catch(() => null);
           if (userRes && userRes.ok) {
             const uData = await userRes.json().catch(() => null);
             if (uData) {
@@ -554,9 +580,6 @@ export default function App() {
                 }
               }
               uData.accountAgeDays = calculateAccountAgeDays(uData.createdAt, uData.accountAgeDays);
-              if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
-                uData.role = 'Admin';
-              }
               setCurrentUser(uData);
             }
           }
@@ -574,9 +597,6 @@ export default function App() {
               }
             }
             uData.accountAgeDays = calculateAccountAgeDays(uData.createdAt, uData.accountAgeDays);
-            if (uData.email?.toLowerCase() === 'chrisbitoy@gmail.com') {
-              uData.role = 'Admin';
-            }
             setCurrentUser(uData);
           }
         }
@@ -1157,74 +1177,8 @@ export default function App() {
           return;
         }
 
-        // If server had internal error or unexpected response, attempt resilient client-side Firestore join fallback
-        if (res.status >= 500 || data.error === 'JOIN_FAILED' || data.error === 'PARSE_ERROR') {
-          const expectedCode = String(pod.inviteCode || 'BAY2026').trim().toUpperCase();
-          const providedCode = String(inviteCode || '').trim().toUpperCase();
-          const userEmailLower = (currentUser.email || '').toLowerCase();
-          const isInvited = pod.invitedContacts?.some(
-            ic => ic && ((ic.emailOrPhone || '').toLowerCase() === userEmailLower || ic.memberUserId === currentUser.id)
-          );
-          const isCodeValid = providedCode.length > 0 && (
-            providedCode === expectedCode || 
-            providedCode === 'BAY2026' || 
-            providedCode === 'START50' || 
-            providedCode === 'VET100' || 
-            providedCode === 'POOL2026'
-          );
-
-          if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== currentUser.id && !isInvited && !isCodeValid) {
-            setInviteCodeTargetPod(pod);
-            setInviteCodeError(providedCode.length > 0 ? `Invalid invite code "${providedCode}". Please verify code with creator.` : 'Invite code required for this Trusted Circle pod.');
-            return;
-          }
-
-          // Complete join on client & sync to Firestore
-          const newMember: PodMembership = {
-            id: `pm_${Date.now()}_${(pod.members?.length || 0) + 1}`,
-            podId: pod.id,
-            userId: currentUser.id,
-            displayName: currentUser.displayName || 'Verified Member',
-            email: currentUser.email,
-            avatarUrl: currentUser.avatarUrl || '',
-            platform: currentUser.platform || 'DoorDash',
-            rotationIndex: pod.members?.length || 0,
-            hasReceivedPayout: false,
-            delinquencyStatus: 'CLEAN',
-            joinedAt: new Date().toISOString(),
-          };
-
-          const updatedMembers = [...(pod.members || [])];
-          if (!updatedMembers.some(m => m.userId === currentUser.id)) {
-            updatedMembers.push(newMember);
-          }
-
-          const updatedPod: Pod = {
-            ...pod,
-            members: updatedMembers,
-            memberCount: updatedMembers.length,
-          };
-
-          setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? updatedPod : p)));
-          if (selectedPodDetail && selectedPodDetail.id === updatedPod.id) {
-            setSelectedPodDetail(updatedPod);
-          }
-
-          savePodToFirestore(updatedPod).catch((err) => console.warn('Firestore fallback save error:', err));
-
-          try {
-            if (currentUser?.id) {
-              localStorage.setItem(`mutualpool_my_pod_${currentUser.id}_${pod.id}`, 'true');
-            }
-            if (activeUser?.id) {
-              localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
-            }
-            localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
-          } catch {}
-
-          setInviteCodeTargetPod(null);
-          setInviteCodeInput('');
-          setInviteCodeError(null);
+        if (data.error === 'INSUFFICIENT_FUNDS') {
+          toast.error(data.message || 'Add funds before joining this pod.', { title: 'Insufficient Balance' });
           return;
         }
 
@@ -1235,6 +1189,9 @@ export default function App() {
 
       // Successfully joined pod via API!
       const updatedPod: Pod = data.pod || data;
+      setInviteCodeTargetPod(null);
+      setInviteCodeInput('');
+      setInviteCodeError(null);
       if (data.user) {
         setAllUsers(prev => prev.map(u => u.id === data.user.id ? data.user : u));
         if (currentUser && currentUser.id === data.user.id) {
@@ -1556,7 +1513,8 @@ export default function App() {
           setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        onSwitchRole={handleSwitchRole}
+        // Demo-only role preview; real admin rights come from the server-verified claim.
+        onSwitchRole={CLIENT_DEMO_MODE ? handleSwitchRole : undefined}
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenAddFundsModal={() => setShowAddFundsModal(true)}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
@@ -2433,7 +2391,7 @@ export default function App() {
                 type="text"
                 required
                 maxLength={8}
-                placeholder="Enter Invite Code (e.g. BAY2026)"
+                placeholder="Enter Invite Code"
                 value={inviteCodeInput}
                 onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
                 className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-center font-mono font-bold text-base tracking-widest text-[#005FB8] uppercase focus:outline-none focus:border-[#005FB8]"

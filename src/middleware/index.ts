@@ -23,28 +23,7 @@ declare global {
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
-    const userIdHeader = req.headers['x-user-id'] as string;
-    
-    // Support both Authorization header and x-user-id header (for backward compatibility)
-    let token: string | undefined;
-    
-    if (authHeader?.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-    } else if (userIdHeader) {
-      // For development/testing - verify the user exists in Firebase
-      try {
-        const userRecord = await getAuthAdmin().getUser(userIdHeader);
-        req.user = {
-          uid: userRecord.uid,
-          email: userRecord.email || '',
-          displayName: userRecord.displayName || undefined,
-        };
-        return next();
-      } catch {
-        res.status(401).json({ error: 'Invalid user ID' });
-        return;
-      }
-    }
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
     
     if (!token) {
       res.status(401).json({ error: 'Authorization header required' });
@@ -115,89 +94,75 @@ export function validateQuery<T>(schema: ZodSchema<T>) {
 }
 
 // Rate Limiting
-const isServerless = Boolean(
-  process.env.VERCEL ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.NETLIFY ||
-  process.env.CF_PAGES
-);
+// req.ip honours the app's `trust proxy` setting, so it is the address seen by
+// our own load balancer. Reading X-Forwarded-For directly would let clients pick
+// a fresh "IP" per request and bypass every limit.
+const getClientIp = (req: Request): string => req.ip || req.socket?.remoteAddress || 'unknown';
 
-const getClientIp = (req: Request): string => {
-  try {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim()) {
-      return forwarded.split(',')[0].trim();
-    }
-    if (Array.isArray(forwarded) && forwarded.length > 0 && typeof forwarded[0] === 'string') {
-      return forwarded[0].split(',')[0].trim();
-    }
-    const realIp = req.headers['x-real-ip'];
-    if (typeof realIp === 'string' && realIp.trim()) {
-      return realIp.trim();
-    }
-    const fwdHeader = req.headers['forwarded'];
-    if (typeof fwdHeader === 'string') {
-      const match = fwdHeader.match(/for="?([^;,\s"]+)"?/i);
-      if (match && match[1]) {
-        return match[1].trim();
-      }
-    }
-    if (req.socket && typeof req.socket.remoteAddress === 'string') {
-      return req.socket.remoteAddress;
-    }
-    if ((req as any).connection && typeof (req as any).connection.remoteAddress === 'string') {
-      return (req as any).connection.remoteAddress;
-    }
-  } catch {}
-  return '127.0.0.1';
+// Authenticated requests are limited per user, anonymous ones per IP.
+const getUserOrIpKey = (req: Request): string => {
+  const uid = (req as any).authenticatedUser?.id;
+  return uid ? `user:${uid}` : `ip:${getClientIp(req)}`;
 };
 
-export const apiRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs
-  message: { error: 'Too many requests, please try again later' },
+const limiterDefaults = {
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => isServerless,
-  keyGenerator: (req) => getClientIp(req),
-  validate: {
-    xForwardedForHeader: false,
-    forwardedHeader: false,
-    trustProxy: false,
-    default: false,
-  },
+  validate: { default: false },
+} as const;
+
+// Mounted after auth: signed-in members get their own budget, so users sharing a
+// NAT (common for mobile couriers) do not exhaust each other's. The client polls
+// several endpoints, so the budget is generous.
+export const apiRateLimiter = rateLimit({
+  ...limiterDefaults,
+  windowMs: 15 * 60 * 1000,
+  max: 4000,
+  message: { error: 'Too many requests, please try again later' },
+  keyGenerator: getUserOrIpKey,
 });
 
 export const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 60, // limit each IP to 60 auth requests per windowMs
+  ...limiterDefaults,
+  windowMs: 15 * 60 * 1000,
+  max: 60,
   message: { error: 'Too many authentication attempts, please try again later' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => isServerless,
   keyGenerator: (req) => getClientIp(req),
-  validate: {
-    xForwardedForHeader: false,
-    forwardedHeader: false,
-    trustProxy: false,
-    default: false,
-  },
 });
 
 export const strictRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100, // limit each IP to 100 requests per minute
+  ...limiterDefaults,
+  windowMs: 60 * 1000,
+  max: 100,
   message: { error: 'Rate limit exceeded' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => isServerless,
   keyGenerator: (req) => getClientIp(req),
-  validate: {
-    xForwardedForHeader: false,
-    forwardedHeader: false,
-    trustProxy: false,
-    default: false,
-  },
+});
+
+// Paid AI model calls (Gemini / Groq): must run after the auth middleware.
+export const aiRateLimiter = rateLimit({
+  ...limiterDefaults,
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: { error: 'AI request limit reached, please try again later' },
+  keyGenerator: getUserOrIpKey,
+});
+
+// Unauthenticated public forms (e.g. advertiser inquiries).
+export const publicFormRateLimiter = rateLimit({
+  ...limiterDefaults,
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many submissions, please try again later' },
+  keyGenerator: (req) => getClientIp(req),
+});
+
+// Money-moving endpoints (deposits, withdrawals, joins).
+export const moneyRateLimiter = rateLimit({
+  ...limiterDefaults,
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: 'Too many payment requests, please slow down' },
+  keyGenerator: getUserOrIpKey,
 });
 
 // Idempotency Middleware
