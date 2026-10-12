@@ -6451,8 +6451,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       if (q.includes('perk') || q.includes('discount') || q.includes('gas') || q.includes('oil') || q.includes('tire') || q.includes('tax') || q.includes('repair') || q.includes('ventaja') || q.includes('beneficio') || q.includes('gasolina') || q.includes('aceite') || q.includes('llanta') || q.includes('avantage') || q.includes('réduction') || q.includes('essence') || q.includes('pneu')) {
         if (isEs) {
           return {
-            spokenText: "Nuestro Mercado de Ventajas ofrece descuentos exclusivos en reparaciones mecánicas, cambio de aceite, auxilio vial y declaración de impuestos para repartidores 1099.",
-            displayText: "🎁 Mercado de Ventajas para Repartidores\n\nAhorra en gastos esenciales del trabajo:\n• Mantenimiento y Neumáticos (Meineke, Jiffy Lube)\n• Auxilio Vial y Grúa de Emergencia\n• Impuestos y Deducciones para trabajadores independientes\n• Planes de Salud y Telemedicina",
+            spokenText: "Nuestro Mercado de Ventajas ofrece beneficios para el día a día en la calle: comidas rápidas económicas, parches de llanta, reparación de celulares, lavado de autos, masajes, estacionamiento y más.",
+            displayText: "🎁 Mercado de Ventajas para Repartidores\n\nBeneficios para tu día a día en la calle:\n• Comidas rápidas y food trucks, café con recargas gratis\n• Llantas, mecánico móvil, lavado de autos y combustible a domicilio\n• Ofertas de celular y reparación de pantalla el mismo día\n• Masajes, gimnasio, lavandería, estacionamiento y cuidado infantil",
             suggestedActions: [
               { label: "Abrir Ventajas", action: "NAVIGATE_TAB", tab: "perks" },
               { label: "Canjear Beneficio", action: "NAVIGATE_TAB", tab: "perks" }
@@ -6462,8 +6462,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Notre espace Avantages propose des réductions exclusives sur l'entretien auto, les vidanges, l'assistance dépannage et l'aide fiscale pour les livreurs et chauffeurs.",
-            displayText: "🎁 Espace Avantages Gig\n\nÉconomisez sur vos dépenses essentielles :\n• Entretien Auto & Pneus (Meineke, Jiffy Lube)\n• Assistance Dépannage & Remorquage d'urgence\n• Gestion Fiscale & Suivi Kilométrique\n• Micro-assurances Santé & Téléconsultation",
+            spokenText: "Notre espace Avantages propose des réductions pour le quotidien sur la route : repas rapides à petit prix, réparation de pneus et de téléphones, lavage auto, massages, stationnement et plus.",
+            displayText: "🎁 Espace Avantages Gig\n\nDes avantages pour votre quotidien sur la route :\n• Repas rapides & food trucks, café à volonté\n• Pneus, mécanicien mobile, lavage auto et carburant livré\n• Offres mobile et réparation d'écran le jour même\n• Massages, salle de sport, laverie, stationnement et garde d'enfants",
             suggestedActions: [
               { label: "Ouvrir les Avantages", action: "NAVIGATE_TAB", tab: "perks" },
               { label: "Utiliser un Avantage", action: "NAVIGATE_TAB", tab: "perks" }
@@ -6472,8 +6472,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "Our Gig Perks Marketplace offers exclusive savings on auto repairs, oil changes, roadside assistance, and tax preparation tailored for 1099 couriers. Let's look at the marketplace now.",
-          displayText: "🎁 Gig Perks Marketplace\n\nSave on essential gig work expenses:\n• Auto Maintenance & Tires (Meineke, Jiffy Lube)\n• Roadside Assistance & Emergency Towing\n• Tax Prep & Mileage Tracking for 1099 drivers\n• Healthcare & Telehealth micro-plans",
+          spokenText: "Our Gig Perks Marketplace has everyday savings for people on the road: cheap quick meals, tire patches, phone repairs, car washes, chair massages, parking and more. Let's look at the marketplace now.",
+          displayText: "🎁 Gig Perks Marketplace\n\nEveryday perks for life on the road:\n• Quick meals & food trucks, free coffee refills\n• Tires, mobile mechanic, car wash & fuel delivery\n• Phone data deals & same-day screen repair\n• Massage, gym day passes, laundry, parking & childcare",
           suggestedActions: [
             { label: "Open Perks Marketplace", action: "NAVIGATE_TAB", tab: "perks" },
             { label: "Redeem a Perk", action: "NAVIGATE_TAB", tab: "perks" }
@@ -6720,7 +6720,7 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - AI Vision & GPS Verification: Shift check-in verified via multimodal camera selfie and GPS route logging.
 
 7. CATEGORY: GIG PERKS MARKETPLACE
-- Merchant Discounts: Savings on tires, oil changes (Meineke, Jiffy Lube), emergency roadside towing, TurboTax 1099 filing, and telehealth.
+- Everyday perks (not offered by the delivery platforms): discounted quick meals at food trucks, coffee refills with restroom access, flat-tire patches and mobile mechanics, car washes, fuel delivery and EV charging, phone data plans and screen repair, chair massages, gym day passes, laundry, downtown parking, e-bike tune-ups, rain gear, haircuts, drop-in childcare and dog walking.
 
 ====================================================
 RESPONSE GUIDELINES:

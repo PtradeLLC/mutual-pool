@@ -54,7 +54,7 @@ const CHAPTERS = [
     icon: Gift,
     color: 'text-purple-600',
     bgColor: 'bg-purple-50',
-    description: 'Access 15-20% discounts on tire maintenance, oil changes, gas, and tax preparation tools.',
+    description: 'Everyday perks the platforms don\'t offer: cheap quick meals, tire patches, phone repairs, car washes, massages and parking.',
     highlight: 'Instant member discounts from verified partners',
   },
 ];
@@ -272,16 +272,16 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                         <Gift className="w-4 h-4 text-purple-400" />
                         Partner Perks Marketplace
                       </span>
-                      <span className="text-purple-300 text-[10px] bg-purple-900/60 px-2 py-0.5 rounded">15-20% Off</span>
+                      <span className="text-purple-300 text-[10px] bg-purple-900/60 px-2 py-0.5 rounded">Everyday Deals</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="bg-slate-900/80 p-2.5 rounded-lg border border-white/10">
-                        <span className="font-bold text-white block">Tire Kingdom</span>
-                        <span className="text-[10px] text-purple-300">15% Off Tires & Alignment</span>
+                        <span className="font-bold text-white block">Metro Tire Co.</span>
+                        <span className="text-[10px] text-purple-300">$10 Flat Tire Patch</span>
                       </div>
                       <div className="bg-slate-900/80 p-2.5 rounded-lg border border-white/10">
-                        <span className="font-bold text-white block">Jiffy Lube</span>
-                        <span className="text-[10px] text-purple-300">$20 Off Synthetic Oil Change</span>
+                        <span className="font-bold text-white block">Knead Break Massage</span>
+                        <span className="text-[10px] text-purple-300">$12 Chair Massage</span>
                       </div>
                     </div>
                   </div>

@@ -21,28 +21,20 @@ interface PerksMarketplaceProps {
 
 const CATEGORIES: (PerkCategory | 'All')[] = [
   'All',
-  'Healthcare',
-  'Dental',
-  'Vision',
-  'Vehicle Maintenance',
-  'Gas & Fuel Discounts',
-  'Phone & Tech Deals',
-  'Insurance & Roadside',
-  'Tax & Financial Services',
-  'Legal Assistance',
-  'Mental Health',
-  'Financial Services',
-  'Discounts',
-  'Emergency Assistance',
-  'Insurance Programs',
-  'Retirement',
-  'Training',
-  'Entertainment',
-  'Restaurants',
-  'Hotels',
-  'Retail Savings',
-  'Scholarships',
-  'Family Benefits'
+  'Quick Meals & Food Trucks',
+  'Coffee & Rest Stops',
+  'Tires & Roadside Repair',
+  'Car Wash & Detailing',
+  'Fuel Delivery & EV Charging',
+  'Phone & Data Deals',
+  'Massage & Body Care',
+  'Fitness & Recovery',
+  'Laundry & Dry Cleaning',
+  'Parking & Tolls',
+  'Bike & Scooter Service',
+  'Gear & Safety Equipment',
+  'Grooming & Haircuts',
+  'Childcare & Pet Care',
 ];
 
 export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onClearInitialSubmitModal, onSelectUser, onOpenAuth }) => {
@@ -70,7 +62,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   // Form State for User Submit / Admin Add / Admin Edit
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submitTitle, setSubmitTitle] = useState('');
-  const [submitCategory, setSubmitCategory] = useState<PerkCategory>('Healthcare');
+  const [submitCategory, setSubmitCategory] = useState<PerkCategory>('Quick Meals & Food Trucks');
   const [submitProvider, setSubmitProvider] = useState('');
   const [submitDesc, setSubmitDesc] = useState('');
   const [submitBadge, setSubmitBadge] = useState('15% OFF');
@@ -623,7 +615,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
   const resetForm = () => {
     setSubmitTitle('');
-    setSubmitCategory('Healthcare');
+    setSubmitCategory('Quick Meals & Food Trucks');
     setSubmitProvider('');
     setSubmitDesc('');
     setSubmitBadge('15% OFF');

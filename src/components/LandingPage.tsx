@@ -21,28 +21,20 @@ import {
 } from 'lucide-react';
 
 const PERK_CATEGORIES = [
-  'Healthcare',
-  'Dental',
-  'Vision',
-  'Vehicle Maintenance',
-  'Gas & Fuel Discounts',
-  'Phone & Tech Deals',
-  'Insurance & Roadside',
-  'Tax & Financial Services',
-  'Legal Assistance',
-  'Mental Health',
-  'Financial Services',
-  'Discounts',
-  'Emergency Assistance',
-  'Insurance Programs',
-  'Retirement',
-  'Training',
-  'Entertainment',
-  'Restaurants',
-  'Hotels',
-  'Retail Savings',
-  'Scholarships',
-  'Family Benefits'
+  'Quick Meals & Food Trucks',
+  'Coffee & Rest Stops',
+  'Tires & Roadside Repair',
+  'Car Wash & Detailing',
+  'Fuel Delivery & EV Charging',
+  'Phone & Data Deals',
+  'Massage & Body Care',
+  'Fitness & Recovery',
+  'Laundry & Dry Cleaning',
+  'Parking & Tolls',
+  'Bike & Scooter Service',
+  'Gear & Safety Equipment',
+  'Grooming & Haircuts',
+  'Childcare & Pet Care',
 ];
 
 interface LandingPageProps {
@@ -111,7 +103,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [submitTitle, setSubmitTitle] = useState('');
   const [submitProvider, setSubmitProvider] = useState('');
   const [submitPartnerEmail, setSubmitPartnerEmail] = useState('');
-  const [submitCategory, setSubmitCategory] = useState('Healthcare');
+  const [submitCategory, setSubmitCategory] = useState('Quick Meals & Food Trucks');
   const [submitBadge, setSubmitBadge] = useState('');
   const [submitDesc, setSubmitDesc] = useState('');
   const [submitRedeemType, setSubmitRedeemType] = useState('CODE');
@@ -125,7 +117,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setSubmitTitle('');
     setSubmitProvider('');
     setSubmitPartnerEmail('');
-    setSubmitCategory('Healthcare');
+    setSubmitCategory('Quick Meals & Food Trucks');
     setSubmitBadge('');
     setSubmitDesc('');
     setSubmitRedeemType('CODE');
@@ -1286,7 +1278,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   value={submitTitle}
                   onChange={(e) => setSubmitTitle(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                  placeholder="e.g. Free Oil Change & 20% Off Brake Services"
+                  placeholder="e.g. $10 Flat Tire Patch & Free Pressure Check"
                 />
               </div>
 
@@ -1299,7 +1291,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     value={submitProvider}
                     onChange={(e) => setSubmitProvider(e.target.value)}
                     className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                    placeholder="e.g. Meineke Car Care"
+                    placeholder="e.g. Metro Tire Co."
                   />
                 </div>
 

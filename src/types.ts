@@ -440,29 +440,21 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
-export type PerkCategory = 
-  | 'Healthcare'
-  | 'Dental'
-  | 'Vision'
-  | 'Vehicle Maintenance'
-  | 'Gas & Fuel Discounts'
-  | 'Phone & Tech Deals'
-  | 'Insurance & Roadside'
-  | 'Tax & Financial Services'
-  | 'Retirement'
-  | 'Training'
-  | 'Legal Assistance'
-  | 'Mental Health'
-  | 'Financial Services'
-  | 'Discounts'
-  | 'Entertainment'
-  | 'Restaurants'
-  | 'Hotels'
-  | 'Retail Savings'
-  | 'Insurance Programs'
-  | 'Scholarships'
-  | 'Family Benefits'
-  | 'Emergency Assistance';
+export type PerkCategory =
+  | 'Quick Meals & Food Trucks'
+  | 'Coffee & Rest Stops'
+  | 'Tires & Roadside Repair'
+  | 'Car Wash & Detailing'
+  | 'Fuel Delivery & EV Charging'
+  | 'Phone & Data Deals'
+  | 'Massage & Body Care'
+  | 'Fitness & Recovery'
+  | 'Laundry & Dry Cleaning'
+  | 'Parking & Tolls'
+  | 'Bike & Scooter Service'
+  | 'Gear & Safety Equipment'
+  | 'Grooming & Haircuts'
+  | 'Childcare & Pet Care';
 
 export type PerkRedemptionType = 'CODE' | 'LINK' | 'VOUCHER' | 'PARTNER_API';
 
