@@ -200,7 +200,7 @@ export const fr: Record<TranslationKey, string> = {
   'dash.explorePodsTabTitle': 'Explorer les Pods',
   'dash.voiceAssistantOnline': 'Assistant Vocal en Ligne',
   'dash.fdicInsuredFooter': 'Garantie FDIC jusqu’à 250 000 $ par utilisateur',
-  'dash.allRightsReserved': '2026 Chris Bitoye Ventures. Tous droits réservés.',
+  'dash.allRightsReserved': 'Chris Bitoye Ventures, LLC. Tous droits réservés.',
 
   // Header specific labels
   "header.stripeTreasuryBalance": "Solde de trésorerie",
@@ -765,7 +765,7 @@ export const fr: Record<TranslationKey, string> = {
   'modal.contactUs': 'Contact & Support',
 
   // Footer & Notices
-  'footer.allRightsReserved': 'Chris Bitoye Ventures. Tous droits réservés.',
+  'footer.allRightsReserved': 'Tous droits réservés.',
   'footer.howItWorksAndRules': 'Comment Ça Marche & Règles',
   'footer.faq': 'FAQ',
   'footer.rights': 'Tous droits réservés.',

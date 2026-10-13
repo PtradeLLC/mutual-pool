@@ -56,7 +56,7 @@ export const US_CONFIG: CountryConfig = {
     privacyPolicyUrl: '/privacy',
     termsOfServiceUrl: '/terms',
     dataRetentionDays: 2555, // 7 years IRS / BSA requirement
-    legalEntityName: 'MutualPool Technologies Inc. (Delaware, USA)',
+    legalEntityName: 'Chris Bitoye Ventures, LLC',
   },
   
   pwa: {

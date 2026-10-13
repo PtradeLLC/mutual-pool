@@ -223,7 +223,7 @@ export const en = {
   "dash.explorePodsTabTitle": "Explore Pods",
   "dash.voiceAssistantOnline": "Voice Assistant Online",
   "dash.fdicInsuredFooter": "Pass-Through FDIC Insured up to $250,000 per user",
-  "dash.allRightsReserved": "2026 Chris Bitoye Ventures. All rights reserved.",
+  "dash.allRightsReserved": "Chris Bitoye Ventures, LLC. All rights reserved.",
 
   // Header specific labels
   "header.stripeTreasuryBalance": "Treasury Balance",
@@ -879,7 +879,7 @@ export const en = {
   "modal.contactUs": "Contact Us & Support",
 
   // Footer & Notices
-  "footer.allRightsReserved": "Chris Bitoye Ventures. All rights reserved.",
+  "footer.allRightsReserved": "All rights reserved.",
   "footer.howItWorksAndRules": "Rules",
   "footer.faq": "FAQ",
   "footer.rights": "All rights reserved.",

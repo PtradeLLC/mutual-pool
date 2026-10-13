@@ -128,6 +128,11 @@ test('private data and paid AI endpoints require sign-in', async () => {
   }
 });
 
+test('terms acceptance needs a signed-in member', async () => {
+  const res = await call('/api/users/accept-terms', { method: 'POST', headers: spoofHeaders, body: JSON.stringify({ version: '2026-10-13' }) });
+  assert.equal(res.status, 401);
+});
+
 test('public perk listing hides redemption codes', async () => {
   const res = await call('/api/perks');
   assert.equal(res.status, 200);

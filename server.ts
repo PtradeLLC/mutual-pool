@@ -35,6 +35,9 @@ import { getAuthAdmin } from './src/config/firebase';
 import { IS_PRODUCTION, DEMO_MODE, DATA_DIR, assertProductionConfig, getAllowedOrigins, parseMoneyAmount } from './src/server/runtime';
 import { createStorageAdapter, storageConfigProblems } from './src/server/storage';
 import { assessHardshipRisk } from './src/server/hardshipRisk';
+import { generateSpotCheckSchedule, nextCheckAfter, MISSED_GRACE_MS, MAX_CHECKS_PER_SHIFT } from './src/server/shiftSchedule';
+import { TERMS_VERSION, hasAcceptedCurrentTerms } from './src/lib/legal';
+import { buildLegalDocument, renderLegalHtml } from './src/server/legalPages';
 import { isTraditionId } from './src/data/roscaTraditions';
 import { TREASURY_PROGRAM_ENABLED, sanitizeVoiceGuidePayload } from './src/lib/treasuryClaims';
 import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFlush, flushNow, persistNow, startAutoFlush, getPersistenceHealth, onBeforeShutdown } from './src/server/persistence';
@@ -67,7 +70,7 @@ import {
   setChatMessages,
 } from './src/server/chatManager';
 import { FOURTHWALL_GEAR_CATALOG, INITIAL_GEAR_DESIGNS, dispatchOrderToFourthwall } from './src/services/fourthwall';
-import { GearDesignOrder } from './src/types';
+import { GearDesignOrder, PhotoSpotCheck, CampaignShiftLog } from './src/types';
 
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -765,6 +768,38 @@ interface WelcomeMatchGrant {
   releasedAt?: string;
 }
 let welcomeMatchGrants: WelcomeMatchGrant[] = [];
+// Brand-campaign shifts. The server draws a secret, randomized schedule of
+// gear spot checks per shift; see the shift routes for the lifecycle.
+type ShiftCheckStatus = 'SCHEDULED' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'MISSED';
+interface ShiftCheck {
+  id: string;
+  dueAt: number;
+  windowSeconds: number;
+  status: ShiftCheckStatus;
+  promptedAt?: number;
+  respondedAt?: number;
+  secondsToRespond?: number;
+  visionResult?: any;
+}
+interface ShiftRecord {
+  id: string;
+  courierId: string;
+  courierName: string;
+  campaign: { id: string; title: string; brandName: string; brandColor?: string; gearRequired: string[]; dailyPayout: number; targetMetro: string };
+  platform: string;
+  neighborhood: string;
+  startedAt: number;
+  status: 'ACTIVE' | 'COMPLETED';
+  checks: ShiftCheck[];
+  startVision?: any;
+  completedAt?: number;
+  finalVision?: any;
+  complianceScore?: number;
+  payoutEligible?: boolean;
+  payoutStatus?: CampaignShiftLog['payoutStatus'];
+  payoutTransferId?: string;
+}
+let shifts: ShiftRecord[] = [];
 
 // Helper: Add immutable Audit Log entry
 function addAuditLog(
@@ -1139,7 +1174,7 @@ app.get('/api/country/all', (_req: Request, res: Response) => {
 // Several routes are also registered without the /api prefix; limiters must cover both.
 const API_PATH = /^\/(api\/)?(admin|campaigns|chats|fourthwall|health|notifications|perks|platform|pods|user|users|treasury|hardship|audit-logs|ai|webhooks|country)(\/|$)/;
 const MONEY_PATH = /^\/(api\/)?(users\/treasury|treasury|pods\/[^/]+\/(join|deposit)|hardship|perks\/(redeem|submit))(\/|$)/;
-const AI_PATH = /^\/(api\/)?(ai\/|campaigns\/gear-verify)/;
+const AI_PATH = /^\/(api\/)?(ai\/|campaigns\/gear-verify|campaigns\/shifts\/(start|[^/]+\/(spot-check|complete)))/;
 const limitWhen = (pattern: RegExp, limiter: express.RequestHandler): express.RequestHandler =>
   (req, res, next) => (pattern.test(req.path) ? limiter(req, res, next) : next());
 
@@ -1203,6 +1238,10 @@ app.use(async (req: Request, res: Response, next) => {
 
     if (DEMO_MODE) {
       applyDemoProfileHeaders(found, req);
+      if (!found.termsAcceptedVersion) {
+        found.termsAcceptedVersion = TERMS_VERSION;
+        found.termsAcceptedAt = new Date().toISOString();
+      }
       isAdmin = isAdmin || isAdminRole(found.role) || isAdminRole(getHeaderValue(req, 'x-user-role'));
     } else if (isAdmin) {
       found.role = 'Admin';
@@ -1250,6 +1289,17 @@ app.use(limitWhen(API_PATH, apiRateLimiter));
 app.use(limitWhen(AI_PATH, aiRateLimiter));
 app.use(['/api/campaigns/advertiser-inquiry'], publicFormRateLimiter);
 app.use(limitWhen(MONEY_PATH, moneyRateLimiter));
+
+// Members must have accepted the current Terms before moving money.
+const TERMS_PATH = /^\/(api\/)?(pods(\/[^/]+\/(join|deposit))?|users\/treasury\/checkout-session|treasury\/payouts\/withdraw|hardship\/request|campaigns\/shifts\/start)$/;
+app.use((req, res, next) => {
+  if (req.method !== 'POST' || !TERMS_PATH.test(req.path)) return next();
+  const user = getCurrentUser(req);
+  if (user && !hasAcceptedCurrentTerms(user)) {
+    return res.status(403).json({ error: 'TERMS_REQUIRED', message: 'Please accept the current Terms of Service to continue.', termsVersion: TERMS_VERSION });
+  }
+  next();
+});
 
 // Production-ready Health check endpoint
 app.get(['/api/health', '/health'], (req, res) => {
@@ -1312,6 +1362,24 @@ app.get(['/api/health', '/health'], (req, res) => {
       user.traditionId = body.traditionId;
     }
     saveUsersToDisk();
+    res.json({ success: true, user });
+  });
+
+  // Record acceptance of the current Terms of Service (version + time, server clock).
+  app.post('/api/users/accept-terms', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
+    if (req.body?.version !== TERMS_VERSION) {
+      return res.status(409).json({ error: 'TERMS_VERSION_MISMATCH', message: 'A newer version of the terms is in force. Please reload and review it.', termsVersion: TERMS_VERSION });
+    }
+    if (user.termsAcceptedVersion !== TERMS_VERSION) {
+      user.termsAcceptedVersion = TERMS_VERSION;
+      user.termsAcceptedAt = new Date().toISOString();
+      saveUsersToDisk();
+      addAuditLog(undefined, user.id, user.displayName, 'TERMS_ACCEPTED' as any, `Accepted Terms of Service version ${TERMS_VERSION}.`, { termsVersion: TERMS_VERSION });
+    }
     res.json({ success: true, user });
   });
 
@@ -3666,11 +3734,9 @@ app.get(['/api/health', '/health'], (req, res) => {
   });
 
   // 10d. AI LLM Vision Gear Verification Against Active Campaign Rotation
-  app.post(['/api/campaigns/gear-verify', '/campaigns/gear-verify'], async (req: Request, res: Response) => {
+  // AI gear verification, shared by the endpoint below and by shift spot checks.
+  const gearVerifyHandler = async (req: Request, res: Response) => {
     try {
-      if (!getCurrentUser(req)) {
-        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
-      }
       const { courierPhoto, campaign, checkedGear } = req.body || {};
       const sampleTag = DEMO_MODE ? req.body?.sampleTag : undefined;
       // Photos must be uploaded inline. Fetching arbitrary URLs from the server
@@ -3938,65 +4004,365 @@ Return ONLY a valid JSON object in this exact schema:
         message: err?.message || 'Failed to complete gear verification'
       });
     }
+  };
+
+  async function verifyGearPhoto(input: { courierPhoto?: string; campaign: any; checkedGear?: Record<string, boolean>; sampleTag?: string }): Promise<{ status: number; payload: any }> {
+    const captured = { status: 200, payload: null as any };
+    const fakeRes: any = {
+      status(code: number) { captured.status = code; return fakeRes; },
+      json(payload: any) { captured.payload = payload; return fakeRes; },
+    };
+    await gearVerifyHandler({ body: input } as Request, fakeRes as Response);
+    return captured;
+  }
+
+  app.post(['/api/campaigns/gear-verify', '/campaigns/gear-verify'], async (req: Request, res: Response) => {
+    if (!getCurrentUser(req)) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
+    const { courierPhoto, campaign, checkedGear, sampleTag } = req.body || {};
+    const result = await verifyGearPhoto({ courierPhoto, campaign, checkedGear, sampleTag });
+    res.status(result.status).json(result.payload);
   });
 
-  // 10d. Verify Courier Gear and Release Daily Shift Payout
-  // DEMO_MODE only: the shift amount comes from the client and there is no
-  // advertiser-funded payout source yet, so this would mint money in production.
-  app.post(['/api/campaigns/shifts/verify-payout', '/campaigns/shifts/verify-payout'], requireDemoMode, (req: Request, res: Response) => {
+  // 10d. Brand-campaign shifts with randomized AI gear spot checks.
+  // The server owns the shift: it draws a secret schedule when the shift
+  // starts, surfaces a check only once it is due, verifies every selfie with
+  // the vision model and decides payout eligibility at the end. Future check
+  // times are never sent to the client, so couriers can't anticipate them.
+  const SHIFT_FALLBACK_GEAR = ['Branded Waterproof 45L Delivery Bag', 'Official Partner Thermal Hoodie', 'High-Visibility Reflective Armband'];
+  const SHIFT_MAX_AGE_MS = 18 * 60 * 60 * 1000;
+  const SPOT_CHECK_PASS_RATE = 0.75;
+
+  function shiftTimeLabel(ms: number): string {
+    return new Date(ms).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function isInlinePhoto(value: unknown): value is string {
+    return typeof value === 'string' && value.startsWith('data:image/') && value.length <= 8_000_000;
+  }
+
+  function validateShiftCampaign(raw: any): ShiftRecord['campaign'] | null {
+    if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || typeof raw.brandName !== 'string' || !raw.brandName.trim()) return null;
+    const gear = Array.isArray(raw.gearRequired) ? raw.gearRequired.filter((g: unknown) => typeof g === 'string').map((g: string) => g.slice(0, 80)).slice(0, 10) : [];
+    return {
+      id: raw.id.slice(0, 80),
+      title: String(raw.title || `${raw.brandName} campaign`).slice(0, 140),
+      brandName: raw.brandName.trim().slice(0, 80),
+      brandColor: typeof raw.brandColor === 'string' ? raw.brandColor.slice(0, 20) : undefined,
+      gearRequired: gear.length ? gear : SHIFT_FALLBACK_GEAR,
+      dailyPayout: parseMoneyAmount(raw.dailyPayout, { max: 1000 }) ?? 0,
+      targetMetro: String(raw.targetMetro || 'National').slice(0, 80),
+    };
+  }
+
+  // Surface due checks, expire unanswered ones and keep scheduling new ones
+  // while the shift runs. Returns true if anything changed.
+  function advanceShift(shift: ShiftRecord, now = Date.now()): boolean {
+    if (shift.status !== 'ACTIVE') return false;
+    let changed = false;
+    for (const c of shift.checks) {
+      if (c.status === 'SCHEDULED' && now >= c.dueAt) {
+        c.status = 'PENDING';
+        c.promptedAt = c.dueAt;
+        changed = true;
+      }
+      if (c.status === 'PENDING' && now > (c.promptedAt ?? c.dueAt) + c.windowSeconds * 1000 + MISSED_GRACE_MS) {
+        c.status = 'MISSED';
+        changed = true;
+      }
+    }
+    const last = shift.checks[shift.checks.length - 1];
+    const lastSettled = !last || (last.status !== 'SCHEDULED' && last.status !== 'PENDING');
+    if (lastSettled && shift.checks.length < MAX_CHECKS_PER_SHIFT) {
+      shift.checks.push({ ...nextCheckAfter(Math.max(now, last ? last.dueAt : now)), status: 'SCHEDULED' });
+      changed = true;
+    }
+    return changed;
+  }
+
+  function shiftCompliance(shift: ShiftRecord) {
+    const settled = shift.checks.filter(c => c.status === 'VERIFIED' || c.status === 'REJECTED' || c.status === 'MISSED');
+    const verified = settled.filter(c => c.status === 'VERIFIED').length;
+    const rejected = settled.filter(c => c.status === 'REJECTED').length;
+    const missed = settled.filter(c => c.status === 'MISSED').length;
+    return { due: settled.length, verified, rejected, missed, score: settled.length ? Math.round((verified / settled.length) * 100) : 100 };
+  }
+
+  // What the client sees: past/current checks only; future ones are a count.
+  function toShiftView(shift: ShiftRecord) {
+    const mapCheck = (c: ShiftCheck): PhotoSpotCheck => ({
+      id: c.id,
+      timestamp: shiftTimeLabel(c.promptedAt ?? c.dueAt),
+      promptedAt: c.promptedAt ?? c.dueAt,
+      respondedAt: c.respondedAt,
+      status: c.status as PhotoSpotCheck['status'],
+      responseWindowSeconds: c.windowSeconds,
+      secondsToRespond: c.secondsToRespond,
+      locationLabel: `${shift.neighborhood}, ${shift.campaign.targetMetro}`,
+    });
+    const pending = shift.checks.find(c => c.status === 'PENDING');
+    return {
+      id: shift.id,
+      campaignId: shift.campaign.id,
+      campaignTitle: shift.campaign.title,
+      brandName: shift.campaign.brandName,
+      brandColor: shift.campaign.brandColor,
+      dailyRate: shift.campaign.dailyPayout,
+      targetMetro: shift.campaign.targetMetro,
+      platform: shift.platform,
+      courierId: shift.courierId,
+      courierName: shift.courierName,
+      startedAt: shift.startedAt,
+      startFormatted: shiftTimeLabel(shift.startedAt),
+      status: shift.status,
+      currentMiles: 0,
+      estimatedImpressions: 0,
+      neighborhood: shift.neighborhood,
+      spotChecks: shift.checks.filter(c => c.status !== 'SCHEDULED').map(mapCheck),
+      activePrompt: pending ? mapCheck(pending) : null,
+      checksRemaining: shift.checks.filter(c => c.status === 'SCHEDULED').length,
+    };
+  }
+
+  function requireOwnShift(req: Request, res: Response): { user: User; shift: ShiftRecord } | null {
+    const user = getCurrentUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+      return null;
+    }
+    const shift = shifts.find(sh => sh.id === req.params.id && sh.courierId === user.id);
+    if (!shift) {
+      res.status(404).json({ error: 'SHIFT_NOT_FOUND' });
+      return null;
+    }
+    return { user, shift };
+  }
+
+  app.post('/api/campaigns/shifts/start', async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
-
-    const { shift, gearVerification } = req.body;
-    const targetUser = users.find(u => u.id === user.id);
-    if (!targetUser) {
-      return res.status(404).json({ error: 'User not found' });
+    const { campaign: rawCampaign, platform, neighborhood, startPhoto } = req.body || {};
+    const sampleTag = DEMO_MODE ? req.body?.sampleTag : undefined;
+    const campaign = validateShiftCampaign(rawCampaign);
+    if (!campaign) {
+      return res.status(400).json({ error: 'INVALID_CAMPAIGN', message: 'Campaign details are required.' });
+    }
+    if (startPhoto !== undefined && !isInlinePhoto(startPhoto)) {
+      return res.status(400).json({ error: 'INVALID_PHOTO', message: 'Upload the photo as an image (max ~6MB).' });
+    }
+    if (!startPhoto && !DEMO_MODE) {
+      return res.status(400).json({ error: 'PHOTO_REQUIRED', message: 'Take a selfie wearing the campaign gear to start your shift.' });
     }
 
-    const payoutEarned = Number(shift?.courierPayoutEarned) || 65;
-    const payoutTransferId = shift?.payoutTransferId || `tr_gear_payout_${Date.now()}`;
-
-    // Credit user Treasury balance
-    if (!targetUser.treasury) {
-      targetUser.treasury = {
-        stripeAccountId: `acct_courier_${targetUser.id}`,
-        stripeFinAccountId: `fa_courier_${targetUser.id}`,
-        balanceUsd: 0,
-        pendingInboundUsd: 0,
-        totalPayoutsReceivedUsd: 0,
-        fdicPassThroughEligible: true,
-        status: 'ACTIVE',
-      };
-    }
-
-    targetUser.treasury.balanceUsd = (targetUser.treasury.balanceUsd || 0) + payoutEarned;
-    targetUser.treasury.totalPayoutsReceivedUsd = (targetUser.treasury.totalPayoutsReceivedUsd || 0) + payoutEarned;
-
-    addAuditLog(
-      'CAMPAIGN_EARNINGS',
-      targetUser.id,
-      targetUser.displayName,
-      'COURIER_GEAR_VERIFIED_PAYOUT',
-      `Courier Gear Verified for campaign "${shift?.campaignTitle || 'Brand Ambassador'}". Daily wage of $${payoutEarned.toFixed(2)} disbursed to Stripe Treasury (${payoutTransferId}). Gear items equipped: ${gearVerification?.gearItems?.length || 3}.`,
-      {
-        payoutTransferId,
-        payoutEarned,
-        campaignId: shift?.campaignId,
-        gearVerificationStatus: 'VERIFIED',
-        newBalance: targetUser.treasury.balanceUsd
+    const now = Date.now();
+    const existing = shifts.find(sh => sh.courierId === user.id && sh.status === 'ACTIVE');
+    if (existing) {
+      if (now - existing.startedAt < SHIFT_MAX_AGE_MS) {
+        advanceShift(existing, now);
+        return res.status(409).json({ error: 'SHIFT_ALREADY_ACTIVE', message: 'You already have a shift in progress.', shift: toShiftView(existing) });
       }
-    );
+      // Left running for too long: close it without payout.
+      existing.status = 'COMPLETED';
+      existing.completedAt = now;
+      existing.payoutEligible = false;
+      existing.payoutStatus = 'WITHHELD';
+    }
 
-    res.json({
-      success: true,
-      payoutTransferId,
-      payoutEarned,
-      gearVerificationStatus: 'VERIFIED',
-      newBalance: targetUser.treasury.balanceUsd,
-      user: targetUser
-    });
+    const vision = await verifyGearPhoto({ courierPhoto: startPhoto, campaign, sampleTag });
+    if (vision.status !== 200) {
+      return res.status(vision.status).json(vision.payload);
+    }
+    if (!vision.payload?.matched) {
+      return res.status(409).json({ error: 'GEAR_NOT_VERIFIED', message: 'The campaign gear was not recognized in your photo.', vision: vision.payload });
+    }
+
+    const shift: ShiftRecord = {
+      id: newLedgerId('shift'),
+      courierId: user.id,
+      courierName: user.displayName,
+      campaign,
+      platform: typeof platform === 'string' ? platform.slice(0, 40) : 'DoorDash',
+      neighborhood: typeof neighborhood === 'string' ? neighborhood.slice(0, 120) : campaign.targetMetro,
+      startedAt: now,
+      status: 'ACTIVE',
+      checks: generateSpotCheckSchedule({ startedAt: now }).map(c => ({ ...c, status: 'SCHEDULED' as const })),
+      startVision: vision.payload,
+    };
+    shifts.unshift(shift);
+    requestFlush();
+    addAuditLog('CAMPAIGN_EARNINGS', user.id, user.displayName, 'COURIER_SHIFT_STARTED' as any,
+      `Started a ${campaign.brandName} shift (${campaign.title}) in ${shift.neighborhood}; start gear selfie verified. ${shift.checks.length} randomized spot checks scheduled.`,
+      { shiftId: shift.id, campaignId: campaign.id, scheduledChecks: shift.checks.length });
+    res.status(201).json({ shift: toShiftView(shift) });
+  });
+
+  app.get('/api/campaigns/shifts/active', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
+    const shift = shifts.find(sh => sh.courierId === user.id && sh.status === 'ACTIVE');
+    if (!shift) return res.json({ shift: null });
+    if (advanceShift(shift)) requestFlush();
+    res.json({ shift: toShiftView(shift) });
+  });
+
+  // Courier answers the current spot check with a live selfie.
+  app.post('/api/campaigns/shifts/:id/spot-check', async (req: Request, res: Response) => {
+    const own = requireOwnShift(req, res);
+    if (!own) return;
+    const { user, shift } = own;
+    if (shift.status !== 'ACTIVE') {
+      return res.status(409).json({ error: 'SHIFT_NOT_ACTIVE' });
+    }
+    const now = Date.now();
+    advanceShift(shift, now);
+    const check = shift.checks.find(c => c.status === 'PENDING');
+    if (!check) {
+      requestFlush();
+      return res.status(409).json({ error: 'NO_PROMPT', message: 'There is no spot check waiting for you right now.', shift: toShiftView(shift) });
+    }
+    const { photo } = req.body || {};
+    const sampleTag = DEMO_MODE ? req.body?.sampleTag : undefined;
+    if (photo !== undefined && !isInlinePhoto(photo)) {
+      return res.status(400).json({ error: 'INVALID_PHOTO', message: 'Upload the photo as an image (max ~6MB).' });
+    }
+    if (!photo && !DEMO_MODE) {
+      return res.status(400).json({ error: 'PHOTO_REQUIRED', message: 'Take a live selfie to answer the spot check.' });
+    }
+
+    const vision = await verifyGearPhoto({ courierPhoto: photo, campaign: shift.campaign, sampleTag });
+    if (vision.status !== 200) {
+      return res.status(vision.status).json(vision.payload);
+    }
+    check.respondedAt = now;
+    check.secondsToRespond = Math.max(0, Math.round((now - (check.promptedAt ?? check.dueAt)) / 1000));
+    check.visionResult = vision.payload;
+    check.status = vision.payload?.matched ? 'VERIFIED' : 'REJECTED';
+    advanceShift(shift, now); // schedules the next one if this was the last
+    requestFlush();
+    addAuditLog('CAMPAIGN_EARNINGS', user.id, user.displayName, 'COURIER_SPOT_CHECK' as any,
+      `Spot check ${check.status.toLowerCase()} for ${shift.campaign.brandName} shift (answered in ${check.secondsToRespond}s).`,
+      { shiftId: shift.id, checkId: check.id, status: check.status, confidence: vision.payload?.confidenceScore });
+    res.json({ shift: toShiftView(shift), check: { ...check, dueAt: undefined } });
+  });
+
+  // Demo/admin: make the next scheduled check due immediately.
+  app.post('/api/campaigns/shifts/:id/force-prompt', (req: Request, res: Response) => {
+    if (!DEMO_MODE && !checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+    const own = requireOwnShift(req, res);
+    if (!own) return;
+    const { shift } = own;
+    const now = Date.now();
+    advanceShift(shift, now);
+    if (!shift.checks.some(c => c.status === 'PENDING')) {
+      const next = shift.checks.find(c => c.status === 'SCHEDULED');
+      if (next) next.dueAt = now;
+      else shift.checks.push({ ...nextCheckAfter(now), dueAt: now, status: 'SCHEDULED' });
+      advanceShift(shift, now);
+    }
+    requestFlush();
+    res.json({ shift: toShiftView(shift) });
+  });
+
+  // End the shift: final gear check + spot-check record decide payout eligibility.
+  app.post('/api/campaigns/shifts/:id/complete', async (req: Request, res: Response) => {
+    const own = requireOwnShift(req, res);
+    if (!own) return;
+    const { user, shift } = own;
+    if (shift.status !== 'ACTIVE') {
+      return res.status(409).json({ error: 'SHIFT_NOT_ACTIVE' });
+    }
+    const { gearPhoto, checkedGear, forfeit } = req.body || {};
+    const sampleTag = DEMO_MODE ? req.body?.sampleTag : undefined;
+    const now = Date.now();
+    advanceShift(shift, now);
+
+    let finalVision: any = null;
+    if (!forfeit) {
+      if (gearPhoto !== undefined && !isInlinePhoto(gearPhoto)) {
+        return res.status(400).json({ error: 'INVALID_PHOTO', message: 'Upload the photo as an image (max ~6MB).' });
+      }
+      if (!gearPhoto && !DEMO_MODE) {
+        return res.status(400).json({ error: 'PHOTO_REQUIRED', message: 'Attach a live gear photo to finish your shift.' });
+      }
+      const vision = await verifyGearPhoto({ courierPhoto: gearPhoto, campaign: shift.campaign, checkedGear, sampleTag });
+      if (vision.status !== 200) {
+        return res.status(vision.status).json(vision.payload);
+      }
+      finalVision = vision.payload;
+      if (!finalVision?.matched) {
+        // Let the courier retake the photo; nothing is finalised yet.
+        return res.status(409).json({ error: 'GEAR_NOT_VERIFIED', message: 'The campaign gear was not recognized in your photo.', vision: finalVision });
+      }
+    }
+
+    // An unanswered prompt at the end counts as missed.
+    for (const c of shift.checks) if (c.status === 'PENDING') c.status = 'MISSED';
+    const compliance = shiftCompliance(shift);
+    const eligible = Boolean(finalVision?.matched) && compliance.rejected === 0 &&
+      (compliance.due === 0 || compliance.verified / compliance.due >= SPOT_CHECK_PASS_RATE);
+
+    shift.status = 'COMPLETED';
+    shift.completedAt = now;
+    shift.finalVision = finalVision;
+    shift.complianceScore = compliance.score;
+    shift.payoutEligible = eligible;
+    const payoutEarned = eligible ? shift.campaign.dailyPayout : 0;
+    if (eligible && DEMO_MODE && payoutEarned > 0) {
+      // Demo only: production needs an advertiser-funded payout source.
+      creditLedger(user, payoutEarned);
+      user.treasury.totalPayoutsReceivedUsd = roundCents((user.treasury.totalPayoutsReceivedUsd || 0) + payoutEarned);
+      shift.payoutStatus = 'PAID';
+      shift.payoutTransferId = newLedgerId('ledger_shift_payout');
+      saveUsersToDisk();
+    } else {
+      shift.payoutStatus = eligible ? 'PROCESSING' : 'WITHHELD';
+    }
+    requestFlush();
+
+    const durationHours = Math.max(0.1, Math.round(((now - shift.startedAt) / 3_600_000) * 100) / 100);
+    const view = toShiftView(shift);
+    const log: CampaignShiftLog = {
+      id: shift.id,
+      campaignId: shift.campaign.id,
+      campaignTitle: shift.campaign.title,
+      brandName: shift.campaign.brandName,
+      courierId: shift.courierId,
+      courierName: shift.courierName,
+      courierAvatar: user.avatarUrl,
+      platform: shift.platform as CampaignShiftLog['platform'],
+      metro: shift.campaign.targetMetro,
+      neighborhood: shift.neighborhood,
+      date: new Date(shift.startedAt).toISOString().split('T')[0],
+      startTime: shiftTimeLabel(shift.startedAt),
+      endTime: shiftTimeLabel(now),
+      durationHours,
+      milesTraveled: Math.round(durationHours * 4.2 * 10) / 10,
+      estimatedImpressions: Math.floor(durationHours * 1650),
+      courierPayoutEarned: payoutEarned,
+      verifiedGps: true,
+      verifiedPhoto: Boolean(finalVision?.matched),
+      gearVerificationStatus: finalVision?.matched ? 'VERIFIED' : 'REJECTED',
+      payoutStatus: shift.payoutStatus,
+      payoutTransferId: shift.payoutTransferId,
+      spotChecks: view.spotChecks,
+      spotChecksCount: compliance.due,
+      spotChecksVerified: compliance.verified,
+      complianceScore: compliance.score,
+      notes: eligible
+        ? `Gear verified at start, ${compliance.verified}/${compliance.due} random spot checks and the final check. $${payoutEarned.toFixed(2)} daily rate ${shift.payoutStatus === 'PAID' ? 'credited' : 'pending advertiser payout'}.`
+        : `Payout withheld: ${forfeit ? 'shift ended without final gear check' : `${compliance.rejected} rejected / ${compliance.missed} missed of ${compliance.due} random spot checks`}.`,
+    };
+    addAuditLog('CAMPAIGN_EARNINGS', user.id, user.displayName, 'COURIER_GEAR_VERIFIED_PAYOUT',
+      `Shift completed for "${shift.campaign.title}": compliance ${compliance.score}% (${compliance.verified} verified, ${compliance.rejected} rejected, ${compliance.missed} missed). Payout ${shift.payoutStatus}${payoutEarned ? ` $${payoutEarned.toFixed(2)}` : ''}.`,
+      { shiftId: shift.id, campaignId: shift.campaign.id, complianceScore: compliance.score, payoutStatus: shift.payoutStatus, payoutEarned });
+    res.json({ shift: log, vision: finalVision });
   });
 
   // --- FINANCIAL HARDSHIP FUND ENDPOINTS ---
@@ -7065,6 +7431,7 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'processedPayments', get: () => processedPayments, set: docs => { processedPayments = docs; } });
   registerCollection({ collection: 'withdrawals', get: () => withdrawals, set: docs => { withdrawals = docs; } });
   registerCollection({ collection: 'welcomeMatchGrants', get: () => welcomeMatchGrants, set: docs => { welcomeMatchGrants = docs; } });
+  registerCollection({ collection: 'shifts', get: () => shifts, set: docs => { shifts = docs; } });
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
   registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });
   registerCollection({ collection: 'chatThreads', get: getChatThreads, set: setChatThreads });
@@ -7110,6 +7477,25 @@ async function startServer() {
     getPods: () => pods,
     allowedOrigins: getAllowedOrigins(),
     onChange: requestFlush,
+  });
+
+  // Privacy Policy and Terms of Service as plain HTML pages (no JavaScript
+  // needed), so the URLs can be given to Stripe, app stores and in emails.
+  // The in-app modals render the same content from src/content/legalDocuments.ts.
+  app.get(['/privacy', '/terms'], (req, res) => {
+    const slug = req.path === '/terms' ? 'terms' : 'privacy';
+    const doc = buildLegalDocument(slug, {
+      entity: US_CONFIG.regulations.legalEntityName,
+      retentionYears: Math.max(1, Math.round((US_CONFIG.regulations.dataRetentionDays || 2555) / 365)),
+      treasuryEnabled: TREASURY_PROGRAM_ENABLED,
+    });
+    const lastUpdated = new Date(`${doc.version}T00:00:00Z`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.type('html').send(renderLegalHtml(doc, {
+      siteName: 'MutualPool',
+      appUrl: (process.env.APP_URL || '').replace(/\/+$/, ''),
+      lastUpdated,
+    }));
   });
 
   if (!IS_PRODUCTION) {

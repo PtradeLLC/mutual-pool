@@ -10,6 +10,7 @@ import {
   CourierGearVerification, VisionVerificationResult 
 } from '../types';
 import { useTranslation } from '../i18n';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface ActiveShiftModalProps {
@@ -49,6 +50,8 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
   const [spotCheckTimeRemaining, setSpotCheckTimeRemaining] = useState<number>(300); // 5 mins countdown
   const [isSubmittingSpotCheck, setIsSubmittingSpotCheck] = useState(false);
   const [spotCheckToast, setSpotCheckToast] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+  const spotCheckInputRef = useRef<HTMLInputElement>(null);
 
   // Live timer for active session
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -178,10 +181,18 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
         initialChecks[item] = true;
       });
       setCheckedGear(initialChecks);
-      const defaultPhoto = gearPhoto || initialPhoto || MATCHING_GEAR_PHOTO;
-      setGearPhoto(defaultPhoto);
-      setSampleScenario('MATCH');
-      runVisionVerification(defaultPhoto, 'MATCH');
+      setVisionResult(null);
+      setGearVerificationError(null);
+      if (CLIENT_DEMO_MODE) {
+        // Demo preview with a sample photo; in production the courier must take a live photo
+        // and the server's check on completion is the only one that counts.
+        const defaultPhoto = gearPhoto || initialPhoto || MATCHING_GEAR_PHOTO;
+        setGearPhoto(defaultPhoto);
+        setSampleScenario('MATCH');
+        runVisionVerification(defaultPhoto, 'MATCH');
+      } else {
+        setGearPhoto(gearPhoto.startsWith('data:image/') ? gearPhoto : '');
+      }
     }
   }, [showGearVerification]);
 
@@ -214,6 +225,26 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
     return () => clearInterval(interval);
   }, [activeSession]);
 
+  // The shift lives on the server: poll for due spot checks while this screen is open.
+  const fetchActiveShift = async () => {
+    try {
+      const res = await fetch('/api/campaigns/shifts/active');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.shift) onUpdateSession(data.shift);
+    } catch {
+      // keep the last known state
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !activeSession || activeSession.status !== 'ACTIVE') return;
+    fetchActiveShift();
+    const poll = setInterval(fetchActiveShift, 15000);
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, activeSession?.id, activeSession?.status]);
+
   // Countdown timer for active randomized spot check prompt
   useEffect(() => {
     if (!activeSession?.activePrompt) return;
@@ -225,19 +256,8 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
       setSpotCheckTimeRemaining(remaining);
 
       if (remaining === 0 && activeSession.activePrompt?.status === 'PENDING') {
-        // Mark as missed
-        const updatedPrompt: PhotoSpotCheck = {
-          ...activeSession.activePrompt,
-          status: 'MISSED',
-        };
-        const updatedSpotChecks = activeSession.spotChecks.map(s => 
-          s.id === updatedPrompt.id ? updatedPrompt : s
-        );
-        onUpdateSession({
-          ...activeSession,
-          spotChecks: updatedSpotChecks,
-          activePrompt: null,
-        });
+        // The server marks it missed; pick that up.
+        fetchActiveShift();
       }
     }, 1000);
 
@@ -253,114 +273,101 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const handleStartShiftSubmit = (e: React.FormEvent) => {
+  const handleStartShiftSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setStartError(null);
+    const photo = initialPhoto.startsWith('data:image/') ? initialPhoto : undefined;
+    if (!photo && !CLIENT_DEMO_MODE) {
+      setStartError('Take a selfie wearing the campaign gear to start your shift.');
+      return;
+    }
     setIsStarting(true);
-
-    const now = Date.now();
-    const startTimeFormatted = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const initialCheck: PhotoSpotCheck = {
-      id: `spot_${now}`,
-      timestamp: startTimeFormatted,
-      promptedAt: now,
-      respondedAt: now,
-      status: 'VERIFIED',
-      photoUrl: initialPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80',
-      locationLabel: `${selectedNeighborhood}, ${campaign.targetMetro}`,
-      responseWindowSeconds: 300,
-      secondsToRespond: 12,
-    };
-
-    const newSession: ActiveShiftSession = {
-      id: `shift_${now}`,
-      campaignId: campaign.id,
-      campaignTitle: campaign.title,
-      brandName: campaign.brandName,
-      brandColor: campaign.brandColor || '#005FB8',
-      dailyRate: campaign.dailyPayout,
-      targetMetro: campaign.targetMetro,
-      platform: selectedPlatform,
-      courierId: currentUser.id,
-      courierName: currentUser.displayName || 'Courier Ambassador',
-      startedAt: now,
-      startFormatted: startTimeFormatted,
-      status: 'ACTIVE',
-      currentMiles: 0,
-      estimatedImpressions: 0,
-      neighborhood: selectedNeighborhood,
-      spotChecks: [initialCheck],
-      activePrompt: null,
-      lastGpsPing: {
-        neighborhood: selectedNeighborhood,
-        speedMph: 11.4,
-        accuracyMeters: 4,
-        heading: 'NE along Corridor',
-      },
-    };
-
-    setTimeout(() => {
-      onStartShift(newSession);
-      setIsStarting(false);
-    }, 400);
-  };
-
-  // Trigger a randomized spot check prompt
-  const handleTriggerRandomPrompt = () => {
-    if (!activeSession) return;
-    const now = Date.now();
-    const promptTime = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const newPrompt: PhotoSpotCheck = {
-      id: `spot_${now}`,
-      timestamp: promptTime,
-      promptedAt: now,
-      status: 'PENDING',
-      locationLabel: `${activeSession.neighborhood}, ${activeSession.targetMetro}`,
-      responseWindowSeconds: 300, // 5 minutes
-    };
-
-    const updatedSession: ActiveShiftSession = {
-      ...activeSession,
-      spotChecks: [...activeSession.spotChecks, newPrompt],
-      activePrompt: newPrompt,
-    };
-
-    onUpdateSession(updatedSession);
-    setSpotCheckTimeRemaining(300);
-    setSpotCheckPhoto('');
-  };
-
-  // Submit response to spot check prompt
-  const handleRespondSpotCheck = () => {
-    if (!activeSession || !activeSession.activePrompt) return;
-    setIsSubmittingSpotCheck(true);
-
-    const now = Date.now();
-    const responseSecs = Math.floor((now - activeSession.activePrompt.promptedAt) / 1000);
-
-    const updatedPrompt: PhotoSpotCheck = {
-      ...activeSession.activePrompt,
-      status: 'VERIFIED',
-      respondedAt: now,
-      secondsToRespond: responseSecs,
-      photoUrl: spotCheckPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-    };
-
-    const updatedSpotChecks = activeSession.spotChecks.map(s => 
-      s.id === updatedPrompt.id ? updatedPrompt : s
-    );
-
-    setTimeout(() => {
-      onUpdateSession({
-        ...activeSession,
-        spotChecks: updatedSpotChecks,
-        activePrompt: null,
+    try {
+      const res = await fetch('/api/campaigns/shifts/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign: {
+            id: campaign.id, title: campaign.title, brandName: campaign.brandName, brandColor: campaign.brandColor,
+            gearRequired: campaign.gearRequired, dailyPayout: campaign.dailyPayout, targetMetro: campaign.targetMetro,
+          },
+          platform: selectedPlatform,
+          neighborhood: selectedNeighborhood,
+          startPhoto: photo,
+          sampleTag: CLIENT_DEMO_MODE && !photo ? 'MATCH_ACTIVE_CAMPAIGN' : undefined,
+        }),
       });
-      setIsSubmittingSpotCheck(false);
-      setSpotCheckToast('✓ Random spot-check photo verified on-time! Compliance score protected.');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.vision?.decisionReason || data.message || data.error || 'Could not start the shift.');
+      onStartShift(data.shift);
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : 'Could not start the shift.');
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  // Demo only: ask the server to make the next scheduled check due now.
+  const handleTriggerRandomPrompt = async () => {
+    if (!activeSession) return;
+    try {
+      const res = await fetch(`/api/campaigns/shifts/${activeSession.id}/force-prompt`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.shift) {
+        onUpdateSession(data.shift);
+        setSpotCheckTimeRemaining(300);
+        setSpotCheckPhoto('');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Answer the current spot check with a live selfie; the server runs the AI check.
+  const submitSpotCheck = async (photo?: string) => {
+    if (!activeSession || !activeSession.activePrompt) return;
+    if (!photo && !CLIENT_DEMO_MODE) {
+      setSpotCheckToast('Take a live selfie to answer the spot check.');
       setTimeout(() => setSpotCheckToast(null), 4000);
-    }, 600);
+      return;
+    }
+    setIsSubmittingSpotCheck(true);
+    try {
+      const res = await fetch(`/api/campaigns/shifts/${activeSession.id}/spot-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo, sampleTag: CLIENT_DEMO_MODE && !photo ? 'MATCH_ACTIVE_CAMPAIGN' : undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || 'Spot check failed');
+      onUpdateSession(data.shift);
+      setSpotCheckToast(data.check?.status === 'VERIFIED'
+        ? '✓ Spot-check selfie verified by AI. Compliance score protected.'
+        : `✗ Spot check rejected: ${data.check?.visionResult?.decisionReason || 'campaign gear not recognized'}`);
+    } catch (err) {
+      setSpotCheckToast(err instanceof Error ? err.message : 'Spot check failed');
+    } finally {
+      setIsSubmittingSpotCheck(false);
+      setSpotCheckPhoto('');
+      setTimeout(() => setSpotCheckToast(null), 6000);
+    }
+  };
+
+  const handleRespondSpotCheck = () => {
+    if (CLIENT_DEMO_MODE && !spotCheckInputRef.current) {
+      submitSpotCheck();
+      return;
+    }
+    spotCheckInputRef.current?.click();
+  };
+
+  const handleSpotCheckPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => submitSpotCheck(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
   // Handle local file upload / live capture from courier device
@@ -372,7 +379,9 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
         const base64 = reader.result as string;
         setGearPhoto(base64);
         setSampleScenario('CUSTOM');
-        runVisionVerification(base64, 'CUSTOM');
+        setVisionResult(null);
+        // Preview only in demo mode; the server verifies the photo when the shift is completed.
+        if (CLIENT_DEMO_MODE) runVisionVerification(base64, 'CUSTOM');
       };
       reader.readAsDataURL(file);
     }
@@ -390,7 +399,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
   };
 
   // Complete Gear Verification and Trigger Daily Payout
-  const handleVerifyGearAndReleasePayout = () => {
+  const handleVerifyGearAndReleasePayout = async () => {
     if (!activeSession) return;
 
     // Validate that all required gear items are checked
@@ -399,86 +408,41 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
       setGearVerificationError('Please confirm all required campaign gear items are equipped before releasing payout.');
       return;
     }
-
-    if (!gearPhoto) {
+    const photo = gearPhoto.startsWith('data:image/') ? gearPhoto : undefined;
+    if (!photo && !CLIENT_DEMO_MODE) {
       setGearVerificationError('Please attach or capture a live gear verification photo to authorize payout.');
-      return;
-    }
-
-    // Enforce LLM Vision match check
-    if (visionResult && !visionResult.matched) {
-      setGearVerificationError(`Payout Blocked: AI Vision detected a campaign mismatch (${visionResult.detectedBrand} instead of active rotation "${campaign.brandName}"). Payout cannot be released until active campaign gear is equipped.`);
       return;
     }
 
     setIsCompleting(true);
     setGearVerificationError(null);
-
-    const now = Date.now();
-    const endTimeFormatted = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const durationHours = parseFloat((Math.max(1, elapsedSeconds) / 3600).toFixed(2));
-    const verifiedSpotChecks = activeSession.spotChecks.filter(s => s.status === 'VERIFIED').length;
-    const totalPrompts = activeSession.spotChecks.length;
-    const complianceScore = totalPrompts > 0 ? Math.round((verifiedSpotChecks / totalPrompts) * 100) : 100;
-
-    // Build gear verification payload with attached vision result
-    const gearVerificationPayload: CourierGearVerification = {
-      id: `gear_ver_${now}`,
-      shiftId: activeSession.id,
-      courierId: activeSession.courierId,
-      campaignId: activeSession.campaignId,
-      verifiedAt: new Date(now).toISOString(),
-      status: 'VERIFIED',
-      gearItems: requiredGearList.map(item => ({
-        itemName: item,
-        isEquipped: Boolean(checkedGear[item]),
-        photoUrl: gearPhoto,
-      })),
-      overallPhotoUrl: gearPhoto,
-      checklistCompleted: true,
-      complianceScore: complianceScore,
-      verifiedBy: 'GEMINI_3.7_FLASH_VISION_AUDITOR',
-      visionResult: visionResult || undefined,
-    };
-
-    const completedShift: CampaignShiftLog = {
-      id: activeSession.id,
-      campaignId: activeSession.campaignId,
-      campaignTitle: activeSession.campaignTitle,
-      brandName: activeSession.brandName,
-      courierId: activeSession.courierId,
-      courierName: activeSession.courierName,
-      courierAvatar: currentUser.avatarUrl,
-      platform: activeSession.platform,
-      metro: activeSession.targetMetro,
-      neighborhood: activeSession.neighborhood,
-      date: new Date(activeSession.startedAt).toISOString().split('T')[0],
-      startTime: activeSession.startFormatted,
-      endTime: endTimeFormatted,
-      durationHours: durationHours,
-      milesTraveled: Math.max(2.5, liveMiles),
-      estimatedImpressions: Math.max(1200, liveImpressions),
-      courierPayoutEarned: activeSession.dailyRate,
-      verifiedGps: true,
-      verifiedPhoto: true,
-      gearVerificationStatus: 'VERIFIED',
-      gearVerification: gearVerificationPayload,
-      payoutStatus: 'PAID',
-      payoutTransferId: `tr_gear_payout_${now}`,
-      spotChecks: activeSession.spotChecks,
-      spotChecksCount: totalPrompts,
-      spotChecksVerified: verifiedSpotChecks,
-      complianceScore: complianceScore,
-      notes: `LLM Vision Verified: Gear matches active rotation "${activeSession.brandName}" (Confidence: ${visionResult?.confidenceScore || 98}%). Instant $${activeSession.dailyRate}.00 daily payout released to Stripe Treasury.`
-    };
-
-    setTimeout(() => {
-      onCompleteShift(completedShift);
-      setIsCompleting(false);
+    try {
+      const res = await fetch(`/api/campaigns/shifts/${activeSession.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gearPhoto: photo,
+          checkedGear,
+          sampleTag: CLIENT_DEMO_MODE && !photo
+            ? (sampleScenario === 'MISMATCH' ? 'MISMATCH_EXPIRED_CAMPAIGN' : sampleScenario === 'UNBRANDED' ? 'UNBRANDED' : 'MATCH_ACTIVE_CAMPAIGN')
+            : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.vision?.decisionReason
+          ? `Payout Blocked: ${data.vision.decisionReason}`
+          : (data.message || data.error || 'Could not complete the shift.'));
+      }
+      onCompleteShift(data.shift);
       setShowGearVerification(false);
       setShowEndConfirmation(false);
       onClose();
-    }, 800);
+    } catch (err) {
+      setGearVerificationError(err instanceof Error ? err.message : 'Could not complete the shift.');
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   return (
@@ -613,6 +577,13 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
               </div>
             </div>
 
+            {startError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{startError}</span>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
@@ -703,6 +674,14 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                 </p>
 
                 <div className="flex gap-2">
+                  <input
+                    ref={spotCheckInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={handleSpotCheckPhotoSelected}
+                  />
                   <button
                     type="button"
                     onClick={handleRespondSpotCheck}
@@ -712,27 +691,43 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                     <Camera className="w-4 h-4 text-amber-600" />
                     <span>{isSubmittingSpotCheck ? 'Verifying Spot-Check...' : 'Take Quick Selfie Spot-Check'}</span>
                   </button>
+                  {CLIENT_DEMO_MODE && (
+                    <button
+                      type="button"
+                      onClick={() => submitSpotCheck()}
+                      disabled={isSubmittingSpotCheck}
+                      className="px-3 py-2 rounded-xl bg-amber-100 text-amber-950 font-bold text-[11px] border border-amber-300 cursor-pointer"
+                      title="Demo: answer with a sample matching photo"
+                    >
+                      Use sample
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Simulate Random Prompt Button for Demo */}
+            {/* Random checks are scheduled by the server at unpredictable times */}
             {(!activeSession.activePrompt || activeSession.activePrompt.status !== 'PENDING') && (
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
                 <div className="text-xs">
                   <span className="font-bold text-slate-800 block">Random Compliance Checks</span>
-                  <span className="text-[10px] text-slate-500">Unscheduled 5-minute selfie prompts test authentic wear</span>
+                  <span className="text-[10px] text-slate-500">
+                    AI selfie checks arrive at random times during your shift. Keep this screen open; you have 5 minutes to answer each one.
+                    {typeof activeSession.checksRemaining === 'number' && activeSession.checksRemaining > 0 && ` ${activeSession.checksRemaining} more scheduled.`}
+                  </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleTriggerRandomPrompt}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-[11px] border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer"
-                  title="Simulate unpredictable push notification prompt"
-                >
-                  <Bell className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Simulate Random Prompt</span>
-                </button>
+                {CLIENT_DEMO_MODE && (
+                  <button
+                    type="button"
+                    onClick={handleTriggerRandomPrompt}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-[11px] border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                    title="Demo: make the next scheduled check due now"
+                  >
+                    <Bell className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Trigger next check</span>
+                  </button>
+                )}
               </div>
             )}
 

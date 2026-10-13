@@ -32,6 +32,9 @@ const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) 
 const HowItWorksModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
 const ContactUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
 const FaqModal = lazy(() => import('./components/FaqModal').then((module) => ({ default: module.FaqModal })));
+const PrivacyPolicyModal = lazy(() => import('./components/PrivacyPolicyModal').then((module) => ({ default: module.PrivacyPolicyModal })));
+const TermsOfServiceModal = lazy(() => import('./components/TermsOfServiceModal').then((module) => ({ default: module.TermsOfServiceModal })));
+const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate').then((module) => ({ default: module.TermsAcceptanceGate })));
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
 import { INITIAL_USERS, INITIAL_PODS, INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from './data/initialData';
@@ -57,6 +60,7 @@ import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
 import { scrollToTabSection } from './utils/navigation';
 import { CLIENT_DEMO_MODE } from './lib/demoMode';
+import { hasAcceptedCurrentTerms } from './lib/legal';
 
 export default function App() {
   const { t, formatCurrency } = useTranslation();
@@ -143,14 +147,8 @@ export default function App() {
       return INITIAL_CAMPAIGN_SHIFTS;
     }
   });
-  const [activeShiftSession, setActiveShiftSession] = useState<ActiveShiftSession | null>(() => {
-    try {
-      const saved = localStorage.getItem('mutualpool_active_shift');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  // Shifts are owned by the server (randomized spot-check schedule); this is a view of the active one.
+  const [activeShiftSession, setActiveShiftSession] = useState<ActiveShiftSession | null>(null);
 
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
 
@@ -168,139 +166,32 @@ export default function App() {
 
   const handleStartShift = (session: ActiveShiftSession) => {
     setActiveShiftSession(session);
-    try {
-      localStorage.setItem('mutualpool_active_shift', JSON.stringify(session));
-    } catch {
-      // storage silent
-    }
   };
 
   const handleUpdateShiftSession = (session: ActiveShiftSession) => {
     setActiveShiftSession(session);
-    try {
-      localStorage.setItem('mutualpool_active_shift', JSON.stringify(session));
-    } catch {
-      // storage silent
-    }
   };
+
+  // Pick up a shift that is already running (e.g. after a reload or on another device).
+  useEffect(() => {
+    if (!currentUser || currentUser.id === 'usr_guest') {
+      setActiveShiftSession(null);
+      return;
+    }
+    fetch('/api/campaigns/shifts/active')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data) setActiveShiftSession(data.shift || null); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const handleCompleteShift = (completedShift: CampaignShiftLog) => {
     // 1. Add shift to campaignShifts
     handleAddNewShift(completedShift);
 
-    // 2. Supplemental wage payout. Only the demo server credits shift payouts; in
-    // production shift earnings are informational until advertiser funding exists.
-    if (currentUser && CLIENT_DEMO_MODE) {
-      const payout = completedShift.courierPayoutEarned || 65;
-      let newBalance = (currentUser.treasury?.balanceUsd || 0) + payout;
-      const totalPayouts = (currentUser.treasury?.totalPayoutsReceivedUsd || 0) + payout;
-
-      // Check if user has active pods with missed / delinquent deposits
-      const activeDelinquentPods = allPods.filter(
-        p => p.status === 'ACTIVE' && p.members?.some(m => m.userId === currentUser.id && (m.delinquencyStatus === 'DELINQUENT' || m.delinquencyStatus === 'GRACE_PERIOD'))
-      );
-
-      let updatedPods = [...allPods];
-      const autoDeductMessages: string[] = [];
-
-      for (const delinqPod of activeDelinquentPods) {
-        const requiredDeposit = delinqPod.depositTier || 20;
-
-        if (newBalance >= requiredDeposit) {
-          // Full deposit deducted from account balance
-          newBalance -= requiredDeposit;
-          updatedPods = updatedPods.map(p => {
-            if (p.id === delinqPod.id) {
-              const updatedP = {
-                ...p,
-                currentWeeklyCollected: (p.currentWeeklyCollected || 0) + requiredDeposit,
-                members: p.members.map(m => m.userId === currentUser.id ? { ...m, delinquencyStatus: 'CLEAN' as const } : m),
-              };
-              savePodToFirestore(updatedP).catch(console.error);
-              return updatedP;
-            }
-            return p;
-          });
-
-          autoDeductMessages.push(`💳 $${requiredDeposit.toFixed(2)} full weekly deposit auto-deducted from your wage earnings for "${delinqPod.name}". Delinquency cleared!`);
-
-          // Sync with server
-          fetch(`/api/pods/${delinqPod.id}/recover-missed-deposit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-            body: JSON.stringify({ memberUserId: currentUser.id, actionChoice: 'COVER_GAP' }),
-          }).catch(console.warn);
-
-        } else {
-          // Account balance is insufficient: deduct available, Welcome Match covers remainder, remove member, list publicly
-          const balanceDeducted = Math.max(0, newBalance);
-          newBalance = 0;
-          const remainder = requiredDeposit - balanceDeducted;
-          const availableWM = delinqPod.contingencyBufferUsd || 0;
-          const wmCovered = Math.min(remainder, availableWM);
-
-          updatedPods = updatedPods.map(p => {
-            if (p.id === delinqPod.id) {
-              const remainingMembers = p.members.filter(m => m.userId !== currentUser.id).map((m, idx) => ({ ...m, rotationIndex: idx }));
-              const updatedP = {
-                ...p,
-                currentWeeklyCollected: (p.currentWeeklyCollected || 0) + requiredDeposit,
-                contingencyBufferUsd: Math.max(0, availableWM - wmCovered),
-                members: remainingMembers,
-                memberCount: remainingMembers.length,
-                podType: 'OPEN_POD' as const,
-                isPrioritizedForReplacement: true,
-                replacementVacanciesCount: (p.replacementVacanciesCount || 0) + 1,
-              };
-              savePodToFirestore(updatedP).catch(console.error);
-              return updatedP;
-            }
-            return p;
-          });
-
-          autoDeductMessages.push(`⚠️ $${balanceDeducted.toFixed(2)} deducted from balance & $${wmCovered.toFixed(2)} remainder covered by Welcome Match Reserve. Due to insufficient funds, you were removed from "${delinqPod.name}" and the pod is now publicly listed for a replacement.`);
-
-          // Sync with server
-          fetch(`/api/pods/${delinqPod.id}/recover-missed-deposit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-            body: JSON.stringify({ memberUserId: currentUser.id, actionChoice: 'COVER_GAP' }),
-          }).catch(console.warn);
-        }
-      }
-
-      if (activeDelinquentPods.length > 0) {
-        setAllPods(updatedPods);
-        try {
-          localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updatedPods));
-        } catch {
-          // silent
-        }
-      }
-
-      // console.log(activeDel)
-
-      const updatedUser: User = {
-        ...currentUser,
-        treasury: {
-          ...currentUser.treasury,
-          balanceUsd: newBalance,
-          totalPayoutsReceivedUsd: totalPayouts,
-        },
-      };
-      setCurrentUser(updatedUser);
-      saveUserToFirestore(updatedUser).catch(console.error);
-
-      // Sync with server treasury and audit log
-      fetch('/api/campaigns/shifts/verify-payout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-        body: JSON.stringify({
-          shift: completedShift,
-          gearVerification: completedShift.gearVerification,
-        }),
-      }).catch(console.warn);
-    }
+    // 2. The server decided payout eligibility (and, in demo mode, credited the
+    // balance). Refresh the member record so the dashboard reflects it.
+    if (currentUser) fetchAppData(currentUser.id);
 
     // 3. Update courier participations total earnings
     setParticipations(prev => {
@@ -342,11 +233,6 @@ export default function App() {
 
     // 5. Clear active shift session
     setActiveShiftSession(null);
-    try {
-      localStorage.removeItem('mutualpool_active_shift');
-    } catch {
-      // silent
-    }
   };
 
   // Sync active user and cached pods to localStorage for session persistence across refreshes
@@ -384,6 +270,9 @@ export default function App() {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showFaqModal, setShowFaqModal] = useState(false);
+  // Reachable from every footer and directly at /privacy (the URL in the country config).
+  const [showPrivacyModal, setShowPrivacyModal] = useState(() => typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/privacy');
+  const [showTermsModal, setShowTermsModal] = useState(() => typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/terms');
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
   const [showKycModal, setShowKycModal] = useState(false);
@@ -1316,6 +1205,8 @@ export default function App() {
       {viewMode === 'LANDING' ? (
         <>
           <LandingPage
+            onOpenPrivacy={() => setShowPrivacyModal(true)}
+            onOpenTerms={() => setShowTermsModal(true)}
             allPods={allPods}
             currentUser={currentUser}
             onOpenAuth={handleOpenAuth}
@@ -1353,6 +1244,8 @@ export default function App() {
             onSelectUser={handleAuthSuccess}
             onRegistered={handleAuthSuccess}
             initialMode={authInitialMode}
+            onOpenTerms={() => setShowTermsModal(true)}
+            onOpenPrivacy={() => setShowPrivacyModal(true)}
           />
 
           <AboutUsModal
@@ -1375,6 +1268,17 @@ export default function App() {
           <ContactUsModal
             isOpen={showContactModal}
             onClose={() => setShowContactModal(false)}
+          />
+
+          <PrivacyPolicyModal
+            isOpen={showPrivacyModal}
+            onClose={() => setShowPrivacyModal(false)}
+          />
+
+          <TermsOfServiceModal
+            isOpen={showTermsModal}
+            onClose={() => setShowTermsModal(false)}
+            onOpenPrivacy={() => setShowPrivacyModal(true)}
           />
 
           <VoiceAgent
@@ -1417,6 +1321,8 @@ export default function App() {
           </div>
         }>
           <AdvertiserPage
+            onOpenTerms={() => setShowTermsModal(true)}
+            onOpenPrivacy={() => setShowPrivacyModal(true)}
             currentUser={currentUser}
             allUsers={allUsers}
             campaigns={campaigns}
@@ -1438,6 +1344,8 @@ export default function App() {
             onSelectUser={handleAuthSuccess}
             onRegistered={handleAuthSuccess}
             initialMode={authInitialMode}
+            onOpenTerms={() => setShowTermsModal(true)}
+            onOpenPrivacy={() => setShowPrivacyModal(true)}
           />
 
           <VoiceAgent
@@ -2117,7 +2025,7 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280] mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>{t('dash.allRightsReserved')}</span>
+          <span>© {new Date().getFullYear()} {t('dash.allRightsReserved')}</span>
           <div className="flex items-center gap-4 text-xs font-medium">
             <button onClick={() => setShowAboutModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('nav.about')}
@@ -2134,6 +2042,14 @@ export default function App() {
             <span>•</span>
             <button onClick={() => setShowContactModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('nav.contact')}
+            </button>
+            <span>•</span>
+            <button onClick={() => setShowPrivacyModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              {t('footer.privacy')}
+            </button>
+            <span>•</span>
+            <button onClick={() => setShowTermsModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              {t('footer.terms')}
             </button>
           </div>
           <span>{t('dash.fdicInsuredFooter')}</span>
@@ -2298,6 +2214,27 @@ export default function App() {
         isOpen={showContactModal}
         onClose={() => setShowContactModal(false)}
       />
+
+      <PrivacyPolicyModal
+        isOpen={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+      />
+
+      <TermsOfServiceModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        onOpenPrivacy={() => setShowPrivacyModal(true)}
+      />
+
+      {/* Signed-in members must accept the current Terms before moving money */}
+      {currentUser && currentUser.id !== 'usr_guest' && !hasAcceptedCurrentTerms(currentUser) && (
+        <TermsAcceptanceGate
+          user={currentUser}
+          onAccepted={(u) => setCurrentUser(u)}
+          onOpenTerms={() => setShowTermsModal(true)}
+          onOpenPrivacy={() => setShowPrivacyModal(true)}
+        />
+      )}
 
       {currentUser && (
         <Suspense fallback={null}>

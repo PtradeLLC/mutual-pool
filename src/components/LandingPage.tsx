@@ -49,6 +49,8 @@ interface LandingPageProps {
   onOpenHowItWorks?: () => void;
   onOpenFaq?: () => void;
   onOpenContact?: () => void;
+  onOpenPrivacy?: () => void;
+  onOpenTerms?: () => void;
   onOpenSubmitPerk?: () => void;
   onOpenAdvertiser?: () => void;
 }
@@ -61,6 +63,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onGoToDashboard,
   onLogout,
   onOpenAbout,
+  onOpenPrivacy,
+  onOpenTerms,
   onOpenHowItWorks,
   onOpenFaq,
   onOpenContact,
@@ -1201,6 +1205,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <button onClick={onOpenContact} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('nav.contact')}
             </button>
+            {onOpenPrivacy && (
+              <>
+                <span>•</span>
+                <button onClick={onOpenPrivacy} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+                  {t('footer.privacy')}
+                </button>
+              </>
+            )}
+            {onOpenTerms && (
+              <>
+                <span>•</span>
+                <button onClick={onOpenTerms} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+                  {t('footer.terms')}
+                </button>
+              </>
+            )}
             {onOpenAdvertiser && (
               <>
                 <span>•</span>

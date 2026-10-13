@@ -75,6 +75,9 @@ export interface User {
   traditionId?: string;
   // Language signals used to decide which translations to add next.
   preferredLanguage?: string;   // language chosen in the app
+  // Terms of Service acceptance (version from src/lib/legal.ts), recorded by the server.
+  termsAcceptedVersion?: string;
+  termsAcceptedAt?: string;
   browserLanguage?: string;     // device language (primary Accept-Language tag)
   displayName: string;
   name?: string;
@@ -684,6 +687,8 @@ export interface ActiveShiftSession {
   estimatedImpressions: number;
   spotChecks: PhotoSpotCheck[];
   activePrompt?: PhotoSpotCheck | null;
+  // Future checks are scheduled by the server; only their number is shared.
+  checksRemaining?: number;
   neighborhood: string;
   lastGpsPing?: {
     neighborhood: string;

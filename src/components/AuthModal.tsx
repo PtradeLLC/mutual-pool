@@ -20,6 +20,7 @@ import { auth, googleProvider } from '../lib/firebase';
 import { getUserFromFirestore, saveUserToFirestore } from '../lib/firestoreService';
 import { INITIAL_USERS } from '../data/initialData';
 import { TraditionSelect } from './TraditionSelect';
+import { TERMS_VERSION } from '../lib/legal';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -28,6 +29,8 @@ interface AuthModalProps {
   onSelectUser: (user: User) => void;
   onRegistered: (user: User) => void;
   initialMode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE';
+  onOpenTerms?: () => void;
+  onOpenPrivacy?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -37,6 +40,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onSelectUser,
   onRegistered,
   initialMode = 'LOGIN',
+  onOpenTerms,
+  onOpenPrivacy,
 }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'LOGIN' | 'REGISTER' | 'PHONE'>(
@@ -57,6 +62,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regPassword, setRegPassword] = useState('');
   const [regPlatform, setRegPlatform] = useState<GigPlatform>('DoorDash');
   const [regTraditionId, setRegTraditionId] = useState<string>('');
+  const [regAgreed, setRegAgreed] = useState(false);
   const [regLoading, setRegLoading] = useState(false);
   const [regError, setRegError] = useState('');
 
@@ -192,6 +198,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setRegLoading(true);
 
     try {
+      if (!regAgreed) {
+        throw new Error('Please agree to the Terms of Service and Privacy Policy to create an account.');
+      }
       if (!regPassword || regPassword.length < 6) {
         throw new Error('Password must be at least 6 characters long.');
       }
@@ -209,6 +218,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           userCredential.user.photoURL,
           regTraditionId || undefined
         );
+        // The member ticked the agreement box: record the acceptance server-side.
+        try {
+          const accepted = await fetch('/api/users/accept-terms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ version: TERMS_VERSION }),
+          });
+          if (accepted.ok) appUser.termsAcceptedVersion = TERMS_VERSION;
+        } catch {
+          // the in-app gate will ask again
+        }
         onRegistered(appUser);
       }
     } catch (err: unknown) {
@@ -731,6 +751,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <TraditionSelect value={regTraditionId} onChange={setRegTraditionId} />
+
+            <label className="flex items-start gap-2.5 text-xs text-[#374151] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={regAgreed}
+                onChange={(e) => setRegAgreed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#005FB8]"
+              />
+              <span>
+                I agree to the{' '}
+                <button type="button" onClick={onOpenTerms} className="text-[#005FB8] underline font-semibold">Terms of Service</button>
+                {' '}and the{' '}
+                <button type="button" onClick={onOpenPrivacy} className="text-[#005FB8] underline font-semibold">Privacy Policy</button>.
+              </span>
+            </label>
 
             <button
               type="submit"
