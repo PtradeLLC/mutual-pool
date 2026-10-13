@@ -98,23 +98,9 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops'>('my-pods');
 
-  // Auto-scroll directly to section whenever activeTab changes on Dashboard
-  const initialTabScrollRef = useRef(true);
-  // Set by the logo click: it wants the top of the dashboard, not the tab's section.
-  const skipNextTabScrollRef = useRef(false);
-  useEffect(() => {
-    if (initialTabScrollRef.current) {
-      initialTabScrollRef.current = false;
-      return;
-    }
-    if (skipNextTabScrollRef.current) {
-      skipNextTabScrollRef.current = false;
-      return;
-    }
-    if (viewMode === 'DASHBOARD') {
-      scrollToTabSection(activeTab);
-    }
-  }, [activeTab, viewMode]);
+  // Scrolling to a section only happens when the member clicks a navigation
+  // button (each handler calls scrollToTabSection itself). Signing in, the logo,
+  // and programmatic tab changes leave the page at the top of the dashboard.
   const [scannedSleeveNotice, setScannedSleeveNotice] = useState<boolean>(false);
   const [campaigns, setCampaigns] = useState<AdCampaign[]>(() => {
     try {
@@ -1342,6 +1328,9 @@ export default function App() {
             onGoToDashboard={(tab) => {
               if (tab) setActiveTab(tab);
               setViewMode('DASHBOARD');
+              // Landing-page buttons that target a specific section scroll to it
+              // (the helper waits for the dashboard to render); "My Pods" stays at the top.
+              if (tab && tab !== 'my-pods') scrollToTabSection(tab);
             }}
             onLogout={handleLogout}
             onOpenAbout={() => setShowAboutModal(true)}
@@ -1515,13 +1504,8 @@ export default function App() {
           scrollToTabSection(tab);
         }}
         onLogoClick={() => {
-          const homeTab = isAdvertiser ? 'campaigns' : 'my-pods';
-          // The tab-change effect would scroll to the section; the logo means "top of dashboard".
-          if (homeTab !== activeTab || viewMode !== 'DASHBOARD') {
-            skipNextTabScrollRef.current = true;
-          }
           setViewMode('DASHBOARD');
-          setActiveTab(homeTab);
+          setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         // Demo-only role preview; real admin rights come from the server-verified claim.
