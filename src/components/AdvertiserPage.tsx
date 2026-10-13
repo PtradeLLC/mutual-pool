@@ -30,8 +30,6 @@ interface AdvertiserPageProps {
   shifts?: CampaignShiftLog[];
   onAddNewShift?: (shift: CampaignShiftLog) => void;
   onOpenCreateCampaign?: () => void;
-  onOpenPrivacy?: () => void;
-  onOpenTerms?: () => void;
   onBack: () => void;
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER') => void;
   initialTab?: 'metrics' | 'media-kit';
@@ -461,8 +459,6 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
   shifts = INITIAL_CAMPAIGN_SHIFTS,
   onAddNewShift,
   onOpenCreateCampaign,
-  onOpenPrivacy,
-  onOpenTerms,
   onBack,
   onOpenAuth,
   initialTab = 'media-kit',
@@ -2152,22 +2148,14 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
           </div>
           <div className="flex items-center gap-3">
             <span>© {new Date().getFullYear()} Chris Bitoye Ventures, LLC. {t('advertiser.rightsReserved')}</span>
-            {onOpenPrivacy && (
-              <>
-                <span>•</span>
-                <button type="button" onClick={onOpenPrivacy} className="hover:text-[#005FB8] transition-colors cursor-pointer font-medium">
-                  {t('footer.privacy')}
-                </button>
-              </>
-            )}
-            {onOpenTerms && (
-              <>
-                <span>•</span>
-                <button type="button" onClick={onOpenTerms} className="hover:text-[#005FB8] transition-colors cursor-pointer font-medium">
-                  {t('footer.terms')}
-                </button>
-              </>
-            )}
+            <span>•</span>
+            <a href="/privacy" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors font-medium">
+              {t('footer.privacy')}
+            </a>
+            <span>•</span>
+            <a href="/terms" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors font-medium">
+              {t('footer.terms')}
+            </a>
           </div>
         </div>
       </footer>

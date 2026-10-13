@@ -1205,8 +1205,6 @@ export default function App() {
       {viewMode === 'LANDING' ? (
         <>
           <LandingPage
-            onOpenPrivacy={() => setShowPrivacyModal(true)}
-            onOpenTerms={() => setShowTermsModal(true)}
             allPods={allPods}
             currentUser={currentUser}
             onOpenAuth={handleOpenAuth}
@@ -1321,8 +1319,6 @@ export default function App() {
           </div>
         }>
           <AdvertiserPage
-            onOpenTerms={() => setShowTermsModal(true)}
-            onOpenPrivacy={() => setShowPrivacyModal(true)}
             currentUser={currentUser}
             allUsers={allUsers}
             campaigns={campaigns}
@@ -2044,13 +2040,13 @@ export default function App() {
               {t('nav.contact')}
             </button>
             <span>•</span>
-            <button onClick={() => setShowPrivacyModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+            <a href="/privacy" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors">
               {t('footer.privacy')}
-            </button>
+            </a>
             <span>•</span>
-            <button onClick={() => setShowTermsModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+            <a href="/terms" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors">
               {t('footer.terms')}
-            </button>
+            </a>
           </div>
           <span>{t('dash.fdicInsuredFooter')}</span>
         </div>
