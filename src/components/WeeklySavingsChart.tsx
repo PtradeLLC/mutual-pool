@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { User, Pod } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { User, Pod, PaymentHistoryItem } from '../types';
 import {
   ResponsiveContainer,
   LineChart,
@@ -81,14 +81,33 @@ export const WeeklySavingsChart: React.FC<WeeklySavingsChartProps> = ({
     return formingPods.reduce((sum, p) => sum + (p.depositTier || 0), 0);
   }, [formingPods]);
 
-  // Actual base weekly cadence (prioritize active, fallback to forming, then standard starter baseline)
+  // Weekly cadence the member is actually committed to: active pods first, then
+  // pods still forming. With no pods it is $0; the forecast simulator buttons
+  // let members model a cadence they don't have yet.
   const actualWeeklyCadence = useMemo(() => {
     if (activeWeeklyDeposit > 0) return activeWeeklyDeposit;
     if (formingWeeklyDeposit > 0) return formingWeeklyDeposit;
-    // If user has completed pods or default starter profile, provide $25/wk starter baseline
-    if ((currentUser.completedPodsCount || 0) > 0) return 25;
-    return 20; // Default starter MutualPool tier
-  }, [activeWeeklyDeposit, formingWeeklyDeposit, currentUser.completedPodsCount]);
+    return 0;
+  }, [activeWeeklyDeposit, formingWeeklyDeposit]);
+
+  // Real deposit history from the server (completed deposits only).
+  const [depositHistory, setDepositHistory] = useState<PaymentHistoryItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/user/payment-history');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.history)) {
+          setDepositHistory(data.history.filter((h: PaymentHistoryItem) => h.type === 'DEPOSIT' && h.status === 'COMPLETED'));
+        }
+      } catch {
+        // chart falls back to an empty history
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser.id, myPods.length]);
 
   // Effective weekly cadence for forecast (either simulated or actual)
   const effectiveWeeklyCadence = simulationCadence !== null ? simulationCadence : actualWeeklyCadence;
@@ -96,71 +115,52 @@ export const WeeklySavingsChart: React.FC<WeeklySavingsChartProps> = ({
   // Monthly deposit equivalent: average 4.333 weeks in a calendar month
   const monthlyDepositEquivalent = Math.round(effectiveWeeklyCadence * (52 / 12));
 
-  // 2. Generate the last 12 weeks (3 months) historical data points up to current date
+  // 2. The last 12 weeks of actual deposits, bucketed by week ending today.
   const historyChartData = useMemo<WeekDataPoint[]>(() => {
     const points: WeekDataPoint[] = [];
     const now = new Date();
     const totalWeeks = 12;
-
-    const completedPods = currentUser.completedPodsCount || 0;
-    const baseWeekly = completedPods > 0 ? 20 * Math.min(2, completedPods) : 0;
-
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
     let runningCumulative = 0;
 
     for (let i = totalWeeks - 1; i >= 0; i--) {
-      const targetDate = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+      const targetDate = new Date(now.getTime() - i * weekMs);
+      const weekStart = targetDate.getTime() - weekMs;
       const monthName = targetDate.toLocaleDateString('en-US', { month: 'short' });
-      const dayNum = targetDate.getDate();
-      const weekLabel = `${monthName} ${dayNum}`;
+      const weekLabel = `${monthName} ${targetDate.getDate()}`;
       const fullDate = targetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
       let weeklyContribution = 0;
-      let activeCount = 0;
-
-      if (myPods.length > 0 || completedPods > 0) {
-        myPods.forEach(pod => {
-          if (pod.status === 'ACTIVE') {
-            const currentWeek = pod.currentCycleWeek || 1;
-            const weekDistanceFromNow = i;
-            if (weekDistanceFromNow < currentWeek) {
-              weeklyContribution += pod.depositTier;
-              activeCount += 1;
-            }
-          }
-        });
-
-        if (weeklyContribution === 0 && completedPods > 0 && i >= 4) {
-          weeklyContribution = baseWeekly;
-          activeCount = 1;
-        }
-
-        if (weeklyContribution === 0 && activeWeeklyDeposit > 0 && i <= 2) {
-          weeklyContribution = activeWeeklyDeposit;
-          activeCount = activePods.length;
+      const podsThisWeek = new Set<string>();
+      for (const d of depositHistory) {
+        const at = new Date(d.date).getTime();
+        if (at > weekStart && at <= targetDate.getTime()) {
+          weeklyContribution += d.amount || 0;
+          podsThisWeek.add(d.podId);
         }
       }
 
       runningCumulative += weeklyContribution;
-
       points.push({
         weekKey: `wk_${totalWeeks - i}`,
         weekLabel,
         fullDate,
         contribution: weeklyContribution,
         cumulative: runningCumulative,
-        activePodsCount: activeCount,
+        activePodsCount: podsThisWeek.size,
         status: i === 0 ? 'ACTIVE' : 'COMPLETED',
       });
     }
 
     return points;
-  }, [myPods, activePods.length, activeWeeklyDeposit, currentUser.completedPodsCount]);
+  }, [depositHistory]);
 
   // Aggregate stats for 3-Month History
   const totalContributed3Mo = historyChartData.reduce((acc, p) => acc + p.contribution, 0);
   const activeWeeksCount = historyChartData.filter(p => p.contribution > 0).length;
   const avgWeekly = activeWeeksCount > 0 ? Math.round(totalContributed3Mo / activeWeeksCount) : 0;
-  const currentWeeklyPace = historyChartData[historyChartData.length - 1]?.contribution || actualWeeklyCadence;
+  // What the member owes per week right now: the deposit tiers of their active pods.
+  const currentWeeklyPace = activeWeeklyDeposit;
   const hasAnyContributions = totalContributed3Mo > 0;
 
   // 3. Generate Projected Monthly Savings Forecast data points
@@ -198,7 +198,7 @@ export const WeeklySavingsChart: React.FC<WeeklySavingsChartProps> = ({
         monthlyDeposit: monthlyDepositEquivalent,
         cumulativeSavings: cumulative,
         projectedLumpSumPotential: lumpSumInThisMonth,
-        activePodsCount: activePods.length > 0 ? activePods.length : (formingPods.length > 0 ? formingPods.length : 1),
+        activePodsCount: activePods.length > 0 ? activePods.length : formingPods.length,
       });
     }
 

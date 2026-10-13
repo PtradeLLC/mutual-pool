@@ -321,8 +321,6 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
             createdList.unshift(podData);
             localStorage.setItem('mutualpool_created_pods', JSON.stringify(createdList));
           }
-          localStorage.setItem('mutualpool_welcome_match_credited', 'true');
-          localStorage.setItem(`mutualpool_welcome_match_${currentUserState.id}`, 'true');
         } catch {
           // quiet cache fail
         }

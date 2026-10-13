@@ -1107,13 +1107,8 @@ export default function App() {
   const createdPodsCount = userCreatedActivePods.length;
   const isPodCreationLimitReached = createdPodsCount >= 3;
 
-  const hasWelcomeMatch = Boolean(
-    activeUser.welcomeMatchReceived ||
-    myPods.some(p => p.welcomeMatchGranted || (p.contingencyBufferInitialUsd && p.contingencyBufferInitialUsd > 0) || (p.contingencyBufferUsd !== undefined && p.contingencyBufferUsd > 0) || (p.createdBy && p.createdBy === activeUser.id)) ||
-    (typeof window !== 'undefined' && localStorage.getItem(`mutualpool_welcome_match_${activeUser.id}`) === 'true') ||
-    (typeof window !== 'undefined' && localStorage.getItem('mutualpool_welcome_match_credited') === 'true') ||
-    (typeof window !== 'undefined' && localStorage.getItem('mutualpool_created_pods') && JSON.parse(localStorage.getItem('mutualpool_created_pods') || '[]').length > 0)
-  );
+  // The welcome match is granted by the server at pod creation (once per verified person).
+  const hasWelcomeMatch = Boolean(activeUser.welcomeMatchReceived);
 
   const handleJoinPod = async (pod: Pod, inviteCode?: string) => {
     if (!currentUser) {
