@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { InvitedContact, User } from '../types';
 import { useTranslation } from '../i18n/LanguageContext';
 import { getTrustedCircleInviteUrl } from '../utils/siteUrl';
+import { getTraditionName } from '../data/roscaTraditions';
 import { 
   Users, Lock, Plus, CheckCircle2, UserCheck, Mail, Phone, 
   Copy, Check, Sparkles, Smartphone, Share2, ShieldCheck,
@@ -84,7 +85,8 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
   const inviteLink = getTrustedCircleInviteUrl(inviteCode, currentUser?.id);
 
   const handleCopy = () => {
-    const text = `Hey! Join my private Trusted Circle savings pod "${podName}" on MutualPool. Use my invite code: ${inviteCode} or tap: ${inviteLink}`;
+    const circleWord = getTraditionName(currentUser) || 'Trusted Circle savings pod';
+    const text = `Hey! Join my private ${circleWord} "${podName}" on MutualPool. Use my invite code: ${inviteCode} or tap: ${inviteLink}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);

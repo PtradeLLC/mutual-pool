@@ -81,7 +81,9 @@ function saveChatData() {
   config.onChange();
   if (IS_PRODUCTION) return;
   try {
-    fs.writeFileSync(CHATS_FILE, JSON.stringify({ threads, messages }, null, 2), 'utf8');
+    const data = JSON.stringify({ threads, messages }, null, 2);
+    if (fs.existsSync(CHATS_FILE) && fs.readFileSync(CHATS_FILE, 'utf8') === data) return;
+    fs.writeFileSync(CHATS_FILE, data, 'utf8');
   } catch (err) {
     console.error('[ChatManager] Error saving chats_data.json:', err);
   }

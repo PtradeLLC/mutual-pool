@@ -11,6 +11,7 @@ import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
 import { SiteUrlBadge } from './SiteUrlBadge';
 import { PartnerLogoStrip } from './PartnerLogoStrip';
+import { ROSCA_TRADITIONS, FEATURED_TRADITION_IDS } from '../data/roscaTraditions';
 import { useTranslation } from '../i18n';
 import { useCountry } from '../context/CountryContext';
 import { 
@@ -590,6 +591,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                   <p className="text-base sm:text-lg text-[#4B5563] leading-relaxed">
                     {t('hero.subtitle')}
+                  </p>
+
+                  {/* Savings circles exist everywhere under local names; show the ones members know */}
+                  <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                    <span className="font-semibold text-[#374151]">{t('hero.knownAs')}</span>{' '}
+                    {FEATURED_TRADITION_IDS
+                      .map(id => ROSCA_TRADITIONS.find(tr => tr.id === id)?.name)
+                      .filter(Boolean)
+                      .join(' · ')}
+                    {' '}{t('hero.knownAsMore')}.
                   </p>
 
               {/* Hero CTAs */}

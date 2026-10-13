@@ -16,7 +16,11 @@ export default defineConfig(() => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // The dev server persists its state to *_data.json files in the project root;
+      // watching them would reload the page on every save (and each reload saves again).
+      watch: process.env.DISABLE_HMR === 'true'
+        ? null
+        : { ignored: ['**/*_data.json', '**/gear_designs.json', '**/advertiser_inquiries.json', '**/.data/**'] },
     },
   };
 });

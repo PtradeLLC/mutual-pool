@@ -71,6 +71,11 @@ export interface User {
   // Stripe bank-account fingerprints from Connect onboarding: identify the same
   // person across accounts (one welcome match per person, host-reward checks).
   identityFingerprints?: string[];
+  // What the member's community calls a savings circle (id in src/data/roscaTraditions.ts).
+  traditionId?: string;
+  // Language signals used to decide which translations to add next.
+  preferredLanguage?: string;   // language chosen in the app
+  browserLanguage?: string;     // device language (primary Accept-Language tag)
   displayName: string;
   name?: string;
   city?: string;

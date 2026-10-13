@@ -19,6 +19,7 @@ import {
 import { auth, googleProvider } from '../lib/firebase';
 import { getUserFromFirestore, saveUserToFirestore } from '../lib/firestoreService';
 import { INITIAL_USERS } from '../data/initialData';
+import { TraditionSelect } from './TraditionSelect';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPlatform, setRegPlatform] = useState<GigPlatform>('DoorDash');
+  const [regTraditionId, setRegTraditionId] = useState<string>('');
   const [regLoading, setRegLoading] = useState(false);
   const [regError, setRegError] = useState('');
 
@@ -111,7 +113,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     displayName: string | null, 
     platform: GigPlatform = 'DoorDash',
     phoneNumber?: string,
-    photoURL?: string | null
+    photoURL?: string | null,
+    traditionId?: string
   ): Promise<User> => {
     let existing = await getUserFromFirestore(uid);
     const resolvedName = displayName || (phoneNumber ? `Member ${phoneNumber.slice(-4)}` : 'MutualPool Member');
@@ -155,6 +158,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       avatarUrl: defaultAvatar,
       platform: platform,
       role: 'RIDER',
+      traditionId: traditionId || undefined,
       createdAt: nowIso,
       accountAgeDays: calculateAccountAgeDays(nowIso, 1),
       kycStatus: 'PENDING',
@@ -202,7 +206,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           regName,
           regPlatform,
           undefined,
-          userCredential.user.photoURL
+          userCredential.user.photoURL,
+          regTraditionId || undefined
         );
         onRegistered(appUser);
       }
@@ -724,6 +729,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <option value="Grubhub">{t('auth.driverGrubhub')}</option>
               </select>
             </div>
+
+            <TraditionSelect value={regTraditionId} onChange={setRegTraditionId} />
 
             <button
               type="submit"

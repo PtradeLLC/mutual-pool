@@ -35,6 +35,7 @@ import { getAuthAdmin } from './src/config/firebase';
 import { IS_PRODUCTION, DEMO_MODE, DATA_DIR, assertProductionConfig, getAllowedOrigins, parseMoneyAmount } from './src/server/runtime';
 import { createStorageAdapter, storageConfigProblems } from './src/server/storage';
 import { assessHardshipRisk } from './src/server/hardshipRisk';
+import { isTraditionId } from './src/data/roscaTraditions';
 import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFlush, flushNow, persistNow, startAutoFlush, getPersistenceHealth, onBeforeShutdown } from './src/server/persistence';
 import { apiRateLimiter, authRateLimiter, aiRateLimiter, publicFormRateLimiter, moneyRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
 import { SUPPORTED_COUNTRIES, US_CONFIG } from './src/config/countries';
@@ -100,9 +101,11 @@ const PODS_FILE = path.join(DATA_DIR, 'pods_data.json');
 const USERS_FILE = path.join(DATA_DIR, 'users_data.json');
 
 function safeWriteFile(filePath: string, data: string): void {
-  // Production state lives in Firestore (src/server/persistence.ts); JSON files are a dev convenience.
+  // Production state lives in the storage backend (src/server/persistence.ts); JSON files are a dev convenience.
   if (IS_PRODUCTION) return;
   try {
+    // Skip no-op writes: they churn the disk and trigger file watchers for nothing.
+    if (fs.existsSync(filePath) && fs.readFileSync(filePath, 'utf8') === data) return;
     fs.writeFileSync(filePath, data, 'utf8');
   } catch {
     try {
@@ -1044,7 +1047,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key, X-App-Language');
   }
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -1209,6 +1212,23 @@ app.use(async (req: Request, res: Response, next) => {
       found.isAdmin = false;
     }
 
+    // Language signals (used to decide which translations to add). Only the
+    // primary tag is kept, e.g. "vi" or "zh-tw"; nothing else from the headers.
+    const langTag = (v: string | undefined) => {
+      const tag = (v || '').split(',')[0].split(';')[0].trim().toLowerCase();
+      return /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/.test(tag) ? tag : undefined;
+    };
+    const browserLanguage = langTag(getHeaderValue(req, 'accept-language'));
+    const preferredLanguage = langTag(getHeaderValue(req, 'x-app-language'));
+    if (browserLanguage && found.browserLanguage !== browserLanguage) {
+      found.browserLanguage = browserLanguage;
+      requestFlush();
+    }
+    if (preferredLanguage && found.preferredLanguage !== preferredLanguage) {
+      found.preferredLanguage = preferredLanguage;
+      requestFlush();
+    }
+
     (req as any).authenticatedUser = found;
     (req as any).authIsAdmin = isAdmin;
     (req as any).user = { uid: found.id, email: found.email, displayName: found.displayName };
@@ -1284,6 +1304,11 @@ app.get(['/api/health', '/health'], (req, res) => {
     if (platform) user.platform = platform as User['platform'];
     if (Array.isArray(body.deliveryPlatforms)) {
       user.deliveryPlatforms = body.deliveryPlatforms.filter(p => typeof p === 'string').map(p => p.slice(0, 40)).slice(0, 10);
+    }
+    if (body.traditionId === null || body.traditionId === '') {
+      user.traditionId = undefined;
+    } else if (isTraditionId(body.traditionId)) {
+      user.traditionId = body.traditionId;
     }
     saveUsersToDisk();
     res.json({ success: true, user });
@@ -5035,6 +5060,31 @@ Return ONLY a valid JSON object in this exact schema:
     }
     const isAdmin = checkIsAdmin(req);
     res.json(perks.filter(p => isAdmin || p.submittedByUserId === user.id));
+  });
+
+  // Which languages members use: guides which translations to add next.
+  app.get('/api/admin/language-stats', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+    const count = (pick: (u: User) => string | undefined) => {
+      const counts: Record<string, number> = {};
+      for (const u of users) {
+        const v = u && pick(u);
+        if (v) counts[v] = (counts[v] || 0) + 1;
+      }
+      return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([language, members]) => ({ language, members }));
+    };
+    const traditions: Record<string, number> = {};
+    for (const u of users) {
+      if (u?.traditionId) traditions[u.traditionId] = (traditions[u.traditionId] || 0) + 1;
+    }
+    res.json({
+      totalMembers: users.filter(Boolean).length,
+      appLanguage: count(u => u.preferredLanguage),
+      deviceLanguage: count(u => u.browserLanguage),
+      traditions: Object.entries(traditions).sort((a, b) => b[1] - a[1]).map(([traditionId, members]) => ({ traditionId, members })),
+    });
   });
 
   app.get('/api/admin/perks/pending', (req: Request, res: Response) => {

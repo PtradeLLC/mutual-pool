@@ -11,6 +11,7 @@ import { useChat } from '../context/ChatContext';
 import { useTranslation, TranslationKey } from '../i18n';
 import { useToast } from '../context/ToastContext';
 import { getPodShareUrl } from '../utils/siteUrl';
+import { getTraditionName } from '../data/roscaTraditions';
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
   Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare, Bot, Cpu,
@@ -61,12 +62,16 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
     return getPodShareUrl(pod.id, pod.podType === 'TRUSTED_CIRCLE' ? pod.inviteCode : undefined);
   };
 
+  // The member's own word for a savings circle ("Tanda", "Susu"...), if they chose one.
+  const traditionName = getTraditionName(currentUser);
+  const circleWord = traditionName || 'savings pod';
+
   const getShareMessage = () => {
     const link = getPodDeepLink();
     const codePart = (pod.podType === 'TRUSTED_CIRCLE' && pod.inviteCode)
       ? ` (Private Invite Code: ${pod.inviteCode})`
       : '';
-    return `Join our mutual savings pool "${pod.name}" on MutualPool! We save $${pod.depositTier}/week together with FDIC-insured Stripe Treasury and rotational payouts${codePart}. Tap to view and join: ${link}`;
+    return `Join my ${circleWord} "${pod.name}" on MutualPool! We each put in $${pod.depositTier}/week and take turns receiving the pot, with payouts handled by Stripe${codePart}. Tap to view and join: ${link}`;
   };
 
   const handleCopyLink = async () => {
@@ -96,7 +101,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
-          title: `Join ${pod.name} on MutualPool`,
+          title: `Join my ${circleWord} "${pod.name}" on MutualPool`,
           text: getShareMessage(),
           url: getPodDeepLink(),
         });
@@ -701,8 +706,13 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   </span>
                 </div>
 
-                <h2 className="text-xl sm:text-2xl font-bold text-[#111827]">
-                  {pod.name}
+                <h2 className="text-xl sm:text-2xl font-bold text-[#111827] flex items-center gap-2 flex-wrap">
+                  <span>{pod.name}</span>
+                  {traditionName && (
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#005FB8] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                      {traditionName}
+                    </span>
+                  )}
                 </h2>
               </div>
 

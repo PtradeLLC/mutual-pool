@@ -14,7 +14,8 @@
     "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-firestore.test.ts tests/hardship-risk.test.ts && npm run test:security && npm run test:integration",
     "test:security": "tsx scripts/run-server-tests.ts --env=secure tests/security.test.ts",
     "test:integration": "tsx scripts/run-server-tests.ts --env=demo tests/feature-integration.test.ts tests/anti-collusion.test.ts",
-    "set-admin": "tsx scripts/set-admin-claim.ts"
+    "set-admin": "tsx scripts/set-admin-claim.ts",
+    "i18n:draft": "tsx scripts/draft-translation.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

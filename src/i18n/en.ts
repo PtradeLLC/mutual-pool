@@ -308,6 +308,12 @@ export const en = {
   "perks.adminBenefitsCmsPending": "Admin Benefits CMS ({count} Pending)",
 
   // Categories
+  // Savings-circle tradition names & global recognition
+  "tradition.label": "What does your community call a savings circle?",
+  "tradition.none": "No preference (we'll say \"Pod\")",
+  "tradition.help": "We'll use your word in labels and invitations, e.g. \"Join my Tanda\".",
+  "hero.knownAs": "Known around the world as",
+  "hero.knownAsMore": "and many more",
   "perks.category.All": "All",
   "perks.category.Quick Meals & Food Trucks": "Quick Meals & Food Trucks",
   "perks.category.Coffee & Rest Stops": "Coffee & Rest Stops",

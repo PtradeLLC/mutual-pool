@@ -4,6 +4,7 @@ import { X, Camera, User as UserIcon, Upload, Check, Sparkles, Calendar, ShieldC
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { saveUserToFirestore } from '../lib/firestoreService';
+import { TraditionSelect } from './TraditionSelect';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl || '');
   const [platform, setPlatform] = useState<GigPlatform>(currentUser.platform || 'DoorDash');
   const [role, setRole] = useState<UserRole>(currentUser.role || 'RIDER');
+  const [traditionId, setTraditionId] = useState<string>(currentUser.traditionId || '');
 
   // Compute initial join date string YYYY-MM-DD
   const getInitialJoinDate = () => {
@@ -107,6 +109,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         avatarUrl: finalAvatar,
         platform,
         role,
+        traditionId: traditionId || undefined,
         createdAt: finalCreatedAt,
         accountAgeDays: computedTenure,
       };
@@ -290,6 +293,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               </select>
             </div>
           </div>
+
+          <TraditionSelect
+            value={traditionId}
+            onChange={setTraditionId}
+            labelClassName="block text-xs font-bold text-[#374151] mb-1"
+            className="w-full px-3.5 py-2 text-xs border border-gray-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#005FB8] bg-white"
+          />
 
           {/* Member Tenure & Join Date Section */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">

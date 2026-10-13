@@ -282,6 +282,12 @@ export const fr: Record<TranslationKey, string> = {
   'perks.adminBenefitsCmsPending': 'CMS Avantages Admin ({count} En attente)',
 
   // Categories
+  // Savings-circle tradition names & global recognition
+  "tradition.label": "Comment votre communauté appelle-t-elle un cercle d'épargne ?",
+  "tradition.none": "Sans préférence (nous dirons « Pod »)",
+  "tradition.help": "Nous utiliserons votre mot dans les libellés et invitations, p. ex. « Rejoins ma Tontine ».",
+  "hero.knownAs": "Connu dans le monde entier sous le nom de",
+  "hero.knownAsMore": "et bien d'autres",
   'perks.category.All': 'Tous',
   'perks.category.Quick Meals & Food Trucks': 'Repas rapides & food trucks',
   'perks.category.Coffee & Rest Stops': 'Café & pauses',

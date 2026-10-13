@@ -106,6 +106,16 @@ export function installFetchInterceptor(): void {
           }
         }
 
+        // The language the member chose in the app (server keeps per-language counts)
+        if (!currentHeaders.has('X-App-Language')) {
+          try {
+            const lang = localStorage.getItem('mutualpool_user_lang');
+            if (lang) currentHeaders.set('X-App-Language', lang);
+          } catch {
+            // storage unavailable
+          }
+        }
+
         // Inject Idempotency-Key for mutations
         const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
         if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !currentHeaders.has('Idempotency-Key')) {
