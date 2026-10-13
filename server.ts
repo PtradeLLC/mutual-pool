@@ -36,6 +36,7 @@ import { IS_PRODUCTION, DEMO_MODE, DATA_DIR, assertProductionConfig, getAllowedO
 import { createStorageAdapter, storageConfigProblems } from './src/server/storage';
 import { assessHardshipRisk } from './src/server/hardshipRisk';
 import { isTraditionId } from './src/data/roscaTraditions';
+import { TREASURY_PROGRAM_ENABLED, sanitizeVoiceGuidePayload } from './src/lib/treasuryClaims';
 import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFlush, flushNow, persistNow, startAutoFlush, getPersistenceHealth, onBeforeShutdown } from './src/server/persistence';
 import { apiRateLimiter, authRateLimiter, aiRateLimiter, publicFormRateLimiter, moneyRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
 import { SUPPORTED_COUNTRIES, US_CONFIG } from './src/config/countries';
@@ -1510,7 +1511,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         targetUser.id,
         targetUser.displayName || 'User',
         'KYC_VERIFIED' as any,
-        `Completed Stripe Identity verification (${idType || 'Driver License'}, SSN: ***-**-${ssnLast4 || '4321'}). Stripe Custom Account ${targetUser.treasury.stripeAccountId} and Treasury Financial Account ${targetUser.treasury.stripeFinAccountId} activated with FDIC pass-through coverage.`,
+        `Completed Stripe Identity verification (${idType || 'Driver License'}, SSN: ***-**-${ssnLast4 || '4321'}). Stripe Custom Account ${targetUser.treasury.stripeAccountId} and Treasury Financial Account ${targetUser.treasury.stripeFinAccountId} activated${TREASURY_PROGRAM_ENABLED ? ' with FDIC pass-through coverage' : ''}.`,
         { idType, fullName }
       );
 
@@ -2431,7 +2432,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         user.id,
         user.displayName,
         'AGREEMENT_SIGNED',
-        `Signed legal Pod Agreement v2.0-2026 as "${member.agreementSignatureName}". Confirmed understanding of fixed rotation order, automated weekly deposit withdrawals (Thursdays), automated rotation payouts (Fridays), FDIC pass-through coverage, and delinquency handling.`
+        `Signed legal Pod Agreement v2.0-2026 as "${member.agreementSignatureName}". Confirmed understanding of fixed rotation order, automated weekly deposit withdrawals (Thursdays), automated rotation payouts (Fridays), ${TREASURY_PROGRAM_ENABLED ? 'FDIC pass-through coverage, ' : ''}and delinquency handling.`
       );
 
       res.json({ success: true, member, pod });
@@ -6604,6 +6605,26 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
 
       // 12. Banking, FDIC Insurance & Stripe Treasury
       if (q.includes('treasury') || q.includes('bank') || q.includes('fdic') || q.includes('stripe') || q.includes('balance') || q.includes('payout') || q.includes('banco') || q.includes('saldo') || q.includes('seguro') || q.includes('banque') || q.includes('solde') || q.includes('kyc') || q.includes('seguridad')) {
+        if (!TREASURY_PROGRAM_ENABLED) {
+          // Member funds are not in Stripe Treasury accounts yet: no insurance claims.
+          const neutral = isEs ? {
+            spokenText: "Tu saldo de Tesorería registra tus depósitos y cobros. Los pagos se procesan con Stripe y los retiros van a la cuenta bancaria que verificaste. MutualPool es una plataforma tecnológica, no un banco.",
+            displayText: "🏦 Tu saldo de Tesorería\n\n• Registra tus depósitos semanales y cobros de rotación.\n• Los pagos se procesan a través de Stripe.\n• Los retiros van a la cuenta bancaria verificada en Stripe.\n• MutualPool es una plataforma tecnológica, no un banco.",
+            suggestedActions: [{ label: "Administrar Banco", action: "OPEN_MODAL", modal: "BANK" }, { label: "Verificar Identidad (KYC)", action: "OPEN_MODAL", modal: "KYC" }],
+            navigationAction: { type: "OPEN_MODAL", target: "BANK" }
+          } : isFr ? {
+            spokenText: "Votre solde de trésorerie enregistre vos dépôts et versements. Les paiements sont traités par Stripe et les retraits vont sur le compte bancaire que vous avez vérifié. MutualPool est une plateforme technologique, pas une banque.",
+            displayText: "🏦 Votre solde de trésorerie\n\n• Enregistre vos dépôts hebdomadaires et versements de rotation.\n• Paiements traités par Stripe.\n• Retraits vers le compte bancaire vérifié via Stripe.\n• MutualPool est une plateforme technologique, pas une banque.",
+            suggestedActions: [{ label: "Gérer la Banque", action: "OPEN_MODAL", modal: "BANK" }, { label: "Vérifier l'Identité (KYC)", action: "OPEN_MODAL", modal: "KYC" }],
+            navigationAction: { type: "OPEN_MODAL", target: "BANK" }
+          } : {
+            spokenText: "Your Treasury balance records your deposits and payouts. Payments are processed by Stripe, and withdrawals go to the bank account you verified. MutualPool is a technology platform, not a bank.",
+            displayText: "🏦 Your Treasury balance\n\n• Records your weekly deposits and rotation payouts.\n• Payments are processed by Stripe.\n• Withdrawals go to the bank account you verified with Stripe.\n• MutualPool is a technology platform, not a bank.",
+            suggestedActions: [{ label: "Manage Bank", action: "OPEN_MODAL", modal: "BANK" }, { label: "Verify Identity (KYC)", action: "OPEN_MODAL", modal: "KYC" }],
+            navigationAction: { type: "OPEN_MODAL", target: "BANK" }
+          };
+          return neutral;
+        }
         if (isEs) {
           return {
             spokenText: "Tu cuenta de MutualPool Treasury es una cuenta dedicada con seguro indirecto FDIC de hasta $250,000 mediante bancos asociados a Stripe Treasury.",
@@ -6747,10 +6768,10 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 
 3. CATEGORY: DEPOSITS, PAYOUTS & TRANSPARENT FEES
 - Deposit Collection: Collected weekly via Stripe Treasury balance, Linked Bank ACH (Plaid/Financial Connections), or offset by Brand Campaign daily courier wages.
-- Payout Execution: Net lump sum (90%) is transferred directly into recipient's Stripe Treasury account. Instant OutboundTransfer to external bank. Subsequent rotation weeks NEVER wait or block for bank withdrawals.
+- Payout Execution: Net lump sum (90%) is credited to the recipient's Treasury balance; withdrawals go to their verified bank account via Stripe. Subsequent rotation weeks NEVER wait or block for bank withdrawals.
 - Fee Structure:
-  * 5% Initial Deposit Fee: Applied only on the 1st deposit to initialize the FDIC-insured Stripe Treasury account.
-  * 10% Payout Service Fee: Deducted on payout (e.g. $40 on $400 pot = $360 net payout). 3% goes to Pod Creator as Host Reward; 7% goes to Platform Treasury, First-Cycle buffer, and FDIC compliance.
+  * 5% Initial Deposit Fee: Applied only on the 1st deposit to initialize the member's Treasury balance.
+  * 10% Payout Service Fee: Deducted on payout (e.g. $40 on $400 pot = $360 net payout). 3% goes to Pod Creator as Host Reward; 7% goes to platform operations and the First-Cycle contingency buffer.
 
 4. CATEGORY: AUTONOMOUS AI CUSTODIAN & SYSTEM ESCROW
 - Autonomous AI Custodian Protocol (Lainie AI): If a Creator defaults or experiences hardship, Lainie AI automatically takes over pod administration with zero administrative burden on members. Creator forfeits the 3% reward, which is redirected to the System Escrow.
@@ -6758,8 +6779,8 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - Delinquent Member Replacement: After a 72-hour grace period, unpaid slots are opened to verified replacement drivers.
 - Hardship Relief Fund: Emergency bridge protection for members facing vehicle mechanical breakdowns or medical emergencies.
 
-5. CATEGORY: SECURITY, FDIC INSURANCE & KYC VERIFICATION
-- FDIC Pass-Through Insurance: Dedicated Stripe Treasury accounts held at FDIC-insured partner institutions (such as Evolve Bank & Trust or Fifth Third Bank) with pass-through insurance up to $250,000 per member.
+5. CATEGORY: SECURITY${TREASURY_PROGRAM_ENABLED ? ', FDIC INSURANCE' : ''} & KYC VERIFICATION
+${TREASURY_PROGRAM_ENABLED ? '- FDIC Pass-Through Insurance: Dedicated Stripe Treasury accounts held at FDIC-insured partner institutions (such as Evolve Bank & Trust or Fifth Third Bank) with pass-through insurance up to $250,000 per member.' : '- Custody: Deposits and payouts are processed by Stripe. MutualPool is a technology platform, not a bank; member balances are NOT FDIC insured. Never claim FDIC or deposit insurance.'}
 - Stripe Identity KYC: Required under Bank Secrecy Act / AML regulations to prevent duplicate accounts and fraud.
 - Peer Rotation Slot Swaps: Members of a pod can trade or switch places for early payout with mutual consent. The Pod Creator can also switch places as they please (just like any other member); however, the 3% weekly cut on all teammate payouts will be given to whomever the Creator switches spots with once the switch is approved and active.
 
@@ -6813,7 +6834,7 @@ Output MUST be strictly valid JSON matching this schema:
         if (responseText) {
           const parsedData = JSON.parse(responseText);
           if (parsedData && (parsedData.spokenText || parsedData.displayText)) {
-            return res.json(parsedData);
+            return res.json(sanitizeVoiceGuidePayload(parsedData));
           }
         }
       } catch (geminiError) {
@@ -6823,7 +6844,7 @@ Output MUST be strictly valid JSON matching this schema:
 
     // Always fallback smoothly to comprehensive knowledge base
     const fallback = fallbackKnowledge(query, lang);
-    return res.json(fallback);
+    return res.json(sanitizeVoiceGuidePayload(fallback));
   } catch (err: any) {
     console.error('Error in /api/ai/voice-guide route:', err);
     const lang = req.body?.currentContext?.language || 'en';
@@ -6855,7 +6876,7 @@ Output MUST be strictly valid JSON matching this schema:
       ],
       navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
     };
-    return res.json(fallback);
+    return res.json(sanitizeVoiceGuidePayload(fallback));
   }
 });
 

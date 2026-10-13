@@ -1,4 +1,5 @@
 import { CountryConfig } from './types';
+import { TREASURY_PROGRAM_ENABLED } from '../../lib/treasuryClaims';
 
 export const US_CONFIG: CountryConfig = {
   countryCode: 'US',
@@ -45,8 +46,10 @@ export const US_CONFIG: CountryConfig = {
   },
   
   regulations: {
-    regulatoryBody: 'FinCEN / FDIC Pass-Through via Stripe Treasury (Evolve Bank & Trust)',
-    regulatoryNotice: 'MutualPool deposits are held in dedicated custodial accounts with FDIC pass-through insurance up to $250,000 via our banking partner.',
+    regulatoryBody: TREASURY_PROGRAM_ENABLED ? 'FinCEN / FDIC Pass-Through via Stripe Treasury (Evolve Bank & Trust)' : 'FinCEN / Payments processed by Stripe',
+    regulatoryNotice: TREASURY_PROGRAM_ENABLED
+      ? 'MutualPool deposits are held in dedicated custodial accounts with FDIC pass-through insurance up to $250,000 via our banking partner.'
+      : 'Deposits and payouts are processed by Stripe. MutualPool is a financial technology platform, not a bank; member balances are not FDIC insured.',
     cookieConsentType: 'notice',
     taxIdRequired: true,
     taxIdLabel: 'SSN or ITIN (Last 4)',

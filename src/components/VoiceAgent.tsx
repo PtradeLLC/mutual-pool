@@ -14,6 +14,7 @@ import {
 import { User } from '../types';
 import { useTranslation } from '../i18n';
 import { useToast } from '../context/ToastContext';
+import { TREASURY_PROGRAM_ENABLED, stripTreasuryClaims } from '../lib/treasuryClaims';
 
 export interface VoiceAgentProps {
   currentUser: User | null;
@@ -59,6 +60,7 @@ const VOICE_OPTIONS = [
 
 // Helper to remove markdown syntax marks (###, **, *, __, _) and format as clean plain text
 const cleanVoiceAgentText = (rawText: string): string => {
+  if (!TREASURY_PROGRAM_ENABLED) rawText = stripTreasuryClaims(rawText || '');
   if (!rawText) return '';
   return rawText
     .replace(/^#{1,6}\s*/gm, '') // Strip ### and ## headers
@@ -281,6 +283,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
 
   // Natural TTS audio playback
   const playResponseAudio = useCallback(async (spokenText: string) => {
+    if (!TREASURY_PROGRAM_ENABLED) spokenText = stripTreasuryClaims(spokenText || '');
     if (!autoSpeak || !spokenText) return;
     setIsSpeaking(true);
 

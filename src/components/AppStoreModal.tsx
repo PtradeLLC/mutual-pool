@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Smartphone, Share, PlusSquare, ArrowRight, Download, CheckCircle2, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Logo } from './Logo';
 import { useToast } from '../context/ToastContext';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface AppStoreModalProps {
   isOpen: boolean;
@@ -142,7 +143,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
             </li>
             <li className="flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>Stripe FDIC-insured safety</span>
+              <span>{TREASURY_PROGRAM_ENABLED ? 'Stripe FDIC-insured safety' : 'Payments secured by Stripe'}</span>
             </li>
           </ul>
         </div>
@@ -274,7 +275,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
         {/* FDIC Footer */}
         <div className="mt-4 pt-3 border-t border-gray-100 text-center flex items-center justify-center gap-1.5 text-[10px] text-gray-400">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Pass-Through FDIC Insured up to $250,000 per user via Stripe Treasury</span>
+          <span>{TREASURY_PROGRAM_ENABLED ? 'Pass-Through FDIC Insured up to $250,000 per user via Stripe Treasury' : 'Payments processed by Stripe. MutualPool is not a bank.'}</span>
         </div>
 
       </div>

@@ -4,6 +4,7 @@ import { en, TranslationKey } from './en';
 import { es } from './es';
 import { fr } from './fr';
 import { formatCurrency as formatCountryCurrency } from '../services/currency/currencyService';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 const translationsMap: Record<SupportedLanguage, Record<TranslationKey, string>> = {
   en,
@@ -80,6 +81,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const t = (key: TranslationKey, params?: Record<string, string | number>): string => {
     const currentDict = translationsMap[language] || translationsMap.en;
     let translation = currentDict[key] || translationsMap.en[key] || (key as string);
+
+    // Until member funds sit in Stripe Treasury accounts, strings that make FDIC
+    // claims are swapped for their "<key>.noTreasury" variant.
+    if (!TREASURY_PROGRAM_ENABLED) {
+      const altKey = `${key}.noTreasury` as TranslationKey;
+      const alt = (currentDict as Record<string, string>)[altKey] || (translationsMap.en as Record<string, string>)[altKey];
+      if (alt) translation = alt;
+    }
 
     if (params) {
       Object.entries(params).forEach(([paramKey, paramVal]) => {

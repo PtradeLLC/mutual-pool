@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Info, X } from 'lucide-react';
 import { useTranslation } from '../i18n';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 export const FDICNoticeBanner: React.FC = () => {
+  // No insurance disclosure until member funds are held in Stripe Treasury accounts.
+  if (!TREASURY_PROGRAM_ENABLED) return null;
+
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation();
 

@@ -5,6 +5,7 @@ import {
   ShieldCheck, X, CheckCircle2, Lock, Building2, Sparkles, 
   CreditCard, AlertCircle, FileText, UserCheck, ChevronRight, ExternalLink
 } from 'lucide-react';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface KycVerificationModalProps {
   user: User;
@@ -234,7 +235,9 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
                 <span>Identity Verified via Stripe Identity</span>
               </div>
               <p className="text-slate-700 leading-relaxed text-[11px]">
-                Your identity verification was processed and confirmed by Stripe Identity. Your active Stripe Treasury Financial Account is enabled with $250,000 FDIC pass-through coverage.
+                {TREASURY_PROGRAM_ENABLED
+                  ? 'Your identity verification was processed and confirmed by Stripe Identity. Your active Stripe Treasury Financial Account is enabled with $250,000 FDIC pass-through coverage.'
+                  : 'Your identity was verified through Stripe. You can now create and join pods and receive payouts to your bank account.'}
               </p>
               
               <div className="pt-2 border-t border-emerald-200/80 grid grid-cols-2 gap-2 text-[11px] font-mono">
@@ -308,7 +311,9 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
             </li>
             <li className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong>FDIC Pass-Through Coverage:</strong> Activates $250,000 FDIC coverage on all your mutual pool balances.</span>
+              {TREASURY_PROGRAM_ENABLED
+                ? <span><strong>FDIC Pass-Through Coverage:</strong> Activates $250,000 FDIC coverage on all your mutual pool balances.</span>
+                : <span><strong>Payouts to your bank:</strong> Stripe sends your pod payouts to the bank account you verify.</span>}
             </li>
             <li className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />

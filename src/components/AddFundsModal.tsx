@@ -20,6 +20,7 @@ import {
 import { saveUserToFirestore } from '../lib/firestoreService';
 import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { useLanguage } from '../i18n';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface AddFundsModalProps {
   isOpen: boolean;
@@ -423,7 +424,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
                 {t('addFundsModal.title')}
               </h3>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                FDIC $250k
+                {TREASURY_PROGRAM_ENABLED ? 'FDIC $250k' : 'Stripe secured'}
               </span>
             </div>
             <p className="text-xs text-[#6B7280] mt-0.5 line-clamp-2">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pod, User } from '../types';
 import { FileText, CheckCircle2, Lock, ShieldCheck, AlertTriangle, X } from 'lucide-react';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface PodAgreementModalProps {
   pod: Pod;
@@ -157,10 +158,21 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
           </section>
 
           <section>
-            <h4 className="font-bold text-[#111827] text-sm mb-1">6. Stripe Treasury FDIC Pass-Through Disclosure</h4>
-            <p>
-              Pod cycle balances sit in Stripe Treasury Financial Accounts backed by Evolve Bank & Trust or Fifth Third Bank, N.A., Members FDIC. Deposits are FDIC-insured pass-through up to $250,000 per user, subject to standard policy conditions.
-            </p>
+            {TREASURY_PROGRAM_ENABLED ? (
+              <>
+                <h4 className="font-bold text-[#111827] text-sm mb-1">6. Stripe Treasury FDIC Pass-Through Disclosure</h4>
+                <p>
+                  Pod cycle balances sit in Stripe Treasury Financial Accounts backed by Evolve Bank & Trust or Fifth Third Bank, N.A., Members FDIC. Deposits are FDIC-insured pass-through up to $250,000 per user, subject to standard policy conditions.
+                </p>
+              </>
+            ) : (
+              <>
+                <h4 className="font-bold text-[#111827] text-sm mb-1">6. Custody of Funds</h4>
+                <p>
+                  Deposits are charged, and payouts sent, through Stripe. Between deposit and payout, member and pod balances are recorded in MutualPool's ledger and held in MutualPool's account with Stripe. MutualPool is a financial technology platform, not a bank, and member balances are not FDIC insured.
+                </p>
+              </>
+            )}
           </section>
 
           <section>

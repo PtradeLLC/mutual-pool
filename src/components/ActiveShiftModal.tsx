@@ -10,6 +10,7 @@ import {
   CourierGearVerification, VisionVerificationResult 
 } from '../types';
 import { useTranslation } from '../i18n';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface ActiveShiftModalProps {
   isOpen: boolean;
@@ -1076,7 +1077,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                   </span>
                   <span className={`text-[11px] ${visionResult?.matched ? 'text-emerald-800' : 'text-slate-500'}`}>
                     {visionResult?.matched 
-                      ? 'Authorized: Funds will be immediately credited to your FDIC-insured account.' 
+                      ? (TREASURY_PROGRAM_ENABLED ? 'Authorized: Funds will be immediately credited to your FDIC-insured account.' : 'Authorized: Funds will be credited to your Treasury balance.') 
                       : 'Payout pending successful LLM Vision gear verification.'}
                   </span>
                 </div>

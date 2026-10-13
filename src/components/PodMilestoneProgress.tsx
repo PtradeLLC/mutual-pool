@@ -15,6 +15,7 @@ import {
   Users,
   Target
 } from 'lucide-react';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface PodMilestoneProgressProps {
   pod: Pod;
@@ -78,7 +79,7 @@ export const PodMilestoneProgress: React.FC<PodMilestoneProgressProps> = ({ pod,
       targetContributionUsd: weeklyPool,
       icon: Flag,
       motivationalQuote: 'Every journey begins with a first deposit. Collective savings are officially locked in!',
-      rewardText: 'Escrow protection active & FDIC pass-through account bound.',
+      rewardText: TREASURY_PROGRAM_ENABLED ? 'Escrow protection active & FDIC pass-through account bound.' : 'Escrow protection active; deposits recorded in your Treasury balance.',
     },
     {
       id: 'first_payout',

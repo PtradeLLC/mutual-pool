@@ -4,6 +4,7 @@ import {
   HelpCircle, Layers, Sparkles, Coins, Bot, ShieldCheck, Gift, 
   Lock
 } from 'lucide-react';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 export type FaqCategory = 
   | 'ALL'
@@ -49,8 +50,8 @@ export const FAQ_UI_TEXT: Record<SupportedLanguage, FaqUiText> = {
   en: {
     badge: 'Help Center & Knowledge Base',
     title: 'Frequently Asked Questions',
-    subtitle: 'Everything you need to know about Mutual Savings Pods, the 3% Creator Host Reward, FDIC pass-through security, and Autonomous AI Custodianship.',
-    searchPlaceholder: 'Search questions by keyword (e.g. Creator Reward, FDIC, Defaults, Lainie AI, Fees, Payouts)...',
+    subtitle: 'Everything you need to know about Mutual Savings Pods, the 3% Creator Host Reward, security, and Autonomous AI Custodianship.',
+    searchPlaceholder: 'Search questions by keyword (e.g. Creator Reward, Security, Defaults, Lainie AI, Fees, Payouts)...',
     clear: 'Clear',
     noResultsTitle: 'No matching questions found',
     noResultsDesc: 'Try searching for a different keyword or browse through the category filters above.',
@@ -65,8 +66,8 @@ export const FAQ_UI_TEXT: Record<SupportedLanguage, FaqUiText> = {
   es: {
     badge: 'Centro de Ayuda y Base de Conocimiento',
     title: 'Preguntas Frecuentes',
-    subtitle: 'Todo lo que necesitas saber sobre los Grupos de Ahorro Mutuo, la Recompensa de Anfitrión del 3%, la seguridad FDIC y la Custodia Autónoma por IA.',
-    searchPlaceholder: 'Buscar preguntas por palabra clave (ej. Recompensa Creador, FDIC, Impagos, Lainie AI, Tarifas, Pagos)...',
+    subtitle: 'Todo lo que necesitas saber sobre los Grupos de Ahorro Mutuo, la Recompensa de Anfitrión del 3%, la seguridad y la Custodia Autónoma por IA.',
+    searchPlaceholder: 'Buscar preguntas por palabra clave (ej. Recompensa Creador, Seguridad, Impagos, Lainie AI, Tarifas, Pagos)...',
     clear: 'Borrar',
     noResultsTitle: 'No se encontraron preguntas coincidentes',
     noResultsDesc: 'Intenta buscar con otra palabra clave o explora las categorías anteriores.',
@@ -81,8 +82,8 @@ export const FAQ_UI_TEXT: Record<SupportedLanguage, FaqUiText> = {
   fr: {
     badge: 'Centre d\'Aide & Base de Connaissances',
     title: 'Foire Aux Questions',
-    subtitle: 'Tout ce que vous devez savoir sur les Groupes d\'Épargne Mutuelle, la Prime Créateur de 3%, la garantie indirecte FDIC et la Gardienne IA Autonome.',
-    searchPlaceholder: 'Rechercher par mot-clé (ex. Prime Créateur, FDIC, Impayés, Lainie AI, Frais, Versements)...',
+    subtitle: 'Tout ce que vous devez savoir sur les Groupes d\'Épargne Mutuelle, la Prime Créateur de 3%, la sécurité et la Gardienne IA Autonome.',
+    searchPlaceholder: 'Rechercher par mot-clé (ex. Prime Créateur, Sécurité, Impayés, Lainie AI, Frais, Versements)...',
     clear: 'Effacer',
     noResultsTitle: 'Aucune question correspondante trouvée',
     noResultsDesc: 'Essayez avec un autre mot-clé ou explorez les filtres de catégories ci-dessus.',
@@ -103,7 +104,7 @@ export const FAQ_CATEGORIES: Record<SupportedLanguage, FaqCategoryInfo[]> = {
     { id: 'CREATOR_REWARDS', label: 'Creator Host Rewards (3%)', icon: Sparkles },
     { id: 'DEPOSITS_PAYOUTS', label: 'Deposits, Payouts & Fees', icon: Coins },
     { id: 'AI_CUSTODIAN_ESCROW', label: 'AI Custodian & System Escrow', icon: Bot },
-    { id: 'SECURITY_FDIC', label: 'FDIC & KYC Security', icon: ShieldCheck },
+    { id: 'SECURITY_FDIC', label: TREASURY_PROGRAM_ENABLED ? 'FDIC & KYC Security' : 'Security & KYC', icon: ShieldCheck },
     { id: 'AD_CAMPAIGNS', label: 'Brand Gear & Extra Earnings', icon: Gift },
   ],
   es: [
@@ -112,7 +113,7 @@ export const FAQ_CATEGORIES: Record<SupportedLanguage, FaqCategoryInfo[]> = {
     { id: 'CREATOR_REWARDS', label: 'Recompensas del Creador (3%)', icon: Sparkles },
     { id: 'DEPOSITS_PAYOUTS', label: 'Depósitos, Cobros y Tarifas', icon: Coins },
     { id: 'AI_CUSTODIAN_ESCROW', label: 'Custodia IA y Escrow del Sistema', icon: Bot },
-    { id: 'SECURITY_FDIC', label: 'Seguridad FDIC y Verificación KYC', icon: ShieldCheck },
+    { id: 'SECURITY_FDIC', label: TREASURY_PROGRAM_ENABLED ? 'Seguridad FDIC y Verificación KYC' : 'Seguridad y Verificación KYC', icon: ShieldCheck },
     { id: 'AD_CAMPAIGNS', label: 'Prendas de Marca e Ingresos Extra', icon: Gift },
   ],
   fr: [
@@ -121,12 +122,17 @@ export const FAQ_CATEGORIES: Record<SupportedLanguage, FaqCategoryInfo[]> = {
     { id: 'CREATOR_REWARDS', label: 'Primes Créateur Hôte (3%)', icon: Sparkles },
     { id: 'DEPOSITS_PAYOUTS', label: 'Dépôts, Versements & Frais', icon: Coins },
     { id: 'AI_CUSTODIAN_ESCROW', label: 'Gardienne IA & Entiercement', icon: Bot },
-    { id: 'SECURITY_FDIC', label: 'Sécurité FDIC & KYC', icon: ShieldCheck },
+    { id: 'SECURITY_FDIC', label: TREASURY_PROGRAM_ENABLED ? 'Sécurité FDIC & KYC' : 'Sécurité & KYC', icon: ShieldCheck },
     { id: 'AD_CAMPAIGNS', label: 'Équipement de Marque & Revenus', icon: Gift },
   ],
 };
 
-export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
+// Items that only apply once member funds are held in Stripe Treasury accounts.
+const TREASURY_ONLY_FAQ_IDS = new Set(['faq_fdic_insurance']);
+
+export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => getFaqItemsRaw(lang).filter(item => TREASURY_PROGRAM_ENABLED || !TREASURY_ONLY_FAQ_IDS.has(item.id));
+
+const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
   if (lang === 'es') {
     return [
       {
@@ -326,13 +332,13 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             </p>
             <ul className="space-y-2 text-[11px]">
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Tarifa de Depósito Inicial (5%):</strong> Se aplica únicamente al depósito inicial al crear o unirse a un grupo para inicializar tu cuenta financiera Stripe Treasury con seguro FDIC.
+                <strong>Tarifa de Depósito Inicial (5%):</strong> Se aplica únicamente al depósito inicial al crear o unirse a un grupo para inicializar tu saldo de Tesorería.
               </li>
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                 <strong>Tarifa de Servicio de Pago (10%):</strong> Se deduce cuando se entrega el pago acumulado al beneficiario del turno (ej. $40 en un fondo de $400 $\rightarrow$ $360 de pago neto).
                 <div className="mt-1 text-[10px] text-slate-600">
                   • <strong>3%</strong> se abona al Creador del Grupo como Recompensa de Anfitrión.<br />
-                  • <strong>7%</strong> financia la operación de tesorería, la Reserva de Contingencia del Primer Ciclo y el cumplimiento normativo FDIC.
+                  • <strong>7%</strong> financia la operación de tesorería y la Reserva de Contingencia del Primer Ciclo.
                 </div>
               </li>
             </ul>
@@ -725,13 +731,13 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             </p>
             <ul className="space-y-2 text-[11px]">
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Frais de Dépôt Initial (5 %) :</strong> Appliqués uniquement lors de votre premier versement lors de la création ou de l'adhésion à un groupe pour initialiser votre compte financier Stripe Treasury garanti FDIC.
+                <strong>Frais de Dépôt Initial (5 %) :</strong> Appliqués uniquement lors de votre premier versement lors de la création ou de l'adhésion à un groupe pour initialiser votre solde de trésorerie.
               </li>
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                 <strong>Frais de Service de Versement (10 %) :</strong> Déduits lors du versement de la cagnotte au bénéficiaire du tour (ex. 40 $ sur une cagnotte de 400 $ $\rightarrow$ 360 $ net versés).
                 <div className="mt-1 text-[10px] text-slate-600">
                   • <strong>3 %</strong> sont versés au Créateur du Groupe sous forme de Prime de Gouvernance Hôte.<br />
-                  • <strong>7 %</strong> financent les opérations de trésorerie, le Fonds de Réserve du Premier Cycle et la conformité FDIC.
+                  • <strong>7 %</strong> financent les opérations de trésorerie et le Fonds de Réserve du Premier Cycle.
                 </div>
               </li>
             </ul>
@@ -1124,13 +1130,13 @@ export const getFaqItems = (lang: SupportedLanguage): LocalizedFaqItem[] => {
           </p>
           <ul className="space-y-2 text-[11px]">
             <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-              <strong>Initial Deposit Fee (5%):</strong> Applied only to your initial deposit when creating or joining a pod to initialize your FDIC-insured Stripe Treasury financial account.
+              <strong>Initial Deposit Fee (5%):</strong> Applied only to your initial deposit when creating or joining a pod to initialize your Treasury balance.
             </li>
             <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
               <strong>Payout Service Fee (10%):</strong> Deducted when a lump-sum payout is disbursed to the rotation recipient (e.g., $40 on a $400 pool $\rightarrow$ $360 net payout).
               <div className="mt-1 text-[10px] text-slate-600">
                 • <strong>3%</strong> is disbursed to the active Pod Creator as a Host Stewardship Reward.<br />
-                • <strong>7%</strong> funds MutualPool Treasury operations, the First-Cycle Contingency Reserve, and FDIC compliance.
+                • <strong>7%</strong> funds MutualPool Treasury operations and the First-Cycle Contingency Reserve.
               </div>
             </li>
           </ul>

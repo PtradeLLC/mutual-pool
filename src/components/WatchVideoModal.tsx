@@ -4,6 +4,7 @@ import {
   ShieldCheck, Zap, Gift, Users, Lock, ArrowRight, Sparkles, Layers, Wallet, Maximize2
 } from 'lucide-react';
 import { Logo } from './Logo';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
 
 interface WatchVideoModalProps {
   isOpen: boolean;
@@ -26,13 +27,15 @@ const CHAPTERS = [
   },
   {
     id: 2,
-    title: 'FDIC Security & Stripe Treasury',
+    title: TREASURY_PROGRAM_ENABLED ? 'FDIC Security & Stripe Treasury' : 'Security & Stripe Payments',
     timestamp: '0:20',
     timeSec: 20,
     icon: ShieldCheck,
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-50',
-    description: 'Your money is held in individual Stripe Treasury accounts, FDIC-insured up to $250k.',
+    description: TREASURY_PROGRAM_ENABLED
+      ? 'Your money is held in individual Stripe Treasury accounts, FDIC-insured up to $250k.'
+      : 'Deposits and payouts are processed by Stripe; every member is identity-verified.',
     highlight: 'Zero interest • No credit checks • Bank grade',
   },
   {
@@ -224,7 +227,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                         Stripe Treasury Member Account
                       </span>
                       <span className="text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800">
-                        FDIC Insured $250k
+                        {TREASURY_PROGRAM_ENABLED ? 'FDIC Insured $250k' : 'Powered by Stripe'}
                       </span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
