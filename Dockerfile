@@ -22,6 +22,10 @@ RUN npm run build
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
+# The weekly deposit (Thursday 12:00 AM) and payout (Friday 12:00 AM) sweeps run
+# on server-local time; without this the container runs on UTC. Override with
+# --set-env-vars=TZ=... if members are promised a different time zone.
+ENV TZ=America/New_York
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
