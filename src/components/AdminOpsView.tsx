@@ -8,6 +8,7 @@ import { SiteUrlBadge } from './SiteUrlBadge';
 import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
 import { HardshipReviewQueue } from './HardshipReviewQueue';
 import { LanguageStatsCard } from './LanguageStatsCard';
+import { DepositDefaultsPanel } from './DepositDefaultsPanel';
 import { 
   Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, 
   CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, 
@@ -613,6 +614,9 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Deposit defaults & ACH collections */}
+      <DepositDefaultsPanel currentUser={currentUser} onChanged={onRefreshData} />
 
       {/* Grid Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

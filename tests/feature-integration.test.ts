@@ -33,6 +33,11 @@ function getUserHeaders(user: ReturnType<typeof makeTestUser>) {
 }
 
 // Pods charge deposits from the member's Treasury balance, so fund test users first.
+async function acceptDebitMandate(user: ReturnType<typeof makeTestUser>) {
+  const res = await fetch(`${BASE_URL}/api/users/debit-mandate/accept`, { method: 'POST', headers: getUserHeaders(user), body: '{}' });
+  assert.equal(res.status, 200, `demo mandate failed with ${res.status}`);
+}
+
 async function fund(user: ReturnType<typeof makeTestUser>, amount = 500) {
   const res = await fetch(`${BASE_URL}/api/users/treasury/topup`, {
     method: 'POST',
@@ -40,10 +45,24 @@ async function fund(user: ReturnType<typeof makeTestUser>, amount = 500) {
     body: JSON.stringify({ amount }),
   });
   assert.equal(res.status, 200, `demo top-up failed with ${res.status}`);
+  // Every member authorizes bank debits before creating or joining a pod.
+  await acceptDebitMandate(user);
 }
+
+test('0a. Pod creation is refused until the member has authorized bank debits', async () => {
+  const noMandate = makeTestUser('nomandate_t0');
+  const res = await fetch(`${BASE_URL}/api/pods`, {
+    method: 'POST',
+    headers: getUserHeaders(noMandate),
+    body: JSON.stringify({ name: `No Mandate Pod ${Date.now()}`, sizeTier: 20, depositTier: 20 }),
+  });
+  assert.equal(res.status, 403);
+  assert.equal((await res.json()).error, 'DEBIT_MANDATE_REQUIRED');
+});
 
 test('0. Pod creation is rejected when the Treasury balance cannot cover the deposit', async () => {
   const broke = makeTestUser('broke_t0');
+  await acceptDebitMandate(broke);
   const res = await fetch(`${BASE_URL}/api/pods`, {
     method: 'POST',
     headers: getUserHeaders(broke),

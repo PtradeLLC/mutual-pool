@@ -78,6 +78,21 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
         setLoading(false);
       }
     };
+    const mandate = user.debitMandate;
+    const mandateActive = mandate?.status === 'ACTIVE';
+    const openDebitAuthorization = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/users/debit-mandate/checkout-session', { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) throw new Error(data.message || 'Could not open Stripe.');
+        window.location.assign(data.url);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Could not open Stripe.');
+        setLoading(false);
+      }
+    };
     return (
       <div
         className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4"
@@ -119,6 +134,33 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
           >
             <Building2 className="w-4 h-4" /> {loading ? 'Opening Stripe…' : 'Manage payout bank account'}
           </button>
+          <div className={`p-3 rounded-xl border text-xs space-y-2 ${mandateActive ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+            <div className="flex items-center gap-2 font-bold">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span>
+                {mandateActive
+                  ? `Bank debits authorized: ${mandate?.bankName || 'bank'} ••••${mandate?.last4 || ''}`
+                  : mandate?.status === 'PENDING'
+                  ? 'Bank debit authorization pending verification'
+                  : 'Bank debit authorization required to create or join pods'}
+              </span>
+            </div>
+            <p className="leading-relaxed">
+              {mandateActive
+                ? 'If a weekly deposit can\'t be covered by your balance, we may debit it from this account, as described in the Terms. Contact support to change or revoke it.'
+                : 'Every member authorizes MutualPool, through Stripe, to debit missed weekly deposits from their bank. It protects the other members of your pod from someone taking the pot and walking away.'}
+            </p>
+            {!mandateActive && (
+              <button
+                type="button"
+                onClick={openDebitAuthorization}
+                disabled={loading}
+                className="w-full py-2.5 rounded-lg bg-[#111827] text-white font-bold text-xs hover:bg-black disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4" /> {loading ? 'Opening Stripe…' : mandate?.status === 'PENDING' ? 'Finish bank authorization' : 'Authorize bank debits'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

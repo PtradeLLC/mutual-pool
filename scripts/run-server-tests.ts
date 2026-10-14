@@ -62,7 +62,9 @@ async function main() {
   try {
     await waitForHealth();
     exitCode = await new Promise<number>(resolve => {
-      const runner = spawn(process.execPath, ['--import', 'tsx', '--test', ...testFiles], {
+      // One file at a time: they share a single server, and the settlement sweeps
+      // act on every active pod, so parallel files would trip over each other.
+      const runner = spawn(process.execPath, ['--import', 'tsx', '--test', '--test-concurrency=1', ...testFiles], {
         env: { ...process.env, TEST_BASE_URL: baseUrl, STRIPE_WEBHOOK_SECRET: serverEnv.STRIPE_WEBHOOK_SECRET, CRON_SECRET: serverEnv.CRON_SECRET, FOURTHWALL_WEBHOOK_SECRET: serverEnv.FOURTHWALL_WEBHOOK_SECRET },
         stdio: 'inherit',
       });

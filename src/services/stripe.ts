@@ -537,6 +537,103 @@ export async function createDepositCheckoutSession(params: {
   return { id: session.id, url: session.url };
 }
 
+// --- Bank-debit mandate (ACH) ---
+// The member authorizes debits once, through Stripe Checkout in setup mode
+// (Financial Connections bank picker + Stripe's standard ACH mandate text).
+// The resulting us_bank_account payment method lives on a platform Customer.
+
+export async function getOrCreateCustomer(user: { id: string; email?: string; displayName?: string; stripeCustomerId?: string }): Promise<string> {
+  if (user.stripeCustomerId && user.stripeCustomerId.startsWith('cus_')) return user.stripeCustomerId;
+  const stripe = getStripe();
+  const customer = await stripe.customers.create({
+    email: user.email || undefined,
+    name: user.displayName || undefined,
+    metadata: { userId: user.id, platform: 'gig-mutual-pool' },
+  });
+  return customer.id;
+}
+
+export async function createDebitMandateCheckoutSession(params: {
+  userId: string;
+  customerId: string;
+}): Promise<{ id: string; url: string }> {
+  const stripe = getStripe();
+  const baseUrl = getServerBaseUrl();
+  const session = await stripe.checkout.sessions.create({
+    mode: 'setup',
+    customer: params.customerId,
+    payment_method_types: ['us_bank_account'],
+    payment_method_options: {
+      us_bank_account: {
+        financial_connections: { permissions: ['payment_method'] },
+        // Instant verification through Financial Connections where the bank
+        // supports it; micro-deposits otherwise (mandate stays PENDING until verified).
+        verification_method: 'automatic',
+      },
+    },
+    metadata: { userId: params.userId, kind: 'debit_mandate' },
+    // Checkout does not copy session metadata onto the SetupIntent it creates;
+    // the setup_intent.* webhooks need it to find the member.
+    setup_intent_data: { metadata: { userId: params.userId, kind: 'debit_mandate' } },
+    success_url: `${baseUrl}/?mandate=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/?mandate=cancelled`,
+  } as any);
+  if (!session.url) throw new Error('Stripe did not return a Checkout URL');
+  return { id: session.id, url: session.url };
+}
+
+// The SetupIntent (with payment method and mandate) behind a completed
+// setup-mode Checkout session; null if the session has none yet.
+export async function retrieveSetupIntentForSession(sessionId: string): Promise<Stripe.SetupIntent | null> {
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['setup_intent', 'setup_intent.payment_method', 'setup_intent.mandate'],
+  });
+  const si = session.setup_intent;
+  if (!si || typeof si === 'string') return null;
+  if (session.metadata?.kind !== 'debit_mandate') return null;
+  return si;
+}
+
+export async function retrieveSetupIntent(setupIntentId: string): Promise<Stripe.SetupIntent> {
+  return getStripe().setupIntents.retrieve(setupIntentId, { expand: ['payment_method', 'mandate'] });
+}
+
+export async function retrievePaymentMethod(paymentMethodId: string): Promise<Stripe.PaymentMethod> {
+  return getStripe().paymentMethods.retrieve(paymentMethodId);
+}
+
+// Off-session ACH debit under the member's mandate. ACH settles in a few
+// business days: the result arrives by webhook (payment_intent.succeeded /
+// payment_intent.payment_failed), keyed by metadata.collectionId.
+export async function createAchDebit(params: {
+  customerId: string;
+  paymentMethodId: string;
+  mandateId?: string;
+  amountUsd: number;
+  idempotencyKey: string;
+  description: string;
+  metadata: Record<string, string>;
+}): Promise<{ id: string; status: string }> {
+  const stripe = getStripe();
+  const intent = await stripe.paymentIntents.create(
+    {
+      amount: Math.round(params.amountUsd * 100),
+      currency: 'usd',
+      customer: params.customerId,
+      payment_method: params.paymentMethodId,
+      payment_method_types: ['us_bank_account'],
+      confirm: true,
+      off_session: true,
+      ...(params.mandateId ? { mandate: params.mandateId } : {}),
+      description: params.description,
+      metadata: params.metadata,
+    },
+    { idempotencyKey: params.idempotencyKey }
+  );
+  return { id: intent.id, status: intent.status };
+}
+
 // Move funds from the platform balance to a member's connected account. Stripe
 // then pays them out to the bank account collected during Connect onboarding.
 export async function transferToConnectedAccount(params: {

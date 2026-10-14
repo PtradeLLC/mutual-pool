@@ -42,6 +42,26 @@ export interface ExternalBankAccount {
   linkedAt?: string;
 }
 
+// Authorization (Stripe us_bank_account mandate) to debit the member's bank for
+// amounts they owe: a missed weekly deposit, anything the platform advanced for
+// them, and the deposits still owed after a payout-then-default. Collected
+// before a member creates or joins a pod; debits are initiated by an admin.
+export type DebitMandateStatus = 'ACTIVE' | 'PENDING' | 'REVOKED' | 'FAILED';
+
+export interface DebitMandate {
+  status: DebitMandateStatus;
+  stripeCustomerId?: string;
+  paymentMethodId?: string;
+  mandateId?: string;
+  setupIntentId?: string;
+  bankName?: string;
+  last4?: string;
+  fingerprint?: string;
+  acceptedAt?: string;
+  revokedAt?: string;
+  termsVersion?: string;
+}
+
 export interface DigitalCard {
   id?: string;
   last4: string;
@@ -94,6 +114,12 @@ export interface User {
   treasury: StripeTreasuryAccount;
   externalBank: ExternalBankAccount;
   digitalCards?: DigitalCard[];
+  // Stripe Customer on the platform account (holds the debit payment method).
+  stripeCustomerId?: string;
+  // DEMO_MODE only: set to false to stop the Thursday sweep topping this account
+  // up, so tests can make a member miss a deposit.
+  demoAutoFund?: boolean;
+  debitMandate?: DebitMandate;
   completedPodsCount: number;
   welcomeMatchReceived?: boolean;
   welcomeMatchAmountUsd?: number;
@@ -158,6 +184,9 @@ export interface PodMembership {
   joinedAt: string;
   invitedByUserId?: string;
   invitedByName?: string;
+  // Trust tier when the rotation was locked; early slots (the first half) go
+  // to the most trusted members. See src/server/rotation.ts.
+  trustAtLock?: 'COMPLETED_POD' | 'TENURED' | 'NEW_WITH_MANDATE' | 'NEW';
 }
 
 export type ActivationPolicy = 'WHEN_FULL' | 'FLEXIBLE_EARLY';
@@ -222,6 +251,68 @@ export interface Pod {
   creatorStewardshipEarningsUsd?: number;
   hostRewardRecipientUserId?: string; // Current recipient of the 3% weekly payout stewardship reward (defaults to creator; transfers if creator switches spot)
   hostRewardRecipientName?: string; // Name of the active 3% weekly reward beneficiary
+  // Number of early rotation slots (from slot 1) filled by trust, fixed at lock.
+  earlySlotCount?: number;
+  // Pot at lock (members × deposit); pots over $1,000 need seasoned early slots.
+  potAtLockUsd?: number;
+}
+
+// A missed weekly deposit, and what the member still owes because of it.
+// Reported to admins, who may recover it by ACH debit under the member's mandate.
+export type DepositDefaultStatus = 'OPEN' | 'COLLECTING' | 'RECOVERED' | 'WRITTEN_OFF';
+export type DepositDefaultTrigger = 'THURSDAY_SWEEP' | 'ADMIN_COVER_GAP' | 'ADMIN_REMOVE';
+export type DefaultRecoverySource = 'MEMBER_BALANCE' | 'MEMBER_DEPOSIT' | 'ACH_DEBIT' | 'WRITE_OFF';
+
+export interface DepositDefault {
+  id: string;
+  podId: string;
+  podName: string;
+  userId: string;
+  userName: string;
+  cycleWeek: number;
+  depositTierUsd: number;
+  trigger: DepositDefaultTrigger;
+  // Who fronted the missed deposit (owed back to the platform).
+  bufferCoveredUsd: number;   // pod contingency buffer (welcome match)
+  escrowCoveredUsd: number;   // platform system escrow
+  // Nobody fronted it: that week's pot was short.
+  potShortfallUsd: number;
+  // Deposits still owed under the Pod Agreement when a member who already
+  // received the pot is removed (the payout-then-default case).
+  remainingObligationUsd: number;
+  owedUsd: number;
+  recoveredUsd: number;
+  // Recovered money that has not been fronted by anyone yet: bridges the pod's
+  // pot one deposit per week (see the Thursday sweep).
+  reserveUsd: number;
+  recoveries: Array<{ at: string; amountUsd: number; source: DefaultRecoverySource; ref?: string }>;
+  status: DepositDefaultStatus;
+  memberRemoved: boolean;
+  payoutReceivedUsd: number;
+  writeOffReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AchCollectionStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'RETURNED';
+
+// One ACH debit against a member's mandate, initiated by an admin for a default.
+export interface AchCollection {
+  id: string;
+  defaultId: string;
+  userId: string;
+  podId: string;
+  amountUsd: number;
+  status: AchCollectionStatus;
+  stripePaymentIntentId?: string;
+  stripeMandateId?: string;
+  bankLast4?: string;
+  failureReason?: string;
+  initiatedByUserId: string;
+  initiatedByName: string;
+  createdAt: string;
+  updatedAt: string;
+  settledAt?: string;
 }
 
 export type PodDetailTab = 'rotation' | 'circle' | 'deposits' | 'reprioritize' | 'audit' | 'hardship' | 'activity';
@@ -442,7 +533,16 @@ export interface AuditLogEntry {
     | 'CREATOR_HOST_REWARD_DISBURSED'
     | 'THURSDAY_AUTOMATED_DEPOSIT_SWEEP'
     | 'FRIDAY_AUTOMATED_PAYOUT_SWEEP'
-    | 'CONTINGENCY_BUFFER_BRIDGED_DEPOSIT';
+    | 'CONTINGENCY_BUFFER_BRIDGED_DEPOSIT'
+    | 'DEPOSIT_DEFAULT_RECORDED'
+    | 'DEFAULT_RECOVERY_APPLIED'
+    | 'DEFAULT_RESERVE_BRIDGED_DEPOSIT'
+    | 'DEFAULT_WRITTEN_OFF'
+    | 'DEBIT_MANDATE_ACCEPTED'
+    | 'DEBIT_MANDATE_REVOKED'
+    | 'ACH_COLLECTION_INITIATED'
+    | 'ACH_COLLECTION_SETTLED'
+    | 'ACH_COLLECTION_FAILED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

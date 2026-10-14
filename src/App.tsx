@@ -375,7 +375,9 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const stripeReturn = params.has('stripe_success') || params.has('stripe_refresh');
     const topupReturn = params.get('topup');
-    if (!stripeReturn && !topupReturn) return;
+    const mandateReturn = params.get('mandate');
+    const mandateSessionId = params.get('session_id');
+    if (!stripeReturn && !topupReturn && !mandateReturn) return;
 
     const cleanUrl = () => window.history.replaceState({}, '', window.location.pathname);
     (async () => {
@@ -391,6 +393,21 @@ export default function App() {
         setTimeout(() => fetchAppData(currentUser.id), 4000);
       } else if (topupReturn === 'cancelled') {
         toast.error('Payment cancelled. Your balance has not changed.');
+      } else if (mandateReturn === 'success') {
+        const res = await fetch('/api/users/debit-mandate/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: mandateSessionId }),
+        }).catch(() => null);
+        const data = res?.ok ? await res.json().catch(() => null) : null;
+        if (data?.user) setCurrentUser(data.user);
+        if (data?.user?.debitMandate?.status === 'ACTIVE') {
+          toast.success('Bank debits authorized. You can now create and join pods.');
+        } else {
+          toast.info('Your bank authorization is being confirmed. It usually completes within a minute (or after micro-deposits are verified).');
+        }
+      } else if (mandateReturn === 'cancelled') {
+        toast.error('Bank authorization cancelled. You need it before creating or joining a pod.');
       }
       cleanUrl();
     })();
@@ -1055,6 +1072,17 @@ export default function App() {
 
         if (data.error === 'INSUFFICIENT_FUNDS') {
           toast.error(data.message || 'Add funds before joining this pod.', { title: 'Insufficient Balance' });
+          return;
+        }
+        if (data.error === 'DEBIT_MANDATE_REQUIRED') {
+          setInviteCodeTargetPod(null);
+          toast.warning(data.message || 'Authorize bank debits before joining a pod.', { title: 'Bank authorization needed' });
+          setShowBankModal(true);
+          return;
+        }
+        if (data.error === 'POT_CAP') {
+          setInviteCodeTargetPod(null);
+          toast.warning(data.message || 'This pod is larger than your current limit.', { title: 'Pod too large for now' });
           return;
         }
 
@@ -2106,6 +2134,11 @@ export default function App() {
             userCreatedPodsCount={createdPodsCount}
             onClose={() => setShowCreatePodModal(false)}
             onUserUpdated={handleUserUpdated}
+            onDebitMandateRequired={(message) => {
+              setShowCreatePodModal(false);
+              toast.warning(message, { title: 'Bank authorization needed' });
+              setShowBankModal(true);
+            }}
             onPodCreated={(newPod) => {
               setShowCreatePodModal(false);
               if (newPod) {

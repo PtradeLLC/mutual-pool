@@ -30,12 +30,15 @@ interface CreatePodModalProps {
   onUserUpdated?: (updatedUser: User) => void;
   existingPods?: Pod[];
   userCreatedPodsCount?: number;
+  // The server requires a bank debit authorization before a pod can be created.
+  onDebitMandateRequired?: (message: string) => void;
 }
 
 export const CreatePodModal: React.FC<CreatePodModalProps> = ({ 
   user, 
   onClose, 
-  onPodCreated, 
+  onPodCreated,
+  onDebitMandateRequired, 
   onUserUpdated,
   existingPods = [],
   userCreatedPodsCount
@@ -196,6 +199,10 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
             setShowKycModal(true);
             throw new Error(errJson.message || 'KYC verification required');
           }
+          if (errJson.error === 'DEBIT_MANDATE_REQUIRED') {
+            onDebitMandateRequired?.(errJson.message || 'Authorize bank debits before creating a pod.');
+            throw new Error(errJson.message || 'Authorize bank debits before creating a pod.');
+          }
           if (res.status === 400 || res.status === 403) {
             throw new Error(errJson.message || errJson.error || 'Validation error creating pod');
           }
@@ -203,6 +210,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
       } catch (networkOrServerError: any) {
         if (networkOrServerError.message && (
           networkOrServerError.message.includes('KYC') || 
+          networkOrServerError.message.includes('debit') || 
           networkOrServerError.message.includes('Validation') || 
           networkOrServerError.message.includes('name is required') || 
           networkOrServerError.message.includes('tier') ||

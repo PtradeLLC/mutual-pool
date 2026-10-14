@@ -43,10 +43,13 @@ test('admin endpoints cannot be reached by spoofing', async () => {
   assert.equal((await call('/api/campaigns/advertiser-inquiries', { headers: spoofHeaders })).status, 403);
   assert.equal((await call('/api/fourthwall/designs/any/approve', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
   assert.equal((await call('/api/fourthwall/designs/any/reject', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
+  assert.equal((await call('/api/admin/defaults', { headers: spoofHeaders })).status, 403);
+  assert.equal((await call('/api/admin/defaults/any/collect', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
+  assert.equal((await call('/api/admin/defaults/any/write-off', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
 });
 
 test('simulated money and KYC endpoints are unavailable outside demo mode', async () => {
-  for (const path of ['/api/users/treasury/topup', '/api/users/kyc/verify', '/api/users/bank/link', '/api/users/login', '/api/users/register', '/api/users/switch', '/api/campaigns/shifts/verify-payout']) {
+  for (const path of ['/api/users/treasury/topup', '/api/users/kyc/verify', '/api/users/bank/link', '/api/users/debit-mandate/accept', '/api/users/login', '/api/users/register', '/api/users/switch', '/api/campaigns/shifts/verify-payout']) {
     const res = await call(path, { method: 'POST', headers: spoofHeaders, body: JSON.stringify({ amount: 1000, email: 'a@b.c' }) });
     assert.equal(res.status, 404, `${path} should not exist outside demo mode`);
   }

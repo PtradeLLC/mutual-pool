@@ -1128,6 +1128,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               <div>
                 <span className="text-[#111827]">
                   <strong>Permanent Fixed Order:</strong> Set once at pod lock via cryptographic shuffle. Re-randomization is strictly forbidden.
+                  {' '}The first {pod.earlySlotCount ?? Math.floor(pod.members.length / 2)} slot{(pod.earlySlotCount ?? Math.floor(pod.members.length / 2)) === 1 ? '' : 's'} go to the members with the longest track record (completed pods, then 90+ days on MutualPool); newer members take later slots.
                 </span>
                 <div className="text-[10px] text-[#005FB8] font-medium mt-1 flex items-center gap-1.5">
                   <Users className="w-3 h-3 text-[#005FB8]" />

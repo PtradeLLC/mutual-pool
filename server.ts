@@ -20,7 +20,8 @@ import {
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
   HardshipFundRequest, AppNotification, NotificationType, SwapRequest,
-  PlatformScheduleStatus, SweepExecutionResult, PaymentHistoryItem
+  PlatformScheduleStatus, SweepExecutionResult, PaymentHistoryItem,
+  DepositDefault, AchCollection, DefaultRecoverySource, DebitMandate
 } from './src/types';
 import {
   getNextThursdayMidnight,
@@ -32,7 +33,8 @@ import {
   INITIAL_USERS, INITIAL_PODS, INITIAL_PERKS, INITIAL_AUDIT_LOGS 
 } from './src/data/initialData';
 import { getAuthAdmin } from './src/config/firebase';
-import { IS_PRODUCTION, DEMO_MODE, DATA_DIR, assertProductionConfig, getAllowedOrigins, parseMoneyAmount } from './src/server/runtime';
+import { IS_PRODUCTION, DEMO_MODE, DATA_DIR, assertProductionConfig, getAllowedOrigins, parseMoneyAmount, EARLY_SLOT_TENURE_DAYS, DEBIT_MANDATE_REQUIRED } from './src/server/runtime';
+import { planRotation, findEarlySlotViolation, trustTier, trustLabel, potCapUsd, POT_CAP_LADDER_USD, earlySlotsNeedSeasoned } from './src/server/rotation';
 import { createStorageAdapter, storageConfigProblems } from './src/server/storage';
 import { assessHardshipRisk } from './src/server/hardshipRisk';
 import { generateSpotCheckSchedule, nextCheckAfter, MISSED_GRACE_MS, MAX_CHECKS_PER_SHIFT } from './src/server/shiftSchedule';
@@ -51,6 +53,11 @@ import {
   createConnectAccount,
   createDepositCheckoutSession,
   transferToConnectedAccount,
+  getOrCreateCustomer,
+  createDebitMandateCheckoutSession,
+  retrieveSetupIntentForSession,
+  retrievePaymentMethod,
+  createAchDebit,
 } from './src/services/stripe';
 import { GoogleGenAI, Modality, Type } from '@google/genai';
 import Groq from 'groq-sdk';
@@ -584,6 +591,15 @@ function releaseContingencyBuffer(pod: Pod): void {
     g.status = 'RELEASED';
     g.releasedAt = new Date().toISOString();
   }
+  // Recovered-default reserves that never got used go back to the platform too.
+  for (const d of depositDefaults.filter(x => x.podId === pod.id && (x.reserveUsd || 0) > 0)) {
+    const leftover = roundCents(d.reserveUsd);
+    d.reserveUsd = 0;
+    d.updatedAt = new Date().toISOString();
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'DEFAULT_RECOVERY_APPLIED',
+      `Pod completed: $${leftover.toFixed(2)} of recovered funds from ${d.userName}'s default were not needed to bridge deposits and return to the platform.`,
+      { defaultId: d.id, returnedUsd: leftover });
+  }
   if (initial > 0 || grant) {
     addAuditLog(pod.id, 'SYSTEM', 'MutualPool Treasury', 'WELCOME_MATCH_RELEASED' as any,
       `Pod "${pod.name}" completed. Welcome match cushion: $${roundCents(initial - remaining).toFixed(2)} used to cover missed deposits; $${remaining.toFixed(2)} unused, returned to the platform.`,
@@ -620,6 +636,398 @@ function hardshipCapProblem(pod: Pod): string | null {
     return `This pod already has ${outstanding} unpaid hardship advances; one must be repaid first.`;
   }
   return null;
+}
+
+// --- PAYOUT-THEN-DEFAULT CONTROLS ---
+// 1. The pot a member may join, and the early rotation slots, follow their
+//    track record (src/server/rotation.ts).
+// 2. Every member authorizes bank debits before joining, and admins can recover
+//    what a defaulting member owes through that mandate.
+
+function hasActiveDebitMandate(user: User | null | undefined): boolean {
+  return user?.debitMandate?.status === 'ACTIVE';
+}
+
+// Completed pods that count toward trust: pods completed without a default on
+// record. An unresolved default drops a member to zero until it is settled.
+function cleanCompletedPods(user: User | null | undefined): number {
+  if (!user) return 0;
+  const mine = depositDefaults.filter(d => d.userId === user.id);
+  if (mine.some(d => d.status === 'OPEN' || d.status === 'COLLECTING')) return 0;
+  const podsWithDefault = new Set(mine.map(d => d.podId)).size;
+  return Math.max(0, (Number(user.completedPodsCount) || 0) - podsWithDefault);
+}
+
+function trustOf(user: User | null | undefined): number {
+  if (!user) return 0;
+  return trustTier({
+    cleanCompletedPods: cleanCompletedPods(user),
+    accountAgeDays: calculateAccountAgeDays(user.createdAt, user.accountAgeDays),
+    hasDebitMandate: hasActiveDebitMandate(user),
+  }, EARLY_SLOT_TENURE_DAYS);
+}
+
+// Full pot of a pod (every slot filled): what a joiner is signing up to be near.
+function podMaxPotUsd(pod: Pod): number {
+  return (Number(pod.sizeTier) || 0) * (Number(pod.depositTier) || 0);
+}
+
+// Pot the rotation actually plays for: members at lock × deposit.
+function podPotUsd(pod: Pod): number {
+  return (pod.members?.length || 0) * (Number(pod.depositTier) || 0);
+}
+
+// Why this member may not join a pod of this size, or null.
+function potCapProblem(user: User, pod: Pod): { error: string; message: string; capUsd: number; potUsd: number; cleanCompletedPods: number } | null {
+  const done = cleanCompletedPods(user);
+  const cap = potCapUsd(done);
+  const pot = podMaxPotUsd(pod);
+  if (pot <= cap) return null;
+  const nextCap = done + 1 < POT_CAP_LADDER_USD.length ? `$${POT_CAP_LADDER_USD[done + 1].toLocaleString()}` : 'any size';
+  const hasOpenDefault = depositDefaults.some(d => d.userId === user.id && (d.status === 'OPEN' || d.status === 'COLLECTING'));
+  return {
+    error: 'POT_CAP',
+    message: hasOpenDefault
+      ? `You have an unresolved missed deposit, so you can only join pods with a total pot of up to $${cap.toLocaleString()} until it is settled. This pod's pot is $${pot.toLocaleString()}.`
+      : `This pod's full pot is $${pot.toLocaleString()}. With ${done} completed pod${done === 1 ? '' : 's'} you can join pods up to $${cap.toLocaleString()}; completing one more unlocks ${nextCap}.`,
+    capUsd: cap,
+    potUsd: pot,
+    cleanCompletedPods: done,
+  };
+}
+
+function debitMandateRequiredResponse(res: Response) {
+  return res.status(403).json({
+    error: 'DEBIT_MANDATE_REQUIRED',
+    message: 'Before creating or joining a pod, authorize MutualPool to debit your bank account for missed weekly deposits. Open Treasury & payouts to set it up.',
+  });
+}
+
+// Members as the rotation rules see them: with trust resolved from the user records.
+function slotHolders(pod: Pod) {
+  return (pod.members || []).filter(m => m && m.userId).map(m => ({
+    userId: m.userId,
+    displayName: m.displayName,
+    rotationIndex: m.rotationIndex,
+    trust: trustOf(users.find(u => u && u.id === m.userId)),
+  }));
+}
+
+// Why a proposed rotation (members with their would-be indices) breaks the
+// early-slot rule, or null if it doesn't.
+function earlySlotViolationMessage(pod: Pod, holders: ReturnType<typeof slotHolders>): string | null {
+  const v = findEarlySlotViolation(holders, pod.potAtLockUsd ?? podPotUsd(pod));
+  if (!v) return null;
+  const slots = `the first ${v.earlyCount} slot${v.earlyCount === 1 ? '' : 's'}`;
+  if (v.reason === 'LARGE_POT_NEEDS_SEASONED') {
+    return `${v.member.displayName} can't take slot #${v.member.rotationIndex + 1}: in pods with a pot over $1,000, ${slots} need members with a completed pod or ${EARLY_SLOT_TENURE_DAYS}+ days on MutualPool.`;
+  }
+  return `${v.member.displayName} can't take slot #${v.member.rotationIndex + 1} ahead of ${v.behind.displayName}: ${slots} go to the members with the longest track record (completed pods, then ${EARLY_SLOT_TENURE_DAYS}+ days on MutualPool).`;
+}
+
+function adminUsers(): User[] {
+  return users.filter(u => u && (u.isAdmin || isAdminRole(u.role)));
+}
+
+function notifyAdmins(input: { title: string; message: string; podId?: string; podName?: string; type?: NotificationType; metadata?: Record<string, unknown> }): void {
+  for (const admin of adminUsers()) {
+    try {
+      createNotification({
+        userId: admin.id,
+        type: input.type || 'GENERAL',
+        title: input.title,
+        message: input.message,
+        podId: input.podId,
+        podName: input.podName,
+        metadata: input.metadata,
+      });
+    } catch (err) {
+      console.warn('[notifyAdmins]', err);
+    }
+  }
+}
+
+function findOpenDefault(podId: string, userId: string, cycleWeek: number): DepositDefault | undefined {
+  return depositDefaults.find(d => d.podId === podId && d.userId === userId && d.cycleWeek === cycleWeek && (d.status === 'OPEN' || d.status === 'COLLECTING'));
+}
+
+function defaultRemainingUsd(d: DepositDefault): number {
+  return roundCents(Math.max(0, (Number(d.owedUsd) || 0) - (Number(d.recoveredUsd) || 0)));
+}
+
+function refreshDefaultStatus(d: DepositDefault): void {
+  d.owedUsd = roundCents((d.bufferCoveredUsd || 0) + (d.escrowCoveredUsd || 0) + (d.potShortfallUsd || 0) + (d.remainingObligationUsd || 0));
+  if (d.status === 'WRITTEN_OFF') return;
+  const inFlight = achCollections.some(c => c.defaultId === d.id && c.status === 'PROCESSING');
+  if (defaultRemainingUsd(d) <= 0.005) d.status = 'RECOVERED';
+  else d.status = inFlight ? 'COLLECTING' : 'OPEN';
+  d.updatedAt = new Date().toISOString();
+}
+
+// Record (or extend) the default for a member's missed deposit this cycle and
+// tell every admin. Amounts describe who fronted the deposit.
+function recordDepositDefault(input: {
+  pod: Pod;
+  member: PodMembership;
+  trigger: DepositDefault['trigger'];
+  bufferCoveredUsd?: number;
+  escrowCoveredUsd?: number;
+  potShortfallUsd?: number;
+  remainingObligationUsd?: number;
+  memberRemoved?: boolean;
+}): DepositDefault {
+  const { pod, member } = input;
+  const cycleWeek = pod.currentCycleWeek || 1;
+  const nowIso = new Date().toISOString();
+  let d = findOpenDefault(pod.id, member.userId, cycleWeek)
+    || depositDefaults.find(x => x.podId === pod.id && x.userId === member.userId && x.cycleWeek === cycleWeek && x.status !== 'WRITTEN_OFF');
+  const isNew = !d;
+  if (!d) {
+    d = {
+      id: newLedgerId('dflt'),
+      podId: pod.id,
+      podName: pod.name,
+      userId: member.userId,
+      userName: member.displayName,
+      cycleWeek,
+      depositTierUsd: pod.depositTier,
+      trigger: input.trigger,
+      bufferCoveredUsd: 0,
+      escrowCoveredUsd: 0,
+      potShortfallUsd: 0,
+      remainingObligationUsd: 0,
+      owedUsd: 0,
+      recoveredUsd: 0,
+      reserveUsd: 0,
+      recoveries: [],
+      status: 'OPEN',
+      memberRemoved: false,
+      payoutReceivedUsd: 0,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    depositDefaults.unshift(d);
+  }
+  d.bufferCoveredUsd = roundCents((d.bufferCoveredUsd || 0) + (input.bufferCoveredUsd || 0));
+  d.escrowCoveredUsd = roundCents((d.escrowCoveredUsd || 0) + (input.escrowCoveredUsd || 0));
+  d.potShortfallUsd = roundCents((d.potShortfallUsd || 0) + (input.potShortfallUsd || 0));
+  d.remainingObligationUsd = roundCents((d.remainingObligationUsd || 0) + (input.remainingObligationUsd || 0));
+  if (input.memberRemoved) d.memberRemoved = true;
+  if (member.hasReceivedPayout) d.payoutReceivedUsd = roundCents(Number(member.payoutNetAmountUsd) || 0);
+  refreshDefaultStatus(d);
+
+  const memberUser = users.find(u => u && u.id === member.userId);
+  const mandate = memberUser?.debitMandate?.status === 'ACTIVE' ? `bank debit mandate on file (••••${memberUser?.debitMandate?.last4 || '????'})` : 'NO bank debit mandate';
+  const tookPayout = d.payoutReceivedUsd > 0 ? ` ⚠️ Member already received this pod's payout ($${d.payoutReceivedUsd.toFixed(2)}).` : '';
+  addAuditLog(
+    pod.id,
+    'SYSTEM',
+    'MutualPool Default Monitor',
+    'DEPOSIT_DEFAULT_RECORDED',
+    `${isNew ? 'Recorded' : 'Updated'} deposit default for ${member.displayName} (Week ${cycleWeek}, ${input.trigger}). Owed: $${d.owedUsd.toFixed(2)} (buffer $${d.bufferCoveredUsd.toFixed(2)}, escrow $${d.escrowCoveredUsd.toFixed(2)}, pot shortfall $${d.potShortfallUsd.toFixed(2)}, remaining obligation $${d.remainingObligationUsd.toFixed(2)}).${tookPayout} ${mandate}.`,
+    { defaultId: d.id, memberUserId: member.userId, cycleWeek, owedUsd: d.owedUsd, payoutReceivedUsd: d.payoutReceivedUsd, memberRemoved: d.memberRemoved, trigger: input.trigger }
+  );
+  notifyAdmins({
+    type: 'PAYMENT_FAILED',
+    title: d.payoutReceivedUsd > 0 ? '🚨 Default after payout' : '⚠️ Missed deposit recorded',
+    message: `${member.displayName} missed the Week ${cycleWeek} deposit in "${pod.name}". Owed: $${d.owedUsd.toFixed(2)}.${tookPayout} ${mandate}. Review in Admin Ops → Deposit Defaults.`,
+    podId: pod.id,
+    podName: pod.name,
+    metadata: { defaultId: d.id, memberUserId: member.userId, owedUsd: d.owedUsd, payoutReceivedUsd: d.payoutReceivedUsd },
+  });
+  return d;
+}
+
+// Deposits the member still owes under the Pod Agreement if they drop out now.
+function remainingObligationUsd(pod: Pod, userId: string): number {
+  const made = deposits.filter(d => d && d.podId === pod.id && d.userId === userId && d.status === 'COMPLETE').length;
+  const total = pod.totalCycles || pod.members.length;
+  return roundCents(Math.max(0, total - made) * (pod.depositTier || 0));
+}
+
+// Apply recovered money to a default: repay the platform escrow first, then the
+// pod's contingency buffer, then hold the rest as a reserve that bridges the
+// pod's pot in later weeks (or this week's pot, if it is still open).
+function applyDefaultRecovery(d: DepositDefault, amountUsd: number, source: DefaultRecoverySource, ref?: string): void {
+  let remaining = roundCents(Math.min(amountUsd, defaultRemainingUsd(d)));
+  if (remaining <= 0) return;
+  const applied = remaining;
+  const pod = pods.find(p => p && p.id === d.podId);
+
+  const alreadyRepaid = (bucket: 'escrow' | 'buffer' | 'other') => {
+    // Recoveries fill buckets in order; derive what each bucket has received so far.
+    const recovered = Number(d.recoveredUsd) || 0;
+    const escrow = Number(d.escrowCoveredUsd) || 0;
+    const buffer = Number(d.bufferCoveredUsd) || 0;
+    if (bucket === 'escrow') return Math.min(recovered, escrow);
+    if (bucket === 'buffer') return Math.min(Math.max(0, recovered - escrow), buffer);
+    return Math.max(0, recovered - escrow - buffer);
+  };
+
+  const toEscrow = roundCents(Math.min(remaining, Math.max(0, (d.escrowCoveredUsd || 0) - alreadyRepaid('escrow'))));
+  if (toEscrow > 0 && pod) {
+    pod.systemEscrowDrawnUsd = roundCents(Math.max(0, (pod.systemEscrowDrawnUsd || 0) - toEscrow));
+    remaining = roundCents(remaining - toEscrow);
+  } else if (toEscrow > 0) {
+    remaining = roundCents(remaining - toEscrow);
+  }
+
+  const toBuffer = roundCents(Math.min(remaining, Math.max(0, (d.bufferCoveredUsd || 0) - alreadyRepaid('buffer'))));
+  if (toBuffer > 0) {
+    if (pod && pod.status !== 'COMPLETED') pod.contingencyBufferUsd = roundCents((pod.contingencyBufferUsd || 0) + toBuffer);
+    remaining = roundCents(remaining - toBuffer);
+  }
+
+  if (remaining > 0) {
+    if (pod && pod.status === 'ACTIVE' && pod.currentCycleWeek === d.cycleWeek && (d.potShortfallUsd || 0) > 0) {
+      // This week's pot is still open: fill the shortfall directly.
+      const toPot = roundCents(Math.min(remaining, d.potShortfallUsd));
+      pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + toPot);
+      remaining = roundCents(remaining - toPot);
+    }
+    if (remaining > 0) d.reserveUsd = roundCents((d.reserveUsd || 0) + remaining);
+  }
+
+  d.recoveredUsd = roundCents((d.recoveredUsd || 0) + applied);
+  d.recoveries.push({ at: new Date().toISOString(), amountUsd: applied, source, ref });
+  refreshDefaultStatus(d);
+
+  if (pod && d.status === 'RECOVERED') {
+    const member = pod.members.find(m => m && m.userId === d.userId);
+    if (member && member.delinquencyStatus !== 'DELINQUENT') member.delinquencyStatus = 'CLEAN';
+  }
+  addAuditLog(
+    d.podId,
+    'SYSTEM',
+    'MutualPool Default Monitor',
+    'DEFAULT_RECOVERY_APPLIED',
+    `Recovered $${applied.toFixed(2)} of ${d.userName}'s Week ${d.cycleWeek} default via ${source}${ref ? ` (${ref})` : ''}: $${toEscrow.toFixed(2)} repaid platform escrow, $${toBuffer.toFixed(2)} restored the contingency buffer, remainder held as pod reserve. Remaining owed: $${defaultRemainingUsd(d).toFixed(2)}. Status: ${d.status}.`,
+    { defaultId: d.id, amountUsd: applied, source, ref, toEscrow, toBuffer, remainingUsd: defaultRemainingUsd(d), status: d.status }
+  );
+}
+
+// A member removed from a live pod after taking its payout owes the deposits
+// they committed to for the rest of the rotation.
+function recordRemovalDefault(pod: Pod, member: PodMembership, trigger: DepositDefault['trigger']): DepositDefault | null {
+  if (!member.hasReceivedPayout) return null;
+  const obligation = remainingObligationUsd(pod, member.userId);
+  if (obligation <= 0) return null;
+  return recordDepositDefault({ pod, member, trigger, remainingObligationUsd: obligation, memberRemoved: true });
+}
+
+// Record a mandate from a succeeded SetupIntent (Checkout return or webhook).
+// `pm` may be an expanded PaymentMethod object or its id.
+async function applyDebitMandateSetup(si: any): Promise<User | null> {
+  if (!si || !si.id) return null;
+  const customerId = typeof si.customer === 'string' ? si.customer : si.customer?.id;
+  const target = users.find(u => u && (u.id === si.metadata?.userId || (customerId && u.stripeCustomerId === customerId)));
+  if (!target) {
+    console.warn('[Debit Mandate] SetupIntent for unknown user:', si.id);
+    return null;
+  }
+  if (si.status !== 'succeeded') {
+    if (!hasActiveDebitMandate(target)) {
+      target.debitMandate = { ...(target.debitMandate || {}), status: si.status === 'canceled' ? 'FAILED' : 'PENDING', setupIntentId: si.id, stripeCustomerId: customerId || target.stripeCustomerId };
+      saveUsersToDisk();
+    }
+    return target;
+  }
+  if (target.debitMandate?.status === 'ACTIVE' && target.debitMandate.setupIntentId === si.id) return target; // webhook redelivery
+
+  let pm: any = si.payment_method;
+  if (pm && typeof pm === 'string' && !DEMO_MODE) {
+    try { pm = await retrievePaymentMethod(pm); } catch (err) { console.warn('[Debit Mandate] Could not retrieve payment method:', err); }
+  }
+  const bank = pm && typeof pm === 'object' ? pm.us_bank_account || {} : {};
+  const mandateId = typeof si.mandate === 'string' ? si.mandate : si.mandate?.id;
+  target.stripeCustomerId = customerId || target.stripeCustomerId;
+  target.debitMandate = {
+    status: 'ACTIVE',
+    stripeCustomerId: target.stripeCustomerId,
+    paymentMethodId: typeof pm === 'string' ? pm : pm?.id,
+    mandateId,
+    setupIntentId: si.id,
+    bankName: bank.bank_name || undefined,
+    last4: bank.last4 || undefined,
+    fingerprint: bank.fingerprint || undefined,
+    acceptedAt: new Date().toISOString(),
+    termsVersion: TERMS_VERSION,
+  };
+  if (bank.fingerprint) {
+    target.identityFingerprints = Array.from(new Set([...(target.identityFingerprints || []), bank.fingerprint]));
+  }
+  saveUsersToDisk();
+  addAuditLog(undefined, target.id, target.displayName, 'DEBIT_MANDATE_ACCEPTED',
+    `Authorized bank debits for amounts owed under the Pod Agreement (${bank.bank_name || 'bank'} ••••${bank.last4 || '????'}; Stripe mandate ${mandateId || 'n/a'}).`,
+    { setupIntentId: si.id, mandateId, last4: bank.last4 });
+  createNotification({
+    userId: target.id,
+    type: 'STATUS_CHANGE',
+    title: 'Bank debit authorization on file',
+    message: `You authorized MutualPool to debit ${bank.bank_name || 'your bank'} ••••${bank.last4 || ''} for missed weekly deposits and amounts you owe under your pod agreements. You can now create and join pods.`,
+  });
+  return target;
+}
+
+function markMandateRevoked(mandateId: string): void {
+  const target = users.find(u => u && u.debitMandate?.mandateId === mandateId);
+  if (!target || !target.debitMandate || target.debitMandate.status === 'REVOKED') return;
+  target.debitMandate.status = 'REVOKED';
+  target.debitMandate.revokedAt = new Date().toISOString();
+  saveUsersToDisk();
+  addAuditLog(undefined, target.id, target.displayName, 'DEBIT_MANDATE_REVOKED', `Bank debit mandate ${mandateId} became inactive at Stripe.`, { mandateId });
+  const inPods = pods.filter(p => p && p.status === 'ACTIVE' && p.members.some(m => m && m.userId === target.id)).map(p => p.name);
+  notifyAdmins({
+    title: '⚠️ Bank debit mandate revoked',
+    message: `${target.displayName}'s bank debit authorization is no longer active${inPods.length ? ` while in active pod(s): ${inPods.join(', ')}` : ''}. Missed deposits can no longer be collected by ACH.`,
+    metadata: { memberUserId: target.id, mandateId },
+  });
+}
+
+// Outcome of an ACH debit, from the Stripe PaymentIntent webhooks.
+function settleAchCollection(paymentIntentId: string, outcome: 'SUCCEEDED' | 'FAILED' | 'RETURNED', reason?: string): boolean {
+  const c = achCollections.find(x => x.stripePaymentIntentId === paymentIntentId);
+  if (!c) return true; // not ours (or already purged): nothing to apply
+  const d = depositDefaults.find(x => x.id === c.defaultId);
+  if (!d) return true;
+  const nowIso = new Date().toISOString();
+  if (c.status === outcome) return true; // redelivery
+  const member = users.find(u => u && u.id === c.userId);
+
+  if (outcome === 'SUCCEEDED') {
+    if (c.status !== 'PROCESSING') return true;
+    c.status = 'SUCCEEDED';
+    c.settledAt = nowIso;
+    c.updatedAt = nowIso;
+    applyDefaultRecovery(d, c.amountUsd, 'ACH_DEBIT', paymentIntentId);
+    addAuditLog(d.podId, 'SYSTEM', 'Stripe', 'ACH_COLLECTION_SETTLED', `ACH debit of $${c.amountUsd.toFixed(2)} from ${d.userName} settled (${paymentIntentId}).`, { collectionId: c.id, defaultId: d.id, amountUsd: c.amountUsd });
+    notifyAdmins({ title: '✅ ACH collection settled', message: `$${c.amountUsd.toFixed(2)} collected from ${d.userName} for the Week ${d.cycleWeek} default in "${d.podName}". Remaining owed: $${defaultRemainingUsd(d).toFixed(2)}.`, podId: d.podId, podName: d.podName, metadata: { collectionId: c.id, defaultId: d.id } });
+    if (member) createNotification({ userId: member.id, type: 'DEPOSIT_CONFIRMED', title: 'Bank debit completed', message: `$${c.amountUsd.toFixed(2)} was debited from your bank account ••••${c.bankLast4 || ''} toward the missed deposit in "${d.podName}" (Week ${d.cycleWeek}).`, podId: d.podId });
+  } else if (outcome === 'FAILED') {
+    if (c.status !== 'PROCESSING') return true;
+    c.status = 'FAILED';
+    c.failureReason = (reason || 'Payment failed').slice(0, 300);
+    c.updatedAt = nowIso;
+    refreshDefaultStatus(d);
+    addAuditLog(d.podId, 'SYSTEM', 'Stripe', 'ACH_COLLECTION_FAILED', `ACH debit of $${c.amountUsd.toFixed(2)} from ${d.userName} failed: ${c.failureReason} (${paymentIntentId}).`, { collectionId: c.id, defaultId: d.id, reason: c.failureReason });
+    notifyAdmins({ type: 'PAYMENT_FAILED', title: '❌ ACH collection failed', message: `The $${c.amountUsd.toFixed(2)} debit from ${d.userName} for "${d.podName}" failed: ${c.failureReason}.`, podId: d.podId, podName: d.podName, metadata: { collectionId: c.id, defaultId: d.id } });
+    if (member) createNotification({ userId: member.id, type: 'PAYMENT_FAILED', title: 'Bank debit failed', message: `The $${c.amountUsd.toFixed(2)} debit for the missed deposit in "${d.podName}" could not be completed (${c.failureReason}). Please fund your balance or contact support.`, podId: d.podId });
+  } else {
+    // Returned after settlement (e.g. disputed/unauthorized). The money is gone
+    // again: reopen the default; pod-level effects already applied stay as a platform cost.
+    if (c.status !== 'SUCCEEDED') return true;
+    c.status = 'RETURNED';
+    c.failureReason = (reason || 'ACH return').slice(0, 300);
+    c.updatedAt = nowIso;
+    d.recoveredUsd = roundCents(Math.max(0, (d.recoveredUsd || 0) - c.amountUsd));
+    d.recoveries.push({ at: nowIso, amountUsd: -c.amountUsd, source: 'ACH_DEBIT', ref: `${paymentIntentId}:returned` });
+    refreshDefaultStatus(d);
+    addAuditLog(d.podId, 'SYSTEM', 'Stripe', 'ACH_COLLECTION_FAILED', `ACH debit of $${c.amountUsd.toFixed(2)} from ${d.userName} was RETURNED after settlement: ${c.failureReason} (${paymentIntentId}). Default reopened.`, { collectionId: c.id, defaultId: d.id, reason: c.failureReason, returned: true });
+    notifyAdmins({ type: 'PAYMENT_FAILED', title: '🚨 ACH debit returned', message: `The $${c.amountUsd.toFixed(2)} debit from ${d.userName} for "${d.podName}" was returned by the bank (${c.failureReason}). The default has been reopened.`, podId: d.podId, podName: d.podName, metadata: { collectionId: c.id, defaultId: d.id } });
+  }
+  savePodsToDisk();
+  saveUsersToDisk();
+  return true;
 }
 
 // --- INTERNAL LEDGER ---
@@ -768,6 +1176,10 @@ interface WelcomeMatchGrant {
   releasedAt?: string;
 }
 let welcomeMatchGrants: WelcomeMatchGrant[] = [];
+// Missed deposits and what each defaulting member still owes (src/types.ts
+// DepositDefault), plus the admin-initiated ACH debits that recover them.
+let depositDefaults: DepositDefault[] = [];
+let achCollections: AchCollection[] = [];
 // Brand-campaign shifts. The server draws a secret, randomized schedule of
 // gear spot checks per shift; see the shift routes for the lifecycle.
 type ShiftCheckStatus = 'SCHEDULED' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'MISSED';
@@ -1243,6 +1655,8 @@ app.use(async (req: Request, res: Response, next) => {
         found.termsAcceptedAt = new Date().toISOString();
       }
       isAdmin = isAdmin || isAdminRole(found.role) || isAdminRole(getHeaderValue(req, 'x-user-role'));
+      // Mirror production so admin-targeted notifications reach demo admins too.
+      if (isAdmin) found.isAdmin = true;
     } else if (isAdmin) {
       found.role = 'Admin';
       found.isAdmin = true;
@@ -1632,6 +2046,19 @@ app.get(['/api/health', '/health'], (req, res) => {
         { bankName, last4 }
       );
 
+      // Demo stand-in for the Stripe debit mandate collected in production.
+      if (!hasActiveDebitMandate(targetUser)) {
+        targetUser.stripeCustomerId = targetUser.stripeCustomerId || `cus_demo_${targetUser.id}`;
+        applyDebitMandateSetup({
+          id: `seti_demo_${targetUser.id}_${Date.now()}`,
+          status: 'succeeded',
+          customer: targetUser.stripeCustomerId,
+          mandate: `mandate_demo_${targetUser.id}`,
+          metadata: { userId: targetUser.id, kind: 'debit_mandate' },
+          payment_method: { id: `pm_demo_${targetUser.id}`, us_bank_account: { bank_name: targetUser.externalBank.bankName, last4, fingerprint: `fp_demo_${targetUser.id}` } },
+        }).catch(err => console.warn('[bank/link demo mandate]', err));
+      }
+
       saveUsersToDisk();
 
       res.json({
@@ -1652,8 +2079,8 @@ app.get(['/api/health', '/health'], (req, res) => {
         return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
       }
 
-      const { amount, sourceCardNumber } = req.body || {};
-      const depositAmount = Number(amount) || 100;
+      const { amount, sourceCardNumber, autoFund } = req.body || {};
+      const depositAmount = Number(amount) || 0;
       const platformFee = Math.round(depositAmount * 0.05 * 100) / 100;
       const totalChargedAmount = depositAmount + platformFee;
 
@@ -1680,6 +2107,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       const { paymentIntentId } = req.body || {};
       const inboundTransferId = paymentIntentId || `it_stripe_treasury_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
+      if (typeof autoFund === 'boolean') targetUser.demoAutoFund = autoFund;
       targetUser.treasury.balanceUsd += depositAmount;
       saveUsersToDisk();
 
@@ -1856,6 +2284,72 @@ app.get(['/api/health', '/health'], (req, res) => {
     }
   });
 
+  // 3b-4. Bank debit mandate (ACH): authorize once, before creating or joining a pod.
+  app.post('/api/users/debit-mandate/checkout-session', async (req: Request, res: Response) => {
+    try {
+      const user = getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+      }
+      if (hasActiveDebitMandate(user)) {
+        return res.status(409).json({ error: 'MANDATE_ALREADY_ACTIVE', message: 'Bank debits are already authorized on this account.', user });
+      }
+      if (DEMO_MODE) {
+        return res.status(400).json({ error: 'NOT_AVAILABLE_IN_DEMO', message: 'In demo mode, link a bank in Treasury & payouts to simulate the debit authorization.' });
+      }
+      const customerId = await getOrCreateCustomer(user);
+      if (user.stripeCustomerId !== customerId) {
+        user.stripeCustomerId = customerId;
+        saveUsersToDisk();
+      }
+      const session = await createDebitMandateCheckoutSession({ userId: user.id, customerId });
+      res.json({ success: true, url: session.url, sessionId: session.id });
+    } catch (err: any) {
+      console.error('[/api/users/debit-mandate/checkout-session] error:', err?.message);
+      res.status(500).json({ error: 'FAILED_TO_CREATE_MANDATE_SESSION', message: 'Could not start the bank authorization. Please try again.' });
+    }
+  });
+
+  // Called when the member returns from Checkout (the webhook keeps it current afterwards).
+  app.post('/api/users/debit-mandate/refresh', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
+    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+    if (DEMO_MODE || !sessionId.startsWith('cs_')) {
+      return res.json({ success: true, user });
+    }
+    try {
+      const si = await retrieveSetupIntentForSession(sessionId);
+      if (si && si.metadata?.userId === user.id) await applyDebitMandateSetup(si);
+      return res.json({ success: true, user });
+    } catch (err: any) {
+      console.error('[/api/users/debit-mandate/refresh] error:', err?.message);
+      return res.status(502).json({ error: 'STRIPE_UNAVAILABLE', message: 'Could not confirm the bank authorization yet. It will update automatically.' });
+    }
+  });
+
+  // DEMO_MODE only: simulate a completed mandate (integration tests, local demos).
+  app.post('/api/users/debit-mandate/accept', requireDemoMode, async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    }
+    const last4 = String(req.body?.last4 || '6789').slice(-4);
+    const fingerprint = typeof req.body?.fingerprint === 'string' ? req.body.fingerprint : `fp_demo_${user.id}`;
+    user.stripeCustomerId = user.stripeCustomerId || `cus_demo_${user.id}`;
+    await applyDebitMandateSetup({
+      id: `seti_demo_${user.id}_${Date.now()}`,
+      status: 'succeeded',
+      customer: user.stripeCustomerId,
+      mandate: `mandate_demo_${user.id}`,
+      metadata: { userId: user.id, kind: 'debit_mandate' },
+      payment_method: { id: `pm_demo_${user.id}`, us_bank_account: { bank_name: req.body?.bankName || 'Demo Bank', last4, fingerprint } },
+    });
+    res.json({ success: true, user });
+  });
+
   // 3c. Leave Pod Endpoint
   app.post(['/api/pods/:id/leave', '/pods/:id/leave'], async (req: Request, res: Response) => {
     try {
@@ -1997,6 +2491,9 @@ app.get(['/api/health', '/health'], (req, res) => {
         error: 'KYC_REQUIRED',
         message: 'You must complete Stripe Identity KYC verification before creating a mutual savings pod.'
       });
+    }
+    if (DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
+      return debitMandateRequiredResponse(res);
     }
 
     // Hard Gate: Maximum 3 Created Pods per User Limit (Anti-Fraud & Financial Integrity Policy)
@@ -2319,6 +2816,14 @@ app.get(['/api/health', '/health'], (req, res) => {
           message: `Your account is currently on hold due to a Financial Hardship Fund disbursed on your behalf ($${user.hardshipOwedUsd?.toFixed(2) || '0.00'} owed). Please pay off your hardship balance (deposit + 7% service fee) to reactivate your account and participate in pools.`
         });
       }
+      if (DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
+        return debitMandateRequiredResponse(res);
+      }
+      // Join cap ladder: how big a pot a member may join grows with completed pods.
+      if (pod.createdBy !== user.id) {
+        const capProblem = potCapProblem(users.find(u => u && u.id === user.id) || user, pod);
+        if (capProblem) return res.status(403).json(capProblem);
+      }
 
       const sizeTier = pod.sizeTier || 20;
 
@@ -2561,25 +3066,42 @@ app.get(['/api/health', '/health'], (req, res) => {
     const creatorMember = pod.members.find(m => m.userId === pod.createdBy);
     const nonCreatorMembers = pod.members.filter(m => m.userId !== pod.createdBy);
 
-    // Fixed 1-time random shuffle algorithm (Fisher-Yates) on non-creator members
-    const shuffledNonCreators = [...nonCreatorMembers];
-    for (let i = shuffledNonCreators.length - 1; i > 0; i--) {
-      const j = crypto.randomInt(i + 1);
-      [shuffledNonCreators[i], shuffledNonCreators[j]] = [shuffledNonCreators[j], shuffledNonCreators[i]];
+    // One-time cryptographically random order within trust tiers: the early
+    // slots (first half of the rotation) go to the most trusted members, and a
+    // pot over $1,000 needs seasoned members in all of them. See src/server/rotation.ts.
+    const potUsd = podPotUsd(pod);
+    const trustByUser = new Map(nonCreatorMembers.map(m => [m.userId, trustOf(users.find(x => x && x.id === m.userId))]));
+    const plan = planRotation(
+      nonCreatorMembers.map(m => ({ userId: m.userId, trust: trustByUser.get(m.userId) || 0 })),
+      { totalMembers: pod.members.length, potUsd, randomInt: n => crypto.randomInt(n) },
+    );
+    if ('error' in plan) {
+      return res.status(400).json({
+        error: plan.error,
+        message: `Can't lock yet: this pod plays for $${potUsd.toLocaleString()} a week, so its first ${plan.earlyCount} payout slot${plan.earlyCount === 1 ? '' : 's'} must go to members with a completed pod or ${EARLY_SLOT_TENURE_DAYS}+ days on MutualPool, and it has ${plan.seasonedCount} (the creator always takes the last slot). Invite ${plan.shortfall} more established member${plan.shortfall === 1 ? '' : 's'}, or lower the pot.`,
+        earlySlotCount: plan.earlyCount,
+        seasonedCount: plan.seasonedCount,
+        shortfall: plan.shortfall,
+        potUsd,
+      });
     }
 
-    // Assign rotation indices: 0 to N-2 for non-creators
-    shuffledNonCreators.forEach((m, idx) => {
+    const byUserId = new Map(nonCreatorMembers.map(m => [m.userId, m]));
+    const finalOrderedMembers: PodMembership[] = plan.order.map((userId, idx) => {
+      const m = byUserId.get(userId)!;
       m.rotationIndex = idx;
+      m.trustAtLock = trustLabel(trustByUser.get(userId) || 0);
+      return m;
     });
-
-    const finalOrderedMembers: PodMembership[] = [...shuffledNonCreators];
     if (creatorMember) {
       creatorMember.rotationIndex = finalOrderedMembers.length; // Final slot (e.g. slot 4 in 5-member pod, slot 19 in 20-member pod)
+      creatorMember.trustAtLock = trustLabel(trustOf(users.find(x => x && x.id === creatorMember.userId)));
       finalOrderedMembers.push(creatorMember);
     }
 
     pod.members = finalOrderedMembers;
+    pod.earlySlotCount = plan.earlyCount;
+    pod.potAtLockUsd = potUsd;
     pod.creatorLastInRotation = true;
     syncHostRewardRecipient(pod);
     pod.status = 'ACTIVE';
@@ -2629,7 +3151,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       user.id,
       user.displayName,
       'ROTATION_LOCKED',
-      `${auditDetail} 1-time cryptographically secure random shuffle set rotation order 0 to ${pod.members.length - 1}.${
+      `${auditDetail} 1-time cryptographically secure random shuffle within trust tiers set rotation order 0 to ${pod.members.length - 1} (pot $${potUsd.toLocaleString()}; slots 1-${plan.earlyCount} to the most established members${earlySlotsNeedSeasoned(potUsd) ? ', seasoned required' : ''}).${plan.unseasonedEarly.length ? ` ${plan.unseasonedEarly.length} early slot(s) held by new members with a bank debit mandate (small pot).` : ''}${
         pod.campaignAgreement
           ? pod.campaignAgreement.optedIn
             ? ` Creator executed Partner Brand Ad Agreement as "${pod.campaignAgreement.signerFullName}" (Opted In: Free gear delivery & daily route pay enabled).`
@@ -2640,7 +3162,10 @@ app.get(['/api/health', '/health'], (req, res) => {
         totalMembers: pod.members.length, 
         agreementVersion: pod.agreementVersion, 
         activationPolicy: pod.activationPolicy,
-        campaignAgreement: pod.campaignAgreement || null
+        campaignAgreement: pod.campaignAgreement || null,
+        earlySlotCount: plan.earlyCount,
+        potUsd,
+        unseasonedEarlyUserIds: plan.unseasonedEarly,
       }
     );
 
@@ -2758,7 +3283,15 @@ app.get(['/api/health', '/health'], (req, res) => {
     };
 
     deposits.unshift(newDeposit);
-    pod.currentWeeklyCollected += baseDepositAmount;
+    const openDefault = findOpenDefault(pod.id, user.id, pod.currentCycleWeek);
+    if (openDefault) {
+      // The Thursday sweep already recorded this miss (and bridged the pot if it
+      // could): the late deposit repays that instead of counting twice.
+      applyDefaultRecovery(openDefault, baseDepositAmount, 'MEMBER_DEPOSIT', newDeposit.id);
+    } else {
+      pod.currentWeeklyCollected += baseDepositAmount;
+    }
+    if (member.delinquencyStatus === 'GRACE_PERIOD') member.delinquencyStatus = 'CLEAN';
     savePodsToDisk();
     saveUsersToDisk();
 
@@ -2767,7 +3300,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       user.id,
       user.displayName,
       'DEPOSIT_COMPLETED',
-      `Deposited $${baseDepositAmount.toFixed(2)} into Treasury holding account ${pod.holdingFinAccountId} for Week ${pod.currentCycleWeek} cycle ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged). Stripe Transfer ID: ${stripePaymentId}.`,
+      `Deposited $${baseDepositAmount.toFixed(2)} into Treasury holding account ${pod.holdingFinAccountId} for Week ${pod.currentCycleWeek} cycle ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged). Stripe Transfer ID: ${stripePaymentId}.${openDefault ? ' Applied to the open missed-deposit record for this week.' : ''}`,
       { baseDepositAmount, platformFee, totalChargedAmount, cycleWeek: pod.currentCycleWeek }
     );
 
@@ -3175,7 +3708,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         }
 
         const targetUser = users.find(u => u && u.id === member.userId);
-        if (DEMO_MODE && targetUser) {
+        if (DEMO_MODE && targetUser && targetUser.demoAutoFund !== false) {
           if (!targetUser.treasury) {
             targetUser.treasury = createUserRecord(targetUser.id, targetUser.email, targetUser.displayName).treasury;
           }
@@ -3236,6 +3769,11 @@ app.get(['/api/health', '/health'], (req, res) => {
         } else {
           failedCount += 1;
           let bufferDrawn = false;
+          if (findOpenDefault(pod.id, member.userId, cycleWeek)) {
+            // Already recorded for this week (sweep re-run): don't bridge or report twice.
+            details.push(`[${pod.name}] ${member.displayName || member.userId} still owes this week's deposit (default already recorded).`);
+            continue;
+          }
           if (pod.contingencyBufferUsd && pod.contingencyBufferUsd >= baseDepositAmount) {
             pod.contingencyBufferUsd -= baseDepositAmount;
             pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + baseDepositAmount;
@@ -3255,6 +3793,19 @@ app.get(['/api/health', '/health'], (req, res) => {
             }
           }
 
+          member.delinquencyStatus = member.delinquencyStatus === 'DELINQUENT' ? 'DELINQUENT' : 'GRACE_PERIOD';
+          try {
+            recordDepositDefault({
+              pod,
+              member,
+              trigger: 'THURSDAY_SWEEP',
+              bufferCoveredUsd: bufferDrawn ? baseDepositAmount : 0,
+              potShortfallUsd: bufferDrawn ? 0 : baseDepositAmount,
+            });
+          } catch (defaultErr) {
+            console.warn('[Sweep Default Record Warning]', defaultErr);
+          }
+
           try {
             createNotification({
               userId: member.userId,
@@ -3269,6 +3820,25 @@ app.get(['/api/health', '/health'], (req, res) => {
 
           details.push(`[${pod.name}] Incomplete debit for ${member.displayName || member.userId}: Balance $${userBalance} < $${totalChargedAmount}${bufferDrawn ? ' (Contingency buffer bridged)' : ''}`);
         }
+      }
+
+      // Money recovered from earlier defaults (ACH debits, later balance) that
+      // nobody had fronted bridges one deposit per week for the slot that was lost.
+      for (const d of depositDefaults.filter(x => x.podId === pod.id && x.memberRemoved && (x.reserveUsd || 0) > 0)) {
+        const bridged = roundCents(Math.min(d.reserveUsd, baseDepositAmount));
+        if (bridged <= 0) continue;
+        d.reserveUsd = roundCents(d.reserveUsd - bridged);
+        d.updatedAt = new Date().toISOString();
+        pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + bridged);
+        totalVolumeUsd += bridged;
+        try {
+          addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'DEFAULT_RESERVE_BRIDGED_DEPOSIT',
+            `Thursday sweep: $${bridged.toFixed(2)} recovered from ${d.userName}'s default bridged the vacated slot's Week ${cycleWeek} deposit. Reserve left: $${d.reserveUsd.toFixed(2)}.`,
+            { defaultId: d.id, bridgedUsd: bridged, cycleWeek, reserveLeftUsd: d.reserveUsd });
+        } catch (auditErr) {
+          console.warn('[Sweep AuditLog Warning]', auditErr);
+        }
+        details.push(`[${pod.name}] Bridged $${bridged.toFixed(2)} from recovered default funds (${d.userName})`);
       }
     }
 
@@ -4774,6 +5344,20 @@ Return ONLY a valid JSON object in this exact schema:
       return res.status(409).json({ error: 'PENDING_REQUEST_EXISTS', message: 'You already have a pending reprioritization request for this pod.' });
     }
 
+    // The vote would swap the requester into the next-up slot: it must respect the early-slot tenure rule.
+    {
+      const desired = pod.currentCycleWeek - 1;
+      const proposed = slotHolders(pod).map(h => {
+        if (h.userId === user.id) return { ...h, rotationIndex: desired };
+        if (h.rotationIndex === desired) return { ...h, rotationIndex: member.rotationIndex };
+        return h;
+      });
+      const violation = earlySlotViolationMessage(pod, proposed);
+      if (violation) {
+        return res.status(403).json({ error: 'EARLY_SLOT_TENURE', message: violation });
+      }
+    }
+
     const newRequest: ReprioritizationRequest = {
       id: newLedgerId('req'),
       podId: pod.id,
@@ -4842,6 +5426,21 @@ Return ONLY a valid JSON object in this exact schema:
       // Swap rotation index with current next up member
       const requesterMember = pod.members.find(m => m.userId === request.requesterUserId);
       const targetMember = pod.members.find(m => m.rotationIndex === request.desiredRotationIndex);
+
+      const tenureViolation = requesterMember && targetMember
+        ? earlySlotViolationMessage(pod, slotHolders(pod).map(h => {
+            if (h.userId === requesterMember.userId) return { ...h, rotationIndex: targetMember.rotationIndex };
+            if (h.userId === targetMember.userId) return { ...h, rotationIndex: requesterMember.rotationIndex };
+            return h;
+          }))
+        : null;
+      if (tenureViolation) {
+        request.status = 'REJECTED';
+        addAuditLog(pod.id, 'SYSTEM', 'MutualPool Rotation Rules', 'REPRIORITIZATION_VOTED',
+          `Emergency reprioritization request ${request.id} reached quorum but was REJECTED by the early-slot tenure rule: ${tenureViolation}`,
+          { requestId: request.id, votesFor: request.votesFor, tenureViolation });
+        return res.json({ request, pod, rejectedReason: tenureViolation });
+      }
 
       if (requesterMember && targetMember) {
         const oldIndex = requesterMember.rotationIndex;
@@ -5118,6 +5717,16 @@ Return ONLY a valid JSON object in this exact schema:
         error: 'SWAP_NOT_ACCEPTED',
         message: `Mutual consent required! ${member2.displayName} must accept your trade request first before you can execute the spot swap.`
       });
+    }
+
+    // Early slots follow trust: a swap can't move a less established member ahead.
+    const tenureViolation = earlySlotViolationMessage(pod, slotHolders(pod).map(h => {
+      if (h.userId === member1.userId) return { ...h, rotationIndex: member2.rotationIndex };
+      if (h.userId === member2.userId) return { ...h, rotationIndex: member1.rotationIndex };
+      return h;
+    }));
+    if (tenureViolation) {
+      return res.status(403).json({ error: 'EARLY_SLOT_TENURE', message: tenureViolation });
     }
 
     const tempIndex = member1.rotationIndex;
@@ -5735,11 +6344,38 @@ Return ONLY a valid JSON object in this exact schema:
         case 'checkout.session.async_payment_succeeded':
           if (obj.metadata?.kind === 'treasury_topup' && obj.payment_status === 'paid') {
             applied = creditTopup(obj.id, obj.metadata.userId, Number(obj.metadata.depositAmountUsd), 'checkout.session');
+          } else if (obj.metadata?.kind === 'debit_mandate' && obj.mode === 'setup' && obj.setup_intent) {
+            const si = typeof obj.setup_intent === 'object' ? obj.setup_intent : (DEMO_MODE ? null : await retrieveSetupIntentForSession(obj.id));
+            if (si) await applyDebitMandateSetup(si);
           }
+          break;
+        case 'setup_intent.succeeded':
+        case 'setup_intent.setup_failed':
+        case 'setup_intent.canceled':
+          if (obj.metadata?.kind === 'debit_mandate' || users.some(u => u && u.stripeCustomerId && u.stripeCustomerId === obj.customer)) {
+            await applyDebitMandateSetup(obj);
+          }
+          break;
+        case 'mandate.updated':
+          if (obj.status === 'inactive' && obj.id) markMandateRevoked(obj.id);
           break;
         case 'payment_intent.succeeded':
           if (obj.metadata?.kind === 'treasury_topup') {
             applied = creditTopup(obj.id, obj.metadata.userId, Number(obj.metadata.depositAmountUsd), 'payment_intent');
+          } else if (obj.metadata?.kind === 'ach_default_collection') {
+            applied = settleAchCollection(obj.id, 'SUCCEEDED');
+          }
+          break;
+        case 'payment_intent.payment_failed':
+        case 'payment_intent.canceled':
+          if (obj.metadata?.kind === 'ach_default_collection') {
+            applied = settleAchCollection(obj.id, 'FAILED', obj.last_payment_error?.message || obj.cancellation_reason || event.type);
+          }
+          break;
+        case 'charge.dispute.created':
+        case 'charge.refunded':
+          if (obj.payment_intent && achCollections.some(c => c.stripePaymentIntentId === obj.payment_intent)) {
+            applied = settleAchCollection(String(obj.payment_intent), 'RETURNED', obj.reason || event.type);
           }
           break;
         case 'account.updated':
@@ -5810,7 +6446,8 @@ Return ONLY a valid JSON object in this exact schema:
         { memberUserId, actionChoice }
       );
     } else if (actionChoice === 'REMOVE') {
-      // Direct removal
+      // Direct removal. A member leaving after taking the pot owes the rest of their deposits.
+      recordRemovalDefault(pod, member, 'ADMIN_REMOVE');
       removeMemberFromRotation(pod, memberUserId);
       pod.podType = 'OPEN_POD';
       pod.isPrioritizedForReplacement = true;
@@ -5831,11 +6468,17 @@ Return ONLY a valid JSON object in this exact schema:
       // Step 1: Check account balance (Stripe Treasury / daily wage supplement earnings)
       const currentBalance = memberUser?.treasury?.balanceUsd || 0;
 
+      const existingDefault = findOpenDefault(pod.id, memberUserId, pod.currentCycleWeek || 1);
       if (currentBalance >= requiredDeposit) {
         // Case A: Account balance is SUFFICIENT to cover full deposit
         balanceDeducted = requiredDeposit;
         if (memberUser) debitLedger(memberUser, requiredDeposit);
-        pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
+        if (existingDefault) {
+          // The sweep already bridged/recorded this week: the deduction repays it.
+          applyDefaultRecovery(existingDefault, requiredDeposit, 'MEMBER_BALANCE', 'admin_cover_gap');
+        } else {
+          pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
+        }
         member.delinquencyStatus = 'CLEAN';
         outcome = 'FULL_BALANCE_DEDUCTED';
 
@@ -5876,19 +6519,37 @@ Return ONLY a valid JSON object in this exact schema:
         balanceDeducted = roundCents(Math.max(0, currentBalance));
         if (memberUser && balanceDeducted > 0) debitLedger(memberUser, balanceDeducted);
 
-        const remainder = requiredDeposit - balanceDeducted;
-        const availableWelcomeMatch = pod.contingencyBufferUsd || 0;
-        welcomeMatchUsed = Math.min(remainder, availableWelcomeMatch);
-        pod.contingencyBufferUsd = Math.max(0, availableWelcomeMatch - welcomeMatchUsed);
+        let systemEscrowUsed = 0;
+        if (existingDefault) {
+          // The sweep already recorded the miss. The member's balance repays it;
+          // platform escrow covers whatever is still missing from this week's pot.
+          if (balanceDeducted > 0) applyDefaultRecovery(existingDefault, balanceDeducted, 'MEMBER_BALANCE', 'admin_cover_gap');
+          const potStillShort = roundCents(Math.max(0, (existingDefault.potShortfallUsd || 0) - Math.max(0, (existingDefault.recoveredUsd || 0) - (existingDefault.escrowCoveredUsd || 0) - (existingDefault.bufferCoveredUsd || 0))));
+          if (potStillShort > 0 && pod.status === 'ACTIVE' && pod.currentCycleWeek === existingDefault.cycleWeek) {
+            systemEscrowUsed = potStillShort;
+            pod.systemEscrowActive = true;
+            pod.systemEscrowDrawnUsd = roundCents((pod.systemEscrowDrawnUsd || 0) + systemEscrowUsed);
+            pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + systemEscrowUsed);
+            existingDefault.potShortfallUsd = roundCents(existingDefault.potShortfallUsd - systemEscrowUsed);
+            existingDefault.escrowCoveredUsd = roundCents((existingDefault.escrowCoveredUsd || 0) + systemEscrowUsed);
+            refreshDefaultStatus(existingDefault);
+          }
+          welcomeMatchUsed = 0;
+        } else {
+          const remainder = requiredDeposit - balanceDeducted;
+          const availableWelcomeMatch = pod.contingencyBufferUsd || 0;
+          welcomeMatchUsed = Math.min(remainder, availableWelcomeMatch);
+          pod.contingencyBufferUsd = Math.max(0, availableWelcomeMatch - welcomeMatchUsed);
 
-        // System Liquidity Escrow Account advances any remaining uncovered gap
-        const systemEscrowUsed = Math.max(0, remainder - welcomeMatchUsed);
-        if (systemEscrowUsed > 0) {
-          pod.systemEscrowActive = true;
-          pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + systemEscrowUsed;
+          // System Liquidity Escrow Account advances any remaining uncovered gap
+          systemEscrowUsed = Math.max(0, remainder - welcomeMatchUsed);
+          if (systemEscrowUsed > 0) {
+            pod.systemEscrowActive = true;
+            pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + systemEscrowUsed;
+          }
+
+          pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
         }
-
-        pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + requiredDeposit;
 
         // Record deposit with split metadata
         const newDeposit: Deposit = {
@@ -5910,6 +6571,16 @@ Return ONLY a valid JSON object in this exact schema:
 
         // ENFORCEMENT: Welcome Match Credited / Escrow kicked in due to insufficient user balance
         // The user must be taken off the Pod due to missed payment/deposit, and Pod is publicly listed.
+        // What the platform fronted, and the deposits still owed if they already took the pot, become a reported default.
+        recordDepositDefault({
+          pod,
+          member,
+          trigger: 'ADMIN_COVER_GAP',
+          bufferCoveredUsd: welcomeMatchUsed,
+          escrowCoveredUsd: existingDefault ? 0 : systemEscrowUsed,
+          remainingObligationUsd: member.hasReceivedPayout ? remainingObligationUsd(pod, memberUserId) : 0,
+          memberRemoved: true,
+        });
         removeMemberFromRotation(pod, memberUserId);
         pod.podType = 'OPEN_POD';
         pod.isPrioritizedForReplacement = true;
@@ -5988,6 +6659,157 @@ Return ONLY a valid JSON object in this exact schema:
       pod,
       remainingBufferUsd: pod.contingencyBufferUsd,
     });
+  });
+
+  // 16b. Deposit defaults: every missed deposit and what is still owed, for admins.
+  function defaultView(d: DepositDefault) {
+    const member = users.find(u => u && u.id === d.userId);
+    const mandate = member?.debitMandate;
+    return {
+      ...d,
+      remainingUsd: defaultRemainingUsd(d),
+      memberMandate: mandate ? { status: mandate.status, bankName: mandate.bankName, last4: mandate.last4 } : { status: 'NONE' },
+      memberEmail: member?.email,
+      memberBalanceUsd: roundCents(Number(member?.treasury?.balanceUsd) || 0),
+      collections: achCollections.filter(c => c.defaultId === d.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    };
+  }
+
+  app.get('/api/admin/defaults', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+    const all = depositDefaults.map(defaultView);
+    const open = all.filter(d => d.status === 'OPEN' || d.status === 'COLLECTING');
+    res.json({
+      defaults: all,
+      summary: {
+        openCount: open.length,
+        owedUsd: roundCents(open.reduce((sum, d) => sum + d.remainingUsd, 0)),
+        recoveredUsd: roundCents(all.reduce((sum, d) => sum + (d.recoveredUsd || 0), 0)),
+        payoutThenDefaultCount: open.filter(d => d.payoutReceivedUsd > 0).length,
+        processingCollections: achCollections.filter(c => c.status === 'PROCESSING').length,
+      },
+    });
+  });
+
+  // Admin-initiated ACH debit under the member's mandate. ACH settles later: the
+  // Stripe webhook marks the collection settled/failed and applies the recovery.
+  app.post('/api/admin/defaults/:id/collect', async (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+    const d = depositDefaults.find(x => x.id === req.params.id);
+    if (!d) return res.status(404).json({ error: 'DEFAULT_NOT_FOUND', message: 'Default record not found.' });
+    if (d.status === 'WRITTEN_OFF' || d.status === 'RECOVERED') {
+      return res.status(400).json({ error: 'DEFAULT_CLOSED', message: `This default is ${d.status.toLowerCase().replace('_', ' ')}.` });
+    }
+    if (achCollections.some(c => c.defaultId === d.id && c.status === 'PROCESSING')) {
+      return res.status(409).json({ error: 'COLLECTION_IN_PROGRESS', message: 'An ACH debit for this default is already processing. Wait for it to settle.' });
+    }
+    const member = users.find(u => u && u.id === d.userId);
+    const mandate = member?.debitMandate;
+    if (!member || !mandate || mandate.status !== 'ACTIVE' || !mandate.paymentMethodId || !(mandate.stripeCustomerId || member.stripeCustomerId)) {
+      return res.status(400).json({ error: 'NO_ACTIVE_MANDATE', message: `${d.userName} has no active bank debit mandate; nothing can be collected by ACH.` });
+    }
+    const remaining = defaultRemainingUsd(d);
+    const amount = req.body?.amountUsd === undefined || req.body?.amountUsd === null || req.body?.amountUsd === ''
+      ? remaining
+      : parseMoneyAmount(req.body.amountUsd, { max: 10_000 });
+    if (amount === null || amount <= 0 || amount > remaining + 1e-9) {
+      return res.status(400).json({ error: 'INVALID_AMOUNT', message: `Enter an amount between $0.01 and $${remaining.toFixed(2)} (what is still owed).` });
+    }
+
+    const nowIso = new Date().toISOString();
+    const collection: AchCollection = {
+      id: newLedgerId('ach'),
+      defaultId: d.id,
+      userId: d.userId,
+      podId: d.podId,
+      amountUsd: roundCents(amount),
+      status: 'PROCESSING',
+      stripeMandateId: mandate.mandateId,
+      bankLast4: mandate.last4,
+      initiatedByUserId: admin.id,
+      initiatedByName: admin.displayName,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    achCollections.unshift(collection);
+    d.status = 'COLLECTING';
+    d.updatedAt = nowIso;
+
+    // The record must be durable before Stripe is asked to move money.
+    if (!(await persistNow())) {
+      achCollections = achCollections.filter(c => c.id !== collection.id);
+      refreshDefaultStatus(d);
+      return res.status(503).json({ error: 'COLLECTION_UNAVAILABLE', message: 'Collections are temporarily unavailable. Nothing was debited.' });
+    }
+
+    try {
+      if (DEMO_MODE) {
+        collection.stripePaymentIntentId = `pi_demo_${collection.id}`;
+      } else {
+        const intent = await createAchDebit({
+          customerId: mandate.stripeCustomerId || member.stripeCustomerId!,
+          paymentMethodId: mandate.paymentMethodId,
+          mandateId: mandate.mandateId,
+          amountUsd: collection.amountUsd,
+          idempotencyKey: collection.id,
+          description: `MutualPool: missed deposit, "${d.podName}" week ${d.cycleWeek}`,
+          metadata: { kind: 'ach_default_collection', collectionId: collection.id, defaultId: d.id, userId: d.userId, podId: d.podId },
+        });
+        collection.stripePaymentIntentId = intent.id;
+        if (intent.status === 'succeeded') {
+          settleAchCollection(intent.id, 'SUCCEEDED');
+        } else if (intent.status === 'canceled' || intent.status === 'requires_payment_method') {
+          settleAchCollection(intent.id, 'FAILED', `Stripe status ${intent.status}`);
+        }
+      }
+    } catch (stripeErr: any) {
+      collection.status = 'FAILED';
+      collection.failureReason = String(stripeErr?.message || stripeErr).slice(0, 300);
+      collection.updatedAt = new Date().toISOString();
+      refreshDefaultStatus(d);
+      console.error('[ACH collect] Stripe rejected the debit:', collection.failureReason);
+      return res.status(502).json({ error: 'COLLECTION_FAILED', message: 'Stripe could not start the debit. Nothing was collected.', collection });
+    }
+    collection.updatedAt = new Date().toISOString();
+
+    addAuditLog(d.podId, admin.id, admin.displayName, 'ACH_COLLECTION_INITIATED',
+      `Initiated ACH debit of $${collection.amountUsd.toFixed(2)} from ${d.userName} (bank ••••${mandate.last4 || '????'}) for the Week ${d.cycleWeek} default in "${d.podName}" (${collection.stripePaymentIntentId}).`,
+      { collectionId: collection.id, defaultId: d.id, amountUsd: collection.amountUsd, paymentIntentId: collection.stripePaymentIntentId });
+    createNotification({
+      userId: member.id,
+      type: 'DEPOSIT_DUE',
+      title: 'Bank debit for a missed deposit',
+      message: `Under your bank debit authorization, MutualPool is debiting $${collection.amountUsd.toFixed(2)} from ${mandate.bankName || 'your bank'} ••••${mandate.last4 || ''} for the missed Week ${d.cycleWeek} deposit in "${d.podName}". It usually settles within 4 business days.`,
+      podId: d.podId,
+      metadata: { collectionId: collection.id, defaultId: d.id },
+    });
+    savePodsToDisk();
+    res.json({ success: true, collection, default: defaultView(d) });
+  });
+
+  app.post('/api/admin/defaults/:id/write-off', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+    const d = depositDefaults.find(x => x.id === req.params.id);
+    if (!d) return res.status(404).json({ error: 'DEFAULT_NOT_FOUND', message: 'Default record not found.' });
+    if (achCollections.some(c => c.defaultId === d.id && c.status === 'PROCESSING')) {
+      return res.status(409).json({ error: 'COLLECTION_IN_PROGRESS', message: 'Wait for the processing ACH debit to settle before writing this off.' });
+    }
+    const reason = (typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 500) : '') || 'Written off by administrator';
+    const remaining = defaultRemainingUsd(d);
+    d.status = 'WRITTEN_OFF';
+    d.writeOffReason = reason;
+    d.updatedAt = new Date().toISOString();
+    d.recoveries.push({ at: d.updatedAt, amountUsd: remaining, source: 'WRITE_OFF', ref: reason });
+    addAuditLog(d.podId, admin.id, admin.displayName, 'DEFAULT_WRITTEN_OFF', `Wrote off $${remaining.toFixed(2)} still owed by ${d.userName} for the Week ${d.cycleWeek} default in "${d.podName}": ${reason}`, { defaultId: d.id, writtenOffUsd: remaining, reason });
+    res.json({ success: true, default: defaultView(d) });
   });
 
   // 11. Autonomous / System Escrow Deposit Injection for Vacant or Defaulted Slots
@@ -7431,6 +8253,8 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'processedPayments', get: () => processedPayments, set: docs => { processedPayments = docs; } });
   registerCollection({ collection: 'withdrawals', get: () => withdrawals, set: docs => { withdrawals = docs; } });
   registerCollection({ collection: 'welcomeMatchGrants', get: () => welcomeMatchGrants, set: docs => { welcomeMatchGrants = docs; } });
+  registerCollection({ collection: 'depositDefaults', get: () => depositDefaults, set: docs => { depositDefaults = docs; } });
+  registerCollection({ collection: 'achCollections', get: () => achCollections, set: docs => { achCollections = docs; } });
   registerCollection({ collection: 'shifts', get: () => shifts, set: docs => { shifts = docs; } });
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
   registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });

@@ -77,6 +77,7 @@ export function getPrivacyPolicy(ctx: LegalContext): LegalDocument {
           '**Account details.** When you sign up we collect your name, email address and, if you use them, your phone number or Google profile (name and photo). Sign-in is handled by Firebase Authentication.',
           '**Profile choices.** The gig platform you work for, your city, the name your community uses for a savings circle (for example "Tanda" or "Susu"), the app language you choose and your device\'s language setting.',
           '**Identity and payout details.** Identity verification and bank-account collection are done by Stripe through its secure onboarding. Stripe tells us whether you\'re verified, the name of your bank and the last four digits of the account, and a non-reversible "fingerprint" of the account that we use only to stop the same person opening several accounts. We never see your full bank account number, card number or government ID.',
+          '**Bank debit authorization.** Before you create or join a pod you authorize bank debits through Stripe. Stripe gives us a reference to that authorization, the name of the bank and the last four digits and fingerprint of the account you chose, and the status of each debit we request. We use it only to collect amounts you owe under the Terms of Service, and we record each debit in the audit log.',
           `**Payments and balances.** Deposits and withdrawals are processed by Stripe. We keep records of amounts, dates, status and Stripe reference numbers, and we maintain your Treasury balance and transaction history. ${custody}`,
           '**Pod activity.** The pods you create or join, your position in the rotation, deposits, payouts, spot-swap requests and votes, and hardship requests together with the reason you give.',
           '**People you invite.** When you invite someone to a pod we store the name and email address or phone number you enter, so the pod can recognise them if they join. We use it for nothing else, delete it when the pod completes if they never joined, and anyone who was invited can ask us to remove their details at any time.',
@@ -211,6 +212,7 @@ export function getTermsOfService(ctx: LegalContext): LegalDocument {
           'You can withdraw your available balance to the bank account you verified with Stripe. Withdrawals have no MutualPool fee; your bank may take 1–3 business days to post them.',
           'We may hold or reverse funds that are the subject of a chargeback, refund, fraud review or legal requirement, and we may delay withdrawals of recently deposited funds while a payment is still contestable.',
           'Your weekly pod deposits are taken from your balance automatically on the schedule in the Pod Agreement. Keep enough balance to cover them.',
+          '**Bank debit authorization.** Before you create or join a pod you authorize MutualPool, through Stripe, to debit your linked bank account for amounts you owe under these terms and your Pod Agreement: a weekly deposit your balance could not cover, anything advanced on your behalf, and the remaining deposits you committed to if you leave or are removed from a pod after receiving its payout. We tell you in the app before each debit. You can revoke the authorization by contacting support; revoking it does not cancel what you owe, and you can\'t create or join pods without it.',
           'If a payment to you was made in error, you agree we may deduct it from your balance or future payouts.',
         ],
       },
@@ -219,6 +221,8 @@ export function getTermsOfService(ctx: LegalContext): LegalDocument {
         bullets: [
           'When you create or join a pod you commit to making the weekly deposit for the full length of the cycle (one week per member), even after you have received your payout.',
           'The rotation order is set when the creator locks the pod and cannot be changed except by a mutual swap or a reprioritization vote, both described in the Pod Agreement. Decisions reached that way are binding on all members.',
+          'Pod size follows your track record. Until you have completed a pod you can join pods with a total pot of up to $1,000; the limit rises to $2,500 after one completed pod, $5,000 after two, and is removed after three. A pod where you missed a deposit does not count, and an unresolved missed deposit returns you to the first limit until it is settled.',
+          'The first half of each rotation goes to the members with the longest track record: completed pods first, then at least 90 days on MutualPool, then newer members. In pods with a pot over $1,000 those slots are only held by members with a completed pod or 90 days\' tenure. A swap or vote can\'t move a member ahead of a more established one in the early half.',
           'The pod creator takes the final payout slot and receives the host reward for doing so; if they trade that slot, the reward goes with it.',
           'You can only leave a pod once every member has received a payout.',
           'A pod is a group of the members in it, not a product we sell. Other members can see your name, photo, platform and payment status within the pod.',
@@ -238,7 +242,7 @@ export function getTermsOfService(ctx: LegalContext): LegalDocument {
         title: 'Missed deposits, defaults and what we may do',
         bullets: [
           'If your balance can\'t cover a deposit, the pod may draw on its contingency buffer or on MutualPool\'s escrow so the week\'s payout still happens. Any amount advanced on your behalf becomes money you owe.',
-          'We may deduct what you owe from your balance and from any future payout, in any pod.',
+          'We may deduct what you owe from your balance, from any future payout in any pod, and, under your bank debit authorization, from your linked bank account.',
           'A member who misses deposits may be given a grace period, removed from the pod, or both, as described in the Pod Agreement.',
           'A member who receives a payout and then stops depositing is in default of this agreement. We may suspend their account, keep any balance to cover the shortfall, pursue the amount owed, and share the default with other members of the pod.',
           'We are not obliged to cover a shortfall caused by another member, and our escrow and contingency buffers are limited and discretionary.',

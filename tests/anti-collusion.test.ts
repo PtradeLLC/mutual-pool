@@ -40,6 +40,9 @@ async function api(path: string, init: RequestInit & { headers?: Record<string, 
 async function fund(u: TestUser, amount = 1000) {
   const r = await api('/api/users/treasury/topup', { method: 'POST', headers: headers(u), body: JSON.stringify({ amount }) });
   assert.equal(r.status, 200);
+  // Every member authorizes bank debits before creating or joining a pod.
+  const m = await api('/api/users/debit-mandate/accept', { method: 'POST', headers: headers(u), body: '{}' });
+  assert.equal(m.status, 200);
 }
 
 // Simulate Stripe Connect onboarding finishing with a given payout bank account.

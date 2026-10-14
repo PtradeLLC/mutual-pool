@@ -11,6 +11,13 @@ const env: Record<string, string | undefined> = typeof process !== 'undefined' &
 export const IS_PRODUCTION = env.NODE_ENV === 'production';
 export const DEMO_MODE = !IS_PRODUCTION && env.DEMO_MODE === 'true';
 
+// --- Payout-then-default controls (see src/server/rotation.ts) ---
+// Days on MutualPool after which a member counts as "tenured" for the early
+// rotation slots (a completed pod ranks higher still).
+export const EARLY_SLOT_TENURE_DAYS = Math.max(1, Number(env.EARLY_SLOT_TENURE_DAYS) || 90);
+// Members must hold an active bank-debit mandate to create or join a pod.
+export const DEBIT_MANDATE_REQUIRED = env.DEBIT_MANDATE_REQUIRED !== 'false';
+
 // Where development JSON data files live (tests point this at a temp dir).
 export const DATA_DIR = env.DATA_DIR || (typeof process !== 'undefined' ? process.cwd() : '');
 
