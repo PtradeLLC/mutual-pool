@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { User, Pod, PodMembership, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin, PodDetailTab } from './types';
+import { User, Pod, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin, PodDetailTab } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -37,7 +37,6 @@ const TermsOfServiceModal = lazy(() => import('./components/TermsOfServiceModal'
 const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate').then((module) => ({ default: module.TermsAcceptanceGate })));
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
-import { INITIAL_USERS, INITIAL_PODS, INITIAL_CAMPAIGNS, INITIAL_CAMPAIGN_SHIFTS } from './data/initialData';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { 
@@ -61,6 +60,7 @@ import { fetchWithExponentialBackoff } from './utils/apiRetry';
 import { scrollToTabSection } from './utils/navigation';
 import { CLIENT_DEMO_MODE } from './lib/demoMode';
 import { hasAcceptedCurrentTerms } from './lib/legal';
+import { avatarUrlFor } from './utils/avatar';
 
 export default function App() {
   const { t, formatCurrency } = useTranslation();
@@ -82,46 +82,16 @@ export default function App() {
   });
   const [authLoading, setAuthLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [allPods, setAllPods] = useState<Pod[]>(() => {
-    try {
-      const saved = localStorage.getItem('mutualpool_cached_pods');
-      const parsed: Pod[] = saved ? JSON.parse(saved) : [];
-      const map = new Map<string, Pod>();
-      for (const p of parsed) {
-        if (p && p.id && !isDemoPod(p)) {
-          const existing = map.get(p.id);
-          map.set(p.id, existing ? mergePodObjects(existing, p) : p);
-        }
-      }
-      const clean = Array.from(map.values());
-      localStorage.setItem('mutualpool_cached_pods', JSON.stringify(clean));
-      return clean;
-    } catch {
-      return [];
-    }
-  });
+  // Pods come from the server / Firestore only; nothing is cached in localStorage.
+  const [allPods, setAllPods] = useState<Pod[]>([]);
   const [activeTab, setActiveTab] = useState<'my-pods' | 'explore-pods' | 'perks' | 'campaigns' | 'audit-log' | 'admin-ops'>('my-pods');
 
   // Scrolling to a section only happens when the member clicks a navigation
   // button (each handler calls scrollToTabSection itself). Signing in, the logo,
   // and programmatic tab changes leave the page at the top of the dashboard.
   const [scannedSleeveNotice, setScannedSleeveNotice] = useState<boolean>(false);
-  const [campaigns, setCampaigns] = useState<AdCampaign[]>(() => {
-    try {
-      const saved = localStorage.getItem('mutualpool_campaigns');
-      if (!saved) return INITIAL_CAMPAIGNS;
-      const parsed: AdCampaign[] = JSON.parse(saved);
-      const isDemoCampaign = (c: any) => {
-        if (!c || !c.id) return true;
-        return ['camp_celsius_chicago_2026', 'camp_liquiddeath_nyc_2026', 'camp_meineke_national_2026', 'camp_sweetgreen_la_2026'].includes(c.id);
-      };
-      const clean = Array.isArray(parsed) ? parsed.filter(c => !isDemoCampaign(c)) : [];
-      localStorage.setItem('mutualpool_campaigns', JSON.stringify(clean));
-      return clean;
-    } catch {
-      return INITIAL_CAMPAIGNS;
-    }
-  });
+  // Campaigns are owned by the server (GET /api/campaigns); never cached locally.
+  const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [participations, setParticipations] = useState<CourierCampaignParticipation[]>(() => {
     try {
       const saved = localStorage.getItem('mutualpool_participations');
@@ -130,38 +100,15 @@ export default function App() {
       return [];
     }
   });
-  const [campaignShifts, setCampaignShifts] = useState<CampaignShiftLog[]>(() => {
-    try {
-      const saved = localStorage.getItem('mutualpool_campaign_shifts');
-      if (!saved) return INITIAL_CAMPAIGN_SHIFTS;
-      const parsed: CampaignShiftLog[] = JSON.parse(saved);
-      const isDemoShift = (s: any) => {
-        if (!s || !s.id) return true;
-        return ['shift_101', 'shift_102', 'shift_103', 'shift_104', 'shift_105', 'shift_106', 'shift_107', 'shift_108'].includes(s.id) ||
-          ['camp_celsius_chicago_2026', 'camp_liquiddeath_nyc_2026', 'camp_meineke_national_2026', 'camp_sweetgreen_la_2026'].includes(s.campaignId);
-      };
-      const clean = Array.isArray(parsed) ? parsed.filter(s => !isDemoShift(s)) : [];
-      localStorage.setItem('mutualpool_campaign_shifts', JSON.stringify(clean));
-      return clean;
-    } catch {
-      return INITIAL_CAMPAIGN_SHIFTS;
-    }
-  });
+  // Completed shifts seen in this session (the server is the source of truth).
+  const [campaignShifts, setCampaignShifts] = useState<CampaignShiftLog[]>([]);
   // Shifts are owned by the server (randomized spot-check schedule); this is a view of the active one.
   const [activeShiftSession, setActiveShiftSession] = useState<ActiveShiftSession | null>(null);
 
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
 
   const handleAddNewShift = (newShift: CampaignShiftLog) => {
-    setCampaignShifts(prev => {
-      const next = [newShift, ...prev];
-      try {
-        localStorage.setItem('mutualpool_campaign_shifts', JSON.stringify(next));
-      } catch {
-        // storage silent
-      }
-      return next;
-    });
+    setCampaignShifts(prev => [newShift, ...prev.filter(s => s.id !== newShift.id)]);
   };
 
   const handleStartShift = (session: ActiveShiftSession) => {
@@ -212,24 +159,8 @@ export default function App() {
       return next;
     });
 
-    // 4. Update campaign current impressions
-    setCampaigns(prev => {
-      const next = prev.map(c => {
-        if (c.id === completedShift.campaignId) {
-          return {
-            ...c,
-            currentImpressions: (c.currentImpressions || 0) + (completedShift.estimatedImpressions || 0),
-          };
-        }
-        return c;
-      });
-      try {
-        localStorage.setItem('mutualpool_campaigns', JSON.stringify(next));
-      } catch {
-        // silent
-      }
-      return next;
-    });
+    // 4. Refresh campaigns from the server (impressions are tallied server-side)
+    fetchCampaigns();
 
     // 5. Clear active shift session
     setActiveShiftSession(null);
@@ -253,16 +184,6 @@ export default function App() {
       }
     }
   }, [currentUser]);
-
-  useEffect(() => {
-    if (allPods.length > 0) {
-      try {
-        localStorage.setItem('mutualpool_cached_pods', JSON.stringify(allPods));
-      } catch {
-        // quiet storage fail
-      }
-    }
-  }, [allPods]);
 
   // Modals state
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -304,27 +225,101 @@ export default function App() {
       }
       return next;
     });
-    setCampaigns(prev => {
-      const next = prev.map(c => c.id === newPart.campaignId ? { ...c, activeCouriersCount: (c.activeCouriersCount || 0) + 1 } : c);
-      try {
-        localStorage.setItem('mutualpool_campaigns', JSON.stringify(next));
-      } catch {
-        // storage silent
-      }
-      return next;
-    });
+    setCampaigns(prev => prev.map(c => c.id === newPart.campaignId ? { ...c, activeCouriersCount: (c.activeCouriersCount || 0) + 1 } : c));
   };
 
-  const handleCreateCampaign = (newCamp: AdCampaign) => {
-    setCampaigns(prev => {
-      const next = [newCamp, ...prev];
-      try {
-        localStorage.setItem('mutualpool_campaigns', JSON.stringify(next));
-      } catch {
-        // storage silent
-      }
-      return next;
+  // Parse a JSON body without throwing on empty / non-JSON responses.
+  const readJson = async (res: Response | null): Promise<any> => {
+    if (!res) return {};
+    const text = await res.text().catch(() => '');
+    if (!text) return {};
+    try { return JSON.parse(text); } catch { return { message: text.slice(0, 200) }; }
+  };
+
+  // Campaigns are read from the server. Couriers get recruiting/active ones,
+  // advertisers also see their own (including pending/rejected), admins see all.
+  const fetchCampaigns = async () => {
+    try {
+      const res = await fetch('/api/campaigns', { headers: { Accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await readJson(res);
+      if (Array.isArray(data?.campaigns)) setCampaigns(data.campaigns);
+    } catch {
+      // keep whatever we had; the UI never invents campaigns
+    }
+  };
+
+  // Other components (e.g. AdvertiserDashboard) announce server-side changes.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onChanged = () => { fetchCampaigns(); };
+    window.addEventListener('mutualpool_campaigns_changed', onChanged);
+    return () => window.removeEventListener('mutualpool_campaigns_changed', onChanged);
+  }, []);
+
+  // Fetch (and re-fetch) campaigns whenever the signed-in user changes.
+  useEffect(() => {
+    fetchCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  const handleCreateCampaign = async (draft: AdCampaign): Promise<AdCampaign> => {
+    const payload = {
+      title: draft.title,
+      brandName: draft.brandName,
+      brandColor: draft.brandColor,
+      brandLogo: draft.brandLogo,
+      description: draft.description,
+      bannerUrl: draft.bannerUrl,
+      targetMetro: draft.targetMetro,
+      deliveryPlatforms: draft.deliveryPlatforms,
+      dailyPayout: draft.dailyPayout,
+      weeklyEstimatedEarnings: draft.weeklyEstimatedEarnings,
+      maxCouriersTarget: draft.maxCouriersTarget,
+      durationWeeks: draft.durationWeeks,
+      gearRequired: draft.gearRequired,
+      requirements: draft.requirements,
+      payoutTerms: draft.payoutTerms,
+      impressionsTarget: draft.impressionsTarget,
+      startDate: draft.startDate,
+    };
+    const res = await fetch('/api/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
     });
+    const data = await readJson(res);
+    if (!res.ok || !data?.campaign) {
+      const message = data?.message || data?.error || 'Could not submit the campaign.';
+      toast.error(message, { title: 'Campaign not created' });
+      throw new Error(message);
+    }
+    const created: AdCampaign = data.campaign;
+    setCampaigns(prev => [created, ...prev.filter(c => c.id !== created.id)]);
+    if (created.status === 'pending') {
+      toast.success('Campaign submitted. MutualPool will review it before couriers can see it.', { title: 'Pending review' });
+    } else {
+      toast.success(`Campaign "${created.title}" is now ${created.status}.`, { title: 'Campaign created' });
+    }
+    return created;
+  };
+
+  // Owner / admin status changes (pause, resume, complete).
+  const handleChangeCampaignStatus = async (campaignId: string, status: 'paused' | 'active' | 'completed'): Promise<AdCampaign | null> => {
+    const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ status }),
+    }).catch(() => null);
+    const data = await readJson(res);
+    if (!res || !res.ok || !data?.campaign) {
+      toast.error(data?.message || data?.error || 'Could not update the campaign.', { title: 'Update failed' });
+      return null;
+    }
+    const updated: AdCampaign = data.campaign;
+    setCampaigns(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+    toast.success(`Campaign "${updated.title}" is now ${updated.status}.`);
+    return updated;
   };
 
   const handleRepayHardship = async () => {
@@ -352,11 +347,11 @@ export default function App() {
         body: JSON.stringify({ requestId: activeReq.id }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Repayment failed');
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.message || data.error || 'Repayment failed');
 
       toast.success(
-        `Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`,
+        `Hardship Fund paid off ($${Number(data?.request?.totalPayoffAmount || 0).toFixed(2)} including 7% fee)! Account reactivated for pool participation.`,
         { title: 'Hardship Repaid' }
       );
       fetchAppData(currentUser.id);
@@ -509,7 +504,6 @@ export default function App() {
 
       // Fetch all pods from Firestore directly
       const firestorePods = await getPodsFromFirestore().catch(() => []);
-      console.log('[App fetchAppData] Firestore pods returned:', firestorePods.length, firestorePods);
 
       // Fetch all pods from backend API with exponential backoff retry to mitigate transient 500 errors
       const podsRes = await fetchWithExponentialBackoff(
@@ -524,7 +518,6 @@ export default function App() {
           apiPods = pData.filter(p => p && p.id && !isDemoPod(p));
         }
       }
-      console.log('[App fetchAppData] Server API pods returned:', apiPods.length, apiPods);
 
       // Fetch user notifications with exponential backoff retry to mitigate transient 500 errors
       if (uId) {
@@ -557,21 +550,6 @@ export default function App() {
         }
       }
 
-      // Check local storage created pods
-      let localCreatedPods: Pod[] = [];
-      if (typeof window !== 'undefined') {
-        try {
-          const raw = localStorage.getItem('mutualpool_created_pods');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              localCreatedPods = parsed.filter(p => p && p.id && !isDemoPod(p));
-              localStorage.setItem('mutualpool_created_pods', JSON.stringify(localCreatedPods));
-            }
-          }
-        } catch {}
-      }
-
       setAllPods(() => {
         const map = new Map<string, Pod>();
         // 1. Primary source of truth: Live Firestore pods
@@ -586,26 +564,15 @@ export default function App() {
           const existing = map.get(p.id);
           map.set(p.id, existing ? mergePodObjects(existing, p) : p);
         }
-        // 3. Local created pods (push missing to Firestore)
-        for (const p of localCreatedPods) {
-          if (!p || !p.id || isDemoPod(p)) continue;
-          const existing = map.get(p.id);
-          const merged = existing ? mergePodObjects(existing, p) : p;
-          map.set(p.id, merged);
-          savePodToFirestore(merged).catch(() => {});
-        }
         const updated = Array.from(map.values());
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updated));
-          } catch {}
-        }
         if (selectedPodDetail) {
           const fresh = updated.find((p) => p.id === selectedPodDetail.id);
           if (fresh) setSelectedPodDetail(fresh);
         }
         return updated;
       });
+
+      await fetchCampaigns();
     } catch {
       // quiet fail-safe
     }
@@ -623,11 +590,6 @@ export default function App() {
       if (firestorePods && Array.isArray(firestorePods)) {
         const cleanPods = firestorePods.filter(p => p && p.id && !isDemoPod(p));
         setAllPods(cleanPods);
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('mutualpool_cached_pods', JSON.stringify(cleanPods));
-          } catch {}
-        }
         if (selectedPodDetail) {
           const fresh = cleanPods.find((p) => p.id === selectedPodDetail.id);
           if (fresh) setSelectedPodDetail(fresh);
@@ -648,27 +610,8 @@ export default function App() {
           let dbUser = await getUserFromFirestore(fbUser.uid);
           if (dbUser) {
             let modified = false;
-            // Clean legacy $100 placeholder or fake bank placeholders for new user profiles with 0 completed pods
-            if (dbUser.treasury && (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_') || (dbUser.completedPodsCount === 0 && dbUser.treasury.balanceUsd === 100))) {
-              dbUser.treasury.balanceUsd = 0.00;
-              if (dbUser.treasury.stripeAccountId?.startsWith('acct_fb_')) {
-                dbUser.treasury.stripeAccountId = '';
-                dbUser.treasury.stripeFinAccountId = '';
-                dbUser.treasury.status = 'UNINITIALIZED';
-                dbUser.treasury.fdicPassThroughEligible = false;
-              }
-              modified = true;
-            }
-            if (dbUser.externalBank && dbUser.externalBank.bankName === 'Linked Bank Account') {
-              dbUser.externalBank = {
-                bankName: '',
-                last4: '',
-                routingNumber: '',
-                accountType: 'CHECKING',
-                status: 'NOT_LINKED',
-              };
-              modified = true;
-            }
+            // Balances, bank links and KYC status are owned by the server/Stripe;
+            // the client never rewrites them at sign-in.
 
             // Ensure createdAt exists and tenure days is accurately calculated from elapsed time
             const fbCreationTime = fbUser.metadata?.creationTime;
@@ -699,18 +642,12 @@ export default function App() {
               modified = true;
             }
 
-            // Ensure unverified users correctly reflect PENDING KYC status unless verified
-            if (dbUser.kycStatus === 'VERIFIED' && !dbUser.kycVerifiedAt && !dbUser.treasury.stripeAccountId) {
-              dbUser.kycStatus = 'PENDING';
-              modified = true;
-            }
-
             // Sync real avatar photoURL from Firebase Auth or generate dynamic avatar from display name
             if (fbUser.photoURL && dbUser.avatarUrl !== fbUser.photoURL) {
               dbUser.avatarUrl = fbUser.photoURL;
               modified = true;
-            } else if (!dbUser.avatarUrl || dbUser.avatarUrl.includes('unsplash.com/photo-1534528741775-53994a69daeb')) {
-              dbUser.avatarUrl = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(dbUser.displayName || fbUser.displayName || 'Member')}&background=005FB8&color=fff&size=200`;
+            } else if (!dbUser.avatarUrl || dbUser.avatarUrl.includes('images.unsplash.com')) {
+              dbUser.avatarUrl = avatarUrlFor(dbUser.displayName || fbUser.displayName, fbUser.photoURL);
               modified = true;
             }
 
@@ -726,12 +663,12 @@ export default function App() {
               id: fbUser.uid,
               email: fbUser.email || `${fbUser.uid.substring(0, 8)}@mutualpool.org`,
               displayName: resolvedName,
-              avatarUrl: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`,
+              avatarUrl: avatarUrlFor(resolvedName, fbUser.photoURL),
               platform: 'DoorDash',
               role: 'RIDER',
               createdAt: userCreationTime,
               accountAgeDays: calculateAccountAgeDays(userCreationTime, 1),
-              kycStatus: 'PENDING',
+              kycStatus: 'UNVERIFIED',
               treasury: {
                 stripeAccountId: '',
                 stripeFinAccountId: '',
@@ -853,11 +790,11 @@ export default function App() {
     id: 'usr_guest',
     email: '',
     displayName: 'Guest Member',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    avatarUrl: avatarUrlFor('Guest Member'),
     platform: 'DoorDash',
     role: 'RIDER',
     accountAgeDays: 0,
-    kycStatus: 'VERIFIED',
+    kycStatus: 'UNVERIFIED',
     treasury: {
       stripeAccountId: '',
       stripeFinAccountId: '',
@@ -865,7 +802,7 @@ export default function App() {
       pendingInboundUsd: 0,
       totalPayoutsReceivedUsd: 0,
       fdicPassThroughEligible: false,
-      status: 'ACTIVE',
+      status: 'UNINITIALIZED',
     },
     externalBank: {
       bankName: '',
@@ -932,60 +869,18 @@ export default function App() {
     }
   };
 
-  // Comprehensive Pod filtering to robustly match user by ID, Email, or Display Name across reloads
+  // "My Pods": membership is decided by userId only (server-owned member list / creator id).
   const myPods = useMemo(() => {
+    const uid = currentUser?.id;
+    if (!uid || uid === 'usr_guest') return [];
     return allPods.filter(p => {
       if (!p) return false;
-      // Unwrap if p was stored wrapped in Firestore as { pod: ... }
       const pod: Pod = (p as any).pod && (p as any).pod.id ? (p as any).pod : p;
       if (isDemoPod(pod)) return false;
-
-      const activeId = activeUser?.id;
-      const currentId = currentUser?.id;
-      const activeEmail = activeUser?.email?.trim().toLowerCase();
-      const currentEmail = currentUser?.email?.trim().toLowerCase();
-      const activeName = activeUser?.displayName?.trim().toLowerCase();
-      const currentName = currentUser?.displayName?.trim().toLowerCase();
-
-      // 0. Check if created or joined locally in this browser session for this user
-      if (typeof window !== 'undefined') {
-        try {
-          if (localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') {
-            return true;
-          }
-          const createdRaw = localStorage.getItem('mutualpool_created_pods');
-          if (createdRaw) {
-            const createdList: Pod[] = JSON.parse(createdRaw);
-            if (createdList.some(cp => cp.id === pod.id && (cp.createdBy === activeId || cp.createdBy === currentId))) return true;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      // 1. Match creator ID or creator Display Name
-      if (activeId && pod.createdBy === activeId) return true;
-      if (currentId && pod.createdBy === currentId) return true;
-      if (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName) return true;
-      if (currentName && pod.creatorName && pod.creatorName.trim().toLowerCase() === currentName) return true;
-
-      // 2. Match members list by userId, email, or displayName
-      if (Array.isArray(pod.members)) {
-        return pod.members.some(m => {
-          if (!m) return false;
-          if (activeId && m.userId === activeId) return true;
-          if (currentId && m.userId === currentId) return true;
-          if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
-          if (currentEmail && (m as any).email && (m as any).email.trim().toLowerCase() === currentEmail) return true;
-          if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
-          if (currentName && m.displayName && m.displayName.trim().toLowerCase() === currentName) return true;
-          return false;
-        });
-      }
-
-      return false;
+      if (pod.createdBy === uid) return true;
+      return Array.isArray(pod.members) && pod.members.some(m => m && m.userId === uid);
     });
-  }, [allPods, activeUser?.id, activeUser?.email, activeUser?.displayName, currentUser?.id, currentUser?.email, currentUser?.displayName]);
+  }, [allPods, currentUser?.id]);
 
   // User-created forming pods
   const userCreatedFormingPods = useMemo(() => {
@@ -1005,22 +900,26 @@ export default function App() {
   const userCreatedActivePods = useMemo(() => {
     return allPods.filter(p => {
       if (!p || !p.id) return false;
-      const isCreator = (activeUser?.id && p.createdBy === activeUser.id) ||
-        (activeUser?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === activeUser.displayName.trim().toLowerCase());
+      const isCreator = Boolean(activeUser?.id && activeUser.id !== 'usr_guest' && p.createdBy === activeUser.id);
       return isCreator && p.status !== 'COMPLETED';
     });
-  }, [allPods, activeUser?.id, activeUser?.displayName]);
+  }, [allPods, activeUser?.id]);
   const createdPodsCount = userCreatedActivePods.length;
   const isPodCreationLimitReached = createdPodsCount >= 3;
 
   // The welcome match is granted by the server at pod creation (once per verified person).
   const hasWelcomeMatch = Boolean(activeUser.welcomeMatchReceived);
 
+  // In-flight guard: a double-click must never send two join requests.
+  const joiningPodIdsRef = useRef<Set<string>>(new Set());
+  const [joiningPodIds, setJoiningPodIds] = useState<Set<string>>(new Set());
+
   const handleJoinPod = async (pod: Pod, inviteCode?: string) => {
     if (!currentUser) {
       handleOpenAuth('LOGIN');
       return;
     }
+    if (joiningPodIdsRef.current.has(pod.id)) return;
 
     // Check if Trusted Circle and user is not already invited and no inviteCode was passed
     if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== currentUser.id && !inviteCode) {
@@ -1036,28 +935,15 @@ export default function App() {
       }
     }
 
+    joiningPodIdsRef.current.add(pod.id);
+    setJoiningPodIds(new Set(joiningPodIdsRef.current));
     try {
       const res = await fetch(`/api/pods/${pod.id}/join`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-          'x-user-name': currentUser.displayName || '',
-          'x-user-email': currentUser.email || '',
-          'x-user-kyc-status': currentUser.kycStatus || 'VERIFIED',
-          'x-user-platform': currentUser.platform || '',
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ inviteCode }),
       });
-
-      let data: any = {};
-      try {
-        const text = await res.text();
-        data = text ? JSON.parse(text) : {};
-      } catch (parseErr) {
-        console.warn('Failed to parse join response JSON:', parseErr);
-        data = { error: 'PARSE_ERROR', message: 'Unexpected response from server.' };
-      }
+      const data: any = await readJson(res);
 
       if (!res.ok) {
         if (data.error === 'INVITE_REQUIRED') {
@@ -1069,9 +955,10 @@ export default function App() {
           setShowKycModal(true);
           return;
         }
-
-        if (data.error === 'INSUFFICIENT_FUNDS') {
+        if (data.error === 'INSUFFICIENT_FUNDS' || res.status === 402) {
+          setInviteCodeTargetPod(null);
           toast.error(data.message || 'Add funds before joining this pod.', { title: 'Insufficient Balance' });
+          setShowAddFundsModal(true);
           return;
         }
         if (data.error === 'DEBIT_MANDATE_REQUIRED') {
@@ -1085,22 +972,24 @@ export default function App() {
           toast.warning(data.message || 'This pod is larger than your current limit.', { title: 'Pod too large for now' });
           return;
         }
-
-        setInviteCodeTargetPod(pod);
-        setInviteCodeError(data.message || data.error || 'Failed to join pod');
+        const message = data.message || data.error || `Failed to join pod (HTTP ${res.status})`;
+        if (inviteCode) {
+          setInviteCodeTargetPod(pod);
+          setInviteCodeError(message);
+        } else {
+          toast.error(message, { title: 'Could not join pod' });
+        }
         return;
       }
 
-      // Successfully joined pod via API!
+      // Joined: the server returned the updated pod (and possibly the charged user).
       const updatedPod: Pod = data.pod || data;
       setInviteCodeTargetPod(null);
       setInviteCodeInput('');
       setInviteCodeError(null);
       if (data.user) {
         setAllUsers(prev => prev.map(u => u.id === data.user.id ? data.user : u));
-        if (currentUser && currentUser.id === data.user.id) {
-          setCurrentUser(data.user);
-        }
+        if (currentUser.id === data.user.id) setCurrentUser(data.user);
       }
       if (updatedPod && updatedPod.id) {
         setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? mergePodObjects(p, updatedPod) : p)));
@@ -1109,76 +998,14 @@ export default function App() {
         }
         savePodToFirestore(updatedPod).catch(() => {});
       }
-
-      try {
-        if (currentUser?.id) {
-          localStorage.setItem(`mutualpool_my_pod_${currentUser.id}_${pod.id}`, 'true');
-        }
-        if (activeUser?.id) {
-          localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
-        }
-        localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
-      } catch {
-        // quiet
-      }
-      setInviteCodeTargetPod(null);
-      setInviteCodeInput('');
-      setInviteCodeError(null);
+      toast.success(`You joined "${pod.name}".`, { title: 'Pod joined' });
       fetchAppData();
-    } catch (err) {
-      console.error('Failed to join pod:', err);
-      // Fallback client join on network error
-      if (pod && currentUser) {
-        const newMember: PodMembership = {
-          id: `pm_${Date.now()}_${(pod.members?.length || 0) + 1}`,
-          podId: pod.id,
-          userId: currentUser.id,
-          displayName: currentUser.displayName || 'Verified Member',
-          email: currentUser.email,
-          avatarUrl: currentUser.avatarUrl || '',
-          platform: currentUser.platform || 'DoorDash',
-          rotationIndex: pod.members?.length || 0,
-          hasReceivedPayout: false,
-          delinquencyStatus: 'CLEAN',
-          joinedAt: new Date().toISOString(),
-        };
-
-        const updatedMembers = [...(pod.members || [])];
-        if (!updatedMembers.some(m => m.userId === currentUser.id)) {
-          updatedMembers.push(newMember);
-        }
-
-        const updatedPod: Pod = {
-          ...pod,
-          members: updatedMembers,
-          memberCount: updatedMembers.length,
-        };
-
-        setAllPods(prev => prev.map(p => (p.id === updatedPod.id ? updatedPod : p)));
-        if (selectedPodDetail && selectedPodDetail.id === updatedPod.id) {
-          setSelectedPodDetail(updatedPod);
-        }
-
-        savePodToFirestore(updatedPod).catch(() => {});
-
-        try {
-          if (currentUser?.id) {
-            localStorage.setItem(`mutualpool_my_pod_${currentUser.id}_${pod.id}`, 'true');
-          }
-          if (activeUser?.id) {
-            localStorage.setItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`, 'true');
-          }
-          localStorage.setItem(`mutualpool_my_pod_${pod.id}`, 'true');
-        } catch {}
-
-        setInviteCodeTargetPod(null);
-        setInviteCodeInput('');
-        setInviteCodeError(null);
-        return;
-      }
-
-      setInviteCodeTargetPod(pod);
-      setInviteCodeError('Network error joining pod. Please try again.');
+    } catch {
+      // Network failure: nothing was confirmed, so nothing is changed locally.
+      toast.error('Network error joining the pod. Your balance was not charged. Please try again.', { title: 'Could not join pod' });
+    } finally {
+      joiningPodIdsRef.current.delete(pod.id);
+      setJoiningPodIds(new Set(joiningPodIdsRef.current));
     }
   };
 
@@ -1187,17 +1014,9 @@ export default function App() {
     try {
       const res = await fetch(`/api/pods/${pod.id}/leave`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': activeUser.id,
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       });
-
-      const contentType = res.headers.get('content-type');
-      let data: any = {};
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
-      }
+      const data: any = await readJson(res);
 
       if (!res.ok) {
         toast.warning(data.message || data.error || 'You cannot leave this pod yet.', {
@@ -1209,15 +1028,6 @@ export default function App() {
       toast.success(`You have left "${pod.name}".`, {
         title: 'Pod Membership Updated',
       });
-
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem(`mutualpool_my_pod_${activeUser.id}_${pod.id}`);
-          localStorage.removeItem(`mutualpool_my_pod_${pod.id}`);
-        } catch {
-          // ignore
-        }
-      }
 
       fetchAppData();
     } catch (err) {
@@ -1621,33 +1431,35 @@ export default function App() {
             {/* Advertiser KPI Cards */}
             <div className="mt-6 pt-5 border-t border-amber-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
-                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Brand Escrow Balance</span>
-                <span className="font-extrabold text-amber-700 font-mono text-base sm:text-lg block mt-0.5">$12,500.00 USD</span>
-                <span className="text-[10px] text-gray-400 block mt-0.5">Automated per-delivery payouts</span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
                 <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Active Campaigns</span>
                 <span className="font-extrabold text-gray-900 font-mono text-base sm:text-lg block mt-0.5">
                   {campaigns.filter(c => c.status === 'active' || c.status === 'recruiting').length} Active
                 </span>
-                <span className="text-[10px] text-gray-400 block mt-0.5">Multi-metro courier distribution</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">Recruiting or running now</span>
               </div>
 
               <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
-                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Active Brand Ambassadors</span>
+                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Pending MutualPool Review</span>
+                <span className="font-extrabold text-amber-700 font-mono text-base sm:text-lg block mt-0.5">
+                  {campaigns.filter(c => c.status === 'pending').length} Pending
+                </span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">Visible to couriers once approved</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
+                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Enrolled Brand Ambassadors</span>
                 <span className="font-extrabold text-[#005FB8] font-mono text-base sm:text-lg block mt-0.5">
-                  {participations.length > 0 ? participations.length : 14} Couriers
+                  {campaigns.reduce((sum, c) => sum + (c.activeCouriersCount || 0), 0)} Couriers
                 </span>
-                <span className="text-[10px] text-gray-400 block mt-0.5">Wearing verified sponsored apparel</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">Across your campaigns</span>
               </div>
 
               <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
-                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Delivery Shifts & Proofs</span>
+                <span className="text-gray-500 text-[10px] block font-bold uppercase tracking-wider">Shifts Logged This Session</span>
                 <span className="font-extrabold text-emerald-700 font-mono text-base sm:text-lg block mt-0.5">
-                  {campaignShifts.length > 0 ? campaignShifts.length : 48} Shifts Logged
+                  {campaignShifts.length} Shifts
                 </span>
-                <span className="text-[10px] text-gray-400 block mt-0.5">GPS & gear photo verified</span>
+                <span className="text-[10px] text-gray-400 block mt-0.5">Server-verified completions</span>
               </div>
             </div>
           </div>
@@ -1812,16 +1624,15 @@ export default function App() {
               <div>
                 <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.memberStatus')}</span>
                 {activeUser.kycStatus === 'VERIFIED' ? (
-                  <a
-                    href="https://dashboard.stripe.com/test/identity"
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setShowKycModal(true)}
                     className="font-extrabold font-mono text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"
-                    title="Verified via Stripe Identity — Click to view in Stripe Dashboard"
+                    title="Verified via Stripe Identity — view your verification details"
                   >
                     <span>{t('dash.verifiedMember')}</span>
                     <ExternalLink className="w-3 h-3 text-emerald-600 shrink-0" />
-                  </a>
+                  </button>
                 ) : (
                   <button
                     type="button"
@@ -1837,16 +1648,15 @@ export default function App() {
 
               <div>
                 <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.stripeTreasuryAccount')}</span>
-                <a
-                  href="https://dashboard.stripe.com/test/connect/accounts"
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setShowBankModal(true)}
                   className="font-mono text-[#111827] text-xs hover:text-[#005FB8] hover:underline inline-flex items-center gap-1 max-w-full"
-                  title="View Connected Accounts in Stripe Dashboard"
+                  title="Treasury & payouts"
                 >
                   <span className="truncate">{activeUser.treasury.stripeFinAccountId || t('dash.activeTreasury')}</span>
                   <ExternalLink className="w-3 h-3 text-gray-400 shrink-0" />
-                </a>
+                </button>
               </div>
 
               <div>
@@ -1888,7 +1698,7 @@ export default function App() {
         {!isAdvertiser && <FDICNoticeBanner />}
 
         {/* Synchronized Platform Settlement Heartbeat (Couriers & Admin only) */}
-        {!isAdvertiser && <PlatformScheduleBanner onRefreshData={fetchAppData} />}
+        {!isAdvertiser && <PlatformScheduleBanner onRefreshData={fetchAppData} currentUser={activeUser} />}
 
         {/* Member-Specific Upcoming Automated Payments (Couriers & Admin only) */}
         {!isAdvertiser && (
@@ -1929,6 +1739,7 @@ export default function App() {
                   setSelectedPodDetailTab(initialTab || 'rotation');
                 }}
                 onJoinPod={handleJoinPod}
+                joiningPodIds={joiningPodIds}
                 onLeavePod={handleLeavePod}
                 onSignAgreement={(p) => setAgreementPod(p)}
                 onOpenCreatePod={() => setShowCreatePodModal(true)}
@@ -1944,12 +1755,12 @@ export default function App() {
                   id: 'usr_guest',
                   email: '',
                   displayName: 'Guest Partner',
-                  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+                  avatarUrl: avatarUrlFor('Guest Partner'),
                   platform: 'Partner Provider',
                   role: 'RIDER',
                   accountAgeDays: 0,
-                  kycStatus: 'VERIFIED',
-                  treasury: { stripeAccountId: '', stripeFinAccountId: '', balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'ACTIVE' },
+                  kycStatus: 'UNVERIFIED',
+                  treasury: { stripeAccountId: '', stripeFinAccountId: '', balanceUsd: 0, pendingInboundUsd: 0, totalPayoutsReceivedUsd: 0, fdicPassThroughEligible: false, status: 'UNINITIALIZED' },
                   externalBank: { bankName: '', last4: '', routingNumber: '', accountType: 'CHECKING', status: 'NOT_LINKED' },
                   completedPodsCount: 0,
                 }}
@@ -1976,6 +1787,7 @@ export default function App() {
                 onOpenAuth={handleOpenAuth}
                 onOpenAdvertiser={handleOpenAdvertiser}
                 onOpenCreateCampaign={() => setShowCreateCampaignModal(true)}
+                onChangeCampaignStatus={handleChangeCampaignStatus}
                 onStartPod={() => {
                   setActiveTab('my-pods');
                   scrollToTabSection('my-pods');
@@ -2134,6 +1946,7 @@ export default function App() {
             userCreatedPodsCount={createdPodsCount}
             onClose={() => setShowCreatePodModal(false)}
             onUserUpdated={handleUserUpdated}
+            onOpenAddFunds={() => setShowAddFundsModal(true)}
             onDebitMandateRequired={(message) => {
               setShowCreatePodModal(false);
               toast.warning(message, { title: 'Bank authorization needed' });
@@ -2178,6 +1991,7 @@ export default function App() {
             allUsers={allUsers}
             onClose={() => setSelectedPodDetail(null)}
             onRefreshPod={fetchAppData}
+            onOpenBankModal={() => setShowBankModal(true)}
             onOpenAgreementModal={() => {
               setAgreementPod(selectedPodDetail);
             }}
@@ -2199,19 +2013,6 @@ export default function App() {
                   setSelectedPodDetail(prev => prev ? mergePodObjects(prev, updatedPod) : updatedPod);
                 }
                 savePodToFirestore(updatedPod).catch((err) => console.warn('Firestore pod agreement save warning:', err));
-                if (typeof window !== 'undefined') {
-                  try {
-                    const raw = localStorage.getItem('mutualpool_created_pods');
-                    if (raw) {
-                      const list = JSON.parse(raw);
-                      const idx = list.findIndex((p: any) => p.id === updatedPod.id);
-                      if (idx !== -1) {
-                        list[idx] = mergePodObjects(list[idx], updatedPod);
-                        localStorage.setItem('mutualpool_created_pods', JSON.stringify(list));
-                      }
-                    }
-                  } catch {}
-                }
               }
               fetchAppData();
             }}
@@ -2312,7 +2113,9 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white border border-[#DDE1E6] rounded-xl max-w-md w-full p-6 shadow-2xl relative space-y-4 text-[#111827]">
             <button
+              type="button"
               onClick={() => setInviteCodeTargetPod(null)}
+              aria-label="Close invite code dialog"
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             >
               ✕
@@ -2343,7 +2146,9 @@ export default function App() {
               }}
               className="space-y-3"
             >
+              <label htmlFor="pod-invite-code" className="sr-only">Invite code</label>
               <input
+                id="pod-invite-code"
                 type="text"
                 required
                 maxLength={8}
@@ -2363,9 +2168,10 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
+                  disabled={joiningPodIds.has(inviteCodeTargetPod.id)}
+                  className="px-5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-60 text-white font-bold text-xs transition-colors shadow-xs"
                 >
-                  Verify Code & Join Pod
+                  {joiningPodIds.has(inviteCodeTargetPod.id) ? 'Joining…' : 'Verify Code & Join Pod'}
                 </button>
               </div>
             </form>

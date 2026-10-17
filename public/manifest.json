@@ -33,5 +33,5 @@
   "theme_color": "#005FB8",
   "display": "standalone",
   "orientation": "portrait",
-  "description": "Pod-based mutual savings pools (ROSCA / susu / tanda) with Stripe Treasury & Connect integration, fixed rotation payouts, and gig worker perks marketplace."
+  "description": "Pod-based mutual savings pools (ROSCA / susu / tanda) for gig workers with fixed rotation payouts, payments processed by Stripe, and a perks marketplace."
 }

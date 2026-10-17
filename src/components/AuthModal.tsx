@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, GigPlatform, calculateAccountAgeDays } from '../types';
 import { Logo } from './Logo';
 import { useTranslation } from '../i18n';
+import { useToast } from '../context/ToastContext';
+import { avatarUrlFor } from '../utils/avatar';
 import { 
   UserCheck, PlusCircle, LogIn, X, ShieldCheck, 
   Sparkles, AlertCircle, Building2, Wallet, ArrowRight, Check,
@@ -14,7 +16,9 @@ import {
   RecaptchaVerifier, 
   signInWithPhoneNumber,
   ConfirmationResult,
-  updateProfile
+  updateProfile,
+  sendEmailVerification,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { getUserFromFirestore, saveUserToFirestore } from '../lib/firestoreService';
@@ -71,6 +75,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [loginInfo, setLoginInfo] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const toast = useToast();
 
   // Phone Auth State
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -124,7 +131,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   ): Promise<User> => {
     let existing = await getUserFromFirestore(uid);
     const resolvedName = displayName || (phoneNumber ? `Member ${phoneNumber.slice(-4)}` : 'MutualPool Member');
-    const defaultAvatar = photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=005FB8&color=fff&size=200`;
+    const defaultAvatar = avatarUrlFor(resolvedName, photoURL);
 
     if (existing) {
       let modified = false;
@@ -159,7 +166,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const nowIso = new Date().toISOString();
     const newUser: User = {
       id: uid,
-      email: email || `${uid.substring(0, 8)}@mutualpool.org`,
+      email: email || '',
       displayName: resolvedName,
       avatarUrl: defaultAvatar,
       platform: platform,
@@ -207,6 +214,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
       if (userCredential.user) {
+        // Ask Firebase to send the verification link; the account still works
+        // meanwhile, but the member is told to confirm their address.
+        sendEmailVerification(userCredential.user)
+          .then(() => toast.info(t('auth.verifyEmailNotice', { email: regEmail }), { title: t('auth.verifyEmailTitle'), duration: 9000 }))
+          .catch((err) => console.error('sendEmailVerification failed:', err));
         onClose(); // Close modal immediately
         await updateProfile(userCredential.user, { displayName: regName });
         const appUser = await ensureUserInFirestore(
@@ -279,6 +291,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  // 2b. PASSWORD RESET (FIREBASE AUTH)
+  const handleForgotPassword = async () => {
+    setLoginError('');
+    setLoginInfo('');
+    const targetEmail = loginEmail.trim();
+    if (!targetEmail) {
+      setLoginError(t('auth.enterEmailForReset'));
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      // Same message whether or not the address exists, so the form cannot be
+      // used to probe which emails are registered.
+      setLoginInfo(t('auth.resetEmailSent', { email: targetEmail }));
+    } catch (err: unknown) {
+      console.error('Password reset error:', err);
+      const msg = err instanceof Error ? err.message.replace('Firebase: ', '') : '';
+      if (msg.includes('user-not-found')) {
+        setLoginInfo(t('auth.resetEmailSent', { email: targetEmail }));
+      } else if (msg.includes('invalid-email')) {
+        setLoginError(t('auth.enterEmailForReset'));
+      } else {
+        setLoginError(msg || t('auth.resetEmailFailed'));
+      }
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -542,17 +584,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {activeTab === 'LOGIN' && (
           <form onSubmit={handleEmailLogin} className="space-y-4 text-xs">
             {loginError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center gap-2">
+              <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{loginError}</span>
               </div>
             )}
+            {loginInfo && (
+              <div role="status" className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl flex items-center gap-2">
+                <Mail className="w-4 h-4 shrink-0 text-[#005FB8]" />
+                <span>{loginInfo}</span>
+              </div>
+            )}
 
             <div>
-              <label className="block text-xs font-semibold text-[#111827] mb-1">
+              <label htmlFor="auth-login-email" className="block text-xs font-semibold text-[#111827] mb-1">
                 {t('auth.emailLabel')}
               </label>
               <input
+                id="auth-login-email"
                 type="email"
                 required
                 value={loginEmail}
@@ -563,10 +612,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#111827] mb-1">
-                {t('auth.passwordLabel')}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="auth-login-password" className="block text-xs font-semibold text-[#111827]">
+                  {t('auth.passwordLabel')}
+                </label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={resetLoading}
+                  className="text-[11px] font-bold text-[#005FB8] hover:underline disabled:opacity-50 cursor-pointer"
+                >
+                  {resetLoading ? t('auth.sendingResetEmail') : t('auth.forgotPassword')}
+                </button>
+              </div>
               <input
+                id="auth-login-password"
                 type="password"
                 required
                 value={loginPassword}

@@ -95,8 +95,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
 
   const currentBalance = user.treasury?.balanceUsd || 0;
   const effectiveDepositAmount = isCustomAmount ? (Math.max(1, Number(customAmountStr) || 0)) : amount;
-  const platformFee = Math.round(effectiveDepositAmount * 0.05 * 100) / 100;
-  const totalCharged = effectiveDepositAmount + platformFee;
+  // Top-ups carry no platform fee; the 5% fee is charged on each weekly pod deposit.
   const projectedBalance = currentBalance + effectiveDepositAmount;
 
   const effectiveBankName = selectedBankOption === 'OTHER_CUSTOM' ? customBankName.trim() : selectedBankOption;
@@ -223,14 +222,18 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
         }),
       });
 
+      const resText = await res.text().catch(() => '');
       let resData: any = {};
-      try {
-        resData = await res.json();
-      } catch {
-        resData = {};
+      try { resData = resText ? JSON.parse(resText) : {}; } catch { resData = {}; }
+      if (!res.ok) {
+        throw new Error(resData?.message || resData?.error || `Top-up failed (HTTP ${res.status}).`);
       }
 
-      const finalNewBalance = currentBalance + effectiveDepositAmount;
+      // The server's balance is the only balance we show.
+      const serverTreasury = resData?.user?.treasury;
+      const finalNewBalance = typeof serverTreasury?.balanceUsd === 'number'
+        ? serverTreasury.balanceUsd
+        : currentBalance + effectiveDepositAmount;
       if (resData?.inboundTransferId) {
         transferId = resData.inboundTransferId;
       }
@@ -240,14 +243,14 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
         ...(resData?.user || {}),
         treasury: {
           ...(updatedUserObj.treasury || {
-            stripeAccountId: `acct_1xCustom_${Date.now()}`,
-            stripeFinAccountId: `fa_1xTreasury_${Date.now()}`,
+            stripeAccountId: '',
+            stripeFinAccountId: '',
             pendingInboundUsd: 0,
             totalPayoutsReceivedUsd: 0,
-            fdicPassThroughEligible: true,
-            status: 'ACTIVE',
+            fdicPassThroughEligible: false,
+            status: 'UNINITIALIZED',
           }),
-          ...(resData?.user?.treasury || {}),
+          ...(serverTreasury || {}),
           balanceUsd: finalNewBalance,
         },
       };
@@ -262,32 +265,9 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
       });
 
       onSuccess(finalUser);
-    } catch (err: any) {
-      console.error('[AddFundsModal] Submit error:', err);
-      // Client-side optimistic update fallback
-      const finalNewBalance = currentBalance + effectiveDepositAmount;
-      const finalUser: User = {
-        ...user,
-        treasury: {
-          ...(user.treasury || {
-            stripeAccountId: `acct_1xCustom_${Date.now()}`,
-            stripeFinAccountId: `fa_1xTreasury_${Date.now()}`,
-            pendingInboundUsd: 0,
-            totalPayoutsReceivedUsd: 0,
-            fdicPassThroughEligible: true,
-            status: 'ACTIVE',
-          }),
-          balanceUsd: finalNewBalance,
-        },
-      };
-      await saveUserToFirestore(finalUser).catch(() => {});
-      setSuccessData({
-        addedAmount: effectiveDepositAmount,
-        newBalance: finalNewBalance,
-        transferId: `it_stripe_treasury_${Date.now()}`,
-        method,
-      });
-      onSuccess(finalUser);
+    } catch (err: unknown) {
+      // Never credit a balance the server did not confirm.
+      setError(err instanceof Error ? err.message : 'Top-up failed. Your balance has not changed.');
     } finally {
       setLoading(false);
     }
@@ -305,11 +285,13 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
     try {
       const res = await fetch('/api/users/treasury/checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ amount: effectiveDepositAmount }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) throw new Error(data.message || 'Could not start checkout.');
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+      if (!res.ok || !data.url) throw new Error(data.message || data.error || 'Could not start checkout.');
       window.location.assign(data.url);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not start checkout.');
@@ -368,9 +350,10 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
             className="w-full mb-3 px-3 py-2 rounded-lg border border-[#DDE1E6] text-sm"
           />
           <div className="text-xs text-slate-600 space-y-1 mb-4">
-            <div className="flex justify-between"><span>Deposit</span><span>${effectiveDepositAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Platform fee (5%)</span><span>${platformFee.toFixed(2)}</span></div>
-            <div className="flex justify-between font-bold text-[#111827]"><span>Total charged</span><span>${totalCharged.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Top-up amount</span><span>${effectiveDepositAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between font-bold text-[#111827]"><span>Total charged</span><span>${effectiveDepositAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Balance after top-up</span><span>${projectedBalance.toFixed(2)}</span></div>
+            <p className="pt-1 text-[11px] text-slate-500">No fee on top-ups; 5% is charged on each weekly pod deposit.</p>
           </div>
           {error && (
             <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
@@ -883,14 +866,11 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
                 <span>{t('addFundsModal.baseDeposit')}</span>
                 <span className="font-bold text-slate-900">${effectiveDepositAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-[#005FB8]">
-                <span>{t('addFundsModal.processingFee')}</span>
-                <span>+${platformFee.toFixed(2)}</span>
-              </div>
               <div className="flex justify-between font-extrabold text-slate-950 pt-1.5 border-t border-slate-200 text-sm">
                 <span>{t('addFundsModal.totalCharged')}</span>
-                <span className="text-slate-950">${totalCharged.toFixed(2)}</span>
+                <span className="text-slate-950">${effectiveDepositAmount.toFixed(2)}</span>
               </div>
+              <div className="text-[10px] text-slate-500 font-sans pt-1">No fee on top-ups; 5% is charged on each weekly pod deposit.</div>
               <div className="text-[10px] text-emerald-800 font-sans pt-1 flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>{t('addFundsModal.fdicCoverageNote')}</span>

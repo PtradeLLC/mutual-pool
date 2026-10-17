@@ -21,7 +21,7 @@ import {
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
   HardshipFundRequest, AppNotification, NotificationType, SwapRequest,
   PlatformScheduleStatus, SweepExecutionResult, PaymentHistoryItem,
-  DepositDefault, AchCollection, DefaultRecoverySource, DebitMandate
+  DepositDefault, AchCollection, DefaultRecoverySource, DebitMandate, AdCampaign
 } from './src/types';
 import {
   getNextThursdayMidnight,
@@ -43,6 +43,10 @@ import { buildLegalDocument, renderLegalHtml } from './src/server/legalPages';
 import { isTraditionId } from './src/data/roscaTraditions';
 import { TREASURY_PROGRAM_ENABLED, sanitizeVoiceGuidePayload } from './src/lib/treasuryClaims';
 import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFlush, flushNow, persistNow, startAutoFlush, getPersistenceHealth, onBeforeShutdown } from './src/server/persistence';
+import { sendEmail, getOutboundEmails, setOutboundEmails, getMailerStatus } from './src/server/mailer';
+import { reportIncident, recentIncidents, incidentCounts } from './src/server/alerts';
+import { dueSweeps, weekKeyFor, runId as sweepRunId, SweepRun, SweepType } from './src/server/sweepSchedule';
+import { avatarUrlFor } from './src/utils/avatar';
 import { apiRateLimiter, authRateLimiter, aiRateLimiter, publicFormRateLimiter, moneyRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
 import { SUPPORTED_COUNTRIES, US_CONFIG } from './src/config/countries';
 import { PaymentProviderFactory } from './src/services/payments/factory';
@@ -85,11 +89,7 @@ function getGeminiClient(): GoogleGenAI | null {
   if (!geminiClient) {
     geminiClient = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
+      httpOptions: { timeout: 30_000 },
     });
   }
   return geminiClient;
@@ -101,6 +101,8 @@ function getGroqClient(): Groq | null {
   if (!groqClient) {
     groqClient = new Groq({
       apiKey: process.env.GROQ_API_KEY,
+      timeout: 30_000,
+      maxRetries: 1,
     });
   }
   return groqClient;
@@ -209,6 +211,7 @@ function isDemoPodServer(p: any): boolean {
   const pod = (p.pod && p.pod.id) ? p.pod : p;
   if (!pod || !pod.id) return true;
   if (DEMO_POD_IDS_SERVER.has(pod.id)) return true;
+  if (IS_PRODUCTION) return false; // real pods are never dropped because of their name
   if (pod.name && typeof pod.name === 'string' && (
     pod.name.includes('National Gig Starter Pod') ||
     pod.name.includes('Veteran Fleet Mutual Pool') ||
@@ -591,6 +594,10 @@ function releaseContingencyBuffer(pod: Pod): void {
     g.status = 'RELEASED';
     g.releasedAt = new Date().toISOString();
   }
+  // Privacy policy: people invited who never joined are forgotten when the pod completes.
+  if (Array.isArray(pod.invitedContacts)) {
+    pod.invitedContacts = pod.invitedContacts.filter(ic => ic && ic.status === 'JOINED');
+  }
   // Recovered-default reserves that never got used go back to the platform too.
   for (const d of depositDefaults.filter(x => x.podId === pod.id && (x.reserveUsd || 0) > 0)) {
     const leftover = roundCents(d.reserveUsd);
@@ -636,6 +643,35 @@ function hardshipCapProblem(pod: Pod): string | null {
     return `This pod already has ${outstanding} unpaid hardship advances; one must be repaid first.`;
   }
   return null;
+}
+
+// --- EMAIL ---
+function appUrl(): string {
+  return (process.env.APP_URL || 'https://themutualpool.com').replace(/\/+$/, '');
+}
+
+function sendPodInvitationEmail(pod: Pod, contact: InvitedContact): void {
+  const to = (contact.emailOrPhone || '').trim();
+  if (!to.includes('@')) return; // phone numbers: no SMS provider yet
+  const link = `${appUrl()}/?podId=${encodeURIComponent(pod.id)}${pod.podType === 'TRUSTED_CIRCLE' && pod.inviteCode ? `&inviteCode=${encodeURIComponent(pod.inviteCode)}` : ''}`;
+  sendEmail({
+    to,
+    kind: 'pod_invitation',
+    subject: `${contact.invitedByName || pod.creatorName} invited you to the "${pod.name}" savings pod`,
+    text: `${contact.invitedByName || pod.creatorName} invited you to join their MutualPool savings pod "${pod.name}".
+
+How it works: ${pod.sizeTier} members each put in $${pod.depositTier} a week, and every week one member receives the whole pot, in a fixed order, until everyone has had a turn.
+
+Join here: ${link}${pod.podType === 'TRUSTED_CIRCLE' && pod.inviteCode ? `
+Invite code: ${pod.inviteCode}` : ''}
+
+You'll verify your identity and bank with Stripe before joining. If you weren't expecting this, you can ignore it; we won't email you about this pod again.`,
+    onChange: requestFlush,
+  });
+}
+
+function emailAdmins(kind: string, subject: string, text: string): void {
+  for (const admin of adminUsers()) sendEmail({ to: admin.email, kind, subject, text, onChange: requestFlush });
 }
 
 // --- PAYOUT-THEN-DEFAULT CONTROLS ---
@@ -758,7 +794,7 @@ function defaultRemainingUsd(d: DepositDefault): number {
 function refreshDefaultStatus(d: DepositDefault): void {
   d.owedUsd = roundCents((d.bufferCoveredUsd || 0) + (d.escrowCoveredUsd || 0) + (d.potShortfallUsd || 0) + (d.remainingObligationUsd || 0));
   if (d.status === 'WRITTEN_OFF') return;
-  const inFlight = achCollections.some(c => c.defaultId === d.id && c.status === 'PROCESSING');
+  const inFlight = achCollections.some(c => c.defaultId === d.id && (c.status === 'PROCESSING' || c.status === 'NEEDS_REVIEW'));
   if (defaultRemainingUsd(d) <= 0.005) d.status = 'RECOVERED';
   else d.status = inFlight ? 'COLLECTING' : 'OPEN';
   d.updatedAt = new Date().toISOString();
@@ -835,6 +871,26 @@ function recordDepositDefault(input: {
     podName: pod.name,
     metadata: { defaultId: d.id, memberUserId: member.userId, owedUsd: d.owedUsd, payoutReceivedUsd: d.payoutReceivedUsd },
   });
+  if (isNew) {
+    sendEmail({
+      to: memberUser?.email,
+      kind: 'missed_deposit',
+      subject: `Missed deposit in "${pod.name}" (week ${cycleWeek})`,
+      text: `Hi ${member.displayName},
+
+Your $${pod.depositTier.toFixed(2)} weekly deposit for "${pod.name}" (week ${cycleWeek}) could not be taken from your MutualPool balance.
+
+Please add funds and make the deposit from the pod page as soon as you can. Under your Pod Agreement, amounts the pod or MutualPool advance for you become money you owe, and may be debited from your bank account under the authorization you gave when you joined.
+
+Open MutualPool: ${appUrl()}`,
+      onChange: requestFlush,
+    });
+    emailAdmins('admin_default', `${d.payoutReceivedUsd > 0 ? 'Default after payout' : 'Missed deposit'}: ${member.displayName} in "${pod.name}"`,
+      `${member.displayName} missed the week ${cycleWeek} deposit in "${pod.name}". Owed: $${d.owedUsd.toFixed(2)}.${tookPayout} ${mandate}.
+
+Review: ${appUrl()} → Admin Ops → Deposit Defaults.`);
+    if (d.payoutReceivedUsd > 0) reportIncident('error', 'default_after_payout', `${member.displayName} defaulted after taking $${d.payoutReceivedUsd.toFixed(2)} in "${pod.name}"`, { defaultId: d.id, podId: pod.id, userId: member.userId });
+  }
   return d;
 }
 
@@ -1030,6 +1086,45 @@ function settleAchCollection(paymentIntentId: string, outcome: 'SUCCEEDED' | 'FA
   return true;
 }
 
+// A refunded or charged-back card top-up: the money Stripe gave us is gone, so
+// it comes back out of the member's ledger. Whatever the balance can't cover
+// stays owed, and the account is held (no withdrawals, no new pods) until an
+// admin has looked at it.
+function reverseTopup(paymentIntentId: string, amountUsd: number, eventType: string, reason?: string): boolean {
+  const payment = (processedPayments as any[]).find(p => p.paymentIntentId === paymentIntentId || p.id === paymentIntentId);
+  if (!payment) return true; // not a top-up we credited
+  const target = users.find(u => u && u.id === payment.userId);
+  if (!target) return true;
+  const ref = `${eventType}:${paymentIntentId}`;
+  if (auditLogs.some(l => l.metadata && (l.metadata as any).ref === ref)) return true; // redelivery
+  const amount = roundCents(Math.min(Number(amountUsd) || payment.amountUsd, payment.amountUsd));
+  const available = roundCents(Number(target.treasury?.balanceUsd) || 0);
+  const taken = roundCents(Math.min(available, amount));
+  if (taken > 0) debitLedger(target, taken);
+  const shortfall = roundCents(amount - taken);
+  target.riskHold = {
+    reason: eventType === 'charge.dispute.created' ? `Card payment disputed (${reason || 'chargeback'})` : `Card payment refunded (${reason || 'refund'})`,
+    at: new Date().toISOString(),
+    amountUsd: shortfall,
+    stripeRef: paymentIntentId,
+  };
+  saveUsersToDisk();
+  addAuditLog(undefined, 'SYSTEM', 'Stripe', 'TREASURY_TOPUP_REVERSED' as any,
+    `${eventType} on top-up ${paymentIntentId}: $${amount.toFixed(2)} reversed. $${taken.toFixed(2)} taken from ${target.displayName}'s balance; $${shortfall.toFixed(2)} still owed. Account on hold pending admin review.`,
+    { ref, paymentIntentId, amount, taken, shortfall, userId: target.id });
+  reportIncident('error', 'topup_reversed', `${eventType} for ${target.displayName}: $${amount.toFixed(2)} (shortfall $${shortfall.toFixed(2)})`, { userId: target.id, paymentIntentId });
+  notifyAdmins({ type: 'PAYMENT_FAILED', title: '🚨 Card top-up reversed', message: `${target.displayName}'s $${amount.toFixed(2)} card deposit was ${eventType === 'charge.dispute.created' ? 'disputed' : 'refunded'}. $${taken.toFixed(2)} recovered from their balance, $${shortfall.toFixed(2)} outstanding. Their account is on hold until you clear it in Admin Ops.`, metadata: { userId: target.id, paymentIntentId, shortfall } });
+  createNotification({ userId: target.id, type: 'PAYMENT_FAILED', title: 'Account on hold', message: `A card payment of $${amount.toFixed(2)} to your account was ${eventType === 'charge.dispute.created' ? 'disputed by the cardholder' : 'refunded'}. Withdrawals and new pods are paused while we review it. Contact support if this is unexpected.` });
+  return true;
+}
+
+function riskHoldResponse(res: Response, user: User) {
+  return res.status(403).json({
+    error: 'ACCOUNT_ON_HOLD',
+    message: `Your account is on hold (${user.riskHold?.reason || 'under review'}). Withdrawals and new pods are paused until MutualPool has reviewed it. Please contact support.`,
+  });
+}
+
 // --- INTERNAL LEDGER ---
 // Pod deposits and payouts move money between members' Treasury ledger
 // balances. Real money only enters via verified Stripe webhooks and only leaves
@@ -1180,6 +1275,14 @@ let welcomeMatchGrants: WelcomeMatchGrant[] = [];
 // DepositDefault), plus the admin-initiated ACH debits that recover them.
 let depositDefaults: DepositDefault[] = [];
 let achCollections: AchCollection[] = [];
+// Brand campaigns are a server-side catalog: advertisers submit, MutualPool
+// approves, couriers can only start shifts against approved ones.
+let campaigns: AdCampaign[] = [];
+// Settlement sweep runs by week (src/server/sweepSchedule.ts).
+let sweepRuns: SweepRun[] = [];
+// Messages from the public contact form.
+interface SupportMessage { id: string; name: string; email: string; message: string; userId?: string; createdAt: string; }
+let supportMessages: SupportMessage[] = [];
 // Brand-campaign shifts. The server draws a secret, randomized schedule of
 // gear spot checks per shift; see the shift routes for the lifecycle.
 type ShiftCheckStatus = 'SCHEDULED' | 'PENDING' | 'VERIFIED' | 'REJECTED' | 'MISSED';
@@ -1700,6 +1803,22 @@ app.use((req, res, next) => {
 
 // Limiters keyed by the authenticated user (falling back to IP for anonymous callers).
 app.use(limitWhen(API_PATH, apiRateLimiter));
+// Global daily budget for AI calls (per-user limits don't cap a crowd).
+const AI_DAILY_CALL_BUDGET = Math.max(100, Number(process.env.AI_DAILY_CALL_BUDGET) || 5000);
+let aiBudgetDay = '';
+let aiCallsToday = 0;
+app.use((req, res, next) => {
+  if (!AI_PATH.test(req.path) || req.method !== 'POST') return next();
+  const today = new Date().toISOString().slice(0, 10);
+  if (aiBudgetDay !== today) { aiBudgetDay = today; aiCallsToday = 0; }
+  if (aiCallsToday >= AI_DAILY_CALL_BUDGET) {
+    if (aiCallsToday === AI_DAILY_CALL_BUDGET) reportIncident('warning', 'ai_budget_exhausted', `AI daily call budget (${AI_DAILY_CALL_BUDGET}) reached`, {});
+    aiCallsToday += 1;
+    return res.status(503).json({ error: 'AI_BUDGET_EXHAUSTED', message: 'Verification is temporarily unavailable. Please try again later.' });
+  }
+  aiCallsToday += 1;
+  next();
+});
 app.use(limitWhen(AI_PATH, aiRateLimiter));
 app.use(['/api/campaigns/advertiser-inquiry'], publicFormRateLimiter);
 app.use(limitWhen(MONEY_PATH, moneyRateLimiter));
@@ -1727,6 +1846,13 @@ app.get(['/api/health', '/health'], (req, res) => {
     Object.assign(body, {
       persistence,
       stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+      connectWebhookConfigured: Boolean(process.env.STRIPE_CONNECT_WEBHOOK_SECRET),
+      aiConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY),
+      mailer: getMailerStatus(),
+      alertWebhookConfigured: Boolean(process.env.ALERT_WEBHOOK_URL),
+      incidentsLast24h: incidentCounts(),
+      recentIncidents: recentIncidents(20),
+      sweeps: sweepRuns.slice(0, 6),
       uptime: Math.floor(process.uptime()),
       mode: process.env.NODE_ENV || 'development',
       demoMode: DEMO_MODE,
@@ -2146,9 +2272,8 @@ app.get(['/api/health', '/health'], (req, res) => {
       if (depositAmount === null || depositAmount < 1) {
         return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter an amount between $1 and $10,000.' });
       }
-      const country = req.country || US_CONFIG;
-      const feePercentage = country.payment.payoutFeePercentage || 0.05;
-      const platformFee = Math.round(depositAmount * feePercentage * 100) / 100;
+      // No fee on top-ups: the 5% deposit fee is charged when money goes into a pod (see Terms).
+      const platformFee = 0;
 
       const session = await createDepositCheckoutSession({
         userId: user.id,
@@ -2177,11 +2302,14 @@ app.get(['/api/health', '/health'], (req, res) => {
       if (depositAmount === null) {
         return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter an amount between $0.01 and $10,000.' });
       }
-      const feePercentage = country.payment.payoutFeePercentage || 0.05;
-      const platformFee = Math.round(depositAmount * feePercentage * 100) / 100;
-      const totalCharged = depositAmount + platformFee;
+      // No fee on top-ups: the 5% deposit fee is charged when money goes into a pod (see Terms).
+      const platformFee = 0;
+      const totalCharged = depositAmount;
 
-      // In non-US countries or when country-specific provider is active
+      // Non-US markets are not live: their payment providers are stubs.
+      if (country.countryCode !== 'US' && IS_PRODUCTION) {
+        return res.status(503).json({ error: 'MARKET_NOT_AVAILABLE', message: `${country.countryName} is not open yet.` });
+      }
       if (country.countryCode !== 'US') {
         const provider = PaymentProviderFactory.getProvider(country);
         const providerIntent = await provider.createDepositIntent({
@@ -2495,6 +2623,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     if (DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
       return debitMandateRequiredResponse(res);
     }
+    if (user.riskHold) return riskHoldResponse(res, user);
 
     // Hard Gate: Maximum 3 Created Pods per User Limit (Anti-Fraud & Financial Integrity Policy)
     const userActiveCreatedPodsCount = pods.filter(p => {
@@ -2644,6 +2773,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     pods.unshift(newPod);
     savePodsToDisk();
     saveUsersToDisk();
+    for (const ic of newPod.invitedContacts) sendPodInvitationEmail(newPod, ic);
 
     const policyLabel = requestedActivationPolicy === 'WHEN_FULL' 
       ? 'Wait Until 100% Full Capacity' 
@@ -2732,6 +2862,7 @@ app.get(['/api/health', '/health'], (req, res) => {
 
       pod.invitedContacts.push(newInvitedContact);
       addedContacts.push(newInvitedContact);
+      sendPodInvitationEmail(pod, newInvitedContact);
     });
 
     savePodsToDisk();
@@ -2787,7 +2918,13 @@ app.get(['/api/health', '/health'], (req, res) => {
   });
 
   // 6. Join Pod (Supports Friends of Friends Referral Attribution)
+  const activeJoins = new Set<string>();
   app.post(['/api/pods/:id/join', '/pods/:id/join'], async (req: Request, res: Response) => {
+    const joinKey = `${getCurrentUser(req)?.id || 'anon'}:${req.params.id}`;
+    if (activeJoins.has(joinKey)) {
+      return res.status(409).json({ error: 'JOIN_IN_PROGRESS', message: 'Your join request is already being processed.' });
+    }
+    activeJoins.add(joinKey);
     try {
       const user = getCurrentUser(req);
       if (!user) {
@@ -2819,6 +2956,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       if (DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
         return debitMandateRequiredResponse(res);
       }
+      if (user.riskHold) return riskHoldResponse(res, user);
       // Join cap ladder: how big a pot a member may join grows with completed pods.
       if (pod.createdBy !== user.id) {
         const capProblem = potCapProblem(users.find(u => u && u.id === user.id) || user, pod);
@@ -2972,6 +3110,8 @@ app.get(['/api/health', '/health'], (req, res) => {
     } catch (err: any) {
       console.error('[POST /api/pods/:id/join] Error:', err);
       return res.status(500).json({ error: 'JOIN_FAILED', message: err?.message || 'Server error joining pod.' });
+    } finally {
+      activeJoins.delete(joinKey);
     }
   });
 
@@ -3317,7 +3457,7 @@ app.get(['/api/health', '/health'], (req, res) => {
 
   // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
   app.post(['/api/pods/:id/cycle/process', '/pods/:id/cycle/process'], async (req: Request, res: Response) => {
-    if (!isSystemRequest(req)) {
+    if (!checkIsAdmin(req)) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Cycle payouts are processed by the platform scheduler or an administrator.' });
     }
     const user = getCurrentUser(req) || ({ id: 'system', displayName: 'Platform Scheduler' } as User);
@@ -3509,6 +3649,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     }
     const { podId } = req.body || {};
     const targetUser = users.find(u => u.id === user.id) || user;
+    if (targetUser.riskHold) return riskHoldResponse(res, targetUser);
     const balance = Number(targetUser.treasury?.balanceUsd) || 0;
     const withdrawAmount = req.body?.amount === undefined ? roundCents(balance) : parseMoneyAmount(req.body.amount);
     if (withdrawAmount === null || withdrawAmount <= 0) {
@@ -3583,7 +3724,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         // debit and flag for reconciliation against Stripe using the idempotency key.
         withdrawal.status = 'NEEDS_REVIEW';
         saveUsersToDisk();
-        console.error('[Withdrawal] Ambiguous Stripe failure; withdrawal flagged for review:', withdrawal.id, withdrawal.error);
+        reportIncident('error', 'withdrawal_needs_review', `Withdrawal ${withdrawal.id} ($${withdrawAmount.toFixed(2)}) for ${targetUser.displayName} got an ambiguous Stripe error: ${withdrawal.error}`, { withdrawalId: withdrawal.id, userId: targetUser.id });
         return res.status(502).json({ error: 'WITHDRAWAL_PENDING_REVIEW', message: 'We could not confirm the transfer with Stripe. Your withdrawal is being verified and your balance will be corrected if it did not go through.' });
       }
 
@@ -3824,9 +3965,10 @@ app.get(['/api/health', '/health'], (req, res) => {
 
       // Money recovered from earlier defaults (ACH debits, later balance) that
       // nobody had fronted bridges one deposit per week for the slot that was lost.
-      for (const d of depositDefaults.filter(x => x.podId === pod.id && x.memberRemoved && (x.reserveUsd || 0) > 0)) {
+      for (const d of depositDefaults.filter(x => x.podId === pod.id && x.memberRemoved && (x.reserveUsd || 0) > 0 && x.lastBridgedCycleWeek !== cycleWeek)) {
         const bridged = roundCents(Math.min(d.reserveUsd, baseDepositAmount));
         if (bridged <= 0) continue;
+        d.lastBridgedCycleWeek = cycleWeek; // one bridge per week, even if the sweep re-runs
         d.reserveUsd = roundCents(d.reserveUsd - bridged);
         d.updatedAt = new Date().toISOString();
         pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + bridged);
@@ -3842,17 +3984,15 @@ app.get(['/api/health', '/health'], (req, res) => {
       }
     }
 
-    try {
-      savePodsToDisk();
-      saveUsersToDisk();
-    } catch (saveErr) {
-      console.warn('[Sweep Save Warning]', saveErr);
-    }
+    savePodsToDisk();
+    saveUsersToDisk();
+    const persisted = await persistNow();
+    if (!persisted) reportIncident('critical', 'sweep_persist_failed', 'Thursday deposit sweep ran but its results could not be saved', { executedAt });
 
     return {
       sweepType: 'THURSDAY_DEPOSITS',
       executedAt,
-      success: true,
+      success: persisted,
       activePodsEvaluated,
       totalTransactionsCount,
       totalVolumeUsd,
@@ -4068,17 +4208,15 @@ app.get(['/api/health', '/health'], (req, res) => {
       totalVolumeUsd += netPayoutAmount;
     }
 
-    try {
-      savePodsToDisk();
-      saveUsersToDisk();
-    } catch (saveErr) {
-      console.warn('[Sweep Save Warning]', saveErr);
-    }
+    savePodsToDisk();
+    saveUsersToDisk();
+    const persisted = await persistNow();
+    if (!persisted) reportIncident('critical', 'sweep_persist_failed', 'Friday payout sweep ran but its results could not be saved', { executedAt });
 
     return {
       sweepType: 'FRIDAY_PAYOUTS',
       executedAt,
-      success: true,
+      success: persisted,
       activePodsEvaluated,
       totalTransactionsCount,
       totalVolumeUsd,
@@ -4087,46 +4225,71 @@ app.get(['/api/health', '/health'], (req, res) => {
     };
   }
 
-  // Periodic Background Clock: Checks for Thursday 12:00 AM and Friday 12:00 AM sweep windows
-  // (server-local time; set TZ for the intended time zone)
-  const sweepInterval = setInterval(() => {
-    try {
-      const now = new Date();
-      const day = now.getDay();
-      const hour = now.getHours();
-      const minute = now.getMinutes();
-      const dateStr = now.toISOString().slice(0, 10);
-
-      // Thursday 12:00 AM Midnight: day 4, hour 0, minute < 5
-      if (day === 4 && hour === 0 && minute < 5 && lastThursdaySweepDate !== dateStr) {
-        lastThursdaySweepDate = dateStr;
-        console.log(`[Scheduled Heartbeat] Executing Thursday 12:00 AM deposit sweep (${dateStr})...`);
-        executeThursdayDepositSweep()
-          .then(res => {
-            lastThursdaySweepResult = res;
-            console.log(`[Scheduled Heartbeat] Thursday sweep completed: ${res.totalTransactionsCount} deposits, $${res.totalVolumeUsd}`);
-          })
-          .catch(err => console.error('[Scheduled Heartbeat] Thursday sweep error:', err));
-      }
-
-      // Friday 12:00 AM Midnight: day 5, hour 0, minute < 5
-      if (day === 5 && hour === 0 && minute < 5 && lastFridaySweepDate !== dateStr) {
-        lastFridaySweepDate = dateStr;
-        console.log(`[Scheduled Heartbeat] Executing Friday 12:00 AM payout sweep (${dateStr})...`);
-        executeFridayPayoutSweep()
-          .then(res => {
-            lastFridaySweepResult = res;
-            console.log(`[Scheduled Heartbeat] Friday sweep completed: ${res.totalTransactionsCount} payouts, $${res.totalVolumeUsd}`);
-          })
-          .catch(err => console.error('[Scheduled Heartbeat] Friday sweep error:', err));
-      }
-    } catch (schedErr) {
-      console.error('[Scheduled Heartbeat] Clock tick error:', schedErr);
+  // One sweep at a time; records each run by settlement week so a restart or
+  // an external trigger never runs the same week twice (src/server/sweepSchedule.ts).
+  let sweepInProgress = false;
+  async function runSweep(type: SweepType, trigger: SweepRun['trigger']): Promise<SweepExecutionResult> {
+    if (sweepInProgress) {
+      throw Object.assign(new Error('A sweep is already running.'), { code: 'SWEEP_IN_PROGRESS' });
     }
-  }, 60000);
-  if (typeof sweepInterval.unref === 'function') {
-    sweepInterval.unref();
+    sweepInProgress = true;
+    const weekKey = weekKeyFor(new Date());
+    const id = sweepRunId(type, weekKey);
+    let run = sweepRuns.find(r => r.id === id);
+    if (!run) {
+      run = { id, type, weekKey, startedAt: new Date().toISOString(), trigger };
+      sweepRuns.unshift(run);
+      if (sweepRuns.length > 200) sweepRuns.length = 200;
+    } else {
+      run.startedAt = new Date().toISOString();
+      run.trigger = trigger;
+      run.completedAt = undefined;
+    }
+    try {
+      const result = type === 'THURSDAY_DEPOSITS' ? await executeThursdayDepositSweep() : await executeFridayPayoutSweep();
+      if (type === 'THURSDAY_DEPOSITS') lastThursdaySweepResult = result; else lastFridaySweepResult = result;
+      run.completedAt = new Date().toISOString();
+      run.success = result.success;
+      run.summary = { transactions: result.totalTransactionsCount, volumeUsd: roundCents(result.totalVolumeUsd), failed: result.failedCount };
+      if (!result.success) reportIncident('critical', 'sweep_failed', `${type} (${weekKey}) did not complete cleanly`, { trigger });
+      else if (result.failedCount > 0) reportIncident('warning', 'sweep_missed_deposits', `${type} (${weekKey}): ${result.failedCount} member(s) could not be debited`, { trigger });
+      requestFlush();
+      return result;
+    } catch (err: any) {
+      run.completedAt = new Date().toISOString();
+      run.success = false;
+      reportIncident('critical', 'sweep_crashed', `${type} (${weekKey}) threw: ${err?.message || err}`, { trigger });
+      requestFlush();
+      throw err;
+    } finally {
+      sweepInProgress = false;
+    }
   }
+
+  // Automatic scheduling with catch-up. Only where runs are recorded durably
+  // (production / persistence on); in plain development the sweeps are manual.
+  async function runDueSweeps(): Promise<void> {
+    if (sweepInProgress) return;
+    for (const due of dueSweeps(new Date(), sweepRuns)) {
+      // Friday only after this week's Thursday has actually completed.
+      if (due.type === 'FRIDAY_PAYOUTS' && !sweepRuns.some(r => r.type === 'THURSDAY_DEPOSITS' && r.weekKey === due.weekKey && r.completedAt && r.success !== false)) return;
+      console.log(`[Scheduled Sweeps] Running ${due.type} for week ${due.weekKey}`);
+      try {
+        await runSweep(due.type, 'SCHEDULER');
+      } catch (err) {
+        console.error('[Scheduled Sweeps] error:', err);
+        return;
+      }
+    }
+  }
+  function startSweepScheduler(): void {
+    if (!(IS_PRODUCTION || isPersistenceEnabled())) return;
+    // Give storage hydration a moment, then check every minute.
+    setTimeout(() => { runDueSweeps().catch(err => console.error('[Scheduled Sweeps] startup error:', err)); }, 15_000).unref();
+    const sweepInterval = setInterval(() => { runDueSweeps().catch(err => console.error('[Scheduled Sweeps] tick error:', err)); }, 60_000);
+    if (typeof sweepInterval.unref === 'function') sweepInterval.unref();
+  }
+  (app as any).locals.startSweepScheduler = startSweepScheduler;
 
   // Endpoint: Get Real-Time Platform Settlement Schedule Status
   app.get(['/api/platform/schedule', '/platform/schedule'], (req: Request, res: Response) => {
@@ -4166,21 +4329,17 @@ app.get(['/api/health', '/health'], (req, res) => {
     }
 
     try {
-      let result: SweepExecutionResult;
-      if (sweepType === 'THURSDAY_DEPOSITS') {
-        result = await executeThursdayDepositSweep();
-        lastThursdaySweepResult = result;
-      } else {
-        result = await executeFridayPayoutSweep();
-        lastFridaySweepResult = result;
-      }
+      const result = await runSweep(sweepType, checkIsAdmin(req) ? 'MANUAL' : 'CRON');
 
       return res.json({
-        success: true,
+        success: result.success,
         sweepType,
         result,
       });
     } catch (err: any) {
+      if (err?.code === 'SWEEP_IN_PROGRESS') {
+        return res.status(409).json({ success: false, error: 'SWEEP_IN_PROGRESS', message: err.message });
+      }
       console.error(`[Manual Sweep Trigger: ${sweepType}] Error:`, err);
       return res.status(500).json({ 
         success: false,
@@ -4590,7 +4749,14 @@ Return ONLY a valid JSON object in this exact schema:
     if (!getCurrentUser(req)) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
-    const { courierPhoto, campaign, checkedGear, sampleTag } = req.body || {};
+    const { courierPhoto, campaignId, checkedGear } = req.body || {};
+    const sampleTag = DEMO_MODE ? req.body?.sampleTag : undefined;
+    const catalogCampaign = campaigns.find(c => c.id === campaignId && (c.status === 'recruiting' || c.status === 'active'));
+    // The brand to check for comes from the catalog, never from the request (prompt injection, self-set expectations).
+    const campaign = catalogCampaign ? toShiftCampaign(catalogCampaign) : (DEMO_MODE && req.body?.campaign ? req.body.campaign : null);
+    if (!campaign) {
+      return res.status(400).json({ error: 'INVALID_CAMPAIGN', message: 'Choose an active campaign first.' });
+    }
     const result = await verifyGearPhoto({ courierPhoto, campaign, checkedGear, sampleTag });
     res.status(result.status).json(result.payload);
   });
@@ -4612,19 +4778,136 @@ Return ONLY a valid JSON object in this exact schema:
     return typeof value === 'string' && value.startsWith('data:image/') && value.length <= 8_000_000;
   }
 
-  function validateShiftCampaign(raw: any): ShiftRecord['campaign'] | null {
-    if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || typeof raw.brandName !== 'string' || !raw.brandName.trim()) return null;
-    const gear = Array.isArray(raw.gearRequired) ? raw.gearRequired.filter((g: unknown) => typeof g === 'string').map((g: string) => g.slice(0, 80)).slice(0, 10) : [];
+  function toShiftCampaign(c: AdCampaign): ShiftRecord['campaign'] {
     return {
-      id: raw.id.slice(0, 80),
-      title: String(raw.title || `${raw.brandName} campaign`).slice(0, 140),
-      brandName: raw.brandName.trim().slice(0, 80),
-      brandColor: typeof raw.brandColor === 'string' ? raw.brandColor.slice(0, 20) : undefined,
-      gearRequired: gear.length ? gear : SHIFT_FALLBACK_GEAR,
-      dailyPayout: parseMoneyAmount(raw.dailyPayout, { max: 1000 }) ?? 0,
-      targetMetro: String(raw.targetMetro || 'National').slice(0, 80),
+      id: c.id,
+      title: c.title,
+      brandName: c.brandName,
+      brandColor: c.brandColor,
+      gearRequired: c.gearRequired.length ? c.gearRequired : SHIFT_FALLBACK_GEAR,
+      dailyPayout: c.dailyPayout,
+      targetMetro: c.targetMetro,
     };
   }
+
+  // Campaign catalog: advertisers submit, MutualPool approves, couriers see
+  // only approved campaigns.
+  const cleanText = (v: unknown, max: number, fallback = '') => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : fallback);
+  const cleanList = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x: unknown) => typeof x === 'string' && x.trim()).map((x: string) => x.trim().slice(0, 80)).slice(0, max) : []);
+  function sanitizeCampaignInput(body: any, existing?: AdCampaign): AdCampaign | { error: string } {
+    const title = cleanText(body?.title, 140, existing?.title);
+    const brandName = cleanText(body?.brandName, 80, existing?.brandName);
+    if (!title || !brandName) return { error: 'Campaign title and brand name are required.' };
+    const dailyPayout = body?.dailyPayout === undefined ? existing?.dailyPayout : parseMoneyAmount(body.dailyPayout, { max: 1000 });
+    if (dailyPayout === null || dailyPayout === undefined || dailyPayout <= 0) return { error: 'Daily payout must be between $0.01 and $1,000.' };
+    const int = (v: unknown, fallback: number, max: number) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? Math.min(Math.floor(n), max) : fallback;
+    };
+    const brandColor = cleanText(body?.brandColor, 20, existing?.brandColor || '');
+    return {
+      id: existing?.id || newLedgerId('camp'),
+      title,
+      brandName,
+      brandLogo: /^https:\/\//i.test(String(body?.brandLogo || '')) ? String(body.brandLogo).slice(0, 2048) : existing?.brandLogo,
+      brandColor: /^#[0-9a-fA-F]{3,8}$/.test(brandColor) ? brandColor : existing?.brandColor,
+      description: cleanText(body?.description, 2000, existing?.description || ''),
+      bannerUrl: /^https:\/\//i.test(String(body?.bannerUrl || '')) ? String(body.bannerUrl).slice(0, 2048) : existing?.bannerUrl,
+      targetMetro: cleanText(body?.targetMetro, 80, existing?.targetMetro || 'National'),
+      deliveryPlatforms: cleanList(body?.deliveryPlatforms, 10).length ? cleanList(body?.deliveryPlatforms, 10) : (existing?.deliveryPlatforms || []),
+      dailyPayout,
+      weeklyEstimatedEarnings: roundCents(dailyPayout * int(body?.shiftsPerWeek, 5, 7)),
+      maxCouriersTarget: int(body?.maxCouriersTarget, existing?.maxCouriersTarget ?? 50, 100000),
+      activeCouriersCount: existing?.activeCouriersCount ?? 0,
+      durationWeeks: int(body?.durationWeeks, existing?.durationWeeks ?? 4, 104),
+      startDate: cleanText(body?.startDate, 40, existing?.startDate || '') || undefined,
+      endDate: cleanText(body?.endDate, 40, existing?.endDate || '') || undefined,
+      payoutTerms: cleanText(body?.payoutTerms, 500, existing?.payoutTerms || '') || undefined,
+      gearRequired: cleanList(body?.gearRequired, 10).length ? cleanList(body?.gearRequired, 10) : (existing?.gearRequired || []),
+      requirements: cleanList(body?.requirements, 20).length ? cleanList(body?.requirements, 20) : (existing?.requirements || []),
+      status: existing?.status || 'pending',
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      createdByUserId: existing?.createdByUserId,
+      approvedAt: existing?.approvedAt,
+      approvedByUserId: existing?.approvedByUserId,
+      rejectionReason: existing?.rejectionReason,
+    };
+  }
+
+  app.get('/api/campaigns', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    const isAdmin = checkIsAdmin(req);
+    const visible = campaigns.filter(c => {
+      if (isAdmin) return true;
+      if (c.status === 'recruiting' || c.status === 'active') return true;
+      return Boolean(user && c.createdByUserId === user.id);
+    });
+    res.json({ campaigns: visible });
+  });
+
+  app.post('/api/campaigns', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    const mine = campaigns.filter(c => c.createdByUserId === user.id && c.status === 'pending').length;
+    if (!checkIsAdmin(req) && mine >= 10) {
+      return res.status(429).json({ error: 'TOO_MANY_PENDING', message: 'You already have 10 campaigns awaiting review.' });
+    }
+    const campaign = sanitizeCampaignInput(req.body);
+    if ('error' in campaign) return res.status(400).json({ error: 'INVALID_CAMPAIGN', message: campaign.error });
+    campaign.createdByUserId = user.id;
+    if (checkIsAdmin(req)) {
+      campaign.status = 'recruiting';
+      campaign.approvedAt = new Date().toISOString();
+      campaign.approvedByUserId = user.id;
+    }
+    campaigns.unshift(campaign);
+    requestFlush();
+    addAuditLog(undefined, user.id, user.displayName, 'CAMPAIGN_SUBMITTED' as any,
+      `${checkIsAdmin(req) ? 'Created' : 'Submitted'} brand campaign "${campaign.title}" (${campaign.brandName}, $${campaign.dailyPayout.toFixed(2)}/shift). Status: ${campaign.status}.`,
+      { campaignId: campaign.id, dailyPayout: campaign.dailyPayout, status: campaign.status });
+    if (campaign.status === 'pending') {
+      notifyAdmins({ title: 'New brand campaign to review', message: `${user.displayName} submitted "${campaign.title}" (${campaign.brandName}) at $${campaign.dailyPayout.toFixed(2)} per shift.`, metadata: { campaignId: campaign.id } });
+    }
+    res.status(201).json({ campaign });
+  });
+
+  // Owner (pause/resume/complete) or admin.
+  app.post('/api/campaigns/:id/status', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    const campaign = campaigns.find(c => c.id === req.params.id);
+    if (!campaign) return res.status(404).json({ error: 'CAMPAIGN_NOT_FOUND' });
+    if (campaign.createdByUserId !== user.id && !checkIsAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const status = req.body?.status;
+    if (!['paused', 'active', 'completed'].includes(status)) return res.status(400).json({ error: 'INVALID_STATUS', message: 'status must be paused, active or completed.' });
+    if (!campaign.approvedAt) return res.status(409).json({ error: 'NOT_APPROVED', message: 'This campaign has not been approved by MutualPool yet.' });
+    campaign.status = status;
+    requestFlush();
+    addAuditLog(undefined, user.id, user.displayName, 'CAMPAIGN_STATUS_CHANGED' as any, `Campaign "${campaign.title}" set to ${status}.`, { campaignId: campaign.id, status });
+    res.json({ campaign });
+  });
+
+  app.post('/api/admin/campaigns/:id/status', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    const campaign = campaigns.find(c => c.id === req.params.id);
+    if (!campaign) return res.status(404).json({ error: 'CAMPAIGN_NOT_FOUND' });
+    const status = req.body?.status;
+    if (!['recruiting', 'active', 'paused', 'completed', 'rejected'].includes(status)) return res.status(400).json({ error: 'INVALID_STATUS' });
+    if (status === 'rejected') {
+      campaign.rejectionReason = cleanText(req.body?.rejectionReason, 500, 'Not approved');
+    } else if (!campaign.approvedAt) {
+      campaign.approvedAt = new Date().toISOString();
+      campaign.approvedByUserId = admin.id;
+    }
+    campaign.status = status;
+    requestFlush();
+    addAuditLog(undefined, admin.id, admin.displayName, 'CAMPAIGN_STATUS_CHANGED' as any, `Admin set campaign "${campaign.title}" to ${status}${status === 'rejected' ? `: ${campaign.rejectionReason}` : ''}.`, { campaignId: campaign.id, status });
+    if (campaign.createdByUserId) {
+      createNotification({ userId: campaign.createdByUserId, type: 'STATUS_CHANGE', title: `Campaign ${status === 'rejected' ? 'not approved' : 'approved'}`, message: status === 'rejected' ? `"${campaign.title}" was not approved: ${campaign.rejectionReason}` : `"${campaign.title}" is now ${status} and visible to couriers.`, metadata: { campaignId: campaign.id } });
+    }
+    res.json({ campaign });
+  });
 
   // Surface due checks, expire unanswered ones and keep scheduling new ones
   // while the shift runs. Returns true if anything changed.
@@ -4714,12 +4997,15 @@ Return ONLY a valid JSON object in this exact schema:
     if (!user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
-    const { campaign: rawCampaign, platform, neighborhood, startPhoto } = req.body || {};
+    const { campaignId, platform, neighborhood, startPhoto } = req.body || {};
     const sampleTag = DEMO_MODE ? req.body?.sampleTag : undefined;
-    const campaign = validateShiftCampaign(rawCampaign);
-    if (!campaign) {
-      return res.status(400).json({ error: 'INVALID_CAMPAIGN', message: 'Campaign details are required.' });
+    // Campaigns, including the brand to check for and the pay rate, come only
+    // from the server-side catalog, never from the request.
+    const catalogCampaign = campaigns.find(c => c.id === campaignId && (c.status === 'recruiting' || c.status === 'active'));
+    if (!catalogCampaign) {
+      return res.status(400).json({ error: 'INVALID_CAMPAIGN', message: 'Choose an active campaign to start a shift.' });
     }
+    const campaign = toShiftCampaign(catalogCampaign);
     if (startPhoto !== undefined && !isInlinePhoto(startPhoto)) {
       return res.status(400).json({ error: 'INVALID_PHOTO', message: 'Upload the photo as an image (max ~6MB).' });
     }
@@ -5044,7 +5330,7 @@ Return ONLY a valid JSON object in this exact schema:
       user.displayName,
       'HARDSHIP_REQUESTED',
       `Requested Financial Hardship Fund of $${depositAmount}.00 for pod "${pod.name}". Request sent to MutualPool for review.`,
-      { depositAmount, feeAmount, totalPayoffAmount, riskLevel: risk.level, riskScore: risk.score }
+      { depositAmount, feeAmount, totalPayoffAmount }
     );
 
     // Notify Pool Creator if creator is not the requester
@@ -5241,7 +5527,7 @@ Return ONLY a valid JSON object in this exact schema:
 
     addAuditLog(request.podId, user.id, user.displayName, 'HARDSHIP_REJECTED' as any,
       `Hardship request from ${request.userName} rejected by MutualPool review.${request.rejectionReason ? ` Reason: ${request.rejectionReason}` : ''}`,
-      { requestId: request.id, riskLevel: request.riskLevel, riskScore: request.riskScore });
+      { requestId: request.id });
     createNotification({
       userId: request.userId,
       podId: request.podId,
@@ -5382,8 +5668,8 @@ Return ONLY a valid JSON object in this exact schema:
       user.id,
       user.displayName,
       'REPRIORITIZATION_REQUESTED',
-      `Submitted emergency reprioritization request to advance from Rotation #${member.rotationIndex} to Rotation #${newRequest.desiredRotationIndex}. Reason: "${reason}". Requires ${newRequest.quorumNeeded} votes.`,
-      { requestId: newRequest.id, reason }
+      `Submitted emergency reprioritization request to advance from Rotation #${member.rotationIndex} to Rotation #${newRequest.desiredRotationIndex}. Reason: "${newRequest.reason}". Requires ${newRequest.quorumNeeded} votes.`,
+      { requestId: newRequest.id, reason: newRequest.reason }
     );
 
     res.json(newRequest);
@@ -6259,7 +6545,7 @@ Return ONLY a valid JSON object in this exact schema:
   // 15. Stripe webhook. Every event must carry a valid signature over the raw
   // body; this is the only place real money is credited to member ledgers.
   // Returns false when the event could not be applied yet (Stripe should retry).
-  function creditTopup(paymentId: string, userId: string | undefined, amountUsd: number, source: string): boolean {
+  function creditTopup(paymentId: string, userId: string | undefined, amountUsd: number, source: string, paymentIntentId?: string): boolean {
     if (!userId || !Number.isFinite(amountUsd) || amountUsd <= 0) {
       console.error(`[Stripe Webhook] ${source} ${paymentId} is missing userId/amount metadata; not credited.`);
       return true; // malformed for good: retrying will not help
@@ -6272,7 +6558,7 @@ Return ONLY a valid JSON object in this exact schema:
     }
     const amount = roundCents(amountUsd);
     creditLedger(target, amount);
-    processedPayments.push({ id: paymentId, userId, amountUsd: amount, processedAt: new Date().toISOString() });
+    processedPayments.push({ id: paymentId, userId, amountUsd: amount, processedAt: new Date().toISOString(), ...(paymentIntentId ? { paymentIntentId } : {}) } as any);
     saveUsersToDisk();
     addAuditLog(undefined, target.id, target.displayName, 'TREASURY_TOPUP' as any,
       `Treasury top-up of $${amount.toFixed(2)} confirmed by Stripe (${paymentId}).`, { paymentId, amount, source });
@@ -6343,7 +6629,7 @@ Return ONLY a valid JSON object in this exact schema:
         case 'checkout.session.completed':
         case 'checkout.session.async_payment_succeeded':
           if (obj.metadata?.kind === 'treasury_topup' && obj.payment_status === 'paid') {
-            applied = creditTopup(obj.id, obj.metadata.userId, Number(obj.metadata.depositAmountUsd), 'checkout.session');
+            applied = creditTopup(obj.id, obj.metadata.userId, Number(obj.metadata.depositAmountUsd), 'checkout.session', typeof obj.payment_intent === 'string' ? obj.payment_intent : obj.payment_intent?.id);
           } else if (obj.metadata?.kind === 'debit_mandate' && obj.mode === 'setup' && obj.setup_intent) {
             const si = typeof obj.setup_intent === 'object' ? obj.setup_intent : (DEMO_MODE ? null : await retrieveSetupIntentForSession(obj.id));
             if (si) await applyDebitMandateSetup(si);
@@ -6376,6 +6662,10 @@ Return ONLY a valid JSON object in this exact schema:
         case 'charge.refunded':
           if (obj.payment_intent && achCollections.some(c => c.stripePaymentIntentId === obj.payment_intent)) {
             applied = settleAchCollection(String(obj.payment_intent), 'RETURNED', obj.reason || event.type);
+          } else if (obj.payment_intent) {
+            // A card top-up was refunded or charged back: take the money back out
+            // of the ledger and hold the account until an admin reviews it.
+            applied = reverseTopup(String(obj.payment_intent), event.type === 'charge.refunded' ? Number(obj.amount_refunded) / 100 : Number(obj.amount) / 100, event.type, obj.reason);
           }
           break;
         case 'account.updated':
@@ -6661,6 +6951,111 @@ Return ONLY a valid JSON object in this exact schema:
     });
   });
 
+  // Public contact form: stored, and emailed to support.
+  app.post('/api/support/contact', publicFormRateLimiter, (req: Request, res: Response) => {
+    const name = cleanText(req.body?.name, 120);
+    const email = cleanText(req.body?.email, 254);
+    const message = cleanText(req.body?.message, 4000);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !message) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'A valid email address and a message are required.' });
+    }
+    const user = getCurrentUser(req);
+    const record: SupportMessage = { id: newLedgerId('support'), name: name || email, email, message, userId: user?.id, createdAt: new Date().toISOString() };
+    supportMessages.unshift(record);
+    if (supportMessages.length > 5000) supportMessages.length = 5000;
+    requestFlush();
+    sendEmail({
+      to: process.env.SUPPORT_EMAIL || 'support@themutualpool.com',
+      kind: 'support_contact',
+      subject: `Support request from ${record.name}`,
+      text: `From: ${record.name} <${email}>${user ? ` (user ${user.id})` : ''}\n\n${message}`,
+      onChange: requestFlush,
+    });
+    res.json({ success: true });
+  });
+
+  // Operations review queue: money movements Stripe answered ambiguously, and
+  // accounts on hold after a card reversal. Admins resolve them here after
+  // checking the Stripe dashboard.
+  app.get('/api/admin/reviews', (req: Request, res: Response) => {
+    if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    const nameOf = (id: string) => users.find(u => u && u.id === id)?.displayName || id;
+    res.json({
+      withdrawals: withdrawals.filter(w => w.status === 'NEEDS_REVIEW').map(w => ({ ...w, userName: nameOf(w.userId) })),
+      collections: achCollections.filter(c => c.status === 'NEEDS_REVIEW').map(c => ({ ...c, userName: nameOf(c.userId) })),
+      riskHolds: users.filter(u => u && u.riskHold).map(u => ({ userId: u.id, displayName: u.displayName, email: u.email, balanceUsd: roundCents(Number(u.treasury?.balanceUsd) || 0), ...u.riskHold })),
+      supportMessages: supportMessages.slice(0, 50),
+    });
+  });
+
+  // outcome COMPLETED: the transfer exists in Stripe (pass its id). FAILED: it does not; refund the ledger.
+  app.post('/api/admin/withdrawals/:id/resolve', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    const w = withdrawals.find(x => x.id === req.params.id);
+    if (!w) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (w.status !== 'NEEDS_REVIEW') return res.status(400).json({ error: 'NOT_UNDER_REVIEW', message: `Withdrawal is ${w.status}.` });
+    const outcome = req.body?.outcome;
+    const member = users.find(u => u && u.id === w.userId);
+    if (outcome === 'COMPLETED') {
+      const transferId = cleanText(req.body?.stripeTransferId, 80);
+      if (!transferId.startsWith('tr_')) return res.status(400).json({ error: 'TRANSFER_ID_REQUIRED', message: 'Enter the Stripe transfer id (tr_...) that paid this withdrawal.' });
+      w.status = 'COMPLETED';
+      w.stripeTransferId = transferId;
+    } else if (outcome === 'FAILED') {
+      w.status = 'FAILED';
+      if (member) creditLedger(member, w.amountUsd);
+    } else {
+      return res.status(400).json({ error: 'INVALID_OUTCOME', message: 'outcome must be COMPLETED or FAILED.' });
+    }
+    w.updatedAt = new Date().toISOString();
+    saveUsersToDisk();
+    addAuditLog(undefined, admin.id, admin.displayName, 'TREASURY_WITHDRAWAL', `Resolved withdrawal ${w.id} ($${w.amountUsd.toFixed(2)}) under review as ${w.status}${w.stripeTransferId ? ` (${w.stripeTransferId})` : ' and refunded the balance'}.`, { withdrawalId: w.id, outcome: w.status });
+    if (member) createNotification({ userId: member.id, type: 'STATUS_CHANGE', title: outcome === 'COMPLETED' ? 'Withdrawal confirmed' : 'Withdrawal reversed', message: outcome === 'COMPLETED' ? `Your $${w.amountUsd.toFixed(2)} withdrawal was confirmed with Stripe.` : `Your $${w.amountUsd.toFixed(2)} withdrawal did not go through; the amount is back in your balance.` });
+    res.json({ success: true, withdrawal: w });
+  });
+
+  // outcome PROCESSING: Stripe shows the debit (pass its id; the webhook finishes it). FAILED: no debit exists.
+  app.post('/api/admin/collections/:id/resolve', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    const c = achCollections.find(x => x.id === req.params.id);
+    if (!c) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (c.status !== 'NEEDS_REVIEW') return res.status(400).json({ error: 'NOT_UNDER_REVIEW', message: `Collection is ${c.status}.` });
+    const d = depositDefaults.find(x => x.id === c.defaultId);
+    const outcome = req.body?.outcome;
+    if (outcome === 'PROCESSING') {
+      const piId = cleanText(req.body?.stripePaymentIntentId, 80);
+      if (!piId.startsWith('pi_')) return res.status(400).json({ error: 'PAYMENT_INTENT_ID_REQUIRED', message: 'Enter the Stripe PaymentIntent id (pi_...) of the debit.' });
+      c.status = 'PROCESSING';
+      c.stripePaymentIntentId = piId;
+      c.failureReason = undefined;
+    } else if (outcome === 'FAILED') {
+      c.status = 'FAILED';
+    } else {
+      return res.status(400).json({ error: 'INVALID_OUTCOME', message: 'outcome must be PROCESSING or FAILED.' });
+    }
+    c.updatedAt = new Date().toISOString();
+    if (d) refreshDefaultStatus(d);
+    requestFlush();
+    addAuditLog(d?.podId, admin.id, admin.displayName, 'ACH_COLLECTION_INITIATED', `Resolved ACH collection ${c.id} under review as ${c.status}${c.stripePaymentIntentId ? ` (${c.stripePaymentIntentId})` : ''}.`, { collectionId: c.id, outcome: c.status });
+    res.json({ success: true, collection: c });
+  });
+
+  app.post('/api/admin/users/:id/clear-hold', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    const member = users.find(u => u && u.id === req.params.id);
+    if (!member) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    if (!member.riskHold) return res.status(400).json({ error: 'NO_HOLD', message: 'This account is not on hold.' });
+    const hold = member.riskHold;
+    delete member.riskHold;
+    saveUsersToDisk();
+    addAuditLog(undefined, admin.id, admin.displayName, 'RISK_HOLD_CLEARED' as any, `Cleared account hold on ${member.displayName} (${hold.reason}; outstanding $${(hold.amountUsd || 0).toFixed(2)}). Note: ${cleanText(req.body?.note, 500, 'none')}`, { userId: member.id, hold });
+    createNotification({ userId: member.id, type: 'STATUS_CHANGE', title: 'Account hold cleared', message: 'MutualPool has reviewed your account. Withdrawals and pods are available again.' });
+    res.json({ success: true, user: member });
+  });
+
   // 16b. Deposit defaults: every missed deposit and what is still owed, for admins.
   function defaultView(d: DepositDefault) {
     const member = users.find(u => u && u.id === d.userId);
@@ -6705,8 +7100,8 @@ Return ONLY a valid JSON object in this exact schema:
     if (d.status === 'WRITTEN_OFF' || d.status === 'RECOVERED') {
       return res.status(400).json({ error: 'DEFAULT_CLOSED', message: `This default is ${d.status.toLowerCase().replace('_', ' ')}.` });
     }
-    if (achCollections.some(c => c.defaultId === d.id && c.status === 'PROCESSING')) {
-      return res.status(409).json({ error: 'COLLECTION_IN_PROGRESS', message: 'An ACH debit for this default is already processing. Wait for it to settle.' });
+    if (achCollections.some(c => c.defaultId === d.id && (c.status === 'PROCESSING' || c.status === 'NEEDS_REVIEW'))) {
+      return res.status(409).json({ error: 'COLLECTION_IN_PROGRESS', message: 'An ACH debit for this default is already processing or awaiting review. Resolve it first.' });
     }
     const member = users.find(u => u && u.id === d.userId);
     const mandate = member?.debitMandate;
@@ -6768,12 +7163,22 @@ Return ONLY a valid JSON object in this exact schema:
         }
       }
     } catch (stripeErr: any) {
-      collection.status = 'FAILED';
       collection.failureReason = String(stripeErr?.message || stripeErr).slice(0, 300);
       collection.updatedAt = new Date().toISOString();
+      const definitelyRejected = ['StripeInvalidRequestError', 'StripeCardError', 'StripePermissionError', 'StripeAuthenticationError'].includes(stripeErr?.type)
+        || (typeof stripeErr?.statusCode === 'number' && stripeErr.statusCode >= 400 && stripeErr.statusCode < 500 && stripeErr.statusCode !== 408 && stripeErr.statusCode !== 429);
+      if (definitelyRejected) {
+        collection.status = 'FAILED';
+        refreshDefaultStatus(d);
+        console.error('[ACH collect] Stripe rejected the debit:', collection.failureReason);
+        return res.status(502).json({ error: 'COLLECTION_FAILED', message: 'Stripe could not start the debit. Nothing was collected.', collection });
+      }
+      // Timeout/outage: Stripe may have created the debit. Keep the record so the
+      // idempotency key is reused and let an admin confirm in the dashboard.
+      collection.status = 'NEEDS_REVIEW';
       refreshDefaultStatus(d);
-      console.error('[ACH collect] Stripe rejected the debit:', collection.failureReason);
-      return res.status(502).json({ error: 'COLLECTION_FAILED', message: 'Stripe could not start the debit. Nothing was collected.', collection });
+      reportIncident('error', 'ach_collection_needs_review', `ACH debit ${collection.id} for ${d.userName} ($${collection.amountUsd.toFixed(2)}) got an ambiguous Stripe error: ${collection.failureReason}`, { collectionId: collection.id, defaultId: d.id });
+      return res.status(502).json({ error: 'COLLECTION_PENDING_REVIEW', message: 'We could not confirm the debit with Stripe. It is flagged for review; do not retry until it is resolved.', collection });
     }
     collection.updatedAt = new Date().toISOString();
 
@@ -6787,6 +7192,19 @@ Return ONLY a valid JSON object in this exact schema:
       message: `Under your bank debit authorization, MutualPool is debiting $${collection.amountUsd.toFixed(2)} from ${mandate.bankName || 'your bank'} ••••${mandate.last4 || ''} for the missed Week ${d.cycleWeek} deposit in "${d.podName}". It usually settles within 4 business days.`,
       podId: d.podId,
       metadata: { collectionId: collection.id, defaultId: d.id },
+    });
+    sendEmail({
+      to: member.email,
+      kind: 'ach_debit_notice',
+      subject: `Bank debit of $${collection.amountUsd.toFixed(2)} for a missed deposit`,
+      text: `Hi ${member.displayName},
+
+Under the bank debit authorization you gave MutualPool, we are debiting $${collection.amountUsd.toFixed(2)} from ${mandate.bankName || 'your bank account'} ending ${mandate.last4 || '????'} for the missed week ${d.cycleWeek} deposit in "${d.podName}".
+
+It usually settles within 4 business days. If you believe this is a mistake, reply to this email before it settles.
+
+MutualPool`,
+      onChange: requestFlush,
     });
     savePodsToDisk();
     res.json({ success: true, collection, default: defaultView(d) });
@@ -6816,7 +7234,7 @@ Return ONLY a valid JSON object in this exact schema:
   // Platform escrow advances: administrators / scheduler only, once per vacant
   // or defaulted slot per cycle.
   app.post(['/api/pods/:id/system-deposit', '/pods/:id/system-deposit'], async (req: Request, res: Response) => {
-    if (!isSystemRequest(req)) {
+    if (!checkIsAdmin(req)) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'System escrow deposits are restricted to administrators.' });
     }
     const user = getCurrentUser(req);
@@ -6950,7 +7368,7 @@ app.post('/api/campaigns/advertiser-inquiry', async (req: Request, res: Response
     advertiserInquiries.unshift(newInquiry);
     saveAdvertiserInquiries(advertiserInquiries);
 
-    console.log(`[Advertiser Inquiry] New campaign lead from ${newInquiry.brandName} (${newInquiry.contactEmail})`);
+    console.log(`[Advertiser Inquiry] New campaign lead ${newInquiry.id}`);
 
     res.json({
       success: true,
@@ -8120,7 +8538,8 @@ app.post('/api/ai/tts', async (req: Request, res: Response) => {
     res.json({ fallbackToWebSpeech: true, reason: 'Audio modality part not found in response' });
   } catch (err: any) {
     console.warn('Gemini TTS error (falling back to Web Speech):', err?.message);
-    res.json({ fallbackToWebSpeech: true, error: err?.message });
+    console.error('[/api/ai/tts] error:', err?.message);
+    res.json({ fallbackToWebSpeech: true, reason: 'Speech synthesis unavailable' });
   }
 });
 
@@ -8255,6 +8674,10 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'welcomeMatchGrants', get: () => welcomeMatchGrants, set: docs => { welcomeMatchGrants = docs; } });
   registerCollection({ collection: 'depositDefaults', get: () => depositDefaults, set: docs => { depositDefaults = docs; } });
   registerCollection({ collection: 'achCollections', get: () => achCollections, set: docs => { achCollections = docs; } });
+  registerCollection({ collection: 'campaigns', get: () => campaigns, set: docs => { campaigns = docs; } });
+  registerCollection({ collection: 'sweepRuns', get: () => sweepRuns, set: docs => { sweepRuns = docs; } });
+  registerCollection({ collection: 'supportMessages', get: () => supportMessages, set: docs => { supportMessages = docs; } });
+  registerCollection({ collection: 'outboundEmails', get: getOutboundEmails, set: setOutboundEmails });
   registerCollection({ collection: 'shifts', get: () => shifts, set: docs => { shifts = docs; } });
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
   registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });
@@ -8295,6 +8718,7 @@ async function startServer() {
     await hydrateFromStorage(createStorageAdapter());
     startAutoFlush();
   }
+  (app as any).locals.startSweepScheduler?.();
 
   configureChatManager({
     verifyToken: verifySocketToken,

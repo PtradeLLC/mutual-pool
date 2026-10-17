@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { CountryConfig, SupportedCountryCode } from '../config/countries/types';
 import { resolveCountryFromHostname, COUNTRY_REGISTRY, US_CONFIG } from '../config/countries';
+import { IS_PRODUCTION } from '../server/runtime';
 
 // Extend Express Request interface to include country
 declare global {
@@ -25,13 +26,17 @@ export function countryContextMiddleware(req: Request, res: Response, next: Next
       req.hostname ||
       '';
 
-    // 2. Optional override for non-production development/preview testing
+    // 2. Optional override for development/preview testing only. In production
+    //    the host decides: the country sets fees and payment rails, so a client
+    //    must never be able to pick it.
     let overrideCode: string | null = null;
-    const headerOverride = req.headers['x-country-override'];
-    if (typeof headerOverride === 'string') {
-      overrideCode = headerOverride.toUpperCase();
-    } else if (req.query.country && typeof req.query.country === 'string') {
-      overrideCode = req.query.country.toUpperCase();
+    if (!IS_PRODUCTION) {
+      const headerOverride = req.headers['x-country-override'];
+      if (typeof headerOverride === 'string') {
+        overrideCode = headerOverride.toUpperCase();
+      } else if (req.query.country && typeof req.query.country === 'string') {
+        overrideCode = req.query.country.toUpperCase();
+      }
     }
 
     // 3. Resolve CountryConfig

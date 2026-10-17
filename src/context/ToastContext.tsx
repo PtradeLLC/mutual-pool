@@ -35,7 +35,7 @@ let globalToastEmitter: ((type: ToastType, message: string, options?: ToastOptio
 export const toast = {
   success: (message: string, options?: ToastOptions) => {
     if (globalToastEmitter) return globalToastEmitter('success', message, options);
-    console.log('[Toast:success]', message);
+    if (import.meta.env.DEV) console.log('[Toast:success]', message);
     return '';
   },
   error: (message: string, options?: ToastOptions) => {
@@ -45,12 +45,12 @@ export const toast = {
   },
   info: (message: string, options?: ToastOptions) => {
     if (globalToastEmitter) return globalToastEmitter('info', message, options);
-    console.info('[Toast:info]', message);
+    if (import.meta.env.DEV) console.info('[Toast:info]', message);
     return '';
   },
   warning: (message: string, options?: ToastOptions) => {
     if (globalToastEmitter) return globalToastEmitter('warning', message, options);
-    console.warn('[Toast:warning]', message);
+    if (import.meta.env.DEV) console.warn('[Toast:warning]', message);
     return '';
   },
 };

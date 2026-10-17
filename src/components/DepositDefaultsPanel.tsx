@@ -118,8 +118,8 @@ export const DepositDefaultsPanel: React.FC<DepositDefaultsPanelProps> = ({ curr
   };
 
   const collectionBadge = (c: AchCollection) => {
-    const icon = c.status === 'SUCCEEDED' ? <CheckCircle2 className="w-3 h-3" /> : c.status === 'PROCESSING' ? <Clock className="w-3 h-3" /> : <XCircle className="w-3 h-3" />;
-    const color = c.status === 'SUCCEEDED' ? 'text-emerald-700' : c.status === 'PROCESSING' ? 'text-blue-700' : 'text-red-700';
+    const icon = c.status === 'SUCCEEDED' ? <CheckCircle2 className="w-3 h-3" /> : c.status === 'PROCESSING' ? <Clock className="w-3 h-3" /> : c.status === 'NEEDS_REVIEW' ? <AlertTriangle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />;
+    const color = c.status === 'SUCCEEDED' ? 'text-emerald-700' : c.status === 'PROCESSING' ? 'text-blue-700' : c.status === 'NEEDS_REVIEW' ? 'text-amber-700' : 'text-red-700';
     return (
       <div key={c.id} className={`flex items-center gap-1 text-[10px] font-semibold ${color}`} title={c.failureReason || c.stripePaymentIntentId || ''}>
         {icon}
@@ -271,7 +271,9 @@ export const DepositDefaultsPanel: React.FC<DepositDefaultsPanelProps> = ({ curr
                     {actionable && !mandateActive && (
                       <div className="text-[10px] text-gray-500">No mandate: deduct from balance / future payouts, or write off.</div>
                     )}
-                    {inFlight && <div className="text-[10px] text-blue-700 font-semibold">Waiting for ACH to settle…</div>}
+                    {inFlight && (row.collections.some(c => c.status === 'NEEDS_REVIEW')
+                      ? <div className="text-[10px] text-amber-700 font-semibold">Stripe answer unclear: resolve in the Operations review queue.</div>
+                      : <div className="text-[10px] text-blue-700 font-semibold">Waiting for ACH to settle…</div>)}
                     {actionable && (
                       <button
                         type="button"

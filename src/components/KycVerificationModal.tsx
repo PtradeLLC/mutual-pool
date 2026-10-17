@@ -45,9 +45,11 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/users/connect/onboarding-link', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) throw new Error(data.message || 'Could not start Stripe verification.');
+      const res = await fetch('/api/users/connect/onboarding-link', { method: 'POST', headers: { Accept: 'application/json' } });
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+      if (!res.ok || !data.url) throw new Error(data.message || data.error || 'Could not start Stripe verification.');
       window.location.assign(data.url);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not start Stripe verification.');
@@ -79,8 +81,8 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
           ...user.treasury,
           status: 'ACTIVE',
           fdicPassThroughEligible: true,
-          stripeAccountId: user.treasury?.stripeAccountId || `acct_1xCustom_${Date.now()}`,
-          stripeFinAccountId: user.treasury?.stripeFinAccountId || `fa_1xTreasury_${Date.now()}`,
+          stripeAccountId: user.treasury?.stripeAccountId || '',
+          stripeFinAccountId: user.treasury?.stripeFinAccountId || '',
         }
       };
 
@@ -134,13 +136,19 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
     }
   };
 
-  if (!CLIENT_DEMO_MODE && user.kycStatus !== 'VERIFIED') {
+  // Production: every member (verified or not) sees the Stripe-based status view.
+  // KYC status comes from Stripe webhooks; the demo form below never renders here.
+  if (!CLIENT_DEMO_MODE) {
+    const isVerified = user.kycStatus === 'VERIFIED';
+    const isPending = user.kycStatus === 'PENDING';
+    const isFailed = user.kycStatus === 'FAILED';
+    const payoutBankLinked = user.externalBank?.status === 'LINKED';
     return (
       <div
         className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827]">
+        <div role="dialog" aria-modal="true" aria-labelledby="kyc-modal-title" className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827]">
           <button
             type="button"
             onClick={onClose}
@@ -150,34 +158,110 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
             <X className="w-5 h-5 pointer-events-none" />
           </button>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-blue-50 text-[#005FB8] border border-blue-100">
+            <div className={`p-3 rounded-xl border ${isVerified ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-blue-50 text-[#005FB8] border-blue-100'}`}>
               <ShieldCheck className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="text-xl font-bold">Verify your identity</h3>
+              <div className="flex items-center gap-2">
+                <h3 id="kyc-modal-title" className="text-xl font-bold">{isVerified ? 'Identity verified' : 'Verify your identity'}</h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold uppercase ${
+                  isVerified ? 'bg-emerald-100 text-emerald-800' : isPending ? 'bg-amber-100 text-amber-800' : isFailed ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-[#005FB8]'
+                }`}>
+                  {isVerified ? 'Verified' : isPending ? 'In review' : isFailed ? 'Action needed' : 'Required'}
+                </span>
+              </div>
               <p className="text-xs text-[#6B7280]">Required to create or join savings pods and to receive payouts.</p>
             </div>
           </div>
-          <p className="text-sm text-slate-700 mb-4">
-            {user.kycStatus === 'PENDING'
-              ? 'Stripe is reviewing your details. You can reopen Stripe to finish any remaining steps.'
-              : 'You will be redirected to Stripe to securely verify your identity and add the bank account for payouts. We never see your full SSN or bank credentials.'}
-          </p>
-          {error && (
-            <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
+
+          {isVerified ? (
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 text-xs text-emerald-950 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>Verified through Stripe</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed text-[11px]">
+                  {TREASURY_PROGRAM_ENABLED
+                    ? 'Your identity was confirmed by Stripe. Your Stripe Treasury financial account is enabled.'
+                    : 'Your identity was confirmed by Stripe. You can create and join pods and receive payouts to your bank account.'}
+                </p>
+                <div className="pt-2 border-t border-emerald-200/80 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">MEMBER</span>
+                    <span className="font-bold text-slate-900">{user.displayName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">VERIFIED ON</span>
+                    <span className="font-bold text-slate-900">
+                      {user.kycVerifiedAt ? new Date(user.kycVerifiedAt).toLocaleDateString() : '—'}
+                    </span>
+                  </div>
+                  <div className="col-span-2 pt-1">
+                    <span className="text-slate-500 block text-[10px]">PAYOUT BANK</span>
+                    <span className="font-bold text-slate-900">
+                      {payoutBankLinked ? `${user.externalBank.bankName || 'Bank'} ••••${user.externalBank.last4 || ''}` : 'Not linked yet'}
+                    </span>
+                  </div>
+                  {TREASURY_PROGRAM_ENABLED && user.treasury?.stripeFinAccountId && (
+                    <div className="col-span-2 pt-1">
+                      <span className="text-slate-500 block text-[10px]">STRIPE TREASURY FINANCIAL ACCOUNT</span>
+                      <span className="font-bold text-[#005FB8] text-xs">{user.treasury.stripeFinAccountId}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {error && (
+                <div role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={startStripeOnboarding}
+                  disabled={loading}
+                  className="flex-1 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
+                >
+                  {loading ? 'Opening Stripe…' : 'Update details in Stripe'}
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="py-2.5 px-4 rounded-xl bg-[#005FB8] hover:bg-[#004C94] text-white text-xs font-bold"
+                >
+                  Done
+                </button>
+              </div>
             </div>
+          ) : (
+            <>
+              <p className="text-sm text-slate-700 mb-4">
+                {isPending
+                  ? 'Stripe is reviewing your details. You can reopen Stripe to finish any remaining steps.'
+                  : isFailed
+                    ? 'Stripe could not verify your details. Reopen Stripe to review what is missing and try again.'
+                    : 'You will be redirected to Stripe to securely verify your identity and add the bank account for payouts. We never see your full SSN or bank credentials.'}
+              </p>
+              {error && (
+                <div role="alert" className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={startStripeOnboarding}
+                disabled={loading}
+                className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {loading ? 'Opening Stripe…' : 'Continue to Stripe'}
+                <ExternalLink className="w-4 h-4" />
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={startStripeOnboarding}
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {loading ? 'Opening Stripe…' : 'Continue to Stripe'}
-            <ExternalLink className="w-4 h-4" />
-          </button>
         </div>
       </div>
     );
@@ -254,7 +338,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
                 <div className="col-span-2 pt-1">
                   <span className="text-slate-500 block text-[10px]">STRIPE TREASURY FINANCIAL ACCOUNT</span>
                   <span className="font-bold text-[#005FB8] text-xs">
-                    {user.treasury?.stripeFinAccountId || 'fa_1xTreasury_Active'}
+                    {user.treasury?.stripeFinAccountId || '—'}
                   </span>
                 </div>
               </div>

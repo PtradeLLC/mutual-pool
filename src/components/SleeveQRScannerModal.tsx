@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { getSleeveQrUrl } from '../utils/siteUrl';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import promoSleeveImg from '../assets/images/promo_hoodie_sleeve_1786902506042.jpg';
 
 interface SleeveQRScannerModalProps {
@@ -374,6 +375,7 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
             <span>Upload Photo</span>
           </button>
 
+          {CLIENT_DEMO_MODE && (
           <button
             type="button"
             onClick={() => {
@@ -389,6 +391,7 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
             <Zap className="w-4 h-4" />
             <span>1-Click Test</span>
           </button>
+          )}
         </div>
 
         {/* Modal Body */}
@@ -542,13 +545,15 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span>Position the sleeve forearm inside the frame</span>
-                    <button
-                      type="button"
-                      onClick={handleSimulateScan}
-                      className="text-amber-400 hover:underline font-bold text-[11px] cursor-pointer"
-                    >
-                      Instant Test Scan →
-                    </button>
+                    {CLIENT_DEMO_MODE && (
+                      <button
+                        type="button"
+                        onClick={handleSimulateScan}
+                        className="text-amber-400 hover:underline font-bold text-[11px] cursor-pointer"
+                      >
+                        Instant Test Scan →
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -585,7 +590,8 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
                     )}
                   </div>
 
-                  {/* 1-Click Test With Attached Sample Sleeve Photo */}
+                  {/* 1-Click Test With Attached Sample Sleeve Photo (demo builds only) */}
+                  {CLIENT_DEMO_MODE && (
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <img 
@@ -613,11 +619,12 @@ export const SleeveQRScannerModal: React.FC<SleeveQRScannerModalProps> = ({
                       Scan Sample
                     </button>
                   </div>
+                  )}
                 </div>
               )}
 
-              {/* SIMULATE TAB */}
-              {activeTab === 'simulate' && (
+              {/* SIMULATE TAB (demo builds only) */}
+              {CLIENT_DEMO_MODE && activeTab === 'simulate' && (
                 <div className="space-y-4 text-center py-4">
                   <div className="w-16 h-16 rounded-2xl bg-amber-400/20 text-amber-400 border border-amber-400/30 flex items-center justify-center mx-auto">
                     <Zap className="w-8 h-8" />

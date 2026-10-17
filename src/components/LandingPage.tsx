@@ -9,7 +9,6 @@ import { AppStoreModal } from './AppStoreModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
-import { SiteUrlBadge } from './SiteUrlBadge';
 import { PartnerLogoStrip } from './PartnerLogoStrip';
 import { ROSCA_TRADITIONS, FEATURED_TRADITION_IDS } from '../data/roscaTraditions';
 import { useTranslation } from '../i18n';
@@ -1228,9 +1227,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </span>
           </div>
           <div className="shrink-0 flex items-center gap-3 text-gray-400">
-            <span>Regulated under {country.regulations.regulatoryBody.split('/')[0].trim()}</span>
-            <span>•</span>
-            <SiteUrlBadge variant="minimal" />
+            <span>Payments processed by Stripe. Identity verified by Stripe.</span>
           </div>
         </div>
       </footer>

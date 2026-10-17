@@ -196,7 +196,7 @@ export function getOrCreatePodThread(pod: Pod): ChatThread {
       id: threadId,
       type: 'POD',
       name: pod.name || 'Savings Pod Channel',
-      avatar: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=200',
+      avatar: 'https://ui-avatars.com/api/?name=Lainie&background=7C3AED&color=fff&size=200',
       podId: pod.id,
       podName: pod.name,
       participantIds: memberIds,

@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { AdCampaign, CampaignShiftLog, User } from '../types';
+import { AdCampaign, CampaignShiftLog, User, isAdminUser } from '../types';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
+import { avatarUrlFor } from '../utils/avatar';
+import { useToast } from '../context/ToastContext';
 import { 
   BarChart3, TrendingUp, Users, DollarSign, MapPin, CheckCircle2, 
   ShieldCheck, ArrowUpRight, Download, Filter, Search, Calendar,
@@ -19,6 +22,8 @@ interface AdvertiserDashboardProps {
   onOpenProposalBuilder?: () => void;
   onOpenCreateCampaign?: () => void;
   onBack?: () => void;
+  // Optional: parent receives the server's updated campaign after a status change.
+  onCampaignUpdated?: (campaign: AdCampaign) => void;
 }
 
 export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
@@ -29,7 +34,39 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
   onOpenProposalBuilder,
   onOpenCreateCampaign,
   onBack,
+  onCampaignUpdated,
 }) => {
+  const toast = useToast();
+  const isPlatformAdmin = isAdminUser(currentUser);
+  const canManage = (c: AdCampaign) => isPlatformAdmin || Boolean(currentUser && c.createdByUserId === currentUser.id);
+  const [statusChanging, setStatusChanging] = useState<string | null>(null);
+
+  // Owner/admin status changes go to the server; the result is the server's campaign.
+  const changeStatus = async (c: AdCampaign, status: 'paused' | 'active' | 'completed') => {
+    if (statusChanging) return;
+    setStatusChanging(c.id);
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(c.id)}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+      if (!res.ok || !data.campaign) {
+        toast.error(data.message || data.error || `Could not update the campaign (HTTP ${res.status}).`, { title: 'Update failed' });
+        return;
+      }
+      toast.success(`Campaign "${data.campaign.title}" is now ${data.campaign.status}.`);
+      onCampaignUpdated?.(data.campaign);
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('mutualpool_campaigns_changed'));
+    } catch {
+      toast.error('Network error updating the campaign.', { title: 'Update failed' });
+    } finally {
+      setStatusChanging(null);
+    }
+  };
   // Active selected campaign filter ('all' or specific campaign id)
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
   const [timeRange, setTimeRange] = useState<'7d' | '14d' | '30d' | 'all'>('30d');
@@ -219,8 +256,9 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
     }));
   }, [campaigns]);
 
-  // Handler to simulate a verified shift in real-time
+  // Demo only: fabricate a verified shift locally. Never available in production.
   const handleSimulateShift = () => {
+    if (!CLIENT_DEMO_MODE) return;
     setIsSimulating(true);
     const mockNames = ['Jaden Rivera', 'Sofia Alvarez', 'Darnell Washington', 'Kaitlyn Chen', 'Tariq Malik', 'Olivia Rossi'];
     const mockPlatforms: ('DoorDash' | 'UberEats' | 'Grubhub' | 'Instacart' | 'Relay')[] = ['DoorDash', 'UberEats', 'Grubhub', 'Instacart', 'Relay'];
@@ -248,7 +286,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
       brandName: targetCamp.brandName,
       courierId: `usr_sim_${Date.now()}`,
       courierName: randomName,
-      courierAvatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 50000000)}?w=80&auto=format&fit=crop&q=80`,
+      courierAvatar: avatarUrlFor(randomName),
       platform: randomPlatform,
       metro: targetCamp.targetMetro || 'Chicago, IL',
       neighborhood: randomNeighborhood,
@@ -332,16 +370,18 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={handleSimulateShift}
-            disabled={isSimulating}
-            className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="Simulate a new verified courier delivery shift"
-          >
-            <Play className={`w-3.5 h-3.5 text-amber-700 fill-amber-700 ${isSimulating ? 'animate-spin' : ''}`} />
-            <span>{isSimulating ? 'Logging Live Shift…' : 'Simulate Live Shift'}</span>
-          </button>
+          {CLIENT_DEMO_MODE && (
+            <button
+              type="button"
+              onClick={handleSimulateShift}
+              disabled={isSimulating}
+              className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Demo only: simulate a verified courier delivery shift"
+            >
+              <Play className={`w-3.5 h-3.5 text-amber-700 fill-amber-700 ${isSimulating ? 'animate-spin' : ''}`} />
+              <span>{isSimulating ? 'Logging Demo Shift…' : 'Simulate Live Shift (demo)'}</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -382,7 +422,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            All Active Campaigns ({campaigns.length})
+            All Campaigns ({campaigns.length})
           </button>
           {campaigns.map(c => (
             <button
@@ -395,12 +435,42 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
               }`}
             >
               <span>{c.brandName}</span>
+              {c.status === 'pending' && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-200 text-amber-900">Pending review</span>
+              )}
+              {c.status === 'rejected' && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-rose-200 text-rose-900">Not approved</span>
+              )}
+              {c.status === 'paused' && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-300 text-slate-900">Paused</span>
+              )}
               <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedCampaignId === c.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
                 {c.activeCouriersCount || 0} fleet
               </span>
             </button>
           ))}
         </div>
+
+        {/* Selected campaign status controls (owner / admin) */}
+        {selectedCampaign && canManage(selectedCampaign) && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+              {selectedCampaign.status === 'pending' ? 'Pending MutualPool review' : selectedCampaign.status}
+            </span>
+            {selectedCampaign.status === 'rejected' && selectedCampaign.rejectionReason && (
+              <span className="text-rose-700">Reason: {selectedCampaign.rejectionReason}</span>
+            )}
+            {(selectedCampaign.status === 'active' || selectedCampaign.status === 'recruiting') && (
+              <button type="button" disabled={statusChanging === selectedCampaign.id} onClick={() => changeStatus(selectedCampaign, 'paused')} className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 font-bold hover:bg-slate-50 disabled:opacity-60 cursor-pointer">Pause</button>
+            )}
+            {selectedCampaign.status === 'paused' && (
+              <button type="button" disabled={statusChanging === selectedCampaign.id} onClick={() => changeStatus(selectedCampaign, 'active')} className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 font-bold hover:bg-slate-50 disabled:opacity-60 cursor-pointer">Resume</button>
+            )}
+            {(selectedCampaign.status === 'active' || selectedCampaign.status === 'recruiting' || selectedCampaign.status === 'paused') && (
+              <button type="button" disabled={statusChanging === selectedCampaign.id} onClick={() => changeStatus(selectedCampaign, 'completed')} className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800 disabled:opacity-60 cursor-pointer">Mark complete</button>
+            )}
+          </div>
+        )}
 
         {/* View Tabs */}
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">

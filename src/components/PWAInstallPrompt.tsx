@@ -27,10 +27,7 @@ export const PWAInstallPrompt: React.FC = () => {
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
-    const choiceResult = await deferredPrompt.userChoice;
-    if (choiceResult.outcome === 'accepted') {
-      console.log('User accepted the PWA install prompt');
-    }
+    await deferredPrompt.userChoice;
     setDeferredPrompt(null);
     setShowBanner(false);
   };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pod, User, PodDetailTab } from '../types';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
@@ -8,9 +8,11 @@ interface PodCardProps {
   pod: Pod;
   currentUser: User;
   onSelectPod: (pod: Pod, initialTab?: PodDetailTab) => void;
-  onJoinPod: (pod: Pod) => void;
+  onJoinPod: (pod: Pod) => void | Promise<void>;
   onLeavePod?: (pod: Pod) => void;
   onSignAgreement: (pod: Pod) => void;
+  // True while a join request for this pod is in flight (disables the Join button).
+  joining?: boolean;
 }
 
 export const PodCard: React.FC<PodCardProps> = ({
@@ -20,47 +22,32 @@ export const PodCard: React.FC<PodCardProps> = ({
   onJoinPod,
   onLeavePod,
   onSignAgreement,
+  joining = false,
 }) => {
   const { t } = useTranslation();
   const { openPodChat } = useChat();
-  const activeId = currentUser?.id;
-  const activeEmail = currentUser?.email?.trim().toLowerCase();
-  const activeName = currentUser?.displayName?.trim().toLowerCase();
+  const activeId = currentUser?.id && currentUser.id !== 'usr_guest' ? currentUser.id : undefined;
 
-  const userMembership = pod.members?.find(m => {
-    if (!m) return false;
-    if (activeId && m.userId === activeId) return true;
-    if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
-    if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
-    return false;
-  });
+  // Membership is decided by userId only; the server owns the member list.
+  const userMembership = activeId ? pod.members?.find(m => m && m.userId === activeId) : undefined;
+  const isCreator = Boolean(activeId && pod.createdBy === activeId);
+  const isMember = Boolean(userMembership || isCreator);
 
-  const isCreator = Boolean(
-    (activeId && pod.createdBy === activeId) ||
-    (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName)
-  );
+  // Local in-flight lock so a double-click cannot fire two join requests even
+  // if the parent does not pass `joining`.
+  const [pendingJoin, setPendingJoin] = useState(false);
+  const joinDisabled = joining || pendingJoin;
+  const handleJoinClick = async () => {
+    if (joinDisabled) return;
+    setPendingJoin(true);
+    try {
+      await onJoinPod(pod);
+    } finally {
+      setPendingJoin(false);
+    }
+  };
 
-  const isStoredInLocal = typeof window !== 'undefined' && Boolean(
-    localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true'
-  );
-
-  const isMember = Boolean(userMembership || isCreator || isStoredInLocal);
-
-  let effectiveMembers = [...(pod.members || [])];
-  if (isMember && !userMembership) {
-    effectiveMembers.push({
-      id: `pm_synthetic_${activeId || 'active'}_${pod.id}`,
-      podId: pod.id,
-      userId: activeId || 'usr_active',
-      displayName: currentUser?.displayName || 'Verified Member',
-      avatarUrl: currentUser?.avatarUrl || '',
-      platform: currentUser?.platform || 'DoorDash',
-      rotationIndex: effectiveMembers.length,
-      hasReceivedPayout: false,
-      delinquencyStatus: 'CLEAN',
-      joinedAt: new Date().toISOString(),
-    });
-  }
+  const effectiveMembers = [...(pod.members || [])];
 
   const displayCount = Math.max(
     1,
@@ -381,10 +368,13 @@ export const PodCard: React.FC<PodCardProps> = ({
           ) : (
             !isFull && pod.status !== 'COMPLETED' && (
               <button
-                onClick={() => onJoinPod(pod)}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                type="button"
+                onClick={handleJoinClick}
+                disabled={joinDisabled}
+                aria-busy={joinDisabled}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
               >
-                <span>{t('pod.joinPod')}</span>
+                <span>{joinDisabled ? 'Joining…' : t('pod.joinPod')}</span>
               </button>
             )
           )}

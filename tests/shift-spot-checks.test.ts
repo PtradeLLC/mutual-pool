@@ -20,15 +20,28 @@ function makeUser(prefix: string) {
 }
 type TestUser = ReturnType<typeof makeUser>;
 
-const CAMPAIGN = { id: 'camp_test_1', title: 'Test Brand Fleet', brandName: 'TestBrand', gearRequired: ['Branded Hoodie', 'Hi-Vis Vest'], dailyPayout: 65, targetMetro: 'Austin' };
+const CAMPAIGN_INPUT = { title: 'Test Brand Fleet', brandName: 'TestBrand', gearRequired: ['Branded Hoodie', 'Hi-Vis Vest'], dailyPayout: 65, targetMetro: 'Austin' };
+// Campaigns live in a server-side catalog; an admin creates this one once.
+const CAMPAIGN: { id: string } = { id: '' };
+const admin = makeUser('admin');
+admin.headers = { ...admin.headers, 'x-user-role': 'Admin' };
 
 async function api(path: string, u: TestUser, init: { method?: string; body?: unknown } = {}) {
   const res = await fetch(`${BASE_URL}${path}`, { method: init.method || 'GET', headers: u.headers, body: init.body === undefined ? undefined : JSON.stringify(init.body) });
   return { status: res.status, body: await res.json().catch(() => ({})) };
 }
 
+async function ensureCampaign() {
+  if (CAMPAIGN.id) return;
+  const r = await api('/api/campaigns', admin, { method: 'POST', body: CAMPAIGN_INPUT });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(r.body.campaign.status, 'recruiting', 'admin-created campaigns are live immediately');
+  CAMPAIGN.id = r.body.campaign.id;
+}
+
 async function startShift(u: TestUser) {
-  const r = await api('/api/campaigns/shifts/start', u, { method: 'POST', body: { campaign: CAMPAIGN, platform: 'DoorDash', neighborhood: 'Downtown', sampleTag: 'MATCH_ACTIVE_CAMPAIGN' } });
+  await ensureCampaign();
+  const r = await api('/api/campaigns/shifts/start', u, { method: 'POST', body: { campaignId: CAMPAIGN.id, platform: 'DoorDash', neighborhood: 'Downtown', sampleTag: 'MATCH_ACTIVE_CAMPAIGN' } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   return r.body.shift;
 }
@@ -45,7 +58,7 @@ test('a shift starts with a verified selfie and a secret randomized schedule', a
   assert.ok(shift.checksRemaining >= 2, `expected 2+ scheduled checks, got ${shift.checksRemaining}`);
   assert.ok(!JSON.stringify(shift).includes('dueAt'), 'future check times must not be exposed to the client');
 
-  const again = await api('/api/campaigns/shifts/start', u, { method: 'POST', body: { campaign: CAMPAIGN, sampleTag: 'MATCH_ACTIVE_CAMPAIGN' } });
+  const again = await api('/api/campaigns/shifts/start', u, { method: 'POST', body: { campaignId: CAMPAIGN.id, sampleTag: 'MATCH_ACTIVE_CAMPAIGN' } });
   assert.equal(again.status, 409, 'only one active shift per courier');
 
   const active = await api('/api/campaigns/shifts/active', u);
@@ -54,7 +67,8 @@ test('a shift starts with a verified selfie and a secret randomized schedule', a
 
 test('a shift cannot start when the start selfie fails the AI check', async () => {
   const u = makeUser('nogear');
-  const r = await api('/api/campaigns/shifts/start', u, { method: 'POST', body: { campaign: CAMPAIGN, sampleTag: 'UNBRANDED' } });
+  await ensureCampaign();
+  const r = await api('/api/campaigns/shifts/start', u, { method: 'POST', body: { campaignId: CAMPAIGN.id, sampleTag: 'UNBRANDED' } });
   assert.equal(r.status, 409);
   assert.equal(r.body.error, 'GEAR_NOT_VERIFIED');
 });

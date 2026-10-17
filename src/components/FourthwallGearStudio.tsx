@@ -236,7 +236,7 @@ export const FourthwallGearStudio: React.FC<FourthwallGearStudioProps> = ({
       campaignId: campaignId || 'camp_ad_hoc_sponsor',
       campaignTitle: campaignTitle || `${brandName} Fleet Sponsorship`,
       sponsorBrand: brandName,
-      sponsorContactEmail: contactEmail || 'sponsor@mutualpool.org',
+      sponsorContactEmail: contactEmail || 'sponsor@themutualpool.com',
       sponsorContactName: brandName,
       gearType: selectedGearType,
       gearName: currentCatalogItem.name,

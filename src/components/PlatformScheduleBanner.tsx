@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlatformScheduleStatus, SweepExecutionResult } from '../types';
+import { PlatformScheduleStatus, SweepExecutionResult, User, isAdminUser } from '../types';
 import { useToast } from '../context/ToastContext';
 import { 
   getPlatformScheduleStatus, 
@@ -23,6 +23,8 @@ import {
 interface PlatformScheduleBannerProps {
   onRefreshData?: () => void;
   compact?: boolean;
+  // Only platform admins may trigger a sweep on demand.
+  currentUser?: User | null;
 }
 
 const formatErrorMessage = (data: any, status?: number): string => {
@@ -54,7 +56,9 @@ const formatErrorMessage = (data: any, status?: number): string => {
 export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
   onRefreshData,
   compact = false,
+  currentUser,
 }) => {
+  const isAdmin = isAdminUser(currentUser);
   const [scheduleStatus, setScheduleStatus] = useState<PlatformScheduleStatus>(() => 
     getPlatformScheduleStatus(new Date())
   );
@@ -104,129 +108,62 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
   const depositCountdown = formatTimeRemaining(msUntilDeposit);
   const payoutCountdown = formatTimeRemaining(msUntilPayout);
 
-  const generateFallbackSweepResult = (sweepType: 'THURSDAY_DEPOSITS' | 'FRIDAY_PAYOUTS'): SweepExecutionResult => {
-    const isThursday = sweepType === 'THURSDAY_DEPOSITS';
-    const nowIso = new Date().toISOString();
-
-    if (isThursday) {
-      return {
-        sweepType: 'THURSDAY_DEPOSITS',
-        executedAt: nowIso,
-        success: true,
-        activePodsEvaluated: 1,
-        totalTransactionsCount: 2,
-        totalVolumeUsd: 100,
-        failedCount: 0,
-        details: [
-          '[National Gig Starter Pod] Auto-debited $50.00 from member account into Treasury escrow (Week 1).',
-          '[Veteran Fleet Mutual Pool] Auto-debited $50.00 from member account into Treasury escrow (Week 1).',
-        ],
-      };
-    } else {
-      return {
-        sweepType: 'FRIDAY_PAYOUTS',
-        executedAt: nowIso,
-        success: true,
-        activePodsEvaluated: 1,
-        totalTransactionsCount: 1,
-        totalVolumeUsd: 180,
-        failedCount: 0,
-        details: [
-          '[National Gig Starter Pod] Disbursed $180.00 rotation payout to recipient via Stripe Treasury. Cycle advanced to Week 2.',
-        ],
-      };
-    }
-  };
-
+  // Admin-only: ask the server to run a sweep now. Only a real, successful
+  // server result is ever displayed; failures surface the server's message.
   const handleTriggerSweep = async (sweepType: 'THURSDAY_DEPOSITS' | 'FRIDAY_PAYOUTS') => {
+    if (!isAdmin || runningSweep !== null) return;
     setRunningSweep(sweepType);
     setSweepResult(null);
     setSweepError(null);
 
     const isThursday = sweepType === 'THURSDAY_DEPOSITS';
-    let sweepOutcome: SweepExecutionResult | null = null;
 
     try {
       const res = await fetch('/api/platform/schedule/sweep', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ sweepType }),
       });
 
-      const contentType = res.headers.get('content-type') || '';
+      const rawText = await res.text().catch(() => '');
       let data: any = null;
+      try { data = rawText ? JSON.parse(rawText) : null; } catch { data = rawText || null; }
 
-      if (contentType.includes('application/json')) {
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
-        }
+      if (!res.ok) {
+        setSweepError(formatErrorMessage(data, res.status));
+        return;
+      }
+      const result: SweepExecutionResult | null = data?.result || null;
+      if (!data?.success || !result) {
+        setSweepError(formatErrorMessage(data, res.status));
+        return;
       }
 
-      if (!data) {
-        const rawText = await res.text().catch(() => '');
-        try {
-          data = rawText ? JSON.parse(rawText) : {};
-        } catch {
-          data = null;
-        }
-      }
+      setSweepResult(result);
+      fetchBackendSchedule();
+      onRefreshData?.();
 
-      if (res.ok && data?.success && data?.result) {
-        sweepOutcome = data.result;
+      const txCount = result.totalTransactionsCount ?? 0;
+      const volume = result.totalVolumeUsd ?? 0;
+      if (isThursday) {
+        if (txCount > 0) {
+          toast.success(
+            `Processed ${txCount} member contribution${txCount === 1 ? '' : 's'} ($${volume.toFixed(2)} total).`,
+            { title: 'Thursday deposit sweep completed' }
+          );
+        } else {
+          toast.info('No deposits were due; all member contributions are up to date.', { title: 'Thursday deposit sweep completed' });
+        }
+      } else if (txCount > 0) {
+        toast.success(`Disbursed $${volume.toFixed(2)} to rotation recipients.`, { title: 'Friday payout sweep completed' });
+      } else {
+        toast.info('No payouts were due this cycle.', { title: 'Friday payout sweep completed' });
       }
     } catch (err: any) {
-      console.warn('[PlatformScheduleBanner] Backend sweep exception, using client simulation fallback:', err);
+      setSweepError(formatErrorMessage(err));
+    } finally {
+      setRunningSweep(null);
     }
-
-    // Seamless self-healing fallback: If server is unavailable or throws 500, execute simulation client-side
-    if (!sweepOutcome) {
-      sweepOutcome = generateFallbackSweepResult(sweepType);
-    }
-
-    setSweepResult(sweepOutcome);
-    setSweepError(null);
-    fetchBackendSchedule();
-    if (onRefreshData) {
-      onRefreshData();
-    }
-
-    // Display Toast Notification
-    if (isThursday) {
-      const txCount = sweepOutcome.totalTransactionsCount ?? 0;
-      const volume = sweepOutcome.totalVolumeUsd ?? 0;
-      if (txCount > 0) {
-        toast.success(
-          `Deposit successful! Processed ${txCount} member contribution${txCount === 1 ? '' : 's'} ($${volume.toFixed(2)} total volume). Funds held in Treasury escrow for Friday payout.`,
-          { title: 'Thursday 12:00 AM Deposit Sweep' }
-        );
-      } else {
-        toast.info(
-          'Thursday sweep simulated: All member deposits are currently up to date.',
-          { title: 'Thursday Deposit Sweep Completed' }
-        );
-      }
-    } else {
-      const txCount = sweepOutcome.totalTransactionsCount ?? 0;
-      const volume = sweepOutcome.totalVolumeUsd ?? 0;
-      if (txCount > 0) {
-        toast.success(
-          `Payout successful! Disbursed $${volume.toFixed(2)} to rotation recipients via Stripe Treasury.`,
-          { title: 'Friday 12:00 AM Payout Sweep' }
-        );
-      } else {
-        toast.info(
-          'Friday sweep simulated: Rotation payouts are up to date.',
-          { title: 'Friday Payout Sweep Completed' }
-        );
-      }
-    }
-
-    setRunningSweep(null);
   };
 
   if (compact) {
@@ -375,11 +312,12 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
         </div>
       </div>
 
-      {/* Sweep Simulation & Testing Controls */}
+      {/* Admin-only on-demand sweep controls (real server execution) */}
+      {isAdmin && (
       <div className="pt-2 border-t border-slate-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-1.5 text-slate-300">
           <Zap className="w-3.5 h-3.5 text-amber-400" />
-          <span>Test & Simulation Engine: Trigger automated batch sweeps on-demand.</span>
+          <span>Admin: run the scheduled sweep now (moves real money).</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -397,7 +335,7 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
             ) : (
               <>
                 <Calendar className="w-3.5 h-3.5" />
-                <span>Simulate Thursday 12AM Debit Sweep</span>
+                <span>Run Thursday Debit Sweep Now</span>
               </>
             )}
           </button>
@@ -416,12 +354,13 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
             ) : (
               <>
                 <Send className="w-3.5 h-3.5" />
-                <span>Simulate Friday 12AM Payout Sweep</span>
+                <span>Run Friday Payout Sweep Now</span>
               </>
             )}
           </button>
         </div>
       </div>
+      )}
 
       {/* Feedback Alert Banners */}
       {sweepError && (
@@ -438,13 +377,14 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span>
                 {sweepResult.sweepType === 'THURSDAY_DEPOSITS'
-                  ? '✅ Thursday Automated Deposit Sweep Completed'
-                  : '🎉 Friday Automated Payout Sweep Completed'}
+                  ? 'Thursday Deposit Sweep Completed'
+                  : 'Friday Payout Sweep Completed'}
               </span>
             </div>
             <button
               type="button"
               onClick={() => setSweepResult(null)}
+              aria-label="Dismiss sweep result"
               className="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded cursor-pointer"
             >
               ✕

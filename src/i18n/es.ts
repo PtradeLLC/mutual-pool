@@ -128,7 +128,7 @@ export const es: Record<TranslationKey, string> = {
   // Bottom CTA Banner
   'bottomCta.badge': 'Disponible en PWA para iOS y Android',
   'bottomCta.title': '¿Listo para Crear Tu Reserva de Emergencia?',
-  'bottomCta.subtitle': 'Únete a miles de trabajadores gig que ahorran juntos con la seguridad de Stripe Treasury y seguro FDIC indirecto.',
+  'bottomCta.subtitle': 'Únete a trabajadores gig que ahorran juntos con la seguridad de Stripe Treasury y seguro FDIC indirecto.',
   'bottomCta.returnToDashboard': 'Volver al Panel',
   'bottomCta.createAccountFree': 'Crear Cuenta Gratis',
   'bottomCta.signInToAccount': 'Iniciar Sesión en Tu Cuenta',
@@ -295,7 +295,7 @@ export const es: Record<TranslationKey, string> = {
   "hero.featureSafeDepositsDesc.noTreasury": "Depósitos y cobros procesados por Stripe",
   "calculator.fdicStatusLabel.noTreasury": "Procesamiento de Pagos:",
   "calculator.fdicEligible.noTreasury": "Stripe (miembros con identidad verificada)",
-  "bottomCta.subtitle.noTreasury": "Únete a miles de trabajadores gig que ahorran juntos, con depósitos y cobros gestionados por Stripe.",
+  "bottomCta.subtitle.noTreasury": "Únete a trabajadores gig que ahorran juntos, con depósitos y cobros gestionados por Stripe.",
   "dash.fdicInsuredFooter.noTreasury": "Pagos procesados por Stripe. MutualPool es una plataforma tecnológica, no un banco.",
   "footer.fdicNotice.noTreasury": "Los depósitos y cobros se procesan a través de Stripe. MutualPool es una plataforma tecnológica financiera, no un banco, y los saldos de los miembros no están asegurados por la FDIC.",
   "createPod.stripeProtection.noTreasury": "Pagos con Stripe: los depósitos se cobran y los pagos se envían a través de Stripe, con verificación de identidad de cada miembro.",
@@ -807,7 +807,7 @@ export const es: Record<TranslationKey, string> = {
   'auth.tabCreateAccount': 'Crear Cuenta',
   'auth.tabPhoneSms': 'SMS Móvil',
   'auth.emailLabel': 'Correo Electrónico',
-  'auth.emailPlaceholder': 'ej. conductor@mutualpool.org',
+  'auth.emailPlaceholder': 'you@example.com',
   'auth.passwordLabel': 'Contraseña',
   'auth.passwordPlaceholder': 'Ingresa tu contraseña',
   'auth.signInWithEmailBtn': 'Iniciar Sesión con Correo',
@@ -1085,7 +1085,7 @@ export const es: Record<TranslationKey, string> = {
   'contactModal.driverLineTitle': 'Línea 24/7 para Conductores',
   'contactModal.driverLineNumber': '1-800-GIG-POOL',
   'contactModal.emailSupportTitle': 'Soporte por Correo',
-  'contactModal.emailAddress': 'support@mutualpool.org',
+  'contactModal.emailAddress': 'support@themutualpool.com',
   'contactModal.fullNameLabel': 'Tu Nombre Completo',
   'contactModal.fullNamePlaceholder': 'ej. Carlos Martínez',
   'contactModal.emailLabel': 'Correo Electrónico',
@@ -1295,7 +1295,7 @@ export const es: Record<TranslationKey, string> = {
   'advertiser.heroBadge': 'Convierte las Flotas de Repartidores en Vallas Publicitarias Urbanas',
   'advertiser.heroTitle': 'Ropa y Equipo Promocional de Marca',
   'advertiser.heroSubtitle': 'Diseñado para Trabajadores de Plataforma. Impulsado por Alianzas.',
-  'advertiser.heroDesc': 'Equipa a miles de repartidores activos de aplicaciones con ropa urbana premium y equipo térmico. Captura millones de impactos visuales orgánicos de alta frecuencia en el centro de las grandes metrópolis mientras apoyas directamente los ingresos de los repartidores.',
+  'advertiser.heroDesc': 'Equipa a repartidores activos de aplicaciones con ropa urbana premium y equipo térmico. Captura impactos visuales orgánicos de alta frecuencia en el centro de las grandes metrópolis mientras apoyas directamente los ingresos de los repartidores.',
   'advertiser.requestMediaKit': 'Solicitar Kit de Medios y Cotización',
   'advertiser.estimateReach': 'Calcular Alcance de Campaña',
 
@@ -1324,13 +1324,13 @@ export const es: Record<TranslationKey, string> = {
 
   // Quick stats
   'advertiser.avgDailyShifts': 'Turnos Diarios Promedio',
-  'advertiser.avgDailyShiftsVal': '8 - 11 Horas',
+  'advertiser.avgDailyShiftsVal': 'Turnos de reparto completos',
   'advertiser.dailyImpressions': 'Impactos Diarios',
-  'advertiser.dailyImpressionsVal': '1,450+ / Repartidor',
+  'advertiser.dailyImpressionsVal': 'A pie de calle, todo el turno',
   'advertiser.courierDailyPayout': 'Pago Diario al Repartidor',
   'advertiser.courierDailyPayoutVal': '$55 - $75 / Día',
   'advertiser.effectiveCpm': 'CPM Efectivo',
-  'advertiser.effectiveCpmVal': '$8.50 - $14.50',
+  'advertiser.effectiveCpmVal': 'Precio por repartidor-día',
 
   // Value props
   'advertiser.whyTitle': 'Por Qué el Patrocinio Urbano de Repartidores Supera la Publicidad Tradicional',
@@ -1353,6 +1353,7 @@ export const es: Record<TranslationKey, string> = {
   'advertiser.calcStep1Smb': '1. Seleccionar Barrio Hiperlocal / Radio de 2 Millas',
   'advertiser.calcStep1Enterprise': '1. Seleccionar Mercado Metropolitano Objetivo',
   'advertiser.calcActiveFleet': 'Flota Activa:',
+  'advertiser.calcActiveFleetVal': 'Repartidores verificados asignados bajo demanda',
   'advertiser.calcStep2Smb': '2. Tamaño de Flota Local (Corredores de Reparto Activos)',
   'advertiser.calcStep2Enterprise': '2. Tamaño de Flota Empresarial',
   'advertiser.calcActiveCouriers': '{count} Repartidores Activos',
@@ -1537,7 +1538,7 @@ export const es: Record<TranslationKey, string> = {
   'advertiser.faq4_q': '¿A dónde se destinan los fondos del patrocinio?',
   'advertiser.faq4_a': 'El 65% de los fondos de la campaña se acredita directamente a las cuentas Stripe Treasury de repartidores verificados como ingresos suplementarios diarios ($55–$75/día). El 35% restante financia la producción de prendas de alta resistencia, logística, verificación GPS y costos operativos.',
   'advertiser.faq5_q': '¿Cuál es el compromiso mínimo de campaña?',
-  'advertiser.faq5_a': 'Las campañas inician desde 25 repartidores embajadores durante un período mínimo de 2 semanas, escalando hasta despliegues nacionales de más de 1,000 repartidores.',
+  'advertiser.faq5_a': 'Las campañas inician desde 25 repartidores embajadores durante un período mínimo de 2 semanas, y pueden escalar hasta despliegues nacionales en varias ciudades.',
   'advertiser.rightsReserved': 'Todos los derechos reservados.',
 
   // Audit Log & Ledger Translations
@@ -1710,7 +1711,7 @@ export const es: Record<TranslationKey, string> = {
   'treasuryModal.processDepositBtn': 'Procesar Depósito de +${amount}.00 en Treasury',
   'treasuryModal.successTopupMsg': '¡Depósito en Treasury de +${deposit} procesado con éxito! Total cobrado: ${total} (depósito de ${deposit} + tarifa de plataforma del 5% de ${fee}). Saldo actualizado de Treasury: ${newBalance} USD.',
   'treasuryModal.selectBankLabel': 'Seleccionar Institución Financiera',
-  'treasuryModal.supportsBanksNote': 'Compatible con más de 10,000 bancos y cooperativas de crédito de EE. UU.',
+  'treasuryModal.supportsBanksNote': 'Compatible con la mayoría de bancos y cooperativas de crédito de EE. UU.',
   'treasuryModal.otherCustomOption': '✏️ Otro Banco o Cooperativa de Crédito (Escribir nombre...)',
   'treasuryModal.customBankInputLabel': 'Escribe el Nombre de tu Institución Financiera',
   'treasuryModal.customBankPlaceholder': 'p. ej., Mercury, Varo Bank, Marcus, Cooperativa Local',
@@ -1760,6 +1761,56 @@ export const es: Record<TranslationKey, string> = {
   'addFundsModal.bankInstantVerify': 'Verificación Instantánea (Plaid / Stripe)',
   'addFundsModal.useDemoCard': 'Usar Tarjeta de Demostración (4242)',
   'addFundsModal.digitalCardPreview': 'Tarjeta Digital de Treasury',
+
+  // Contact form submission states
+  'contactModal.sending': 'Enviando...',
+  'contactModal.errorDesc': 'No pudimos enviar tu mensaje en este momento. Inténtalo de nuevo o escribe directamente a soporte.',
+
+  // Email verification & password reset
+  'auth.verifyEmailTitle': 'Verifica tu correo',
+  'auth.verifyEmailNotice': 'Enviamos un enlace de verificación a {email}. Confirma tu dirección para proteger tu cuenta.',
+  'auth.enterEmailForReset': 'Primero escribe el correo de tu cuenta y luego pulsa "¿Olvidaste tu contraseña?".',
+  'auth.resetEmailSent': 'Si existe una cuenta para {email}, recibirás un enlace para restablecer la contraseña. Revisa tu bandeja de entrada y spam.',
+  'auth.resetEmailFailed': 'No pudimos enviar el correo de restablecimiento. Inténtalo de nuevo en un momento.',
+  'auth.sendingResetEmail': 'Enviando enlace...',
+
+  // Bank link validation
+  'treasuryModal.errorAccountNumberRequired': 'Ingresa el número de tu cuenta bancaria para continuar.',
+
+  // Shown instead of the Stripe Treasury-claim strings until the Treasury program is live (see src/lib/treasuryClaims.ts)
+  'howItWorks.step3Title.noTreasury': 'Pago Vía Stripe',
+  'howItWorks.step3Desc.noTreasury': 'Cada semana todos depositan lo acordado. El fondo acumulado se transfiere íntegro, a través de Stripe, a quien le corresponde según la rotación.',
+  'dash.stripeTreasuryAccount.noTreasury': 'Saldo y Pagos',
+  'campaigns.stats.paymentChannelVal.noTreasury': 'Stripe',
+  'campaigns.enroll.termAgreeEarnings.noTreasury': 'Reconozco que las ganancias diarias ($55–$75/día) se desembolsan directamente a través de Stripe al finalizar cada turno diario.',
+  'shiftModal.btnReleasePayout.noTreasury': 'Autorizar Pago Diario de ${rate} vía Stripe',
+  'createPod.modalSubtitle.noTreasury': 'Grupo de rotación fija con depósitos y pagos procesados por Stripe',
+  'createPod.kycRequiredDesc.noTreasury': 'Se requiere verificar tu identidad con Stripe antes de crear o administrar grupos de ahorro mutuo.',
+  'createPod.stripeFeeSummary.noTreasury': 'Comisión de Procesamiento Stripe y Reserva de Plataforma (5%)',
+  'createPod.stripeTreasuryVisa.noTreasury': 'Visa vía Stripe',
+  'voiceAgent.welcomeDisplay.noTreasury': '👋 ¡Hola, soy Lainie — tu Guía de IA de MutualPool!\n\nPuedo guiarte paso a paso en el uso de MutualPool:\n• Ahorro en Grupos (Rotaciones semanales y reglas de Tandas/Susu)\n• Intercambio de Turnos (Cambio seguro de turnos de cobro)\n• Ventajas Diarias (food trucks, parches de llanta, reparación de celular, masajes, estacionamiento)\n• Ganancias como Embajador (Publicidad en tu vehículo)\n• Cómo Stripe procesa depósitos y pagos',
+  'contactModal.topicPayoutTreasury.noTreasury': 'Pagos y Cobros',
+  'howItWorksModal.footerText.noTreasury': 'Gobernanza y Reglas de MutualPool • Pagos por Stripe',
+  'advertiser.prop3Desc.noTreasury': 'Los fondos van directamente a trabajadores independientes mediante Stripe, ayudándoles a construir un fondo de ahorros de emergencia.',
+  'advertiser.summaryEarningsSub.noTreasury': 'El 65% ($65–$97.50/día) se acredita directamente a los repartidores vía Stripe',
+  'advertiser.faq4_a.noTreasury': 'El 65% de los fondos de la campaña se acredita directamente a repartidores verificados vía Stripe como ingresos suplementarios diarios ($55–$75/día). El 35% restante financia la producción de prendas de alta resistencia, logística, verificación GPS y costos operativos.',
+  'audit.subtitle.noTreasury': 'Pista de verificación de solo adición que documenta todos los eventos de creación de grupos, firmas de acuerdos digitales, bloqueos de rotación, pagos vía Stripe e intercambios voluntarios de turnos.',
+  'treasuryModal.headerTitle.noTreasury': 'Saldo y Cuentas Bancarias',
+  'treasuryModal.commercialBalanceTitle.noTreasury': 'Saldo Disponible',
+  'treasuryModal.depositFormTitle.noTreasury': 'Depositar Fondos vía Stripe',
+  'treasuryModal.feeBreakdownNote.noTreasury': '✓ Se acreditan netos ${amount}.00 directamente a tu saldo (la comisión del 5% se procesa por separado).',
+  'treasuryModal.processingDeposit.noTreasury': 'Procesando tu depósito con Stripe...',
+  'addFundsModal.title.noTreasury': 'Agregar Fondos vía Stripe',
+  'addFundsModal.successMessage.noTreasury': 'Se acreditaron ${amount} en tu saldo. Tu saldo actual es ahora ${newBalance}.',
+  'addFundsModal.saveCardLabel.noTreasury': 'Guardar tarjeta digital de forma segura con Stripe para futuros depósitos con 1 clic',
+
+  // Crear Pod: paso de revisión (el primer depósito se cobra del saldo del miembro)
+  'createPod.reviewTitle': 'Revisar y confirmar',
+  'createPod.reviewSubtitle': 'Tu primer depósito se toma de tu saldo de MutualPool.',
+  'createPod.treasurySummary': 'Primer depósito ${deposit} + 5% de comisión = ${total} se tomará de tu saldo de Treasury (saldo actual ${balance}).',
+  'createPod.insufficientTitle': 'Agrega fondos para continuar',
+  'createPod.insufficientDesc': 'Necesitas ${total} disponibles pero tu saldo es ${balance}. Agrega al menos ${shortfall} para crear este pod.',
+  'createPod.addFundsBtn': 'Agregar fondos',
+  'createPod.createPodBtn': 'Crear pod y pagar ${total}',
+  'createPod.creatingPod': 'Creando pod…',
 };
-
-

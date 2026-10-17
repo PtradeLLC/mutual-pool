@@ -123,7 +123,6 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
           setSelectedDeviceContacts(prev => Array.from(new Set([...prev, ...newKeys])));
         }
       } catch (err: any) {
-        console.log('Contact picker canceled or denied:', err);
         if (err?.name !== 'AbortError') {
           setPermissionError('Device contact permission was not granted or was dismissed by the browser.');
         }

@@ -5,7 +5,7 @@
 // Inline markup supported in strings: **bold** and [label](url).
 // Shared by the browser and the server: no React, no DOM, no Node APIs.
 
-import { FEES, PRIVACY_VERSION, SUPPORT_EMAIL, TERMS_VERSION } from '../lib/legal';
+import { FEES, GOVERNING_LAW_STATE, PRIVACY_VERSION, SUPPORT_EMAIL, TERMS_VERSION } from '../lib/legal';
 
 export interface LegalSection {
   title: string;
@@ -173,7 +173,7 @@ export function getPrivacyPolicy(ctx: LegalContext): LegalDocument {
 
 export function getTermsOfService(ctx: LegalContext): LegalDocument {
   const email = ctx.supportEmail || SUPPORT_EMAIL;
-  const state = ctx.governingLawState || 'Delaware';
+  const state = ctx.governingLawState || GOVERNING_LAW_STATE;
   const balance = ctx.treasuryEnabled
     ? '**Balances are held with Stripe Treasury.** Your Treasury balance is held in a Stripe Treasury financial account in your name, provided by Stripe\'s partner bank.'
     : '**Balances are a record, not a bank deposit.** Your Treasury balance is our record of funds we hold for you in MutualPool\'s account with Stripe. It is not a deposit account in your name and it is not FDIC insured.';

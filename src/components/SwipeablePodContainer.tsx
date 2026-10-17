@@ -11,7 +11,8 @@ interface SwipeablePodContainerProps {
   explorePods: Pod[];
   activeUser: User;
   onSelectPod: (pod: Pod, initialTab?: PodDetailTab) => void;
-  onJoinPod: (pod: Pod) => void;
+  onJoinPod: (pod: Pod) => void | Promise<void>;
+  joiningPodIds?: Set<string>;
   onLeavePod?: (pod: Pod) => void;
   onSignAgreement: (pod: Pod) => void;
   onOpenCreatePod: () => void;
@@ -25,6 +26,7 @@ export const SwipeablePodContainer: React.FC<SwipeablePodContainerProps> = ({
   activeUser,
   onSelectPod,
   onJoinPod,
+  joiningPodIds,
   onLeavePod,
   onSignAgreement,
   onOpenCreatePod,
@@ -293,6 +295,7 @@ export const SwipeablePodContainer: React.FC<SwipeablePodContainerProps> = ({
                     currentUser={activeUser}
                     onSelectPod={onSelectPod}
                     onJoinPod={onJoinPod}
+                    joining={joiningPodIds?.has(pod.id)}
                     onLeavePod={onLeavePod}
                     onSignAgreement={onSignAgreement}
                   />
@@ -325,6 +328,7 @@ export const SwipeablePodContainer: React.FC<SwipeablePodContainerProps> = ({
                     currentUser={activeUser}
                     onSelectPod={onSelectPod}
                     onJoinPod={onJoinPod}
+                    joining={joiningPodIds?.has(pod.id)}
                     onLeavePod={onLeavePod}
                     onSignAgreement={onSignAgreement}
                   />

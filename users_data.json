@@ -4782,5 +4782,38 @@
     "completedPodsCount": 2,
     "welcomeMatchReceived": true,
     "welcomeMatchAmountUsd": 20
+  },
+  {
+    "id": "cmBOIADtYLbsIK3Wh8etRwU9XuF3",
+    "email": "chrisb@chrisbventures.com",
+    "displayName": "Chris Bitoye",
+    "avatarUrl": "https://ui-avatars.com/api/?name=Chris%20Bitoye&background=005FB8&color=fff&size=200",
+    "platform": "DoorDash",
+    "role": "RIDER",
+    "createdAt": "2026-10-17T17:12:11.004Z",
+    "accountAgeDays": 1,
+    "kycStatus": "UNVERIFIED",
+    "treasury": {
+      "stripeAccountId": "acct_1URdPUJhS68oFICh",
+      "stripeFinAccountId": "",
+      "balanceUsd": 0,
+      "pendingInboundUsd": 0,
+      "totalPayoutsReceivedUsd": 0,
+      "fdicPassThroughEligible": false,
+      "status": "PENDING_REQUIREMENTS"
+    },
+    "externalBank": {
+      "bankName": "",
+      "last4": "",
+      "routingNumber": "",
+      "accountType": "CHECKING",
+      "status": "NOT_LINKED"
+    },
+    "completedPodsCount": 0,
+    "emailVerified": false,
+    "browserLanguage": "en-us",
+    "preferredLanguage": "en",
+    "termsAcceptedVersion": "2026-10-14",
+    "termsAcceptedAt": "2026-10-17T17:12:14.144Z"
   }
 ]

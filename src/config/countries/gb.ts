@@ -45,8 +45,8 @@ export const GB_CONFIG: CountryConfig = {
   },
   
   regulations: {
-    regulatoryBody: 'Financial Conduct Authority (FCA) / UK Open Banking',
-    regulatoryNotice: 'Mutual savings pools operating under UK peer-to-peer circle exemptions. Payment processing facilitated via FCA-authorized EMI partners.',
+    regulatoryBody: 'Not yet available in the United Kingdom',
+    regulatoryNotice: 'MutualPool is not yet available in the United Kingdom. Pods, deposits and payouts are currently offered to US members only; payments are processed by Stripe.',
     cookieConsentType: 'opt-in',
     taxIdRequired: true,
     taxIdLabel: 'National Insurance (NI) Number',

@@ -596,12 +596,36 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
   const [category, setCategory] = useState('DRIVER_SUPPORT');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (sending) return;
+    setSending(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/support/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          message: `[${category}] ${message.trim()}`,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || data?.error || t('contactModal.errorDesc'));
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setErrorMsg(err instanceof Error && err.message ? err.message : t('contactModal.errorDesc'));
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -672,10 +696,11 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
             {/* Interactive Support Form */}
             <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-xs font-semibold text-[#111827] mb-1">
+                <label htmlFor="contact-name" className="block text-xs font-semibold text-[#111827] mb-1">
                   {t('contactModal.fullNameLabel')}
                 </label>
                 <input
+                  id="contact-name"
                   type="text"
                   required
                   value={name}
@@ -686,10 +711,11 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#111827] mb-1">
+                <label htmlFor="contact-email" className="block text-xs font-semibold text-[#111827] mb-1">
                   {t('contactModal.emailLabel')}
                 </label>
                 <input
+                  id="contact-email"
                   type="email"
                   required
                   value={email}
@@ -700,10 +726,11 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#111827] mb-1">
+                <label htmlFor="contact-topic" className="block text-xs font-semibold text-[#111827] mb-1">
                   {t('contactModal.inquiryTopicLabel')}
                 </label>
                 <select
+                  id="contact-topic"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"
@@ -716,10 +743,11 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#111827] mb-1">
+                <label htmlFor="contact-message" className="block text-xs font-semibold text-[#111827] mb-1">
                   {t('contactModal.messageLabel')}
                 </label>
                 <textarea
+                  id="contact-message"
                   required
                   rows={3}
                   value={message}
@@ -729,12 +757,19 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
                 />
               </div>
 
+              {errorMsg && (
+                <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-xs font-medium">
+                  {errorMsg}
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                disabled={sending}
+                className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>{t('contactModal.submitBtn')}</span>
+                <span>{sending ? t('contactModal.sending') : t('contactModal.submitBtn')}</span>
               </button>
             </form>
           </>

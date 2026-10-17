@@ -6,6 +6,8 @@ import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
 import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
 import { useSiteUrl } from '../utils/siteUrl';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
+import { avatarUrlFor } from '../utils/avatar';
 import { scrollToTabSection } from '../utils/navigation';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
@@ -71,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showEnvModal, setShowEnvModal] = useState(false);
-  const { isProduction, siteUrl } = useSiteUrl();
+  const { isProduction } = useSiteUrl();
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
 
@@ -267,15 +269,14 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenAdvertiser && onOpenAdvertiser('metrics')}
-                title="Brand Advertising Escrow & Campaign Analytics — Click to view Portal"
+                title="Campaign budgets & analytics — click to open the Advertiser Portal"
+                aria-label="Open Advertiser Portal"
                 className="hidden lg:flex items-center gap-2 bg-[#F8FAFC] hover:bg-amber-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-amber-300 text-xs transition-all cursor-pointer group"
               >
                 <Megaphone className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
                 <div className="text-left">
-                  <span className="text-[#6B7280] group-hover:text-amber-800 text-[10px] uppercase font-bold block leading-none">Brand Ad Escrow</span>
-                  <span className="font-bold text-[#111827] font-mono">
-                    $12,500.00 <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
-                  </span>
+                  <span className="text-[#6B7280] group-hover:text-amber-800 text-[10px] uppercase font-bold block leading-none">Advertiser Portal</span>
+                  <span className="font-bold text-[#111827]">Campaign budgets &amp; analytics</span>
                 </div>
               </button>
             ) : (
@@ -283,7 +284,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onOpenAddFundsModal || onOpenBankModal}
-                  title="Click to view Stripe Treasury Account & Add Funds"
+                  title="View your balance & add funds"
                   className="flex items-center gap-2 bg-[#F8FAFC] hover:bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-emerald-300 text-xs transition-all cursor-pointer group"
                 >
                   <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -322,11 +323,10 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer');
                   if (onOpenKycModal) onOpenKycModal();
                 }}
                 className="hidden lg:flex px-3 py-1 rounded-full border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                title="Verified via Stripe Identity — Click to view in Stripe Dashboard & Verification Details"
+                title="Verified via Stripe Identity — view your verification details"
               >
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="font-bold text-[11px] uppercase tracking-wide">{t('dash.verifiedMember')}</span>
@@ -385,7 +385,7 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-label="User account menu"
               >
                 <img
-                  src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
+                  src={avatarUrlFor(currentUser.displayName, currentUser.avatarUrl)}
                   alt={currentUser.displayName}
                   className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-300"
                 />
@@ -486,7 +486,7 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <div className="flex items-center gap-2">
                           <img
-                            src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
+                            src={avatarUrlFor(currentUser.displayName, currentUser.avatarUrl)}
                             alt={currentUser.displayName}
                             className="w-5 h-5 rounded-full object-cover"
                           />
@@ -550,7 +550,8 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                     )}
 
-                    {/* Dynamic Site URL & Deployment Environment Controller */}
+                    {/* Dynamic Site URL & Deployment Environment Controller (admin developer tooling, demo builds only) */}
+                    {isAdmin && CLIENT_DEMO_MODE && (
                     <button
                       onClick={() => {
                         setShowUserDropdown(false);
@@ -569,6 +570,7 @@ export const Header: React.FC<HeaderProps> = ({
                         {isProduction ? 'PROD' : 'DEV (Vercel)'}
                       </span>
                     </button>
+                    )}
 
                     {onExitToLanding && (
                       <button
@@ -964,7 +966,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-200">
                 <div className="flex items-center gap-3 mb-2.5">
                   <img
-                    src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
+                    src={avatarUrlFor(currentUser.displayName, currentUser.avatarUrl)}
                     alt={currentUser.displayName}
                     className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-100"
                   />
@@ -984,9 +986,9 @@ export const Header: React.FC<HeaderProps> = ({
                         }}
                         className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-amber-300 transition-colors cursor-pointer"
                       >
-                        <span className="text-[10px] text-gray-500 block font-bold uppercase">Brand Escrow</span>
-                        <span className="font-bold text-gray-900 font-mono text-xs">
-                          $12,500.00 USD
+                        <span className="text-[10px] text-gray-500 block font-bold uppercase">Advertiser Portal</span>
+                        <span className="font-bold text-gray-900 text-xs">
+                          Campaign budgets &amp; analytics
                         </span>
                       </button>
 
@@ -1022,7 +1024,6 @@ export const Header: React.FC<HeaderProps> = ({
                         onClick={() => {
                           setMobileMenuOpen(false);
                           if (currentUser.kycStatus === 'VERIFIED') {
-                            window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer');
                             if (onOpenKycModal) onOpenKycModal();
                           } else if (onOpenKycModal) {
                             onOpenKycModal();
@@ -1242,11 +1243,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      {/* Dynamic Environment & Site URL Switcher Modal */}
-      <EnvironmentSwitcherModal
-        isOpen={showEnvModal}
-        onClose={() => setShowEnvModal(false)}
-      />
+      {/* Dynamic Environment & Site URL Switcher Modal (admin developer tooling, demo builds only) */}
+      {isAdmin && CLIENT_DEMO_MODE && (
+        <EnvironmentSwitcherModal
+          isOpen={showEnvModal}
+          onClose={() => setShowEnvModal(false)}
+        />
+      )}
     </header>
   );
 };

@@ -79,14 +79,13 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
   const [sampleScenario, setSampleScenario] = useState<'MATCH' | 'MISMATCH' | 'UNBRANDED' | 'CUSTOM'>('MATCH');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Preset sample photo URLs for rapid test & demonstration
-  const MATCHING_GEAR_PHOTO = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80';
-  const MISMATCH_EXPIRED_PHOTO = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
-  const UNBRANDED_CASUAL_PHOTO = 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80';
+  // No stock placeholder photos: the courier's own capture is the only photo.
+  // In demo mode the server accepts a scenario tag without a photo.
 
   // Trigger Gemini Vision AI Verification against active campaign in rotation
   const runVisionVerification = async (photoUrl: string, scenarioTag: 'MATCH' | 'MISMATCH' | 'UNBRANDED' | 'CUSTOM' = sampleScenario) => {
-    if (!photoUrl || !campaign) return;
+    if (!campaign) return;
+    if (!photoUrl && !CLIENT_DEMO_MODE) return;
     setIsAnalyzingVision(true);
     setGearVerificationError(null);
 
@@ -101,10 +100,11 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          courierPhoto: photoUrl,
+          courierPhoto: photoUrl || undefined,
+          campaignId: campaign.id,
           campaign: campaign,
           checkedGear: checkedGear,
-          sampleTag: tagPayload,
+          sampleTag: CLIENT_DEMO_MODE ? tagPayload : undefined,
         }),
       });
 
@@ -184,9 +184,9 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
       setVisionResult(null);
       setGearVerificationError(null);
       if (CLIENT_DEMO_MODE) {
-        // Demo preview with a sample photo; in production the courier must take a live photo
-        // and the server's check on completion is the only one that counts.
-        const defaultPhoto = gearPhoto || initialPhoto || MATCHING_GEAR_PHOTO;
+        // Demo preview; in production the courier must take a live photo and the
+        // server's check on completion is the only one that counts.
+        const defaultPhoto = gearPhoto || initialPhoto || '';
         setGearPhoto(defaultPhoto);
         setSampleScenario('MATCH');
         runVisionVerification(defaultPhoto, 'MATCH');
@@ -283,22 +283,23 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
     }
     setIsStarting(true);
     try {
+      // The server looks the campaign up by id; the client never sends the campaign object.
       const res = await fetch('/api/campaigns/shifts/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
-          campaign: {
-            id: campaign.id, title: campaign.title, brandName: campaign.brandName, brandColor: campaign.brandColor,
-            gearRequired: campaign.gearRequired, dailyPayout: campaign.dailyPayout, targetMetro: campaign.targetMetro,
-          },
+          campaignId: campaign.id,
           platform: selectedPlatform,
           neighborhood: selectedNeighborhood,
           startPhoto: photo,
-          sampleTag: CLIENT_DEMO_MODE && !photo ? 'MATCH_ACTIVE_CAMPAIGN' : undefined,
+          ...(CLIENT_DEMO_MODE && !photo ? { sampleTag: 'MATCH_ACTIVE_CAMPAIGN' } : {}),
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.vision?.decisionReason || data.message || data.error || 'Could not start the shift.');
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+      if (!res.ok) throw new Error(data.vision?.decisionReason || data.message || data.error || `Could not start the shift (HTTP ${res.status}).`);
+      if (!data.shift) throw new Error('The server did not return the started shift.');
       onStartShift(data.shift);
     } catch (err) {
       setStartError(err instanceof Error ? err.message : 'Could not start the shift.');
@@ -388,14 +389,12 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
   };
 
   // Select test preset to test Match vs Mismatch vs Unbranded
+  // Demo only: exercise the server's scenario tags without a photo.
   const handleSelectPresetScenario = (scenario: 'MATCH' | 'MISMATCH' | 'UNBRANDED') => {
+    if (!CLIENT_DEMO_MODE) return;
     setSampleScenario(scenario);
-    let targetPhoto = MATCHING_GEAR_PHOTO;
-    if (scenario === 'MISMATCH') targetPhoto = MISMATCH_EXPIRED_PHOTO;
-    if (scenario === 'UNBRANDED') targetPhoto = UNBRANDED_CASUAL_PHOTO;
-
-    setGearPhoto(targetPhoto);
-    runVisionVerification(targetPhoto, scenario);
+    setGearPhoto('');
+    runVisionVerification('', scenario);
   };
 
   // Complete Gear Verification and Trigger Daily Payout
@@ -554,15 +553,9 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setInitialPhoto(MATCHING_GEAR_PHOTO)}
-                    className="px-3 py-1.5 rounded-xl bg-[#005FB8] text-white text-xs font-bold hover:bg-[#004A94] shadow-xs cursor-pointer"
-                  >
-                    Use Sample Photo
-                  </button>
-                </div>
+                {CLIENT_DEMO_MODE && !initialPhoto && (
+                  <span className="text-[10px] text-amber-700 font-semibold">Demo: you can start without a photo</span>
+                )}
               </div>
             </div>
 
@@ -890,12 +883,18 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
 
               {/* Photo Preview with AI Vision Scanning HUD */}
               <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 group">
-                <img
-                  src={gearPhoto || MATCHING_GEAR_PHOTO}
-                  alt="Courier Gear Verification"
-                  className={`w-full h-40 object-cover transition-opacity duration-300 ${isAnalyzingVision ? 'opacity-50 blur-[1px]' : 'opacity-90'}`}
-                  referrerPolicy="no-referrer"
-                />
+                {gearPhoto ? (
+                  <img
+                    src={gearPhoto}
+                    alt="Courier Gear Verification"
+                    className={`w-full h-40 object-cover transition-opacity duration-300 ${isAnalyzingVision ? 'opacity-50 blur-[1px]' : 'opacity-90'}`}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-full h-40 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                    No gear photo yet — take a selfie wearing the campaign gear.
+                  </div>
+                )}
 
                 {/* Live AI Vision Scanning Overlay */}
                 {isAnalyzingVision && (
@@ -936,7 +935,8 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                 )}
               </div>
 
-              {/* One-Click Scenario Presets for Testing Match vs Expired Mismatch */}
+              {/* Demo only: scenario presets exercise the server's sample tags */}
+              {CLIENT_DEMO_MODE && (
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
                   <span>AI Vision Test Scenarios (Active vs Expired Rotations):</span>
@@ -980,6 +980,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                   </button>
                 </div>
               </div>
+              )}
             </div>
 
             {/* STEP 3: GEMINI LLM VISION VERIFICATION RESULT CARD */}

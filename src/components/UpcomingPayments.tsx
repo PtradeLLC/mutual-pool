@@ -52,6 +52,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
   // Payment History State
   const [history, setHistory] = useState<PaymentHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'ALL' | 'DEPOSIT' | 'PAYOUT'>('ALL');
   const [historySearch, setHistorySearch] = useState<string>('');
   const [historyLimit, setHistoryLimit] = useState<number>(5);
@@ -64,82 +65,35 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch Payment History from API
+  // Payment history comes from the server only. If the request fails we show an
+  // error/empty state; we never derive or invent records on the client.
   const fetchPaymentHistory = useCallback(async () => {
-    if (!currentUser || !currentUser.id) return;
+    if (!currentUser || !currentUser.id || currentUser.id === 'usr_guest') {
+      setHistory([]);
+      return;
+    }
     setHistoryLoading(true);
+    setHistoryError(null);
 
     try {
-      const res = await fetch('/api/user/payment-history', {
-        headers: {
-          'x-user-id': currentUser.id,
-          'x-user-name': currentUser.displayName || '',
-        },
-      });
+      const res = await fetch('/api/user/payment-history', { headers: { Accept: 'application/json' } });
+      const text = await res.text().catch(() => '');
+      let data: any = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = null; }
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data.history)) {
-          setHistory(data.history);
-          return;
-        }
+      if (!res.ok) {
+        setHistory([]);
+        setHistoryError(data?.message || data?.error || `Could not load payment history (HTTP ${res.status}).`);
+        return;
       }
-    } catch (err) {
-      console.warn('Failed to fetch payment history from backend, falling back to local calculation:', err);
+      setHistory(Array.isArray(data?.history) ? data.history : []);
+    } catch {
+      setHistory([]);
+      setHistoryError('Could not load payment history. Check your connection and try again.');
     } finally {
       setHistoryLoading(false);
     }
-
-    // Client-side fallback derivation if API is unavailable or empty
-    const fallbackHistory: PaymentHistoryItem[] = [];
-
-    // Derive payouts from pods
-    (myPods || []).forEach(pod => {
-      const member = (pod.members || []).find(m => 
-        m.userId === currentUser.id || 
-        (m.displayName && currentUser.displayName && m.displayName.trim().toLowerCase() === currentUser.displayName.trim().toLowerCase())
-      );
-
-      if (member && member.hasReceivedPayout) {
-        const week = member.payoutCycleWeek || (member.rotationIndex + 1);
-        fallbackHistory.push({
-          id: member.payoutStripeTransferId || `pay_${pod.id}`,
-          type: 'PAYOUT',
-          podId: pod.id,
-          podName: pod.name,
-          amount: pod.weeklyPoolTarget || (pod.depositTier * (pod.members?.length || pod.sizeTier)),
-          status: 'COMPLETED',
-          date: member.payoutProcessedAt || pod.cycleStartDate || pod.createdAt || new Date(Date.now() - 86400000 * 7).toISOString(),
-          cycleWeek: week,
-          description: `Rotating lump-sum payout for ${pod.name} (Cycle Week ${week})`,
-          paymentMethod: 'Stripe Treasury Account',
-        });
-      }
-
-      // Check if user has made deposits in active pods
-      if (pod.status === 'ACTIVE' && member) {
-        const currentWeek = pod.currentCycleWeek || 1;
-        // Prior weeks were deposited
-        for (let w = 1; w <= currentWeek; w++) {
-          fallbackHistory.push({
-            id: `dep_fallback_${pod.id}_w${w}`,
-            type: 'DEPOSIT',
-            podId: pod.id,
-            podName: pod.name,
-            amount: pod.depositTier,
-            status: 'COMPLETED',
-            date: new Date(Date.now() - (currentWeek - w + 1) * 7 * 86400000).toISOString(),
-            cycleWeek: w,
-            description: `Weekly contribution for ${pod.name} (Cycle Week ${w})`,
-            paymentMethod: 'Stripe Treasury / Bank',
-          });
-        }
-      }
-    });
-
-    fallbackHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setHistory(fallbackHistory);
-  }, [currentUser, myPods]);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     fetchPaymentHistory();
@@ -159,10 +113,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
   // Total weekly deposit obligation across all active pods
   const weeklyTotalWithdrawal = useMemo(() => {
     return activePods.reduce((sum, pod) => {
-      const isMember = (pod.members || []).some(m => 
-        m.userId === currentUser.id || 
-        (m.displayName && currentUser.displayName && m.displayName.trim().toLowerCase() === currentUser.displayName.trim().toLowerCase())
-      );
+      const isMember = (pod.members || []).some(m => m && m.userId === currentUser.id);
       return isMember ? sum + (pod.depositTier || 0) : sum;
     }, 0);
   }, [activePods, currentUser]);
@@ -172,10 +123,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
     return cycles.map((cycle) => {
       // 1. Thursday Withdrawals for this cycle
       const withdrawals = activePods.map(pod => {
-        const userMember = (pod.members || []).find(m => 
-          m.userId === currentUser.id || 
-          (m.displayName && currentUser.displayName && m.displayName.trim().toLowerCase() === currentUser.displayName.trim().toLowerCase())
-        );
+        const userMember = (pod.members || []).find(m => m && m.userId === currentUser.id);
 
         return {
           pod,
@@ -200,12 +148,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
         if (isCycleActive) {
           const targetIndex = cycleWeek - 1;
           recipientMember = (pod.members || []).find(m => m.rotationIndex === targetIndex);
-          isUserRecipient = Boolean(
-            recipientMember && (
-              recipientMember.userId === currentUser.id ||
-              (recipientMember.displayName && currentUser.displayName && recipientMember.displayName.trim().toLowerCase() === currentUser.displayName.trim().toLowerCase())
-            )
-          );
+          isUserRecipient = Boolean(recipientMember && recipientMember.userId === currentUser.id);
         }
 
         return {
@@ -712,6 +655,8 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
+              aria-label="Refresh payment history"
               onClick={() => fetchPaymentHistory()}
               disabled={historyLoading}
               className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-xs sm:text-sm flex items-center gap-1.5 disabled:opacity-50"
@@ -831,6 +776,19 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
           <div className="p-8 text-center text-xs text-slate-500 space-y-2">
             <RefreshCw className="w-5 h-5 animate-spin mx-auto text-[#005FB8]" />
             <p>Loading verified payment records...</p>
+          </div>
+        ) : historyError ? (
+          <div role="alert" className="p-8 bg-rose-50 border border-rose-200 rounded-xl text-center space-y-2">
+            <AlertCircle className="w-8 h-8 text-rose-500 mx-auto" />
+            <h5 className="font-bold text-sm text-rose-900">Payment history unavailable</h5>
+            <p className="text-xs text-rose-800 max-w-sm mx-auto">{historyError}</p>
+            <button
+              type="button"
+              onClick={() => fetchPaymentHistory()}
+              className="mt-1 px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-rose-800 text-xs font-bold hover:bg-rose-100 cursor-pointer"
+            >
+              Try again
+            </button>
           </div>
         ) : filteredHistory.length === 0 ? (
           <div className="p-8 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2">

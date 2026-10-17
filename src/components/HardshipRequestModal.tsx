@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { 
   HeartHandshake, 
   X, 
@@ -181,11 +182,11 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
         body: JSON.stringify({
           podId: selectedPod.id,
           reason: reason || 'Financial hardship covering weekly deposit tier',
-          bypassTenureCheck: demoBypassTenure,
+          bypassTenureCheck: CLIENT_DEMO_MODE && demoBypassTenure,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || data.error || t('hardship.errorGeneral'));
       }
@@ -234,7 +235,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || data.error || 'Failed to execute spot swap.');
       }
@@ -368,7 +369,8 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase text-[#4B5563] tracking-wider">{t('hardship.eligibilityStatusTitle')}</h4>
                   
-                  {/* Simulation Toggle for Easy Demo Testing */}
+                  {/* Simulation Toggle for Easy Demo Testing (demo builds only) */}
+                  {CLIENT_DEMO_MODE && (
                   <button
                     type="button"
                     onClick={() => setDemoBypassTenure(!demoBypassTenure)}
@@ -381,6 +383,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                     <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                     <span>{demoBypassTenure ? t('hardship.demoModeActive') : t('hardship.simulateTenure')}</span>
                   </button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -872,7 +875,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   setSwapSuccessMsg(t('hardship.swapRequestSentMsg', { name: memberName }));
                                   fetchPodSwapRequests(selectedPod.id);
                                 } else {
-                                  const errData = await res.json();
+                                  const errData = await res.json().catch(() => ({}));
                                   setSwapErrorMsg(errData.message || errData.error || 'Failed to send trade request.');
                                 }
                               } catch (err) {

@@ -25,7 +25,7 @@ import {
   Navigation,
   Bell
 } from 'lucide-react';
-import { AdCampaign, User, CourierCampaignParticipation, isAdvertiserOrAdmin, ActiveShiftSession, CampaignShiftLog } from '../types';
+import { AdCampaign, User, CourierCampaignParticipation, isAdvertiserOrAdmin, isAdminUser, ActiveShiftSession, CampaignShiftLog } from '../types';
 import { CampaignEnrollmentModal } from './CampaignEnrollmentModal';
 import { CampaignHowItWorksModal } from './CampaignHowItWorksModal';
 import { ActiveShiftModal } from './ActiveShiftModal';
@@ -43,6 +43,8 @@ interface CampaignsPageProps {
   onOpenAuth: () => void;
   onOpenAdvertiser: (tab?: 'metrics' | 'media-kit') => void;
   onOpenCreateCampaign?: () => void;
+  // Owner/admin status changes (POST /api/campaigns/:id/status), performed by App.
+  onChangeCampaignStatus?: (campaignId: string, status: 'paused' | 'active' | 'completed') => Promise<AdCampaign | null>;
   onStartPod?: () => void;
 }
 
@@ -58,6 +60,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
   onOpenAuth,
   onOpenAdvertiser,
   onOpenCreateCampaign,
+  onChangeCampaignStatus,
   onStartPod,
 }) => {
   const { t } = useTranslation();
@@ -85,12 +88,48 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
     (typeof currentUser?.role === 'string' && currentUser.role.toUpperCase().includes('ADMIN'))
   );
 
+  const isAdvertiserOrAdminUser = isAdvertiserOrAdmin(currentUser);
+  const isPlatformAdmin = isAdminUser(currentUser);
+  const ownsCampaign = (camp: AdCampaign) => Boolean(currentUser && camp.createdByUserId && camp.createdByUserId === currentUser.id);
+  const canManageCampaign = (camp: AdCampaign) => isPlatformAdmin || ownsCampaign(camp);
+
+  // Couriers only ever see recruiting/active campaigns. Advertisers also see their
+  // own pending/rejected/paused/completed ones; admins see everything.
+  const visibleCampaigns = campaigns.filter(camp => {
+    if (camp.status === 'recruiting' || camp.status === 'active') return true;
+    if (isPlatformAdmin) return true;
+    return isAdvertiserOrAdminUser && ownsCampaign(camp);
+  });
+
+  const [statusChanging, setStatusChanging] = useState<string | null>(null);
+  const handleStatusChange = async (camp: AdCampaign, status: 'paused' | 'active' | 'completed') => {
+    if (!onChangeCampaignStatus || statusChanging) return;
+    setStatusChanging(camp.id);
+    try {
+      await onChangeCampaignStatus(camp.id, status);
+    } finally {
+      setStatusChanging(null);
+    }
+  };
+
+  const statusBadge = (status: AdCampaign['status']) => {
+    switch (status) {
+      case 'active': return { label: t('campaigns.card.statusActive'), cls: 'bg-emerald-500 text-white' };
+      case 'recruiting': return { label: t('campaigns.card.statusRecruiting'), cls: 'bg-amber-400 text-slate-950' };
+      case 'pending': return { label: 'Pending MutualPool review', cls: 'bg-slate-200 text-slate-800' };
+      case 'paused': return { label: 'Paused', cls: 'bg-slate-700 text-white' };
+      case 'completed': return { label: 'Completed', cls: 'bg-slate-500 text-white' };
+      case 'rejected': return { label: 'Not approved', cls: 'bg-rose-600 text-white' };
+      default: return { label: String(status), cls: 'bg-slate-200 text-slate-800' };
+    }
+  };
+
   // Metros and platforms lists
-  const availableMetros = Array.from(new Set(campaigns.map(c => c.targetMetro)));
+  const availableMetros = Array.from(new Set(visibleCampaigns.map(c => c.targetMetro)));
   const availablePlatforms = ['DoorDash', 'UberEats', 'Grubhub', 'Instacart', 'Relay'];
 
   // Filtered campaigns
-  const filteredCampaigns = campaigns.filter(camp => {
+  const filteredCampaigns = visibleCampaigns.filter(camp => {
     const matchesSearch =
       camp.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       camp.brandName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -478,11 +517,21 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                   
                   {/* Campaign Card Top Banner Image */}
                   <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
-                    <img
-                      src={camp.bannerUrl || 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop&q=80'}
-                      alt={camp.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-85"
-                    />
+                    {camp.bannerUrl ? (
+                      <img
+                        src={camp.bannerUrl}
+                        alt={camp.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-85"
+                      />
+                    ) : (
+                      <div
+                        aria-hidden="true"
+                        className="w-full h-full flex items-center justify-center"
+                        style={{ background: `linear-gradient(135deg, ${camp.brandColor || '#005FB8'} 0%, #0f172a 100%)` }}
+                      >
+                        <span className="text-white/80 font-black text-2xl tracking-tight px-4 text-center">{camp.brandName}</span>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
 
                     {/* Top Badges */}
@@ -490,16 +539,48 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/90 backdrop-blur-md text-slate-900 shadow-sm">
                         {camp.targetMetro}
                       </span>
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          camp.status === 'active'
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-amber-400 text-slate-950'
-                        }`}
-                      >
-                        {camp.status === 'active' ? t('campaigns.card.statusActive') : t('campaigns.card.statusRecruiting')}
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${statusBadge(camp.status).cls}`}>
+                        {statusBadge(camp.status).label}
                       </span>
                     </div>
+
+                    {/* Owner / admin controls */}
+                    {canManageCampaign(camp) && onChangeCampaignStatus && camp.status !== 'pending' && camp.status !== 'rejected' && camp.status !== 'completed' && (
+                      <div className="absolute top-11 right-3 flex items-center gap-1.5">
+                        {camp.status === 'paused' ? (
+                          <button
+                            type="button"
+                            disabled={statusChanging === camp.id}
+                            onClick={() => handleStatusChange(camp, 'active')}
+                            className="px-2 py-1 rounded-md bg-white/90 text-slate-900 text-[10px] font-bold hover:bg-white disabled:opacity-60 cursor-pointer"
+                          >
+                            Resume
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={statusChanging === camp.id}
+                            onClick={() => handleStatusChange(camp, 'paused')}
+                            className="px-2 py-1 rounded-md bg-white/90 text-slate-900 text-[10px] font-bold hover:bg-white disabled:opacity-60 cursor-pointer"
+                          >
+                            Pause
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={statusChanging === camp.id}
+                          onClick={() => handleStatusChange(camp, 'completed')}
+                          className="px-2 py-1 rounded-md bg-white/90 text-slate-900 text-[10px] font-bold hover:bg-white disabled:opacity-60 cursor-pointer"
+                        >
+                          Complete
+                        </button>
+                      </div>
+                    )}
+                    {camp.status === 'rejected' && camp.rejectionReason && canManageCampaign(camp) && (
+                      <div className="absolute top-11 left-3 right-3 px-2.5 py-1 rounded-md bg-rose-950/80 text-rose-100 text-[10px]">
+                        Reason: {camp.rejectionReason}
+                      </div>
+                    )}
 
                     {/* Daily Wage Highlight */}
                     <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">

@@ -276,17 +276,15 @@ export async function dispatchOrderToFourthwall(
 }> {
   const apiUrl = process.env.FOURTHWALL_API_URL || 'https://platform.fourthwall.com/v1';
   const apiKey = process.env.FOURTHWALL_API_KEY || process.env.FOURTHWALL_ACCESS_TOKEN;
-  const shopId = process.env.FOURTHWALL_SHOP_ID || 'mutualpool-creator-shop';
+  const shopId = process.env.FOURTHWALL_SHOP_ID || (DEMO_MODE ? 'mutualpool-creator-shop' : '');
+  if (!shopId) throw new Error('FOURTHWALL_SHOP_ID is not configured.');
 
-  const defaultShipping = shippingRecipient || {
-    name: `MutualPool Courier Logistics (c/o ${order.sponsorBrand} Fleet)`,
-    street: '450 West 33rd Street, Fl 9',
-    city: 'New York',
-    state: 'NY',
-    postalCode: '10001',
-    country: 'US',
-    phone: '+1 212-555-0199',
-  };
+  // A real order needs a real recipient: never ship to a made-up address.
+  const required: Array<keyof NonNullable<typeof shippingRecipient>> = ['name', 'street', 'city', 'state', 'postalCode', 'country'];
+  if (!shippingRecipient || required.some(k => typeof shippingRecipient[k] !== 'string' || !String(shippingRecipient[k]).trim())) {
+    throw new Error('A complete shipping recipient (name, street, city, state, postalCode, country) is required to dispatch gear.');
+  }
+  const defaultShipping = shippingRecipient;
 
   const catalogItem = FOURTHWALL_GEAR_CATALOG.find(c => c.type === order.gearType);
 
@@ -344,20 +342,32 @@ export async function dispatchOrderToFourthwall(
   if (apiKey && apiKey.trim() && !apiKey.startsWith('demo_')) {
     try {
       console.log(`[Fourthwall API] Dispatching order ${order.id} to ${apiUrl}/orders...`);
-      const response = await fetch(`${apiUrl}/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey.trim()}`,
-          'X-Shop-Id': shopId,
-        },
-        body: JSON.stringify(fourthwallPayload),
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15_000);
+      let response: Response;
+      try {
+        response = await fetch(`${apiUrl}/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey.trim()}`,
+            'X-Shop-Id': shopId,
+            // Fourthwall de-duplicates on the external order id; a retry after a
+            // timeout must not create a second paid order.
+            'Idempotency-Key': order.id,
+          },
+          body: JSON.stringify(fourthwallPayload),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (response.ok) {
         const data = await response.json();
-        const fwOrderId = data.id || data.order_id || `fw_ord_${Date.now()}`;
-        const fwOrderNum = data.friendly_id || data.order_number || `FW-${Math.floor(100000 + Math.random() * 900000)}`;
+        const fwOrderId = data.id || data.order_id;
+        const fwOrderNum = data.friendly_id || data.order_number || fwOrderId;
+        if (!fwOrderId) throw new Error('Fourthwall accepted the order but returned no order id.');
         return {
           success: true,
           fourthwallOrderId: fwOrderId,

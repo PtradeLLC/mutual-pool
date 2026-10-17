@@ -5,8 +5,8 @@ export const US_CONFIG: CountryConfig = {
   countryCode: 'US',
   countryName: 'United States',
   flag: '🇺🇸',
-  primaryDomain: 'myapp.com',
-  domains: ['myapp.com', 'us.myapp.com', 'localhost', '127.0.0.1'],
+  primaryDomain: 'themutualpool.com',
+  domains: ['themutualpool.com', 'www.themutualpool.com', 'mutual-pool.vercel.app', 'localhost', '127.0.0.1'],
   
   defaultLanguage: 'en',
   defaultLocale: 'en-US',
@@ -46,7 +46,7 @@ export const US_CONFIG: CountryConfig = {
   },
   
   regulations: {
-    regulatoryBody: TREASURY_PROGRAM_ENABLED ? 'FinCEN / FDIC Pass-Through via Stripe Treasury (Evolve Bank & Trust)' : 'FinCEN / Payments processed by Stripe',
+    regulatoryBody: TREASURY_PROGRAM_ENABLED ? 'Payments processed by Stripe / FDIC pass-through via Stripe Treasury' : 'Payments processed by Stripe / Identity verified by Stripe',
     regulatoryNotice: TREASURY_PROGRAM_ENABLED
       ? 'MutualPool deposits are held in dedicated custodial accounts with FDIC pass-through insurance up to $250,000 via our banking partner.'
       : 'Deposits and payouts are processed by Stripe. MutualPool is a financial technology platform, not a bank; member balances are not FDIC insured.',

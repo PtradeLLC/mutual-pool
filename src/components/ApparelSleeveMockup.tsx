@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { getSleeveQrUrl, useSiteUrl } from '../utils/siteUrl';
-import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 
 export interface ApparelSleeveMockupProps {
   targetUrl?: string;
@@ -66,7 +66,6 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
   const [isScanningActive, setIsScanningActive] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
-  const [showEnvModal, setShowEnvModal] = useState<boolean>(false);
 
   // Sync external props
   useEffect(() => {
@@ -264,16 +263,6 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
 
         {/* Quick Tools & Environment Indicator */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowEnvModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Dynamic Environment Selector"
-          >
-            <Globe className="w-3.5 h-3.5 text-amber-400" />
-            <span>{isProduction ? 'PROD (themutualpool.com)' : 'DEV (mutual-pool.vercel.app)'}</span>
-          </button>
-
           {onOpenScanner && (
             <button
               type="button"
@@ -562,17 +551,19 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
 
             </div>
 
-            {/* Simulated Pedestrian Scan Button */}
+            {/* Simulated Pedestrian Scan Button (demo builds only) */}
             <div className="mt-5 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleSimulateScan}
-                disabled={isScanningActive}
-                className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-              >
-                <Scan className="w-4 h-4 text-slate-950" />
-                <span>{isScanningActive ? 'Optical Scan Active...' : 'Simulate Phone Camera Scan'}</span>
-              </button>
+              {CLIENT_DEMO_MODE && (
+                <button
+                  type="button"
+                  onClick={handleSimulateScan}
+                  disabled={isScanningActive}
+                  className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Scan className="w-4 h-4 text-slate-950" />
+                  <span>{isScanningActive ? 'Optical Scan Active...' : 'Simulate Phone Camera Scan'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -660,13 +651,6 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
                   <span>Encoded Destination Website URL</span>
                 </label>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowEnvModal(true)}
-                    className="text-[10px] font-bold text-slate-300 hover:text-white px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <span>{isProduction ? 'Production' : 'Development'}</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => setCurrentUrl(defaultUrl)}
@@ -768,12 +752,6 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
         </div>
 
       </div>
-
-      {/* Environment Switcher Modal */}
-      <EnvironmentSwitcherModal
-        isOpen={showEnvModal}
-        onClose={() => setShowEnvModal(false)}
-      />
 
     </div>
   );

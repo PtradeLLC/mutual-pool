@@ -14,6 +14,7 @@ import {
   getTrustedCircleInviteUrl
 } from '../utils/siteUrl';
 import { useToast } from '../context/ToastContext';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 
 interface EnvironmentSwitcherModalProps {
   isOpen: boolean;
@@ -44,7 +45,8 @@ export const EnvironmentSwitcherModal: React.FC<EnvironmentSwitcherModalProps> =
   const [showDeploymentGuide, setShowDeploymentGuide] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  // Developer tooling: never available in production builds.
+  if (!isOpen || !CLIENT_DEMO_MODE) return null;
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);

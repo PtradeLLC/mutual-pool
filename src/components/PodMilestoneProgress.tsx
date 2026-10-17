@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pod, User } from '../types';
+import { avatarUrlFor } from '../utils/avatar';
 import { 
   Trophy, 
   Award, 
@@ -86,7 +87,7 @@ export const PodMilestoneProgress: React.FC<PodMilestoneProgressProps> = ({ pod,
       title: '1st Payout Reached',
       shortLabel: '1st Payout',
       badge: 'Turn #1 Funded',
-      description: 'First member receives their net lump-sum payout via Stripe Treasury.',
+      description: 'First member receives their net lump-sum payout via Stripe.',
       targetWeek: 1,
       targetContributionUsd: weeklyPool,
       icon: DollarSign,
@@ -450,7 +451,7 @@ export const PodMilestoneProgress: React.FC<PodMilestoneProgressProps> = ({ pod,
               }`}
             >
               <img
-                src={member.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100'}
+                src={avatarUrlFor(member.displayName, member.avatarUrl)}
                 alt={member.displayName}
                 className="w-full h-full rounded-full object-cover"
               />

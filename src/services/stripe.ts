@@ -12,9 +12,14 @@ export function getStripe(): Stripe {
     if (!key) {
       throw new Error('STRIPE_SECRET_KEY is not configured.');
     }
+    // API version: the one bundled with the installed stripe-node release
+    // (its TypeScript types are generated for it). Upgrade by bumping the
+    // `stripe` package, then set the same version on the webhook destinations
+    // in the Stripe dashboard.
     stripeClient = new Stripe(key, {
-      apiVersion: '2024-06-20' as any,
       typescript: true,
+      timeout: 20_000,
+      maxNetworkRetries: 2, // idempotency keys make retries safe
     });
   }
   return stripeClient;
@@ -562,7 +567,7 @@ export async function createDebitMandateCheckoutSession(params: {
   const session = await stripe.checkout.sessions.create({
     mode: 'setup',
     customer: params.customerId,
-    payment_method_types: ['us_bank_account'],
+    allowed_payment_method_types: ['us_bank_account'],
     payment_method_options: {
       us_bank_account: {
         financial_connections: { permissions: ['payment_method'] },
@@ -577,7 +582,7 @@ export async function createDebitMandateCheckoutSession(params: {
     setup_intent_data: { metadata: { userId: params.userId, kind: 'debit_mandate' } },
     success_url: `${baseUrl}/?mandate=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/?mandate=cancelled`,
-  } as any);
+  });
   if (!session.url) throw new Error('Stripe did not return a Checkout URL');
   return { id: session.id, url: session.url };
 }
@@ -622,7 +627,7 @@ export async function createAchDebit(params: {
       currency: 'usd',
       customer: params.customerId,
       payment_method: params.paymentMethodId,
-      payment_method_types: ['us_bank_account'],
+      allowed_payment_method_types: ['us_bank_account'],
       confirm: true,
       off_session: true,
       ...(params.mandateId ? { mandate: params.mandateId } : {}),

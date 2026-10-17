@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Megaphone,
@@ -21,43 +21,34 @@ import { useTranslation } from '../i18n/LanguageContext';
 interface CreateCampaignModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateCampaign: (campaign: AdCampaign) => void;
+  // App performs POST /api/campaigns and resolves with the server's campaign (status 'pending').
+  onCreateCampaign: (campaign: AdCampaign) => Promise<AdCampaign | void> | void;
 }
 
 const PRESET_BRANDS = [
   {
     name: 'Red Bull Energy',
     color: '#002B66',
-    logo: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop&q=80',
     defaultGear: ['Red Bull Thermal Hoodie', 'Branded Waterproof 45L Delivery Bag', 'Reflective Armband'],
   },
   {
     name: 'Liquid Death',
     color: '#111111',
-    logo: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&auto=format&fit=crop&q=80',
     defaultGear: ['Liquid Death Matte Black Windbreaker', 'Branded Helmet Decal Pack', 'Insulated Bike Cargo Bag'],
   },
   {
     name: 'Chipotle Mexican Grill',
     color: '#451400',
-    logo: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1552332386-f8dd00dc2f85?w=800&auto=format&fit=crop&q=80',
     defaultGear: ['Chipotle Pro Courier Tee & Cap', 'Insulated Food Warmer Pack', 'Reflective High-Vis Vest'],
   },
   {
     name: 'Oatly Oatmilk',
     color: '#2D5A27',
-    logo: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1508962914676-134849a727f0?w=800&auto=format&fit=crop&q=80',
     defaultGear: ['Oatly Organic Cotton Hoodie', 'Eco-Canvas Delivery Pack', 'Handlebar Phone Mount'],
   },
   {
     name: 'Celsius Live Fit',
     color: '#E04A26',
-    logo: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80',
     defaultGear: ['Celsius Active Performance Hoodie', 'Insulated Courier Backpack', 'LED Safety Clip'],
   },
 ];
@@ -118,16 +109,15 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   ]);
   const [newRequirement, setNewRequirement] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [status, setStatus] = useState<'recruiting' | 'active'>('recruiting');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
 
   if (!isOpen) return null;
 
   const handleSelectPreset = (preset: typeof PRESET_BRANDS[0]) => {
     setBrandName(preset.name);
     setBrandColor(preset.color);
-    setBrandLogo(preset.logo);
-    setBannerUrl(preset.banner);
     setTitle(`${preset.name} Street Ambassador Fleet`);
     setGearList(preset.defaultGear);
     setDescription(`Represent ${preset.name} during peak delivery shifts across high-density metro zones. Wear premium branded gear and earn daily supplemental income.`);
@@ -161,8 +151,9 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     setRequirementsList(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
 
     if (!title.trim() || !brandName.trim()) {
       setErrorMsg(t('campaigns.create.errTitleBrand'));
@@ -183,13 +174,14 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
       .toISOString()
       .split('T')[0];
 
+    // Draft only: the server assigns the id and sets status to 'pending' for review.
     const newCampaign: AdCampaign = {
-      id: `camp-${Date.now()}`,
+      id: '',
       title: title.trim(),
       brandName: brandName.trim(),
-      brandLogo: brandLogo.trim() || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=120&auto=format&fit=crop&q=80',
+      brandLogo: brandLogo.trim() || undefined,
       brandColor: brandColor || '#005FB8',
-      bannerUrl: bannerUrl.trim() || 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop&q=80',
+      bannerUrl: bannerUrl.trim() || undefined,
       description: description.trim() || `Official brand ambassador campaign for ${brandName.trim()}.`,
       requirements: requirementsList.length > 0 ? requirementsList : ['Active delivery courier', 'Wear campaign apparel during shifts'],
       gearRequired: gearList.length > 0 ? gearList : ['Branded Delivery Bag', 'Custom Hoodie'],
@@ -202,14 +194,24 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
       durationWeeks,
       startDate,
       endDate: calculatedEndDate,
-      status,
+      status: 'pending',
       impressionsTarget: impressionsTarget || (maxCouriersTarget * 1450 * durationWeeks * 6),
       currentImpressions: 0,
-      payoutTerms: `65% (${dailyPayout}/day) credited daily to verified couriers via Stripe Treasury upon GPS verified shifts.`,
+      payoutTerms: `$${dailyPayout}/day credited to verified couriers after each GPS- and photo-verified shift.`,
     };
 
-    onCreateCampaign(newCampaign);
-    onClose();
+    submitLockRef.current = true;
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      await onCreateCampaign(newCampaign);
+      onClose();
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Could not submit the campaign.');
+    } finally {
+      setSubmitting(false);
+      submitLockRef.current = false;
+    }
   };
 
   return (
@@ -232,6 +234,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -345,7 +348,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
               </label>
               <input
                 type="url"
-                placeholder="https://images.unsplash.com/..."
+                placeholder="https://your-brand.com/image.jpg"
                 value={brandLogo}
                 onChange={e => setBrandLogo(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
@@ -358,7 +361,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
               </label>
               <input
                 type="url"
-                placeholder="https://images.unsplash.com/..."
+                placeholder="https://your-brand.com/image.jpg"
                 value={bannerUrl}
                 onChange={e => setBannerUrl(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
@@ -563,18 +566,9 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
 
           {/* Campaign Status & Launch Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                {t('campaigns.create.status')}
-              </label>
-              <select
-                value={status}
-                onChange={e => setStatus(e.target.value as 'recruiting' | 'active')}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 font-bold"
-              >
-                <option value="recruiting">{t('campaigns.create.statusRecruiting')}</option>
-                <option value="active">{t('campaigns.create.statusActive')}</option>
-              </select>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 self-end">
+              <span className="font-bold block text-slate-900">Review before launch</span>
+              New campaigns are submitted as <strong>Pending MutualPool review</strong>. Couriers only see them once approved.
             </div>
 
             <div>
@@ -601,10 +595,11 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-md shadow-purple-500/25 flex items-center gap-2 cursor-pointer"
+              disabled={submitting}
+              className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-bold text-xs transition-all shadow-md shadow-purple-500/25 flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>{t('campaigns.create.btnPublish')}</span>
+              <span>{submitting ? 'Submitting…' : 'Submit for review'}</span>
             </button>
           </div>
 

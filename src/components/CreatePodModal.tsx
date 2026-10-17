@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy } from '../types';
 import { useTranslation } from '../i18n/LanguageContext';
-import { savePodToFirestore, saveUserToFirestore, addAuditLogToFirestore } from '../lib/firestoreService';
+import { savePodToFirestore } from '../lib/firestoreService';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
 import { KycVerificationModal } from './KycVerificationModal';
 import { 
@@ -15,12 +15,11 @@ import {
   Users, 
   Clock, 
   Zap, 
-  CreditCard, 
   ArrowLeft, 
-  Building2, 
   Shield, 
   Check,
-  UserCheck
+  UserCheck,
+  Wallet
 } from 'lucide-react';
 
 interface CreatePodModalProps {
@@ -32,6 +31,8 @@ interface CreatePodModalProps {
   userCreatedPodsCount?: number;
   // The server requires a bank debit authorization before a pod can be created.
   onDebitMandateRequired?: (message: string) => void;
+  // Opens the Add Funds flow when the member's balance cannot cover the first deposit.
+  onOpenAddFunds?: () => void;
 }
 
 export const CreatePodModal: React.FC<CreatePodModalProps> = ({ 
@@ -39,6 +40,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   onClose, 
   onPodCreated,
   onDebitMandateRequired, 
+  onOpenAddFunds,
   onUserUpdated,
   existingPods = [],
   userCreatedPodsCount
@@ -46,7 +48,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const { t } = useTranslation();
   const [currentUserState, setCurrentUserState] = useState<User>(user);
   const [showKycModal, setShowKycModal] = useState(false);
-  const [step, setStep] = useState<'CONFIG' | 'STRIPE_CHECKOUT' | 'SUCCESS'>('CONFIG');
+  const [step, setStep] = useState<'CONFIG' | 'REVIEW' | 'SUCCESS'>('CONFIG');
   
   // Pod configuration states
   const [name, setName] = useState('');
@@ -62,14 +64,10 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Stripe Payment Checkout states
-  const [paymentMethod, setPaymentMethod] = useState<'SAVED_CARD' | 'NEW_CARD' | 'APPLE_PAY'>('SAVED_CARD');
-  const [cardName, setCardName] = useState(currentUserState.displayName || 'Verified Member');
-  const [cardNumber, setCardNumber] = useState('4242 4242 4242 4242');
-  const [cardExpiry, setCardExpiry] = useState('12/28');
-  const [cardCvc, setCardCvc] = useState('424');
-  const [cardZip, setCardZip] = useState('90210');
-  const [createdPodResult, setCreatedPodResult] = useState<any>(null);
+  // The first deposit is charged from the member's MutualPool (Treasury) balance by the server.
+  const [insufficientFunds, setInsufficientFunds] = useState(false);
+  const [createdPodResult, setCreatedPodResult] = useState<Pod | null>(null);
+  const submitLockRef = useRef(false);
 
   // Default invite code generator preview
   const [generatedInviteCode] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
@@ -78,8 +76,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const activeCreatedCount = userCreatedPodsCount !== undefined ? userCreatedPodsCount : (
     (existingPods || []).filter(p => {
       if (!p || !p.id) return false;
-      const isCreator = (currentUserState?.id && p.createdBy === currentUserState?.id) ||
-        (currentUserState?.displayName && p.creatorName && p.creatorName.trim().toLowerCase() === currentUserState.displayName.trim().toLowerCase());
+      const isCreator = Boolean(currentUserState?.id && p.createdBy === currentUserState.id);
       return isCreator && p.status !== 'COMPLETED';
     }).length
   );
@@ -91,6 +88,9 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const baseDepositAmount = Number(depositTier) || 20;
   const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
   const totalChargedAmount = baseDepositAmount + platformFee;
+  const treasuryBalance = Number(currentUserState.treasury?.balanceUsd ?? 0);
+  const hasSufficientBalance = treasuryBalance + 1e-9 >= totalChargedAmount;
+  const shortfall = Math.max(0, Math.round((totalChargedAmount - treasuryBalance) * 100) / 100);
 
   const handleAddContacts = (newItems: { name: string; emailOrPhone: string }[]) => {
     const freshInvites: InvitedContact[] = newItems.map(item => ({
@@ -131,250 +131,98 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
     }
 
     setError(null);
-    setStep('STRIPE_CHECKOUT');
+    setInsufficientFunds(!hasSufficientBalance);
+    setStep('REVIEW');
   };
 
-  // Step 2 -> Step 3 transition: execute Stripe payment and server pod creation
-  const handleExecuteStripePayment = async () => {
+  // Parse a response body without throwing on empty / non-JSON payloads.
+  const readJson = async (res: Response): Promise<any> => {
+    const text = await res.text().catch(() => '');
+    if (!text) return {};
+    try { return JSON.parse(text); } catch { return { message: text.slice(0, 200) }; }
+  };
+
+  // Step 2 -> Step 3: the server creates the pod and charges the first deposit
+  // (+5% fee) from the member's balance. Exactly one request; no client fallback.
+  const handleCreatePod = async () => {
+    if (submitLockRef.current) return;
+
     if (currentUserState.kycStatus !== 'VERIFIED') {
       setError(t('createPod.errorKyc'));
       setShowKycModal(true);
       return;
     }
-
     if (isCreationLimitReached) {
       setError(t('createPod.errorLimit', { count: activeCreatedCount }));
-      setLoading(false);
+      return;
+    }
+    if (!hasSufficientBalance) {
+      setInsufficientFunds(true);
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     setError(null);
+    setInsufficientFunds(false);
 
     try {
-      let podData: Pod | null = null;
-
-      try {
-        const res = await fetch('/api/pods', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': currentUserState.id,
-            'x-user-name': currentUserState.displayName || 'Verified Member',
-            'x-user-email': currentUserState.email || `${currentUserState.id}@mutualpool.org`,
-            'x-user-kyc-status': currentUserState.kycStatus,
-            'x-user-account-age-days': String(currentUserState.accountAgeDays || 1),
-            'x-user-completed-pods-count': String(currentUserState.completedPodsCount || 0),
-            'x-user-platform': currentUserState.platform || 'DoorDash',
-            'x-user-role': currentUserState.role || 'RIDER',
-          },
-          body: JSON.stringify({
-            name: name.trim(),
-            description,
-            category,
-            podType,
-            activationPolicy,
-            inviteWindowDays,
-            autoOpenOnExpire,
-            invitedContacts,
-            sizeTier,
-            depositTier,
-            paymentMethod,
-          }),
-        }).catch(() => null);
-
-        if (res && res.ok) {
-          const text = await res.text().catch(() => '');
-          if (text) {
-            try { 
-              const parsed = JSON.parse(text);
-              podData = (parsed && parsed.pod) ? parsed.pod : parsed;
-            } catch { /* ignore */ }
-          }
-        } else if (res && !res.ok) {
-          const text = await res.text().catch(() => '');
-          let errJson: any = {};
-          try { errJson = text ? JSON.parse(text) : {}; } catch { /* ignore */ }
-          if (errJson.error === 'KYC_REQUIRED' || (errJson.message && errJson.message.includes('KYC'))) {
-            setShowKycModal(true);
-            throw new Error(errJson.message || 'KYC verification required');
-          }
-          if (errJson.error === 'DEBIT_MANDATE_REQUIRED') {
-            onDebitMandateRequired?.(errJson.message || 'Authorize bank debits before creating a pod.');
-            throw new Error(errJson.message || 'Authorize bank debits before creating a pod.');
-          }
-          if (res.status === 400 || res.status === 403) {
-            throw new Error(errJson.message || errJson.error || 'Validation error creating pod');
-          }
-        }
-      } catch (networkOrServerError: any) {
-        if (networkOrServerError.message && (
-          networkOrServerError.message.includes('KYC') || 
-          networkOrServerError.message.includes('debit') || 
-          networkOrServerError.message.includes('Validation') || 
-          networkOrServerError.message.includes('name is required') || 
-          networkOrServerError.message.includes('tier') ||
-          networkOrServerError.message.includes('limit') ||
-          networkOrServerError.message.includes('POD_CREATION_LIMIT') ||
-          networkOrServerError.message.includes('3 concurrent') ||
-          networkOrServerError.message.includes('maximum limit')
-        )) {
-          throw networkOrServerError;
-        }
-        if (isCreationLimitReached) {
-          throw new Error('Pod creation limit reached: You cannot maintain more than 3 active or forming created Pods at one time.');
-        }
-        // Fail-safe fallback to client-side creation for 500 or offline backend
-      }
-
-      const baseDepositAmount = Number(depositTier);
-      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
-      const totalChargedAmount = baseDepositAmount + platformFee;
-      // 100% Deposit Tier Welcome Match for all new verified pods
-      const welcomeMatchAmount = baseDepositAmount;
-
-      // If backend didn't return created pod, perform client-side creation
-      if (!podData) {
-        const podId = `pod_${Date.now()}`;
-        const creatorMemberId = `pm_${Date.now()}_1`;
-
-        podData = {
-          id: podId,
+      const res = await fetch('/api/pods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
           name: name.trim(),
-          description: description || 'Community gig worker mutual savings pool',
-          category: category || 'General Gig Workers',
-          podType: podType === 'OPEN_POD' ? 'OPEN_POD' : 'TRUSTED_CIRCLE',
-          activationPolicy: activationPolicy === 'FLEXIBLE_EARLY' ? 'FLEXIBLE_EARLY' : 'WHEN_FULL',
-          inviteWindowDays: Number(inviteWindowDays) || 7,
-          autoOpenOnExpire: autoOpenOnExpire !== false,
-          inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-          invitedContacts: Array.isArray(invitedContacts) ? invitedContacts : [],
-          sizeTier: Number(sizeTier) as PodSizeTier,
-          depositTier: Number(depositTier) as DepositTier,
-          status: 'FORMING',
-          currentCycleWeek: 1,
-          totalCycles: Number(sizeTier),
-          agreementVersion: 'v2.0-2026',
-          holdingFinAccountId: `fa_pod_holding_${Date.now()}`,
-          createdBy: currentUserState.id,
-          creatorName: currentUserState.displayName || 'Verified Member',
-          createdAt: new Date().toISOString(),
-          weeklyPoolTarget: Number(sizeTier) * Number(depositTier),
-          currentWeeklyCollected: baseDepositAmount,
-          welcomeMatchGranted: true,
-          welcomeMatchAmountUsd: welcomeMatchAmount,
-          contingencyBufferUsd: welcomeMatchAmount,
-          contingencyBufferInitialUsd: welcomeMatchAmount,
-          stewardshipMode: 'CREATOR_MANAGED',
-          managedBy: 'CREATOR',
-          creatorLastInRotation: true,
-          systemEscrowActive: false,
-          systemEscrowDrawnUsd: 0,
-          members: [
-            {
-              id: creatorMemberId,
-              podId: podId,
-              userId: currentUserState.id,
-              displayName: currentUserState.displayName || 'Verified Member',
-              email: currentUserState.email || `${currentUserState.id}@mutualpool.org`,
-              avatarUrl: currentUserState.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserState.displayName || 'User')}&background=005FB8&color=fff`,
-              platform: currentUserState.platform || 'DoorDash',
-              rotationIndex: Number(sizeTier) - 1, // Creator is placed in the final rotation slot (Slot #N) by default
-              hasReceivedPayout: false,
-              delinquencyStatus: 'CLEAN',
-              joinedAt: new Date().toISOString(),
-            } as any
-          ],
-        };
+          description,
+          category,
+          podType,
+          activationPolicy,
+          inviteWindowDays,
+          autoOpenOnExpire,
+          invitedContacts,
+          sizeTier,
+          depositTier,
+        }),
+      }).catch(() => null);
+
+      if (!res) {
+        throw new Error('Network error. Nothing was charged. Please check your connection and try again.');
       }
 
-      // ALWAYS save created pod to Firestore so real-time listeners and page reloads pick it up!
-      if (podData) {
-        await savePodToFirestore(podData).catch((err) => console.warn('Firestore pod save warning:', err));
+      const data = await readJson(res);
 
-        // Sync with backend Express server as well
-        fetch('/api/pods', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': currentUserState.id,
-          },
-          body: JSON.stringify({
-            name: podData.name,
-            description: podData.description,
-            category: podData.category,
-            sizeTier: podData.sizeTier,
-            depositTier: podData.depositTier,
-            podType: podData.podType,
-            activationPolicy: podData.activationPolicy,
-            inviteWindowDays: podData.inviteWindowDays,
-            autoOpenOnExpire: podData.autoOpenOnExpire,
-            invitedContacts: podData.invitedContacts,
-          }),
-        }).catch((err) => console.warn('Backend pod sync warning:', err));
-
-        // Persist to local cache immediately
-        try {
-          localStorage.setItem(`mutualpool_my_pod_${currentUserState.id}_${podData.id}`, 'true');
-          localStorage.setItem(`mutualpool_my_pod_${podData.id}`, 'true');
-          const cachedRaw = localStorage.getItem('mutualpool_cached_pods');
-          const cachedPods: Pod[] = cachedRaw ? JSON.parse(cachedRaw) : [];
-          const exists = cachedPods.some((p: Pod) => p.id === podData.id);
-          const updatedCached = exists ? cachedPods.map((p: Pod) => p.id === podData.id ? podData : p) : [podData, ...cachedPods];
-          localStorage.setItem('mutualpool_cached_pods', JSON.stringify(updatedCached));
-
-          const createdRaw = localStorage.getItem('mutualpool_created_pods');
-          const createdList: Pod[] = createdRaw ? JSON.parse(createdRaw) : [];
-          if (!createdList.some((p: Pod) => p.id === podData.id)) {
-            createdList.unshift(podData);
-            localStorage.setItem('mutualpool_created_pods', JSON.stringify(createdList));
-          }
-        } catch {
-          // quiet cache fail
+      if (!res.ok) {
+        const message: string = data.message || data.error || `Could not create the pod (HTTP ${res.status}).`;
+        if (data.error === 'KYC_REQUIRED' || /KYC/i.test(message)) {
+          setShowKycModal(true);
+        } else if (data.error === 'DEBIT_MANDATE_REQUIRED') {
+          onDebitMandateRequired?.(message);
+        } else if (res.status === 402 || data.error === 'INSUFFICIENT_FUNDS') {
+          setInsufficientFunds(true);
         }
-
-        // Add audit log entry to Firestore
-        addAuditLogToFirestore({
-          id: `log_${Date.now()}`,
-          podId: podData.id,
-          actorId: currentUserState.id,
-          actorName: currentUserState.displayName || 'Member',
-          action: 'POD_CREATED',
-          detail: `Created new ${podData.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${podData.name}" (${podData.sizeTier} members @ $${podData.depositTier}/wk). Initial pool deposit charged: $${baseDepositAmount.toFixed(2)} + $${platformFee.toFixed(2)} platform fee.`,
-          metadata: { baseDepositAmount, platformFee, totalChargedAmount, sizeTier, depositTier }
-        }).catch(() => null);
-
-        // Update user state for welcome match or treasury deduction
-        if (welcomeMatchAmount > 0 || currentUserState.treasury) {
-          const updatedUser: User = {
-            ...currentUserState,
-            welcomeMatchReceived: welcomeMatchAmount > 0 ? true : currentUserState.welcomeMatchReceived,
-            welcomeMatchAmountUsd: welcomeMatchAmount > 0 ? welcomeMatchAmount : (currentUserState.welcomeMatchAmountUsd || 20),
-            treasury: currentUserState.treasury ? {
-              ...currentUserState.treasury,
-              balanceUsd: Math.max(0, (currentUserState.treasury.balanceUsd || 0) - totalChargedAmount) + welcomeMatchAmount,
-            } : {
-              stripeAccountId: '',
-              stripeFinAccountId: '',
-              balanceUsd: welcomeMatchAmount,
-              pendingInboundUsd: 0,
-              totalPayoutsReceivedUsd: 0,
-              fdicPassThroughEligible: false,
-              status: 'ACTIVE',
-            },
-          };
-          setCurrentUserState(updatedUser);
-          onUserUpdated?.(updatedUser);
-          saveUserToFirestore(updatedUser).catch(() => null);
-        }
+        throw new Error(message);
       }
 
-      setCreatedPodResult(podData);
+      const pod: Pod | null = data && data.pod && data.pod.id ? data.pod : (data && data.id ? data : null);
+      if (!pod) {
+        throw new Error('The server did not return the created pod. Please refresh before trying again.');
+      }
+
+      // The server returns the charged member record when it changes.
+      if (data.user && data.user.id === currentUserState.id) {
+        setCurrentUserState(data.user);
+        onUserUpdated?.(data.user);
+      }
+
+      // Mirror the server-created pod so the realtime listener picks it up immediately.
+      savePodToFirestore(pod).catch(() => {});
+
+      setCreatedPodResult(pod);
       setStep('SUCCESS');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Stripe Payment and Pod creation failed.');
+      setError(err instanceof Error ? err.message : 'Pod creation failed.');
     } finally {
       setLoading(false);
+      submitLockRef.current = false;
     }
   };
 
@@ -386,6 +234,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
         <button
           type="button"
           onClick={onClose}
+          aria-label="Close"
           className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors z-10 cursor-pointer"
         >
           <X className="w-5 h-5" />
@@ -953,7 +802,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       : 'bg-[#005FB8] hover:bg-[#004C93] cursor-pointer'
                   }`}
                 >
-                  <CreditCard className="w-4 h-4" />
+                  <Wallet className="w-4 h-4" />
                   <span>
                     {isCreationLimitReached
                       ? t('createPod.limitReachedBadge')
@@ -966,45 +815,38 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
         )}
 
         {/* ============================================================= */}
-        {/* STEP 2: STRIPE PAYMENT CHECKOUT WINDOW                         */}
+        {/* STEP 2: REVIEW & CONFIRM (charged from MutualPool balance)      */}
         {/* ============================================================= */}
-        {step === 'STRIPE_CHECKOUT' && (
+        {step === 'REVIEW' && (
           <div className="space-y-5">
-            {/* Stripe Header */}
             <div className="flex items-center justify-between pb-4 border-b border-gray-200">
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setStep('CONFIG')}
+                  aria-label={t('createPod.backToConfig')}
                   className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors mr-1 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
-                <div className="p-2 rounded-lg bg-[#635BFF] text-white font-black text-xs tracking-wider flex items-center gap-1 shadow-2xs">
-                  <span>stripe</span>
+                <div className="p-2.5 rounded-lg bg-blue-50 text-[#005FB8]">
+                  <Wallet className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#111827] flex items-center gap-1.5">
-                    <span>{t('createPod.stripeCheckoutTitle')}</span>
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      {t('createPod.sslEncrypted')}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-[#6B7280]">
-                    {t('createPod.stripeCheckoutSubtitle')}
-                  </p>
+                  <h3 className="text-base font-bold text-[#111827]">{t('createPod.reviewTitle')}</h3>
+                  <p className="text-[11px] text-[#6B7280]">{t('createPod.reviewSubtitle')}</p>
                 </div>
               </div>
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+              <div role="alert" className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Order Summary Box */}
+            {/* Order Summary */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200">
                 <span className="font-bold text-slate-800">{t('createPod.orderSummary')}</span>
@@ -1014,7 +856,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-700">
                   <span>{t('createPod.initialWeeklyDepositSummary', { size: sizeTier, deposit: depositTier })}</span>
-                  <span className="font-bold font-mono">${depositTier}.00</span>
+                  <span className="font-bold font-mono">${baseDepositAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>{t('createPod.stripeFeeSummary')}</span>
@@ -1026,171 +868,44 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 </div>
               </div>
 
+              <p className="text-[11.5px] text-slate-700 leading-relaxed pt-1 border-t border-slate-200">
+                {t('createPod.treasurySummary', {
+                  deposit: baseDepositAmount.toFixed(2),
+                  total: totalChargedAmount.toFixed(2),
+                  balance: treasuryBalance.toFixed(2),
+                })}
+              </p>
+
               {!user.welcomeMatchReceived && (
                 <div className="mt-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-2 font-medium">
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>
-                    {t('createPod.welcomeMatchBanner', { amount: depositTier })}
-                  </span>
+                  <span>{t('createPod.welcomeMatchBanner', { amount: depositTier })}</span>
                 </div>
               )}
             </div>
 
-            {/* Payment Method Selector */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-[#111827]">
-                {t('createPod.selectPaymentMethod')}
-              </label>
-
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('SAVED_CARD')}
-                  className={`py-2 px-3 rounded-lg border font-bold text-center transition-all cursor-pointer ${
-                    paymentMethod === 'SAVED_CARD'
-                      ? 'bg-blue-50 border-[#005FB8] text-[#005FB8] ring-2 ring-blue-500/20'
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {t('createPod.savedCard')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('NEW_CARD')}
-                  className={`py-2 px-3 rounded-lg border font-bold text-center transition-all cursor-pointer ${
-                    paymentMethod === 'NEW_CARD'
-                      ? 'bg-blue-50 border-[#005FB8] text-[#005FB8] ring-2 ring-blue-500/20'
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {t('createPod.newCard')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('APPLE_PAY')}
-                  className={`py-2 px-3 rounded-lg border font-bold text-center transition-all cursor-pointer ${
-                    paymentMethod === 'APPLE_PAY'
-                      ? 'bg-blue-50 border-[#005FB8] text-[#005FB8] ring-2 ring-blue-500/20'
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {t('createPod.applePay')}
-                </button>
+            {/* Insufficient balance: offer Add funds instead of the submit button */}
+            {(insufficientFunds || !hasSufficientBalance) && (
+              <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>{t('createPod.insufficientTitle')}</span>
+                </div>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  {t('createPod.insufficientDesc', {
+                    total: totalChargedAmount.toFixed(2),
+                    balance: treasuryBalance.toFixed(2),
+                    shortfall: shortfall.toFixed(2),
+                  })}
+                </p>
               </div>
+            )}
 
-              {/* Card Input Details */}
-              {paymentMethod === 'SAVED_CARD' && (
-                <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white border border-gray-200 rounded-md shadow-2xs font-bold text-slate-800">
-                      VISA
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-900 block">{t('createPod.stripeTreasuryVisa')}</span>
-                      <span className="text-[11px] text-slate-500 font-mono">•••• •••• •••• 4242 (Expires 12/28)</span>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 bg-emerald-100 rounded-full">
-                    {t('createPod.verifiedBadge')}
-                  </span>
-                </div>
-              )}
-
-              {paymentMethod === 'NEW_CARD' && (
-                <div className="p-3.5 rounded-xl border border-gray-200 bg-white space-y-2.5 text-xs">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.cardholderName')}</label>
-                    <input
-                      type="text"
-                      value={cardName}
-                      onChange={(e) => setCardName(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                      placeholder={t('createPod.cardholderNamePlaceholder')}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.cardNumber')}</label>
-                    <input
-                      type="text"
-                      value={cardNumber}
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
-                        const formatted = digits.replace(/(.{4})/g, '$1 ').trim();
-                        setCardNumber(formatted);
-                      }}
-                      className="w-full bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs font-mono text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                      placeholder="4242 4242 4242 4242"
-                    />
-                    <div className="flex items-center justify-between pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCardNumber('4242 4242 4242 4242');
-                          setCardExpiry('12/28');
-                          setCardCvc('424');
-                          setCardZip('90210');
-                        }}
-                        className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md text-[#005FB8] text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        <span>{t('createPod.useTestCard')}</span>
-                      </button>
-                      <span className="text-[10px] text-gray-500 font-mono">{t('createPod.stripeTestMode')}</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.expires')}</label>
-                      <input
-                        type="text"
-                        value={cardExpiry}
-                        onChange={(e) => setCardExpiry(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                        placeholder="MM/YY"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.cvc')}</label>
-                      <input
-                        type="text"
-                        value={cardCvc}
-                        onChange={(e) => setCardCvc(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                        placeholder="321"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">{t('createPod.postalCode')}</label>
-                      <input
-                        type="text"
-                        value={cardZip}
-                        onChange={(e) => setCardZip(e.target.value)}
-                        className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#111827] focus:outline-none focus:border-[#005FB8]"
-                        placeholder="90210"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {paymentMethod === 'APPLE_PAY' && (
-                <div className="p-4 rounded-xl border border-gray-200 bg-gray-900 text-white text-center space-y-1">
-                  <div className="text-lg font-bold">{t('createPod.applePayInstant')}</div>
-                  <p className="text-[11px] text-gray-400">
-                    {t('createPod.applePayPrompt')}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Compliance Guarantee */}
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-600 flex items-start gap-2 leading-relaxed">
               <Shield className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
-              <span>
-                {t('createPod.stripeProtection')}
-              </span>
+              <span>{t('createPod.stripeProtection.noTreasury')}</span>
             </div>
 
-            {/* Submit & Navigation Buttons */}
             <div className="pt-2 flex items-center justify-between border-t border-gray-200">
               <button
                 type="button"
@@ -1201,24 +916,42 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <span>{t('createPod.backToConfig')}</span>
               </button>
 
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleExecuteStripePayment}
-                className="px-6 py-2.5 rounded-lg bg-[#635BFF] hover:bg-[#5249E0] disabled:opacity-50 text-white font-extrabold text-xs transition-colors flex items-center gap-2 shadow-md cursor-pointer"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>{t('createPod.processingPayment', { amount: totalChargedAmount.toFixed(2) })}</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                    <span>{t('createPod.confirmAndPay', { amount: totalChargedAmount.toFixed(2) })}</span>
-                  </>
-                )}
-              </button>
+              {(insufficientFunds || !hasSufficientBalance) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenAddFunds) onOpenAddFunds();
+                    else setError(t('createPod.insufficientDesc', {
+                      total: totalChargedAmount.toFixed(2),
+                      balance: treasuryBalance.toFixed(2),
+                      shortfall: shortfall.toFixed(2),
+                    }));
+                  }}
+                  className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition-colors flex items-center gap-2 shadow-md cursor-pointer"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>{t('createPod.addFundsBtn')}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleCreatePod}
+                  className="px-6 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-extrabold text-xs transition-colors flex items-center gap-2 shadow-md cursor-pointer"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>{t('createPod.creatingPod')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                      <span>{t('createPod.createPodBtn', { total: totalChargedAmount.toFixed(2) })}</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1247,17 +980,19 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <span className="font-mono text-emerald-800">{createdPodResult?.name || name}</span>
               </div>
               <div className="flex justify-between">
-                <span>{t('createPod.stripePaymentRef')}</span>
-                <span className="font-mono text-emerald-800">pi_create_pod_{Date.now().toString().substring(5)}</span>
+                <span>{t('createPod.totalDueNow')}</span>
+                <span className="font-mono text-emerald-800">${totalChargedAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>{t('createPod.holdingAccount')}</span>
-                <span className="font-mono text-emerald-800">{createdPodResult?.holdingFinAccountId || `fa_pod_holding_${Date.now()}`}</span>
-              </div>
+              {createdPodResult?.holdingFinAccountId && (
+                <div className="flex justify-between">
+                  <span>{t('createPod.holdingAccount')}</span>
+                  <span className="font-mono text-emerald-800">{createdPodResult.holdingFinAccountId}</span>
+                </div>
+              )}
               {createdPodResult?.welcomeMatchGranted && (
                 <div className="flex justify-between text-emerald-700 font-bold pt-1 border-t border-emerald-200/80">
                   <span>{t('createPod.welcomeMatchGranted')}</span>
-                  <span>{t('createPod.welcomeMatchAdded', { amount: createdPodResult.welcomeMatchAmountUsd })}</span>
+                  <span>{t('createPod.welcomeMatchAdded', { amount: createdPodResult.welcomeMatchAmountUsd || baseDepositAmount })}</span>
                 </div>
               )}
             </div>

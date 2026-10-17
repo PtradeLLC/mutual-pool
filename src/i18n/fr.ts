@@ -128,7 +128,7 @@ export const fr: Record<TranslationKey, string> = {
   // Bottom CTA Banner
   'bottomCta.badge': 'Disponible sur PWA iOS et Android',
   'bottomCta.title': 'Prêt à Constituer Votre Épargne d’Urgence ?',
-  'bottomCta.subtitle': 'Rejoignez des milliers de travailleurs indépendants épargnant ensemble avec la sécurité Stripe Treasury et la garantie FDIC.',
+  'bottomCta.subtitle': 'Rejoignez des travailleurs indépendants épargnant ensemble avec la sécurité Stripe Treasury et la garantie FDIC.',
   'bottomCta.returnToDashboard': 'Retour au Tableau de Bord',
   'bottomCta.createAccountFree': 'Créer un Compte Gratuit',
   'bottomCta.signInToAccount': 'Se Connecter à Votre Compte',
@@ -295,7 +295,7 @@ export const fr: Record<TranslationKey, string> = {
   "hero.featureSafeDepositsDesc.noTreasury": "Dépôts et versements traités par Stripe",
   "calculator.fdicStatusLabel.noTreasury": "Traitement des paiements :",
   "calculator.fdicEligible.noTreasury": "Stripe (membres à identité vérifiée)",
-  "bottomCta.subtitle.noTreasury": "Rejoignez des milliers de travailleurs gig qui épargnent ensemble, avec dépôts et versements gérés par Stripe.",
+  "bottomCta.subtitle.noTreasury": "Rejoignez des travailleurs gig qui épargnent ensemble, avec dépôts et versements gérés par Stripe.",
   "dash.fdicInsuredFooter.noTreasury": "Paiements traités par Stripe. MutualPool est une plateforme technologique, pas une banque.",
   "footer.fdicNotice.noTreasury": "Les dépôts et versements sont traités par Stripe. MutualPool est une plateforme technologique financière, pas une banque, et les soldes des membres ne sont pas assurés par la FDIC.",
   "createPod.stripeProtection.noTreasury": "Paiements via Stripe : les dépôts sont prélevés et les versements envoyés via Stripe, avec vérification d’identité de chaque membre.",
@@ -807,7 +807,7 @@ export const fr: Record<TranslationKey, string> = {
   'auth.tabCreateAccount': 'Créer un compte',
   'auth.tabPhoneSms': 'SMS Téléphone',
   'auth.emailLabel': 'Adresse e-mail',
-  'auth.emailPlaceholder': 'ex. chauffeur@mutualpool.org',
+  'auth.emailPlaceholder': 'you@example.com',
   'auth.passwordLabel': 'Mot de passe',
   'auth.passwordPlaceholder': 'Entrez votre mot de passe',
   'auth.signInWithEmailBtn': 'Se connecter par e-mail',
@@ -1085,7 +1085,7 @@ export const fr: Record<TranslationKey, string> = {
   'contactModal.driverLineTitle': 'Ligne Conducteurs 24/7',
   'contactModal.driverLineNumber': '1-800-GIG-POOL',
   'contactModal.emailSupportTitle': 'Support par E-mail',
-  'contactModal.emailAddress': 'support@mutualpool.org',
+  'contactModal.emailAddress': 'support@themutualpool.com',
   'contactModal.fullNameLabel': 'Votre Nom Complet',
   'contactModal.fullNamePlaceholder': 'ex. Marc Vance',
   'contactModal.emailLabel': 'Adresse E-mail',
@@ -1295,7 +1295,7 @@ export const fr: Record<TranslationKey, string> = {
   'advertiser.heroBadge': 'Transformez les Flottes de Livreurs en Panneaux Publicitaires Urbains',
   'advertiser.heroTitle': 'Vêtements & Équipements Promotionnels de Marque',
   'advertiser.heroSubtitle': 'Conçu pour les Livreurs. Propulsé par des Partenariats.',
-  'advertiser.heroDesc': 'Équipez des milliers de livreurs actifs avec des vêtements streetwear premium et des sacs isothermes de haute qualité. Générez des millions d\'impressions visuelles authentiques au cœur des grandes métropoles tout en soutenant directement les revenus des livreurs.',
+  'advertiser.heroDesc': 'Équipez des livreurs actifs avec des vêtements streetwear premium et des sacs isothermes de haute qualité. Générez des impressions visuelles authentiques et fréquentes au cœur des grandes métropoles tout en soutenant directement les revenus des livreurs.',
   'advertiser.requestMediaKit': 'Demander le Kit Média & un Devis',
   'advertiser.estimateReach': 'Estimer la Portée de la Campagne',
 
@@ -1324,13 +1324,13 @@ export const fr: Record<TranslationKey, string> = {
 
   // Quick stats
   'advertiser.avgDailyShifts': 'Créneaux Quotidiens Moyens',
-  'advertiser.avgDailyShiftsVal': '8 - 11 Heures',
+  'advertiser.avgDailyShiftsVal': 'Tournées de livraison complètes',
   'advertiser.dailyImpressions': 'Impressions Quotidiennes',
-  'advertiser.dailyImpressionsVal': '1 450+ / Livreur',
+  'advertiser.dailyImpressionsVal': 'Au niveau de la rue, toute la tournée',
   'advertiser.courierDailyPayout': 'Revenu Quotidien du Livreur',
   'advertiser.courierDailyPayoutVal': '55 $ - 75 $ / Jour',
   'advertiser.effectiveCpm': 'CPM Effectif',
-  'advertiser.effectiveCpmVal': '8,50 $ - 14,50 $',
+  'advertiser.effectiveCpmVal': 'Tarifé par livreur-jour',
 
   // Value props
   'advertiser.whyTitle': 'Pourquoi le Sponsoring de Livreurs Urbains Surpasse la Publicité Classique',
@@ -1353,6 +1353,7 @@ export const fr: Record<TranslationKey, string> = {
   'advertiser.calcStep1Smb': '1. Sélectionner le Quartier / Rayon de 3 km',
   'advertiser.calcStep1Enterprise': '1. Sélectionner le Marché Métropolitain Cible',
   'advertiser.calcActiveFleet': 'Flotte Active :',
+  'advertiser.calcActiveFleetVal': 'Livreurs vérifiés affectés à la demande',
   'advertiser.calcStep2Smb': '2. Taille de la Flotte Locale (Couloirs Actifs)',
   'advertiser.calcStep2Enterprise': '2. Taille de la Flotte d\'Ambassadeurs',
   'advertiser.calcActiveCouriers': '{count} Livreurs Actifs',
@@ -1537,7 +1538,7 @@ export const fr: Record<TranslationKey, string> = {
   'advertiser.faq4_q': 'Où vont les fonds de notre sponsoring ?',
   'advertiser.faq4_a': '65 % des fonds sont crédités directement sur les comptes Stripe Treasury des livreurs vérifiés comme revenus complémentaires quotidiens (55 $–75 $/jour). Les 35 % restants financent la fabrication sur mesure des équipements haute durabilité, la logistique, la vérification GPS et l\'exploitation.',
   'advertiser.faq5_q': 'Quel est l\'engagement minimum pour une campagne ?',
-  'advertiser.faq5_a': 'Les campagnes débutent à partir de 25 livreurs ambassadeurs pour une durée minimale de 2 semaines, et s\'étendent jusqu\'à des déploiements nationaux de plus de 1 000 livreurs.',
+  'advertiser.faq5_a': 'Les campagnes débutent à partir de 25 livreurs ambassadeurs pour une durée minimale de 2 semaines, et peuvent s\'étendre jusqu\'à des déploiements nationaux multi-villes.',
   'advertiser.rightsReserved': 'Tous droits réservés.',
 
   // Audit Log & Ledger Translations
@@ -1710,7 +1711,7 @@ export const fr: Record<TranslationKey, string> = {
   'treasuryModal.processDepositBtn': 'Traiter le Dépôt Treasury de +{amount},00 $',
   'treasuryModal.successTopupMsg': 'Dépôt Treasury de +{deposit} traité avec succès ! Total débité : {total} (dépôt de {deposit} + frais de plateforme 5 % de {fee}). Nouveau solde Treasury : {newBalance} USD.',
   'treasuryModal.selectBankLabel': 'Sélectionner l\'Institution Financière',
-  'treasuryModal.supportsBanksNote': 'Prend en charge plus de 10 000 banques et coopératives de crédit américaines',
+  'treasuryModal.supportsBanksNote': 'Prend en charge la plupart des banques et coopératives de crédit américaines',
   'treasuryModal.otherCustomOption': '✏️ Autre Banque ou Coopérative de Crédit (Saisir un nom...)',
   'treasuryModal.customBankInputLabel': 'Saisissez le Nom de Votre Institution Financière',
   'treasuryModal.customBankPlaceholder': 'ex. Mercury, Varo Bank, Marcus, Coopérative de crédit locale',
@@ -1760,4 +1761,56 @@ export const fr: Record<TranslationKey, string> = {
   'addFundsModal.bankInstantVerify': 'Vérification Instantanée (Plaid / Stripe)',
   'addFundsModal.useDemoCard': 'Utiliser la Carte Démo (4242)',
   'addFundsModal.digitalCardPreview': 'Carte Numérique Treasury',
+
+  // Contact form submission states
+  'contactModal.sending': 'Envoi...',
+  'contactModal.errorDesc': 'Impossible d\'envoyer votre message pour le moment. Réessayez ou écrivez directement au support.',
+
+  // Email verification & password reset
+  'auth.verifyEmailTitle': 'Vérifiez votre e-mail',
+  'auth.verifyEmailNotice': 'Nous avons envoyé un lien de vérification à {email}. Confirmez votre adresse pour sécuriser votre compte.',
+  'auth.enterEmailForReset': 'Saisissez d\'abord l\'e-mail de votre compte, puis appuyez sur « Mot de passe oublié ? ».',
+  'auth.resetEmailSent': 'Si un compte existe pour {email}, un lien de réinitialisation est en route. Vérifiez votre boîte de réception et vos spams.',
+  'auth.resetEmailFailed': 'Impossible d\'envoyer l\'e-mail de réinitialisation. Réessayez dans un instant.',
+  'auth.sendingResetEmail': 'Envoi du lien...',
+
+  // Bank link validation
+  'treasuryModal.errorAccountNumberRequired': 'Saisissez votre numéro de compte bancaire pour continuer.',
+
+  // Shown instead of the Stripe Treasury-claim strings until the Treasury program is live (see src/lib/treasuryClaims.ts)
+  'howItWorks.step3Title.noTreasury': 'Versement via Stripe',
+  'howItWorks.step3Desc.noTreasury': 'Chaque semaine, chacun dépose sa cotisation. La cagnotte est ensuite versée en totalité, via Stripe, à la personne désignée.',
+  'dash.stripeTreasuryAccount.noTreasury': 'Solde et Versements',
+  'campaigns.stats.paymentChannelVal.noTreasury': 'Stripe',
+  'campaigns.enroll.termAgreeEarnings.noTreasury': 'Je reconnais que les gains quotidiens (55 $–75 $/jour) sont versés directement via Stripe à la clôture de chaque service quotidien.',
+  'shiftModal.btnReleasePayout.noTreasury': 'Autoriser le Paiement Journalier de ${rate} via Stripe',
+  'createPod.modalSubtitle.noTreasury': 'Groupe à rotation fixe avec dépôts et versements traités par Stripe',
+  'createPod.kycRequiredDesc.noTreasury': 'Une vérification d\'identité via Stripe est requise avant de pouvoir créer ou gérer des groupes d\'épargne mutuelle.',
+  'createPod.stripeFeeSummary.noTreasury': 'Frais de Traitement Stripe & Réserve de Plateforme (5 %)',
+  'createPod.stripeTreasuryVisa.noTreasury': 'Carte Visa via Stripe',
+  'voiceAgent.welcomeDisplay.noTreasury': '👋 Bonjour, je suis Lainie — votre guide IA MutualPool !\n\nJe peux vous guider pas à pas dans l\'utilisation de MutualPool :\n• Épargne en Groupes (Rotations hebdomadaires et règles de Tontines/Susu)\n• Échanges de Tours (Échangez vos dates de versement en toute sécurité)\n• Avantages du Quotidien (food trucks, pneus, réparation de téléphone, massages, stationnement)\n• Rémunération Ambassadeur (Habillage publicitaire de véhicule)\n• Comment Stripe traite les dépôts et versements',
+  'contactModal.topicPayoutTreasury.noTreasury': 'Paiements & Versements',
+  'howItWorksModal.footerText.noTreasury': 'Gouvernance et Règles de MutualPool • Paiements par Stripe',
+  'advertiser.prop3Desc.noTreasury': 'Les fonds sont versés directement aux travailleurs indépendants via Stripe, les aidant à se constituer une épargne de précaution.',
+  'advertiser.summaryEarningsSub.noTreasury': '65 % (65 $–97,50 $/jour) versés directement aux livreurs via Stripe',
+  'advertiser.faq4_a.noTreasury': '65 % des fonds sont versés directement aux livreurs vérifiés via Stripe comme revenus complémentaires quotidiens (55 $–75 $/jour). Les 35 % restants financent la fabrication sur mesure des équipements haute durabilité, la logistique, la vérification GPS et l\'exploitation.',
+  'audit.subtitle.noTreasury': 'Piste de vérification continue documentant tous les événements de création de pods, signatures d\'accords numériques, verrouillages de rotation, paiements via Stripe et échanges volontaires de créneaux.',
+  'treasuryModal.headerTitle.noTreasury': 'Solde et Comptes Bancaires',
+  'treasuryModal.commercialBalanceTitle.noTreasury': 'Solde Disponible',
+  'treasuryModal.depositFormTitle.noTreasury': 'Déposer des Fonds via Stripe',
+  'treasuryModal.feeBreakdownNote.noTreasury': '✓ {amount},00 $ nets sont crédités directement sur votre solde (les frais de plateforme de 5 % sont traités séparément).',
+  'treasuryModal.processingDeposit.noTreasury': 'Traitement de votre dépôt Stripe...',
+  'addFundsModal.title.noTreasury': 'Ajouter des Fonds via Stripe',
+  'addFundsModal.successMessage.noTreasury': '${amount} ont été crédités sur votre solde. Votre nouveau solde est de ${newBalance}.',
+  'addFundsModal.saveCardLabel.noTreasury': 'Enregistrer la carte numérique de manière sécurisée avec Stripe pour les futurs dépôts en 1 clic',
+
+  // Créer un Pod : étape de vérification (le premier dépôt est prélevé sur le solde du membre)
+  'createPod.reviewTitle': 'Vérifier et confirmer',
+  'createPod.reviewSubtitle': 'Votre premier dépôt est prélevé sur votre solde MutualPool.',
+  'createPod.treasurySummary': 'Premier dépôt ${deposit} + 5 % de frais = ${total} sera prélevé sur votre solde Treasury (solde actuel ${balance}).',
+  'createPod.insufficientTitle': 'Ajoutez des fonds pour continuer',
+  'createPod.insufficientDesc': 'Il vous faut ${total} disponibles mais votre solde est de ${balance}. Ajoutez au moins ${shortfall} pour créer ce pod.',
+  'createPod.addFundsBtn': 'Ajouter des fonds',
+  'createPod.createPodBtn': 'Créer le pod et payer ${total}',
+  'createPod.creatingPod': 'Création du pod…',
 };

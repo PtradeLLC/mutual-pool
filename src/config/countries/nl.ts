@@ -45,8 +45,8 @@ export const NL_CONFIG: CountryConfig = {
   },
   
   regulations: {
-    regulatoryBody: 'De Nederlandsche Bank (DNB) / Autoriteit Financiële Markten (AFM) / GDPR',
-    regulatoryNotice: 'MutualPool spaarpotten opereren in overeenstemming met EU PSD2 richtlijnen en AVG/GDPR privacywaarborgen.',
+    regulatoryBody: 'Nog niet beschikbaar in Nederland',
+    regulatoryNotice: 'MutualPool is nog niet beschikbaar in Nederland. Spaarpotten, stortingen en uitbetalingen zijn momenteel alleen beschikbaar voor leden in de VS; betalingen worden verwerkt door Stripe.',
     cookieConsentType: 'opt-in', // Strict GDPR requirement in the Netherlands
     taxIdRequired: true,
     taxIdLabel: 'Burgerservicenummer (BSN)',

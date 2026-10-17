@@ -6,9 +6,12 @@ import { SUPPORTED_COUNTRIES } from '../config/countries';
 import { FourthwallGearStudio } from './FourthwallGearStudio';
 import { SiteUrlBadge } from './SiteUrlBadge';
 import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { HardshipReviewQueue } from './HardshipReviewQueue';
 import { LanguageStatsCard } from './LanguageStatsCard';
 import { DepositDefaultsPanel } from './DepositDefaultsPanel';
+import { ReviewQueuePanel } from './ReviewQueuePanel';
+import { CampaignReviewPanel } from './CampaignReviewPanel';
 import { 
   Sparkles, Send, ShieldCheck, AlertTriangle, Activity, RefreshCw, 
   CheckCircle2, DollarSign, Users, Bot, Layers, ArrowUpRight, Globe, 
@@ -76,7 +79,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         toast.success(
           `Design approved and dispatched to Fourthwall! Order #${data.fourthwall?.fourthwallOrderNumber || data.design?.fourthwallOrderNumber} is queued for printing.`,
@@ -100,7 +103,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminNotes: 'Design requires adjustments for courier safety and sponsor branding standards.' }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         toast.info('Gear design marked as rejected with safety feedback.', { title: 'Design Rejected' });
         fetchGearDesigns();
@@ -152,6 +155,9 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
 
   const handleFireWebhook = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Only meaningful in demo builds: the production webhook endpoint
+    // requires a Stripe signature and will reject synthetic events.
+    if (!CLIENT_DEMO_MODE) return;
     setFiringWebhook(true);
     setWebhookResult(null);
 
@@ -170,8 +176,11 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         }),
       });
 
-      const data = await res.json();
-      setWebhookResult(`Webhook delivered successfully! Signature verified in test sandbox.`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `Webhook endpoint returned ${res.status}`);
+      }
+      setWebhookResult('Webhook event accepted by the test sandbox.');
       onRefreshData();
     } catch (err: unknown) {
       setWebhookResult(`Webhook error: ${err instanceof Error ? err.message : 'Failed'}`);
@@ -190,7 +199,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           'x-user-id': currentUser.id,
         },
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to spot pod');
       toast.success('System deposit injected successfully!', {
         title: 'Escrow Spot Deposit',
@@ -226,7 +235,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || 'Action failed');
 
       if (data.removedFromPod) {
@@ -363,7 +372,8 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       {/* Which languages members use (guides new translations) */}
       <LanguageStatsCard />
 
-      {/* Dynamic Site URL & Deployment Environment Card */}
+      {/* Dynamic Site URL & Deployment Environment Card (developer tooling, demo builds only) */}
+      {CLIENT_DEMO_MODE && (
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#0B2545] border border-slate-700 rounded-xl p-5 shadow-sm text-white space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -394,6 +404,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Multi-Country Domain Architecture & Market Control Panel */}
       <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 shadow-xs space-y-4">
@@ -404,7 +415,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
               <span>Multi-Country Domain Architecture & Isolated Market Context</span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Single codebase powering country-specific domains (myapp.com, myapp.uk, myapp.ng, myapp.nl) with dynamic PWA manifests and standalone in-app switching.
+              Single codebase that can serve country-specific domains with dynamic PWA manifests and standalone in-app market switching. Only the US market is live today.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -418,7 +429,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
 
         {/* Live Market Simulation Tabs for Admin */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-gray-700">Simulate Domain Context:</span>
+          <span className="text-xs font-semibold text-gray-700">Preview market context:</span>
           {SUPPORTED_COUNTRIES.map((c) => {
             const isCurrent = countryCode === c.countryCode;
             return (
@@ -502,7 +513,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
               App Store & PWA Origin Isolation Guard {isStandalone ? '(Installed Mode Active)' : '(Web Browser Mode)'}
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              In installed PWA or native App Store wrappers, external domain hops (e.g. from myapp.com to myapp.ng) are strictly intercepted to execute seamless in-app context switching. This preserves the standalone window experience and prevents the OS from opening a secondary browser tab.
+              In installed PWA or native App Store wrappers, hops between country-specific domains are intercepted to execute seamless in-app context switching. This preserves the standalone window experience and prevents the OS from opening a secondary browser tab.
             </p>
           </div>
         </div>
@@ -615,8 +626,14 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         </div>
       </div>
 
+      {/* Operations review queue: ambiguous Stripe outcomes, account holds, contact form */}
+      <ReviewQueuePanel currentUser={currentUser} onChanged={onRefreshData} />
+
       {/* Deposit defaults & ACH collections */}
       <DepositDefaultsPanel currentUser={currentUser} onChanged={onRefreshData} />
+
+      {/* Brand campaign catalog approvals */}
+      <CampaignReviewPanel currentUser={currentUser} />
 
       {/* Grid Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -687,7 +704,8 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
           </form>
         </div>
 
-        {/* Stripe Webhook Simulator */}
+        {/* Stripe Webhook Simulator (demo builds only: production requires a Stripe signature) */}
+        {CLIENT_DEMO_MODE && (
         <div className="bg-white border border-[#DDE1E6] rounded-xl p-5 space-y-4 shadow-xs">
           <div className="flex items-center gap-2 text-[#005FB8] font-bold text-sm">
             <Send className="w-4 h-4" />
@@ -696,8 +714,9 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
 
           <form onSubmit={handleFireWebhook} className="space-y-3 text-xs">
             <div>
-              <label className="block text-[#111827] font-semibold mb-1">Select Event Type</label>
+              <label htmlFor="admin-webhook-type" className="block text-[#111827] font-semibold mb-1">Select Event Type</label>
               <select
+                id="admin-webhook-type"
                 value={webhookType}
                 onChange={(e) => setWebhookType(e.target.value)}
                 className="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-[#111827] focus:outline-none focus:border-[#005FB8]"
@@ -710,8 +729,9 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-[#111827] font-semibold mb-1">Payload JSON</label>
+              <label htmlFor="admin-webhook-payload" className="block text-[#111827] font-semibold mb-1">Payload JSON</label>
               <textarea
+                id="admin-webhook-payload"
                 rows={3}
                 value={webhookPayload}
                 onChange={(e) => setWebhookPayload(e.target.value)}
@@ -720,7 +740,11 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
             </div>
 
             {webhookResult && (
-              <div className="p-3 bg-green-50 border border-green-200 text-green-900 rounded-lg text-xs font-medium">
+              <div className={`p-3 rounded-lg text-xs font-medium border ${
+                webhookResult.startsWith('Webhook error')
+                  ? 'bg-red-50 border-red-200 text-red-900'
+                  : 'bg-green-50 border-green-200 text-green-900'
+              }`}>
                 {webhookResult}
               </div>
             )}
@@ -735,6 +759,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
             </button>
           </form>
         </div>
+        )}
 
       </div>
 
@@ -943,11 +968,13 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         </div>
       </div>
 
-      {/* Dynamic Environment & Site URL Switcher Modal */}
-      <EnvironmentSwitcherModal
-        isOpen={showSiteUrlModal}
-        onClose={() => setShowSiteUrlModal(false)}
-      />
+      {/* Dynamic Environment & Site URL Switcher Modal (developer tooling, demo builds only) */}
+      {CLIENT_DEMO_MODE && (
+        <EnvironmentSwitcherModal
+          isOpen={showSiteUrlModal}
+          onClose={() => setShowSiteUrlModal(false)}
+        />
+      )}
 
     </div>
   );

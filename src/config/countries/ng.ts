@@ -45,8 +45,8 @@ export const NG_CONFIG: CountryConfig = {
   },
   
   regulations: {
-    regulatoryBody: 'Central Bank of Nigeria (CBN) / NDIC Partner Rails',
-    regulatoryNotice: 'Ajo / Esusu mutual rotating savings backed by CBN-licensed payment institution rails and NIBSS instant settlement.',
+    regulatoryBody: 'Not yet available in Nigeria',
+    regulatoryNotice: 'MutualPool is not yet available in Nigeria. Pods, deposits and payouts are currently offered to US members only; payments are processed by Stripe.',
     cookieConsentType: 'notice',
     taxIdRequired: true,
     taxIdLabel: 'Bank Verification Number (BVN) / NIN',

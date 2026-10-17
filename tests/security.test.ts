@@ -46,6 +46,11 @@ test('admin endpoints cannot be reached by spoofing', async () => {
   assert.equal((await call('/api/admin/defaults', { headers: spoofHeaders })).status, 403);
   assert.equal((await call('/api/admin/defaults/any/collect', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
   assert.equal((await call('/api/admin/defaults/any/write-off', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
+  assert.equal((await call('/api/admin/reviews', { headers: spoofHeaders })).status, 403);
+  assert.equal((await call('/api/admin/withdrawals/any/resolve', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
+  assert.equal((await call('/api/admin/collections/any/resolve', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
+  assert.equal((await call('/api/admin/users/any/clear-hold', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
+  assert.equal((await call('/api/admin/campaigns/any/status', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
 });
 
 test('simulated money and KYC endpoints are unavailable outside demo mode', async () => {
@@ -60,6 +65,10 @@ test('scheduled payout jobs require admin or the cron secret', async () => {
   assert.equal((await call('/api/platform/schedule/sweep', { method: 'POST', headers: spoofHeaders, body })).status, 403);
   assert.equal((await call('/api/pods/pod_x/cycle/process', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
   assert.equal((await call('/api/pods/pod_x/system-deposit', { method: 'POST', headers: spoofHeaders, body: '{}' })).status, 403);
+  // The cron secret only unlocks the sweeps, never manual payouts or escrow injection.
+  const cron = { 'content-type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || '' };
+  assert.equal((await call('/api/pods/pod_x/cycle/process', { method: 'POST', headers: cron, body: '{}' })).status, 403);
+  assert.equal((await call('/api/pods/pod_x/system-deposit', { method: 'POST', headers: cron, body: '{}' })).status, 403);
   assert.equal((await call('/api/platform/schedule/sweep', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-cron-secret': 'wrong-secret' },

@@ -96,7 +96,10 @@ if (typeof window !== 'undefined') {
     }
   };
 
+  // Production builds never emit console.log (it carried toast text and user
+  // data). Errors and warnings are kept, minus extension noise.
   console.log = (...args: any[]) => {
+    if (import.meta.env.PROD) return;
     if (isExtensionNoise(args)) return;
     origLog.apply(console, args);
   };

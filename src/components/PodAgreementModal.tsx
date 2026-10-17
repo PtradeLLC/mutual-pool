@@ -40,9 +40,9 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || 'Signing failed');
+        throw new Error(data.message || data.error || 'Signing failed');
       }
 
       // Construct guaranteed updated pod object
@@ -185,8 +185,9 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
 
         {/* Signature Controls */}
         <form onSubmit={handleSign} className="space-y-3 shrink-0">
-          <label className="flex items-start gap-2.5 text-xs text-[#111827] cursor-pointer bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
+          <label htmlFor="pod-agreement-ack" className="flex items-start gap-2.5 text-xs text-[#111827] cursor-pointer bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
             <input
+              id="pod-agreement-ack"
               type="checkbox"
               checked={acknowledged}
               onChange={(e) => setAcknowledged(e.target.checked)}
@@ -199,10 +200,11 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#111827] mb-1">
+              <label htmlFor="pod-agreement-signature" className="block text-xs font-semibold text-[#111827] mb-1">
                 Digital Signature (Type Full Name)
               </label>
               <input
+                id="pod-agreement-signature"
                 type="text"
                 required
                 value={signatureName}

@@ -119,6 +119,9 @@ export interface User {
   // DEMO_MODE only: set to false to stop the Thursday sweep topping this account
   // up, so tests can make a member miss a deposit.
   demoAutoFund?: boolean;
+  // Set when a card top-up was refunded or charged back: withdrawals and new
+  // pods are blocked until an admin clears it.
+  riskHold?: { reason: string; at: string; amountUsd?: number; stripeRef?: string };
   debitMandate?: DebitMandate;
   completedPodsCount: number;
   welcomeMatchReceived?: boolean;
@@ -290,11 +293,15 @@ export interface DepositDefault {
   memberRemoved: boolean;
   payoutReceivedUsd: number;
   writeOffReason?: string;
+  // Last pod cycle week in which the reserve bridged a deposit (one bridge per week).
+  lastBridgedCycleWeek?: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export type AchCollectionStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'RETURNED';
+// NEEDS_REVIEW: Stripe gave an ambiguous answer (timeout/outage); an admin must
+// confirm in the Stripe dashboard whether the debit exists before retrying.
+export type AchCollectionStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'RETURNED' | 'NEEDS_REVIEW';
 
 // One ACH debit against a member's mandate, initiated by an admin for a default.
 export interface AchCollection {
@@ -727,8 +734,14 @@ export interface AdCampaign {
   payoutTerms?: string;
   gearRequired: string[];
   requirements: string[];
-  status: 'recruiting' | 'active' | 'completed' | 'paused';
+  // 'pending': submitted by an advertiser, not yet approved by MutualPool.
+  // Couriers only see 'recruiting' and 'active' campaigns.
+  status: 'pending' | 'recruiting' | 'active' | 'completed' | 'paused' | 'rejected';
   createdAt?: string;
+  createdByUserId?: string;
+  approvedAt?: string;
+  approvedByUserId?: string;
+  rejectionReason?: string;
 }
 
 export interface CourierCampaignParticipation {

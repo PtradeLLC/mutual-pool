@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Perk, PerkCategory, PerkStatus, PerkRedemptionType } from '../types';
 import { useTranslation } from '../i18n';
+import { useToast } from '../context/ToastContext';
 import { savePerkToFirestore, deletePerkFromFirestore, subscribeToPerks } from '../lib/firestoreService';
 import { INITIAL_PERKS } from '../data/initialData';
 import { PerkImageUploadControl } from './PerkImageUploadControl';
@@ -58,6 +59,8 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const [editingPerk, setEditingPerk] = useState<Perk | null>(null);
   const [showAddPartnerModal, setShowAddPartnerModal] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   // Form State for User Submit / Admin Add / Admin Edit
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -141,19 +144,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   };
 
   const syncMyOffers = (sourcePerks: Perk[]) => {
-    let localGuestPerks: Perk[] = [];
-    try {
-      const saved = localStorage.getItem('gig_submitted_perks');
-      if (saved) localGuestPerks = JSON.parse(saved);
-    } catch (e) {}
-
     const map = new Map<string, Perk>();
     if (sourcePerks && sourcePerks.length > 0) {
       sourcePerks.forEach(p => map.set(p.id, p));
     }
-    localGuestPerks.forEach(p => {
-      if (!map.has(p.id)) map.set(p.id, p);
-    });
 
     const userId = currentUser?.id;
 
@@ -195,19 +189,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     const unsubscribe = subscribeToPerks((firestorePerks) => {
       const perksData = firestorePerks || [];
 
-      let localGuestPerks: Perk[] = [];
-      try {
-        const saved = localStorage.getItem('gig_submitted_perks');
-        if (saved) localGuestPerks = JSON.parse(saved);
-      } catch (e) {}
-
       const map = new Map<string, Perk>();
       if (perksData && perksData.length > 0) {
         perksData.forEach(p => map.set(p.id, p));
       }
-      localGuestPerks.forEach(p => {
-        if (!map.has(p.id)) map.set(p.id, p);
-      });
 
       const allMergedPerks = Array.from(map.values()).map(normalizePerk);
 
@@ -273,22 +258,9 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   });
 
   const handleRedeem = async (perk: Perk) => {
+    // The server owns redemption: only reveal the code and bump the count once
+    // it has confirmed the claim. No optimistic update, no silent failure.
     try {
-      const updatedCount = (perk.redeemedCount || 0) + 1;
-      const updatedPerk: Perk = { ...perk, redeemedCount: updatedCount };
-
-      // 1. Immediately update local React state for instant UI update
-      setSelectedPerkForRedeem(updatedPerk);
-      setPerks(prev => prev.map(p => p.id === perk.id ? updatedPerk : p));
-      setAllAdminPerks(prev => prev.map(p => p.id === perk.id ? updatedPerk : p));
-      setMySubmittedOffers(prev => prev.map(p => p.id === perk.id ? updatedPerk : p));
-
-      // 2. Persist directly to Firestore live database
-      await savePerkToFirestore(updatedPerk).catch(err => {
-        console.error('Firestore save perk redemption error:', err);
-      });
-
-      // 3. Sync backend API
       const res = await fetch('/api/perks/redeem', {
         method: 'POST',
         headers: {
@@ -296,20 +268,23 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           'x-user-id': currentUser?.id || 'usr_guest',
         },
         body: JSON.stringify({ perkId: perk.id }),
-      }).catch(() => null);
-
-      if (res && res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.perk) {
-          const apiPerk = data.perk;
-          setSelectedPerkForRedeem(apiPerk);
-          setPerks(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
-          setAllAdminPerks(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
-          setMySubmittedOffers(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
-        }
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.message || data?.error || 'This perk could not be redeemed right now. Please try again.', { title: 'Redemption failed' });
+        return;
       }
+
+      const apiPerk: Perk = data?.perk
+        ? normalizePerk(data.perk)
+        : { ...perk, redeemedCount: (perk.redeemedCount || 0) + 1 };
+      setSelectedPerkForRedeem(apiPerk);
+      setPerks(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
+      setAllAdminPerks(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
+      setMySubmittedOffers(prev => prev.map(p => p.id === perk.id ? apiPerk : p));
     } catch (err) {
       console.error('Redemption error:', err);
+      toast.error('Network error while redeeming this perk. Please check your connection and try again.', { title: 'Redemption failed' });
     }
   };
 
@@ -317,6 +292,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
   const handleSubmitPerk = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
+    setActionErrorMsg(null);
 
     try {
       const finalProvider = submitProvider || currentUser.displayName || 'Community Partner';
@@ -344,22 +320,14 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         redeemedCount: 0,
       };
 
-      // Save directly to Firestore live database (non-blocking)
-      savePerkToFirestore(newPerk).catch(() => {});
-
-      try {
-        const existing = JSON.parse(localStorage.getItem('gig_submitted_perks') || '[]');
-        existing.unshift(newPerk);
-        localStorage.setItem('gig_submitted_perks', JSON.stringify(existing));
-      } catch (e) {}
-
       const submitHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (currentUser?.id && currentUser.id !== 'usr_guest') {
         submitHeaders['x-user-id'] = currentUser.id;
       }
 
-      // Optional REST call for server-side user/account creation if server is present
-      fetch('/api/perks/submit', {
+      // The server must accept the submission (and create the partner account
+      // when requested) before we report success anywhere.
+      const res = await fetch('/api/perks/submit', {
         method: 'POST',
         headers: submitHeaders,
         body: JSON.stringify({
@@ -368,14 +336,18 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           guestDisplayName: finalProvider,
           createAccount: isGuest ? createAccount : false,
         }),
-      }).then(async res => {
-        if (res && res.ok) {
-          const data = await res.json().catch(() => null);
-          if (data?.user && onSelectUser) {
-            onSelectUser(data.user);
-          }
-        }
-      }).catch(() => null);
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || 'The offer could not be submitted. Please try again.');
+      }
+
+      // Mirror to the live Firestore feed (best effort; the server already holds the record).
+      savePerkToFirestore(data?.perk ? normalizePerk(data.perk) : newPerk).catch(() => {});
+
+      if (data?.user && onSelectUser) {
+        onSelectUser(data.user);
+      }
 
       setActionSuccessMsg(perkStatus === 'APPROVED' ? 'Partner perk published directly to Marketplace!' : 'Partner benefit offer submitted for Admin review!');
       setShowPartnerDashboard(true);
@@ -386,12 +358,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       }, 1800);
     } catch (err) {
       console.error('Submit perk error:', err);
-      setActionSuccessMsg('Partner benefit offer submitted for Admin review!');
-      setTimeout(() => {
-        setShowSubmitModal(false);
-        setActionSuccessMsg(null);
-        resetForm();
-      }, 1800);
+      setActionErrorMsg(err instanceof Error && err.message ? err.message : 'The offer could not be submitted. Please try again.');
     } finally {
       setSubmitLoading(false);
     }
@@ -474,15 +441,6 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
       await savePerkToFirestore(updatedPerk);
 
-      try {
-        const saved = localStorage.getItem('gig_submitted_perks');
-        if (saved) {
-          const list: Perk[] = JSON.parse(saved);
-          const updatedList = list.map(p => p.id === updatedPerk.id ? updatedPerk : p);
-          localStorage.setItem('gig_submitted_perks', JSON.stringify(updatedList));
-        }
-      } catch (e) {}
-
       setAllAdminPerks(prev => prev.map(p => p.id === updatedPerk.id ? updatedPerk : p));
       setMySubmittedOffers(prev => prev.map(p => p.id === updatedPerk.id ? updatedPerk : p));
       if (updatedPerk.status === 'APPROVED') {
@@ -520,15 +478,6 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
       if (targetPerk) {
         const updatedPerk: Perk = { ...targetPerk, status };
         await savePerkToFirestore(updatedPerk);
-
-        try {
-          const saved = localStorage.getItem('gig_submitted_perks');
-          if (saved) {
-            const list: Perk[] = JSON.parse(saved);
-            const updatedList = list.map(p => p.id === perkId ? { ...p, status } : p);
-            localStorage.setItem('gig_submitted_perks', JSON.stringify(updatedList));
-          }
-        } catch (e) {}
 
         setAllAdminPerks(prev => prev.map(p => p.id === perkId ? { ...p, status } : p));
         setMySubmittedOffers(prev => prev.map(p => p.id === perkId ? { ...p, status } : p));
@@ -570,15 +519,6 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
 
     try {
       await deletePerkFromFirestore(perkId);
-
-      try {
-        const saved = localStorage.getItem('gig_submitted_perks');
-        if (saved) {
-          const list: Perk[] = JSON.parse(saved);
-          const updatedList = list.filter(p => p.id !== perkId);
-          localStorage.setItem('gig_submitted_perks', JSON.stringify(updatedList));
-        }
-      } catch (e) {}
 
       setAllAdminPerks(prev => prev.filter(p => p.id !== perkId));
       setMySubmittedOffers(prev => prev.filter(p => p.id !== perkId));
@@ -1351,6 +1291,11 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               <div className="p-3 bg-green-50 border border-green-200 text-green-900 rounded-lg text-xs mb-4 font-medium flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                 <span>{actionSuccessMsg}</span>
+              </div>
+            )}
+            {actionErrorMsg && (
+              <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-900 rounded-lg text-xs mb-4 font-medium">
+                {actionErrorMsg}
               </div>
             )}
 

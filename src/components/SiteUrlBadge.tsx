@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Globe, Laptop, Server, Terminal, Sparkles, ChevronRight } from 'lucide-react';
 import { useSiteUrl } from '../utils/siteUrl';
 import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
+import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 
 interface SiteUrlBadgeProps {
   variant?: 'pill' | 'button' | 'card' | 'minimal';
@@ -42,6 +43,10 @@ export const SiteUrlBadge: React.FC<SiteUrlBadgeProps> = ({
   };
 
   const displayHost = siteUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+
+  // Developer tooling: only rendered in demo builds (callers additionally
+  // restrict it to admins).
+  if (!CLIENT_DEMO_MODE) return null;
 
   return (
     <>

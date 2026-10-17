@@ -145,7 +145,7 @@ export const en = {
   "bottomCta.badge": "Available on iOS & Android PWA",
   "bottomCta.title": "Ready to Build Your Emergency Reserve?",
   "bottomCta.subtitle":
-    "Join thousands of gig workers saving together with Stripe Treasury security and pass-through FDIC insurance.",
+    "Join gig workers saving together with Stripe Treasury security and pass-through FDIC insurance.",
   "bottomCta.returnToDashboard": "Return to Dashboard",
   "bottomCta.createAccountFree": "Create Account Free",
   "bottomCta.signInToAccount": "Sign In to Your Account",
@@ -321,7 +321,7 @@ export const en = {
   "hero.featureSafeDepositsDesc.noTreasury": "Deposits and payouts processed by Stripe",
   "calculator.fdicStatusLabel.noTreasury": "Payment Processing:",
   "calculator.fdicEligible.noTreasury": "Stripe (identity-verified members)",
-  "bottomCta.subtitle.noTreasury": "Join thousands of gig workers saving together, with deposits and payouts handled by Stripe.",
+  "bottomCta.subtitle.noTreasury": "Join gig workers saving together, with deposits and payouts handled by Stripe.",
   "dash.fdicInsuredFooter.noTreasury": "Payments processed by Stripe. MutualPool is a technology platform, not a bank.",
   "footer.fdicNotice.noTreasury": "Deposits and payouts are processed by Stripe. MutualPool is a financial technology platform, not a bank, and member balances are not FDIC insured.",
   "createPod.stripeProtection.noTreasury": "Payments by Stripe: deposits are charged and payouts sent through Stripe, with identity verification for every member.",
@@ -922,7 +922,7 @@ export const en = {
   "auth.tabCreateAccount": "Create Account",
   "auth.tabPhoneSms": "Phone SMS",
   "auth.emailLabel": "Firebase Email Address",
-  "auth.emailPlaceholder": "e.g. driver@mutualpool.org",
+  "auth.emailPlaceholder": "you@example.com",
   "auth.passwordLabel": "Password",
   "auth.passwordPlaceholder": "Enter your password",
   "auth.signInWithEmailBtn": "Sign In with Email",
@@ -1259,7 +1259,7 @@ export const en = {
   "contactModal.driverLineTitle": "24/7 Driver Line",
   "contactModal.driverLineNumber": "1-800-GIG-POOL",
   "contactModal.emailSupportTitle": "Email Support",
-  "contactModal.emailAddress": "support@mutualpool.org",
+  "contactModal.emailAddress": "support@themutualpool.com",
   "contactModal.fullNameLabel": "Your Full Name",
   "contactModal.fullNamePlaceholder": "e.g. Marcus Vance",
   "contactModal.emailLabel": "Email Address",
@@ -1535,7 +1535,7 @@ export const en = {
   "advertiser.heroTitle": "Partner Promo Apparel",
   "advertiser.heroSubtitle": "Built for Gig Workers. Powered by Partnerships.",
   "advertiser.heroDesc":
-    "Equip thousands of active gig delivery couriers with premium streetwear apparel and insulated gear. Capture millions of organic, high-frequency impressions across high-density metro downtowns while directly supporting working couriers.",
+    "Equip active gig delivery couriers with premium streetwear apparel and insulated gear. Capture organic, high-frequency impressions across high-density metro downtowns while directly supporting working couriers.",
   "advertiser.requestMediaKit": "Request Media Kit & Quote",
   "advertiser.estimateReach": "Estimate Campaign Reach",
 
@@ -1572,13 +1572,13 @@ export const en = {
 
   // Quick stats
   "advertiser.avgDailyShifts": "Avg Daily Shifts",
-  "advertiser.avgDailyShiftsVal": "8 - 11 Hours",
+  "advertiser.avgDailyShiftsVal": "Full delivery shifts",
   "advertiser.dailyImpressions": "Daily Impressions",
-  "advertiser.dailyImpressionsVal": "1,450+ / Courier",
+  "advertiser.dailyImpressionsVal": "Street-level, all shift long",
   "advertiser.courierDailyPayout": "Courier Daily Payout",
   "advertiser.courierDailyPayoutVal": "$55 - $75 / Day",
   "advertiser.effectiveCpm": "Effective CPM",
-  "advertiser.effectiveCpmVal": "$8.50 - $14.50",
+  "advertiser.effectiveCpmVal": "Priced per courier-day",
 
   // Value props
   "advertiser.whyTitle":
@@ -1610,6 +1610,7 @@ export const en = {
     "1. Select Hyperlocal Neighborhood / 2-Mile Radius",
   "advertiser.calcStep1Enterprise": "1. Select Target Metropolitan Market",
   "advertiser.calcActiveFleet": "Active Fleet:",
+  "advertiser.calcActiveFleetVal": "Verified couriers matched on request",
   "advertiser.calcStep2Smb": "2. Local Fleet Size (Active Delivery Corridors)",
   "advertiser.calcStep2Enterprise": "2. Enterprise Ambassador Fleet Size",
   "advertiser.calcActiveCouriers": "{count} Active Couriers",
@@ -1832,7 +1833,7 @@ export const en = {
     "65% of campaign sponsorship funds are credited directly to verified couriers' Stripe Treasury accounts as daily supplemental earnings ($55–$75/day). The remaining 35% is invested into custom high-durability gear manufacturing, fulfillment, GPS verification, and operational overhead.",
   "advertiser.faq5_q": "What is the minimum campaign commitment?",
   "advertiser.faq5_a":
-    "Campaigns start at 25 courier ambassadors for a minimum 2-week active run, scaling all the way up to multi-city enterprise deployments with 1,000+ couriers.",
+    "Campaigns start at 25 courier ambassadors for a minimum 2-week active run and can scale up to multi-city enterprise deployments.",
   "advertiser.rightsReserved": "All rights reserved.",
 
   // Audit Log & Ledger Translations
@@ -2039,7 +2040,7 @@ export const en = {
     "Successfully processed +${deposit} Treasury Deposit! Total charged: ${total} (${deposit} deposit + ${fee} 5% platform fee). Updated Treasury Balance: ${newBalance} USD.",
   "treasuryModal.selectBankLabel": "Select Financial Institution",
   "treasuryModal.supportsBanksNote":
-    "Supports 10,000+ US Banks & Credit Unions",
+    "Supports most US banks & credit unions",
   "treasuryModal.otherCustomOption":
     "✏️ Other Bank or Credit Union (Type custom name...)",
   "treasuryModal.customBankInputLabel": "Type Your Financial Institution Name",
@@ -2100,6 +2101,58 @@ export const en = {
   "addFundsModal.bankInstantVerify": "Instant Verification (Plaid / Stripe)",
   "addFundsModal.useDemoCard": "Fill Demo Card (4242)",
   "addFundsModal.digitalCardPreview": "Digital Treasury Card",
+
+  // Contact form submission states
+  "contactModal.sending": "Sending...",
+  "contactModal.errorDesc": "We couldn't send your message right now. Please try again or email support directly.",
+
+  // Email verification & password reset
+  "auth.verifyEmailTitle": "Verify your email",
+  "auth.verifyEmailNotice": "We sent a verification link to {email}. Please confirm your address to secure your account.",
+  "auth.enterEmailForReset": "Enter the email address for your account first, then tap \"Forgot Password?\".",
+  "auth.resetEmailSent": "If an account exists for {email}, a password reset link is on its way. Check your inbox and spam folder.",
+  "auth.resetEmailFailed": "We couldn't send a reset email right now. Please try again in a moment.",
+  "auth.sendingResetEmail": "Sending reset link...",
+
+  // Bank link validation
+  "treasuryModal.errorAccountNumberRequired": "Enter your bank account number to continue.",
+
+  // Shown instead of the Stripe Treasury-claim strings until the Treasury program is live (see src/lib/treasuryClaims.ts)
+  "howItWorks.step3Title.noTreasury": "Stripe Payout",
+  "howItWorks.step3Desc.noTreasury": "Each week everyone deposits what they can afford. The collected pool is then paid out in full, through Stripe, to whoever's next in the rotation.",
+  "dash.stripeTreasuryAccount.noTreasury": "Balance & Payouts",
+  "campaigns.stats.paymentChannelVal.noTreasury": "Stripe",
+  "campaigns.enroll.termAgreeEarnings.noTreasury": "I acknowledge that daily earnings ($55–$75/day) are disbursed directly via Stripe upon daily shift completion.",
+  "shiftModal.btnReleasePayout.noTreasury": "Authorize ${rate} Daily Payout via Stripe",
+  "createPod.modalSubtitle.noTreasury": "Fixed-Rotation Pod with Stripe-processed deposits and payouts",
+  "createPod.kycRequiredDesc.noTreasury": "Identity verification through Stripe is required before creating or managing mutual savings pools.",
+  "createPod.stripeFeeSummary.noTreasury": "Stripe Processing & Platform Reserve Fee (5%)",
+  "createPod.stripeTreasuryVisa.noTreasury": "Visa via Stripe",
+  "voiceAgent.welcomeDisplay.noTreasury": "👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n• Saving in Pods (Weekly rotations & Susu/Tanda rules)\n• Spot Swaps (Trading payout turns safely)\n• Everyday Perks (food trucks, tire patches, phone repair, massage, parking)\n• Brand Ambassador Sponsorships (Apparel sent to verified gig workers)\n• How deposits and payouts are processed by Stripe",
+  "contactModal.topicPayoutTreasury.noTreasury": "Payments & Payouts",
+  "howItWorksModal.footerText.noTreasury": "MutualPool Governance & Rules • Payments by Stripe",
+  "advertiser.prop3Desc.noTreasury": "Earnings go directly to hardworking gig workers through Stripe, helping them build emergency savings.",
+  "advertiser.summaryEarningsSub.noTreasury": "65% ($65–$97.50/day) credited directly to couriers via Stripe",
+  "advertiser.faq4_a.noTreasury": "65% of campaign sponsorship funds are credited directly to verified couriers via Stripe as daily supplemental earnings ($55–$75/day). The remaining 35% is invested into custom high-durability gear manufacturing, fulfillment, GPS verification, and operational overhead.",
+  "audit.subtitle.noTreasury": "Append-only verification trail documenting all pod creation events, digital agreement signatures, rotation locks, Stripe payouts, and voluntary slot swaps.",
+  "treasuryModal.headerTitle.noTreasury": "Balance & Bank Accounts",
+  "treasuryModal.commercialBalanceTitle.noTreasury": "Available Balance",
+  "treasuryModal.depositFormTitle.noTreasury": "Deposit Funds via Stripe",
+  "treasuryModal.feeBreakdownNote.noTreasury": "✓ Net ${amount}.00 is credited directly to your balance (5% platform fee is processed separately).",
+  "treasuryModal.processingDeposit.noTreasury": "Processing your Stripe deposit...",
+  "addFundsModal.title.noTreasury": "Add Funds via Stripe",
+  "addFundsModal.successMessage.noTreasury": "${amount} was credited to your balance. Your active balance is now ${newBalance}.",
+  "addFundsModal.saveCardLabel.noTreasury": "Save digital card securely with Stripe for future 1-click pod deposits",
+
+  // Create Pod: review step (first deposit charged from the member's balance)
+  "createPod.reviewTitle": "Review & confirm",
+  "createPod.reviewSubtitle": "Your first deposit is taken from your MutualPool balance.",
+  "createPod.treasurySummary": "First deposit ${deposit} + 5% fee = ${total} will be taken from your Treasury balance (current balance ${balance}).",
+  "createPod.insufficientTitle": "Add funds to continue",
+  "createPod.insufficientDesc": "You need ${total} available but your balance is ${balance}. Add at least ${shortfall} to create this pod.",
+  "createPod.addFundsBtn": "Add funds",
+  "createPod.createPodBtn": "Create pod & pay ${total}",
+  "createPod.creatingPod": "Creating pod…",
 };
 
 export type TranslationKey = keyof typeof en;

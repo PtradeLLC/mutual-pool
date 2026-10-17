@@ -11,9 +11,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-firestore.test.ts tests/hardship-risk.test.ts tests/treasury-claims.test.ts tests/shift-schedule.test.ts tests/rotation.test.ts && npm run test:security && npm run test:integration",
+    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-firestore.test.ts tests/hardship-risk.test.ts tests/treasury-claims.test.ts tests/shift-schedule.test.ts tests/rotation.test.ts tests/sweep-schedule.test.ts && npm run test:security && npm run test:integration",
     "test:security": "tsx scripts/run-server-tests.ts --env=secure tests/security.test.ts",
-    "test:integration": "tsx scripts/run-server-tests.ts --env=demo tests/feature-integration.test.ts tests/anti-collusion.test.ts tests/treasury-gate.test.ts tests/shift-spot-checks.test.ts tests/tenure-slots.test.ts tests/ach-collections.test.ts",
+    "test:integration": "tsx scripts/run-server-tests.ts --env=demo tests/feature-integration.test.ts tests/anti-collusion.test.ts tests/treasury-gate.test.ts tests/shift-spot-checks.test.ts tests/tenure-slots.test.ts tests/ach-collections.test.ts tests/ops-readiness.test.ts",
     "set-admin": "tsx scripts/set-admin-claim.ts",
     "i18n:draft": "tsx scripts/draft-translation.ts"
   },
@@ -35,7 +35,7 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "recharts": "^3.10.1",
-    "stripe": "^22.3.2",
+    "stripe": "^23.0.0",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
   },

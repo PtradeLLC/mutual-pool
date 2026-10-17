@@ -7,6 +7,7 @@ import {
 import { useChat } from '../../context/ChatContext';
 import { useLanguage } from '../../i18n';
 import { ChatThread, ChatMessage, User } from '../../types';
+import { avatarUrlFor } from '../../utils/avatar';
 
 interface ChatDrawerProps {
   currentUser: User | null;
@@ -390,7 +391,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ currentUser, onOpenSwapM
                         >
                           {!isMe && (
                             <img
-                              src={msg.senderAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100'}
+                              src={avatarUrlFor(msg.senderName, msg.senderAvatar)}
                               alt={msg.senderName}
                               className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
                             />

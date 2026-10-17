@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest, PodDetailTab } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
@@ -12,10 +12,23 @@ import { useTranslation, TranslationKey } from '../i18n';
 import { useToast } from '../context/ToastContext';
 import { getPodShareUrl } from '../utils/siteUrl';
 import { getTraditionName } from '../data/roscaTraditions';
+import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
+import { avatarUrlFor } from '../utils/avatar';
+
+// Parse a response body without throwing on empty / non-JSON payloads.
+const readJson = async (res: Response): Promise<any> => {
+  const text = await res.text().catch(() => '');
+  if (!text) return {};
+  try { return JSON.parse(text); } catch { return { message: text.slice(0, 200) }; }
+};
+
+// Neutral wording unless the Stripe Treasury program is live.
+const BALANCE_LABEL = TREASURY_PROGRAM_ENABLED ? 'Stripe Treasury Account' : 'MutualPool balance';
+const HOLDING_LABEL = TREASURY_PROGRAM_ENABLED ? 'Treasury holding account' : "the pod's holding balance";
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
   Vote, CheckCircle2, AlertTriangle, Activity, Calendar, Award, RefreshCw, Send, ChevronRight, Share2, Clock, Zap, HeartHandshake, AlertCircle, Shirt, MessageSquare, Bot, Cpu,
-  Copy, Check, ExternalLink, MessageCircle
+  Copy, Check, ExternalLink, MessageCircle, Building2
 } from 'lucide-react';
 
 interface PodDetailModalProps {
@@ -26,6 +39,8 @@ interface PodDetailModalProps {
   onClose: () => void;
   onRefreshPod: () => void;
   onOpenAgreementModal: () => void;
+  // Opens the Treasury & payouts (bank link) modal when no payout bank is linked.
+  onOpenBankModal?: () => void;
 }
 
 export const PodDetailModal: React.FC<PodDetailModalProps> = ({
@@ -36,6 +51,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   onClose,
   onRefreshPod,
   onOpenAgreementModal,
+  onOpenBankModal,
 }) => {
   const { t, language } = useTranslation();
   const { openPodChat, startDirectChat } = useChat();
@@ -50,6 +66,12 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const [swapping, setSwapping] = useState(false);
   const [convertingOpen, setConvertingOpen] = useState(false);
   const [withdrawingPayout, setWithdrawingPayout] = useState(false);
+  // In-flight locks for money-moving actions (in addition to the disabled state).
+  const depositLockRef = useRef(false);
+  const payoutLockRef = useRef(false);
+  const withdrawLockRef = useRef(false);
+  const memberBalance = Number(currentUser.treasury?.balanceUsd ?? 0);
+  const hasLinkedBank = currentUser.externalBank?.status === 'LINKED' && Boolean(currentUser.externalBank?.last4);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -134,8 +156,8 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to inject system escrow deposit');
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to inject system escrow deposit');
       setActionSuccess('🤖 Platform System Deposits Escrow successfully disbursed deposit into weekly pot!');
       onRefreshPod();
     } catch (err: any) {
@@ -151,8 +173,8 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         headers: { 'x-user-id': currentUser.id },
       });
       if (res.ok) {
-        const data = await res.json();
-        setHardshipRequests(data);
+        const data = await readJson(res);
+        if (Array.isArray(data)) setHardshipRequests(data);
       }
     } catch (err) {
       console.error('Error fetching hardship requests:', err);
@@ -166,8 +188,8 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       try {
         const res = await fetch('/api/audit-logs');
         if (res.ok) {
-          const data: AuditLogEntry[] = await res.json();
-          setPodLogs(data.filter(l => l.podId === pod.id));
+          const data = await readJson(res);
+          if (Array.isArray(data)) setPodLogs((data as AuditLogEntry[]).filter(l => l.podId === pod.id));
         }
       } catch (err) {
         console.error('Failed to fetch pod audit logs:', err);
@@ -201,7 +223,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Request failed');
 
       setActionSuccess(`Financial Hardship Fund requested ($${data.depositAmount}.00). MutualPool will review it and notify you of the decision.`);
@@ -231,7 +253,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         body: JSON.stringify({ requestId }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Repayment failed');
 
       setActionSuccess(`Hardship Fund paid off ($${data.request.totalPayoffAmount.toFixed(2)} including 7% fee)! Account reactivated for pool participation.`);
@@ -244,45 +266,13 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
     }
   };
 
-  const activeId = currentUser?.id;
-  const activeEmail = currentUser?.email?.trim().toLowerCase();
-  const activeName = currentUser?.displayName?.trim().toLowerCase();
+  // Membership is decided by userId only; the server owns the member list.
+  const activeId = currentUser?.id && currentUser.id !== 'usr_guest' ? currentUser.id : undefined;
+  const userMembership = activeId ? pod.members?.find(m => m && m.userId === activeId) : undefined;
+  const isCreator = Boolean(activeId && pod.createdBy === activeId);
+  const isMember = Boolean(userMembership || isCreator);
 
-  const userMembership = pod.members?.find(m => {
-    if (!m) return false;
-    if (activeId && m.userId === activeId) return true;
-    if (activeEmail && (m as any).email && (m as any).email.trim().toLowerCase() === activeEmail) return true;
-    if (activeName && m.displayName && m.displayName.trim().toLowerCase() === activeName) return true;
-    return false;
-  });
-
-  const isCreator = Boolean(
-    (activeId && pod.createdBy === activeId) ||
-    (activeName && pod.creatorName && pod.creatorName.trim().toLowerCase() === activeName)
-  );
-
-  const isStoredInLocal = typeof window !== 'undefined' && Boolean(
-    (activeId && localStorage.getItem(`mutualpool_my_pod_${activeId}_${pod.id}`) === 'true') ||
-    localStorage.getItem(`mutualpool_my_pod_${pod.id}`) === 'true'
-  );
-
-  const isMember = Boolean(userMembership || isCreator || isStoredInLocal);
-
-  let effectiveMembers = [...(pod.members || [])];
-  if (isMember && !userMembership) {
-    effectiveMembers.push({
-      id: `pm_synthetic_${activeId || 'active'}_${pod.id}`,
-      podId: pod.id,
-      userId: activeId || 'usr_active',
-      displayName: currentUser?.displayName || 'Verified Member',
-      avatarUrl: currentUser?.avatarUrl || '',
-      platform: currentUser?.platform || 'DoorDash',
-      rotationIndex: effectiveMembers.length,
-      hasReceivedPayout: false,
-      delinquencyStatus: 'CLEAN',
-      joinedAt: new Date().toISOString(),
-    });
-  }
+  const effectiveMembers = [...(pod.members || [])];
 
   const memberCount = Math.max(
     1,
@@ -311,7 +301,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         body: JSON.stringify({ contacts: newContacts }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Failed to add contacts');
 
       setActionSuccess(`Successfully invited ${data.addedContacts.length} contacts to your Trusted Circle!`);
@@ -335,7 +325,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         },
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Failed to convert pod');
 
       setActionSuccess('Pod converted to Open Pod! Remaining spots are now open to all verified members.');
@@ -388,7 +378,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) {
         if (data.requiresConfirmation) {
           if (window.confirm(`${data.message}\n\nDo you want to lock rotation order and activate early with ${pod.members.length} members now?`)) {
@@ -442,6 +432,8 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
   // Deposit Action
   const handleDeposit = async () => {
+    if (depositLockRef.current) return;
+    depositLockRef.current = true;
     setDepositing(true);
     setActionError(null);
     setActionSuccess(null);
@@ -455,20 +447,23 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         },
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Deposit failed');
 
-      setActionSuccess(`Deposited $${pod.depositTier}.00 into Treasury holding account ${pod.holdingFinAccountId}.`);
+      setActionSuccess(`Deposited $${Number(pod.depositTier).toFixed(2)} into ${HOLDING_LABEL} for "${pod.name}".`);
       onRefreshPod();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Deposit failed');
     } finally {
       setDepositing(false);
+      depositLockRef.current = false;
     }
   };
 
   // Cycle Payout Action
   const handleProcessPayout = async () => {
+    if (payoutLockRef.current) return;
+    payoutLockRef.current = true;
     setProcessingPayout(true);
     setActionError(null);
     setActionSuccess(null);
@@ -482,7 +477,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         },
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Payout failed');
 
       const gross = data.grossPayoutAmount || currentActivePool;
@@ -496,40 +491,47 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         ? ` (100% of 10% fee directed to System Escrow Liquidity Account)`
         : '';
 
-      setActionSuccess(`Week ${pod.currentCycleWeek} Payout executed via Stripe Treasury transfer (${data.stripeTransferId}) to ${data.recipientName}! Gross Pool: $${gross.toFixed(2)} • 10% Payout Fee (-$${fee.toFixed(2)})${rewardNote} -> Net Paid to recipient: $${net.toFixed(2)}.`);
+      setActionSuccess(`Week ${pod.currentCycleWeek} payout sent to ${data.recipientName || 'the rotation recipient'}${data.stripeTransferId ? ` (ref ${data.stripeTransferId})` : ''}. Gross pool: $${gross.toFixed(2)} • 10% payout fee (-$${fee.toFixed(2)})${rewardNote} -> net paid: $${net.toFixed(2)}.`);
       onRefreshPod();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Payout execution failed');
     } finally {
       setProcessingPayout(false);
+      payoutLockRef.current = false;
     }
   };
 
   // Option A Earmarked Payout Withdrawal Action
   const handleWithdrawPayout = async () => {
+    if (withdrawLockRef.current) return;
+    if (!hasLinkedBank) {
+      setActionError('Link a payout bank account before withdrawing.');
+      return;
+    }
+    withdrawLockRef.current = true;
     setWithdrawingPayout(true);
     setActionError(null);
     setActionSuccess(null);
 
     try {
+      // The server withdraws the member's current balance; the client never sends an amount.
       const res = await fetch('/api/treasury/payouts/withdraw', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-        },
-        body: JSON.stringify({ podId: pod.id, amount: currentUser.treasury.balanceUsd }),
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ podId: pod.id }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Withdrawal failed');
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.message || data.error || 'Withdrawal failed');
 
-      setActionSuccess(`Initiated $${data.amountWithdrawn.toFixed(2)} OutboundTransfer (${data.withdrawTransferId}) from Stripe Treasury to your linked bank account!`);
+      const withdrawn = Number(data.amountWithdrawn || 0);
+      setActionSuccess(`Withdrawal of $${withdrawn.toFixed(2)} to your linked bank account has been initiated${data.withdrawTransferId ? ` (ref ${data.withdrawTransferId})` : ''}.`);
       onRefreshPod();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Payout withdrawal failed');
     } finally {
       setWithdrawingPayout(false);
+      withdrawLockRef.current = false;
     }
   };
 
@@ -552,7 +554,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Recovery failed');
 
       if (data.removedFromPod) {
@@ -587,7 +589,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         body: JSON.stringify({ reason: reasonInput }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Reprioritization request failed');
 
       setActionSuccess('Submitted emergency reprioritization request to pod members.');
@@ -615,7 +617,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         body: JSON.stringify({ requestId, vote }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Voting failed');
 
       setActionSuccess(`Vote cast (${vote}) on reprioritization request.`);
@@ -644,7 +646,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         body: JSON.stringify({ targetMemberUserId: swapTargetUserId }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Swap failed');
 
       setActionSuccess('Voluntary slot swap executed and recorded in audit log.');
@@ -664,7 +666,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
         <div className="p-4 sm:p-5 pb-3.5 border-b border-gray-200 shrink-0 bg-white relative">
           {/* Close Button */}
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close pod details"
             className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors z-10 cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -675,7 +679,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               <div>
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#005FB8] block">
-                    {pod.category} • Treasury Account {pod.holdingFinAccountId}
+                    {pod.category}{TREASURY_PROGRAM_ENABLED && pod.holdingFinAccountId ? ` • Treasury Account ${pod.holdingFinAccountId}` : ''}
                   </span>
 
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
@@ -922,7 +926,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <Lock className="w-4 h-4 text-[#005FB8] shrink-0" />
                 <div>
                   <span className="font-bold block text-[#111827]">
-                    Trusted Circle Pod • Private Invite Code: <code className="font-mono text-[#005FB8] bg-white px-1.5 py-0.5 rounded border border-blue-300">{pod.inviteCode || 'BAY2026'}</code>
+                    Trusted Circle Pod • Private Invite Code: <code className="font-mono text-[#005FB8] bg-white px-1.5 py-0.5 rounded border border-blue-300">{pod.inviteCode || 'No invite code'}</code>
                   </span>
                   <span className="text-[11px] text-[#4B5563]">
                     Invite Window: {pod.inviteWindowDays || 7} Days • {pod.invitedContacts?.length || 0} Contacts Invited • {pod.autoOpenOnExpire ? 'Auto-opens to Open Pod members after window expires' : 'Stays invite-only'}
@@ -1139,9 +1143,10 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               </div>
               {pod.status === 'ACTIVE' && isMember && (
                 <button
+                  type="button"
                   onClick={handleDeposit}
                   disabled={depositing}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shrink-0 flex items-center gap-1 shadow-xs"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors shrink-0 flex items-center gap-1 shadow-xs"
                 >
                   <DollarSign className="w-3.5 h-3.5" />
                   <span>Deposit ${pod.depositTier} This Week</span>
@@ -1176,7 +1181,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     </span>
 
                     <img
-                      src={member.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
+                      src={avatarUrlFor(member.displayName, member.avatarUrl)}
                       alt={member.displayName}
                       className="w-8 h-8 rounded-full object-cover ring-1 ring-gray-300 shrink-0"
                     />
@@ -1297,7 +1302,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           <div className="space-y-4">
             <TrustedCircleInviter
               invitedContacts={pod.invitedContacts || []}
-              inviteCode={pod.inviteCode || 'BAY2026'}
+              inviteCode={pod.inviteCode || ''}
               podName={pod.name}
               onAddContacts={handleAddContacts}
               currentUser={currentUser}
@@ -1316,7 +1321,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <span>Automated Weekly Rotation Settlement Protocol (Option A)</span>
               </div>
               <p className="text-[11px] leading-relaxed text-slate-300">
-                At the end of each weekly cycle, collected pool funds are automatically transferred directly into the rotation recipient's <strong>Stripe Treasury Account</strong>. Funds remain safely earmarked in Treasury until claimed. Members can withdraw funds to their linked bank account immediately or leave them earning yield. <strong>Subsequent rotation cycles never wait, pause, or block for delayed withdrawals.</strong>
+                At the end of each weekly cycle, collected pool funds are transferred to the rotation recipient's <strong>{BALANCE_LABEL}</strong>. Funds stay earmarked there until claimed, and members can withdraw to their linked bank account at any time. <strong>Subsequent rotation cycles never wait, pause, or block for delayed withdrawals.</strong>
               </p>
             </div>
 
@@ -1326,11 +1331,11 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
-                      Your Stripe Treasury Account Balance
+                      Your {BALANCE_LABEL}
                     </span>
                     <div className="flex items-baseline gap-2">
                       <span className="text-2xl font-black font-mono text-emerald-900">
-                        ${currentUser.treasury.balanceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${memberBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                       {userMembership?.hasReceivedPayout && (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold text-[10px]">
@@ -1338,30 +1343,55 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-emerald-700 block">
-                      Linked External Bank: {currentUser.externalBank?.bankName || 'Chase Checking'} (***{currentUser.externalBank?.last4 || '4821'})
-                    </span>
+                    {hasLinkedBank ? (
+                      <span className="text-[11px] text-emerald-700 block">
+                        Payout bank: {currentUser.externalBank.bankName || 'Linked bank'} (••••{currentUser.externalBank.last4})
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-amber-800 block">
+                        No payout bank linked yet.{' '}
+                        <button
+                          type="button"
+                          onClick={() => onOpenBankModal?.()}
+                          className="font-bold underline text-[#005FB8] hover:text-[#004C93] cursor-pointer"
+                        >
+                          Link one in Treasury &amp; payouts
+                        </button>
+                      </span>
+                    )}
                   </div>
 
-                  <button
-                    onClick={handleWithdrawPayout}
-                    disabled={withdrawingPayout || currentUser.treasury.balanceUsd <= 0}
-                    className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0"
-                  >
-                    {withdrawingPayout ? (
-                      <span>Executing Bank Transfer...</span>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        <span>Withdraw ${currentUser.treasury.balanceUsd.toFixed(2)} to Linked Bank</span>
-                      </>
-                    )}
-                  </button>
+                  {hasLinkedBank ? (
+                    <button
+                      type="button"
+                      onClick={handleWithdrawPayout}
+                      disabled={withdrawingPayout || memberBalance <= 0}
+                      className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0"
+                    >
+                      {withdrawingPayout ? (
+                        <span>Starting bank transfer...</span>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          <span>Withdraw ${memberBalance.toFixed(2)} to linked bank</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onOpenBankModal?.()}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-900 font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0 cursor-pointer"
+                    >
+                      <Building2 className="w-4 h-4" />
+                      <span>Link payout bank</span>
+                    </button>
+                  )}
                 </div>
 
                 {userMembership?.payoutStripeTransferId && (
                   <div className="pt-2 border-t border-emerald-200/80 text-[11px] text-emerald-800 flex items-center justify-between font-mono">
-                    <span>Stripe Treasury Transfer Ref:</span>
+                    <span>Payout transfer ref:</span>
                     <span className="font-bold">{userMembership.payoutStripeTransferId}</span>
                   </div>
                 )}
@@ -1378,7 +1408,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       10% Payout Fee Tagged
                     </span>
                   </div>
-                  <p className="text-[#6B7280] text-xs">Transfers net pool funds to rotation recipient's Stripe Treasury account after 10% platform payout fee.</p>
+                  <p className="text-[#6B7280] text-xs">Transfers net pool funds to the rotation recipient's balance after the 10% platform payout fee.</p>
                 </div>
 
                 <button
@@ -1477,9 +1507,10 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
               {isMember && (
                 <button
+                  type="button"
                   onClick={handleDeposit}
                   disabled={depositing}
-                  className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <DollarSign className="w-4 h-4" />
                   <span>Submit ${(pod.depositTier * 1.05).toFixed(2)} Weekly Contribution</span>

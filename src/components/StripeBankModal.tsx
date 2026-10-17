@@ -37,21 +37,22 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
   const initialIsCustom = !user.externalBank?.bankName || !PRESET_BANKS.slice(0, -1).includes(user.externalBank.bankName);
 
   const [activeTab, setActiveTab] = useState<'BANK_LINK' | 'TREASURY_TOPUP'>('TREASURY_TOPUP');
+  // Demo builds pre-fill Stripe test data; production starts empty.
   const [selectedBankOption, setSelectedBankOption] = useState<string>(
-    initialIsCustom ? 'OTHER_CUSTOM' : user.externalBank?.bankName || 'Chase Bank (JPMorgan Chase)'
+    initialIsCustom ? 'OTHER_CUSTOM' : user.externalBank?.bankName || (CLIENT_DEMO_MODE ? 'Chase Bank (JPMorgan Chase)' : 'OTHER_CUSTOM')
   );
   const [customBankName, setCustomBankName] = useState<string>(
     initialIsCustom ? user.externalBank?.bankName || '' : ''
   );
   const [accountNumber, setAccountNumber] = useState(
-    user.externalBank?.last4 ? `•••• •••• ${user.externalBank.last4}` : '•••• •••• 4821'
+    user.externalBank?.last4 ? `•••• •••• ${user.externalBank.last4}` : (CLIENT_DEMO_MODE ? '•••• •••• 4821' : '')
   );
-  const [routingNumber, setRoutingNumber] = useState(user.externalBank?.routingNumber || '021000021');
+  const [routingNumber, setRoutingNumber] = useState(user.externalBank?.routingNumber || (CLIENT_DEMO_MODE ? '021000021' : ''));
   const [accountType, setAccountType] = useState<'CHECKING' | 'SAVINGS'>(user.externalBank?.accountType || 'CHECKING');
 
   // Treasury Top-up state
   const [topUpAmount, setTopUpAmount] = useState<number>(100);
-  const [cardNumber, setCardNumber] = useState<string>('4242 4242 4242 4242');
+  const [cardNumber, setCardNumber] = useState<string>(CLIENT_DEMO_MODE ? '4242 4242 4242 4242' : '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -177,7 +178,12 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
     setError(null);
     setSuccessMessage(null);
 
-    const last4 = String(accountNumber || '4821').replace(/\D/g, '').slice(-4) || '4821';
+    const last4 = String(accountNumber || '').replace(/\D/g, '').slice(-4);
+    if (!last4) {
+      setError(t('treasuryModal.errorAccountNumberRequired'));
+      setLoading(false);
+      return;
+    }
     const bankDisplayName = effectiveBankName || 'External Bank';
     
     const updatedUser: User = {
@@ -209,11 +215,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
         }),
       });
 
-      const contentType = res.headers.get('content-type');
-      let data: any = {};
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
-      }
+      const data: any = await res.json().catch(() => ({}));
 
       if (res.ok && data.user) {
         const mergedUser: User = { ...updatedUser, ...data.user, externalBank: updatedUser.externalBank };
@@ -303,11 +305,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
         }),
       });
 
-      const contentType = res.headers.get('content-type');
-      let data: any = {};
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
-      }
+      const data: any = await res.json().catch(() => ({}));
 
       if (res.ok && data.user) {
         const mergedUser: User = {
@@ -482,10 +480,11 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                <label htmlFor="bank-modal-card-number" className="block text-[11px] font-semibold text-slate-700 mb-1">
                   {t('treasuryModal.testCardNumberLabel')}
                 </label>
                 <input
+                  id="bank-modal-card-number"
                   type="text"
                   required
                   value={cardNumber}
@@ -547,11 +546,12 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
         {activeTab === 'BANK_LINK' && (
           <form onSubmit={handleLinkBank} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#111827] mb-1.5 flex items-center justify-between">
+              <label htmlFor="bank-modal-bank-select" className="block text-xs font-semibold text-[#111827] mb-1.5 flex items-center justify-between">
                 <span>{t('treasuryModal.selectBankLabel')}</span>
                 <span className="text-[10px] text-gray-500 font-normal">{t('treasuryModal.supportsBanksNote')}</span>
               </label>
               <select
+                id="bank-modal-bank-select"
                 value={selectedBankOption}
                 onChange={(e) => setSelectedBankOption(e.target.value)}
                 className="w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-[#111827] focus:outline-none focus:border-[#005FB8]"

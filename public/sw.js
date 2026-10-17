@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gig-mutual-pwa-v5';
+const CACHE_NAME = 'gig-mutual-pwa-v6';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -40,6 +40,16 @@ self.addEventListener('fetch', (event) => {
   if (!reqUrl.startsWith('http://') && !reqUrl.startsWith('https://')) {
     return;
   }
+
+  // Only cache same-origin requests. Cross-origin traffic (Firestore, Google
+  // Fonts, avatar/image CDNs, Stripe) goes straight to the network.
+  let requestOrigin;
+  try {
+    requestOrigin = new URL(reqUrl).origin;
+  } catch {
+    return;
+  }
+  if (requestOrigin !== self.location.origin) return;
 
   // Skip backend API calls, dev modules, vite assets, and websockets
   if (reqUrl.includes('/api/') || reqUrl.includes('/@vite/') || reqUrl.includes('/src/') || reqUrl.includes('node_modules')) return;

@@ -36,14 +36,14 @@ interface AdvertiserPageProps {
 }
 
 const METRO_MARKETS = [
-  { id: 'nyc', nameKey: 'advertiser.market_nyc', activeCouriers: '3,200+', dailyFootTraffic: '4.8M+' },
-  { id: 'la', nameKey: 'advertiser.market_la', activeCouriers: '2,800+', dailyFootTraffic: '3.9M+' },
-  { id: 'chicago', nameKey: 'advertiser.market_chicago', activeCouriers: '1,950+', dailyFootTraffic: '2.7M+' },
-  { id: 'miami', nameKey: 'advertiser.market_miami', activeCouriers: '1,400+', dailyFootTraffic: '2.1M+' },
-  { id: 'sf', nameKey: 'advertiser.market_sf', activeCouriers: '1,650+', dailyFootTraffic: '2.3M+' },
-  { id: 'austin', nameKey: 'advertiser.market_austin', activeCouriers: '950+', dailyFootTraffic: '1.4M+' },
-  { id: 'atlanta', nameKey: 'advertiser.market_atlanta', activeCouriers: '1,200+', dailyFootTraffic: '1.8M+' },
-  { id: 'national', nameKey: 'advertiser.market_national', activeCouriers: '14,000+', dailyFootTraffic: '22M+' },
+  { id: 'nyc', nameKey: 'advertiser.market_nyc' },
+  { id: 'la', nameKey: 'advertiser.market_la' },
+  { id: 'chicago', nameKey: 'advertiser.market_chicago' },
+  { id: 'miami', nameKey: 'advertiser.market_miami' },
+  { id: 'sf', nameKey: 'advertiser.market_sf' },
+  { id: 'austin', nameKey: 'advertiser.market_austin' },
+  { id: 'atlanta', nameKey: 'advertiser.market_atlanta' },
+  { id: 'national', nameKey: 'advertiser.market_national' },
 ] as const;
 
 // Hyperlocal Target Metros for SMBs
@@ -64,10 +64,7 @@ export interface HyperlocalNeighborhood {
   metroKey: 'nyc' | 'chicago' | 'la' | 'austin' | 'atlanta' | 'sf' | 'miami' | 'custom';
   metroName: string;
   zipCodes: string[];
-  baseVerifiedCouriers: number;
-  activeShiftsCount: number;
   corridorType: string;
-  estimatedDailyDeliveries: string;
 }
 
 // Hyperlocal Neighborhoods for Small Businesses (Organized by Metro)
@@ -79,10 +76,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'nyc',
     metroName: 'New York, NY',
     zipCodes: ['10002', '10009', '10003'],
-    baseVerifiedCouriers: 120,
-    activeShiftsCount: 86,
     corridorType: 'High-Density Restaurant & Nightlife Corridor',
-    estimatedDailyDeliveries: '2,400+ doorstep dropoffs/day',
   },
   {
     id: 'hood_wburg',
@@ -90,10 +84,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'nyc',
     metroName: 'Brooklyn, NY',
     zipCodes: ['11211', '11222', '11249'],
-    baseVerifiedCouriers: 85,
-    activeShiftsCount: 62,
     corridorType: 'Artisan Retail & Waterfront Dining',
-    estimatedDailyDeliveries: '1,750+ doorstep dropoffs/day',
   },
   {
     id: 'hood_soho_wv',
@@ -101,10 +92,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'nyc',
     metroName: 'New York, NY',
     zipCodes: ['10012', '10014', '10013'],
-    baseVerifiedCouriers: 140,
-    activeShiftsCount: 98,
     corridorType: 'Luxury Boutiques & Heavy Pedestrian Flow',
-    estimatedDailyDeliveries: '2,900+ doorstep dropoffs/day',
   },
   {
     id: 'hood_midtown_flat',
@@ -112,10 +100,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'nyc',
     metroName: 'New York, NY',
     zipCodes: ['10001', '10010', '10018'],
-    baseVerifiedCouriers: 165,
-    activeShiftsCount: 115,
     corridorType: 'Commercial Core & Transit Lunch Surge',
-    estimatedDailyDeliveries: '3,600+ doorstep dropoffs/day',
   },
   {
     id: 'hood_astoria_lic',
@@ -123,10 +108,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'nyc',
     metroName: 'Queens, NY',
     zipCodes: ['11101', '11102', '11105'],
-    baseVerifiedCouriers: 60,
-    activeShiftsCount: 42,
     corridorType: 'Neighborhood Cafes & Residential High-Rises',
-    estimatedDailyDeliveries: '1,200+ doorstep dropoffs/day',
   },
   {
     id: 'hood_bushwick',
@@ -134,10 +116,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'nyc',
     metroName: 'Brooklyn, NY',
     zipCodes: ['11206', '11216', '11237'],
-    baseVerifiedCouriers: 70,
-    activeShiftsCount: 48,
     corridorType: 'Creative District & Avenue Corridors',
-    estimatedDailyDeliveries: '1,450+ doorstep dropoffs/day',
   },
 
   // 🏙️ Chicago, IL
@@ -147,10 +126,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'chicago',
     metroName: 'Chicago, IL',
     zipCodes: ['60661', '60607'],
-    baseVerifiedCouriers: 65,
-    activeShiftsCount: 48,
     corridorType: 'Restaurant Row & Fulton Tech Office Corridor',
-    estimatedDailyDeliveries: '1,850+ doorstep dropoffs/day',
   },
   {
     id: 'hood_wicker',
@@ -158,10 +134,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'chicago',
     metroName: 'Chicago, IL',
     zipCodes: ['60622', '60647'],
-    baseVerifiedCouriers: 50,
-    activeShiftsCount: 36,
     corridorType: 'Milwaukee Ave Indie Dining & Boutiques',
-    estimatedDailyDeliveries: '1,350+ doorstep dropoffs/day',
   },
   {
     id: 'hood_river_north',
@@ -169,10 +142,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'chicago',
     metroName: 'Chicago, IL',
     zipCodes: ['60654', '60602', '60611'],
-    baseVerifiedCouriers: 80,
-    activeShiftsCount: 58,
     corridorType: 'Downtown High-Rise & Entertainment District',
-    estimatedDailyDeliveries: '2,200+ doorstep dropoffs/day',
   },
   {
     id: 'hood_lincoln_park',
@@ -180,10 +150,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'chicago',
     metroName: 'Chicago, IL',
     zipCodes: ['60614', '60657'],
-    baseVerifiedCouriers: 55,
-    activeShiftsCount: 39,
     corridorType: 'Clark & Halsted Residential Dining Corridor',
-    estimatedDailyDeliveries: '1,400+ doorstep dropoffs/day',
   },
   {
     id: 'hood_pilsen',
@@ -191,10 +158,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'chicago',
     metroName: 'Chicago, IL',
     zipCodes: ['60608', '60605'],
-    baseVerifiedCouriers: 45,
-    activeShiftsCount: 31,
     corridorType: '18th St Cultural Corridors & South Loop',
-    estimatedDailyDeliveries: '950+ doorstep dropoffs/day',
   },
 
   // 🌴 Los Angeles, CA
@@ -204,10 +168,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'la',
     metroName: 'Los Angeles, CA',
     zipCodes: ['90401', '90291', '90403'],
-    baseVerifiedCouriers: 75,
-    activeShiftsCount: 54,
     corridorType: 'Abbot Kinney & Promenade High-Visibility',
-    estimatedDailyDeliveries: '1,900+ doorstep dropoffs/day',
   },
   {
     id: 'hood_dtla_arts',
@@ -215,10 +176,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'la',
     metroName: 'Los Angeles, CA',
     zipCodes: ['90013', '90021', '90015'],
-    baseVerifiedCouriers: 90,
-    activeShiftsCount: 65,
     corridorType: 'Arts District Lofts & Downtown Dining',
-    estimatedDailyDeliveries: '2,350+ doorstep dropoffs/day',
   },
   {
     id: 'hood_hollywood',
@@ -226,10 +184,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'la',
     metroName: 'Los Angeles, CA',
     zipCodes: ['90028', '90026', '90039'],
-    baseVerifiedCouriers: 65,
-    activeShiftsCount: 46,
     corridorType: 'Sunset Blvd & Silver Lake Cafe Corridors',
-    estimatedDailyDeliveries: '1,600+ doorstep dropoffs/day',
   },
   {
     id: 'hood_weho_bev',
@@ -237,10 +192,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'la',
     metroName: 'Los Angeles, CA',
     zipCodes: ['90069', '90210', '90048'],
-    baseVerifiedCouriers: 70,
-    activeShiftsCount: 52,
     corridorType: 'Santa Monica Blvd & Beverly Hills Corridors',
-    estimatedDailyDeliveries: '1,800+ doorstep dropoffs/day',
   },
 
   // 🎸 Austin, TX
@@ -250,10 +202,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'austin',
     metroName: 'Austin, TX',
     zipCodes: ['78701', '78702'],
-    baseVerifiedCouriers: 40,
-    activeShiftsCount: 28,
     corridorType: 'Congress Ave & East 6th Entertainment Strip',
-    estimatedDailyDeliveries: '1,100+ doorstep dropoffs/day',
   },
   {
     id: 'hood_soco_rainey',
@@ -261,10 +210,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'austin',
     metroName: 'Austin, TX',
     zipCodes: ['78704', '78701'],
-    baseVerifiedCouriers: 35,
-    activeShiftsCount: 24,
     corridorType: 'South Congress Retail & Rainey Street Patios',
-    estimatedDailyDeliveries: '950+ doorstep dropoffs/day',
   },
   {
     id: 'hood_ut_campus',
@@ -272,10 +218,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'austin',
     metroName: 'Austin, TX',
     zipCodes: ['78705', '78751'],
-    baseVerifiedCouriers: 45,
-    activeShiftsCount: 32,
     corridorType: 'Guadalupe The Drag & West Campus Apartments',
-    estimatedDailyDeliveries: '1,300+ doorstep dropoffs/day',
   },
 
   // 🍑 Atlanta, GA
@@ -285,10 +228,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'atlanta',
     metroName: 'Atlanta, GA',
     zipCodes: ['30308', '30307', '30309'],
-    baseVerifiedCouriers: 45,
-    activeShiftsCount: 32,
     corridorType: 'Peachtree St & Piedmont Park Corridor',
-    estimatedDailyDeliveries: '1,250+ doorstep dropoffs/day',
   },
   {
     id: 'hood_buckhead',
@@ -296,10 +236,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'atlanta',
     metroName: 'Atlanta, GA',
     zipCodes: ['30305', '30326', '30310'],
-    baseVerifiedCouriers: 50,
-    activeShiftsCount: 36,
     corridorType: 'Lenox Road & Buckhead Village Dining',
-    estimatedDailyDeliveries: '1,400+ doorstep dropoffs/day',
   },
   {
     id: 'hood_o4w_beltline',
@@ -307,10 +244,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'atlanta',
     metroName: 'Atlanta, GA',
     zipCodes: ['30312', '30308'],
-    baseVerifiedCouriers: 55,
-    activeShiftsCount: 40,
     corridorType: 'Ponce City Market & BeltLine Pedestrian Flow',
-    estimatedDailyDeliveries: '1,550+ doorstep dropoffs/day',
   },
 
   // 🌉 San Francisco, CA
@@ -320,10 +254,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'sf',
     metroName: 'San Francisco, CA',
     zipCodes: ['94103', '94104', '94105'],
-    baseVerifiedCouriers: 85,
-    activeShiftsCount: 60,
     corridorType: 'Market St & Mission Bay Office Corridors',
-    estimatedDailyDeliveries: '2,400+ doorstep dropoffs/day',
   },
   {
     id: 'hood_mission_castro',
@@ -331,10 +262,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'sf',
     metroName: 'San Francisco, CA',
     zipCodes: ['94110', '94114'],
-    baseVerifiedCouriers: 65,
-    activeShiftsCount: 46,
     corridorType: 'Valencia & Mission St Food & Retail Row',
-    estimatedDailyDeliveries: '1,700+ doorstep dropoffs/day',
   },
 
   // ☀️ Miami, FL
@@ -344,10 +272,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'miami',
     metroName: 'Miami, FL',
     zipCodes: ['33131', '33130'],
-    baseVerifiedCouriers: 70,
-    activeShiftsCount: 51,
     corridorType: 'Brickell Ave Financial & High-Rise Condos',
-    estimatedDailyDeliveries: '1,950+ doorstep dropoffs/day',
   },
   {
     id: 'hood_wynwood',
@@ -355,10 +280,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'miami',
     metroName: 'Miami, FL',
     zipCodes: ['33127', '33137'],
-    baseVerifiedCouriers: 55,
-    activeShiftsCount: 39,
     corridorType: 'NW 2nd Ave Art District & Nightlife',
-    estimatedDailyDeliveries: '1,500+ doorstep dropoffs/day',
   },
 
   // 📍 Custom 2-Mile Local Radius
@@ -368,10 +290,7 @@ const HYPERLOCAL_NEIGHBORHOODS: HyperlocalNeighborhood[] = [
     metroKey: 'custom',
     metroName: 'Direct Storefront Matching',
     zipCodes: [],
-    baseVerifiedCouriers: 45,
-    activeShiftsCount: 30,
     corridorType: 'Dynamic 2-Mile GPS Corridor Around Your Store',
-    estimatedDailyDeliveries: '1,200+ doorstep dropoffs/day',
   },
 ];
 
@@ -506,7 +425,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
     return HYPERLOCAL_NEIGHBORHOODS.find(h => h.id === smbNeighborhood) || HYPERLOCAL_NEIGHBORHOODS[0];
   }, [smbNeighborhood]);
 
-  // Dynamically compute verified couriers based on real user registrations + neighborhood base
+  // Verified courier counts come only from real registrations in the system (no seeded baselines).
   const getDynamicCourierStats = (hood: HyperlocalNeighborhood) => {
     // Helper to check if a user is a gig worker/courier
     const isGigCourier = (u: User) => {
@@ -530,24 +449,22 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
               (u.city && matched.metroName.toLowerCase().includes(u.city.toLowerCase()))
             )
           ).length;
-          const count = matched.baseVerifiedCouriers + registeredInZip;
           return {
-            verifiedCount: count,
-            activeShiftCount: Math.round(count * 0.72),
+            verifiedCount: registeredInZip,
             metroLabel: matched.metroName,
             matchedName: t(matched.nameKey as any),
             corridorDesc: matched.corridorType,
-            deliveries: matched.estimatedDailyDeliveries,
           };
         }
       }
+      const registeredNearZip = cleanZip
+        ? allUsers.filter(u => isGigCourier(u) && ((u as any).zipCode || '') === cleanZip).length
+        : 0;
       return {
-        verifiedCount: 45,
-        activeShiftCount: 30,
+        verifiedCount: registeredNearZip,
         metroLabel: 'Dynamic 2-Mile Radius',
         matchedName: customZipCode ? `Radius for ${customZipCode}` : 'Custom Storefront Corridor',
         corridorDesc: 'Dynamic GPS-fenced courier delivery routes',
-        deliveries: '1,200+ doorstep dropoffs/day',
       };
     }
 
@@ -559,15 +476,11 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
       )
     ).length;
 
-    const totalVerified = hood.baseVerifiedCouriers + registeredCount;
-
     return {
-      verifiedCount: totalVerified,
-      activeShiftCount: Math.round(totalVerified * 0.72),
+      verifiedCount: registeredCount,
       metroLabel: hood.metroName,
       matchedName: t(hood.nameKey as any),
       corridorDesc: hood.corridorType,
-      deliveries: hood.estimatedDailyDeliveries,
     };
   };
 
@@ -1410,9 +1323,6 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                                 <Users className="w-3 h-3 text-blue-600" />
                                 <span>{stats.verifiedCount} verified couriers</span>
                               </span>
-                              <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                                <Zap className="w-2.5 h-2.5" /> {stats.activeShiftCount} on shift
-                              </span>
                             </div>
                           </button>
                         );
@@ -1457,7 +1367,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                           <span className="text-slate-400 font-normal">({activeNeighborhoodStats.metroLabel})</span>
                         </div>
                         <div className="text-[11px] text-slate-600">
-                          {activeNeighborhoodStats.corridorDesc} • <span className="text-slate-800 font-semibold">{activeNeighborhoodStats.deliveries}</span>
+                          {activeNeighborhoodStats.corridorDesc}
                         </div>
                       </div>
                       <div className="text-left sm:text-right shrink-0 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-2xs">
@@ -1586,7 +1496,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                             {selectedMarket === market.id && <Check className="w-3.5 h-3.5 text-[#005FB8]" />}
                           </div>
                           <div className="text-[11px] text-slate-500 mt-1">
-                            {t('advertiser.calcActiveFleet')} <span className="text-slate-800 font-semibold">{market.activeCouriers}</span>
+                            {t('advertiser.calcActiveFleet')} <span className="text-slate-800 font-semibold">{t('advertiser.calcActiveFleetVal')}</span>
                           </div>
                         </button>
                       ))}
