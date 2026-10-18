@@ -26,6 +26,10 @@ machine or change the strategy without first moving state out of memory.
 
    The server creates its single table (`app_documents`) on first boot.
 
+   This is Fly's unmanaged ("Legacy") Postgres: cheap and fine for testing,
+   but Fly does not support it and we own failover, upgrades and recovery.
+   See "Before launch" below for the planned move to Managed Postgres.
+
 4. Set the runtime secrets from your `.env` (everything except `VITE_*`,
    `NODE_ENV`, `PORT`, `TZ`, `APP_URL`, `STORAGE_BACKEND`, which live in
    `fly.toml`):
@@ -59,7 +63,7 @@ machine or change the strategy without first moving state out of memory.
 6. First deploy, passing the public Firebase web settings as build args
    (they are inlined into the browser bundle):
 
-       fly deploy --remote-only \
+       fly deploy --remote-only --ha=false \
          --build-arg VITE_FIREBASE_API_KEY=... \
          --build-arg VITE_FIREBASE_AUTH_DOMAIN=... \
          --build-arg VITE_FIREBASE_PROJECT_ID=... \
@@ -104,3 +108,34 @@ manual dump:
     fly postgres connect -a mutual-pool-db -c "\\copy (select * from app_documents) to 'backup.csv' csv header"
 
 or `pg_dump` through `fly proxy 15432:5432 -a mutual-pool-db`.
+
+## Before launch: move to Managed Postgres
+
+Do this before real members deposit money. Managed Postgres (`fly mpg`) gives
+automatic failover, backups with point-in-time restore, connection pooling
+and Fly support; Basic plan (shared CPU, 1 GB) is enough for one server
+machine. Managed clusters offer Postgres 16/17 and cannot be upgraded across
+major versions in place.
+
+1. Create the cluster and note the cluster ID it prints:
+
+       fly mpg create --name mutual-pool-pg --org chris-bitoye-ventures-llc --region iad --plan Basic --pg-major-version 17 --volume-size 10
+
+2. If the old database has data worth keeping, dump it first (see Backups).
+   Attaching below replaces `DATABASE_URL`, and the server loads whatever the
+   new database holds; restore the dump into the new cluster via
+   `fly mpg proxy <CLUSTER_ID>` and `psql` before step 4.
+3. Swap the attachment (the app restarts twice; a short outage):
+
+       fly postgres detach mutual-pool-db --app mutual-pool
+       fly mpg attach <CLUSTER_ID> --app mutual-pool
+
+   If the logs show a TLS/SSL error on boot, add
+   `fly secrets set DATABASE_SSL=true`; the server then connects with TLS.
+4. Verify `fly logs` shows collections loaded from postgres and
+   `/api/health` is ok. Then destroy the old cluster:
+
+       fly apps destroy mutual-pool-db --yes
+
+5. Update the psql and backup commands above to their `fly mpg` equivalents
+   (`fly mpg connect`, `fly mpg backup list`, `fly mpg restore`).
