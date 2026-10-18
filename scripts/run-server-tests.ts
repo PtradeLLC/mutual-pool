@@ -6,7 +6,7 @@
 // --env=secure  production auth rules (no DEMO_MODE): verifies spoofing is rejected
 // --env=demo    DEMO_MODE: header-based test identities for end-to-end flows
 //
-// The server writes its JSON data into a temp dir and never talks to Firestore.
+// The server writes its JSON data into a temp dir and never talks to a database.
 import { spawn } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -24,7 +24,7 @@ const serverEnv: NodeJS.ProcessEnv = {
   NODE_ENV: 'test',
   PORT: String(port),
   DATA_DIR: dataDir,
-  DISABLE_FIRESTORE: 'true',
+  STORAGE_BACKEND: 'memory',
   DEMO_MODE: mode === 'demo' ? 'true' : 'false',
   STRIPE_SECRET_KEY: 'sk_test_runner_placeholder',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_runner_secret',

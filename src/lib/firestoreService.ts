@@ -1,24 +1,15 @@
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
-import { FirebaseError } from 'firebase/app';
-import { db } from './firebase';
 import { User, Pod, Perk, AuditLogEntry, Redemption, isDemoPod, calculateAccountAgeDays } from '../types';
 
-// The server is the only writer of application data (see firestore.rules).
-// The browser may read its own user document directly from Firestore for live
-// updates; pods, perks and audit logs come from the authenticated /api
-// endpoints. The save*/add* helpers below are kept as no-ops so existing call
-// sites keep working: changes must go through the corresponding API route.
-
-function wrapError(operation: string, err: unknown): Error {
-  const code = err instanceof FirebaseError ? err.code : 'unknown';
-  console.error(`[firestoreService] ${operation} failed (${code}):`, err);
-  return new Error(`${operation} failed: ${code}`);
-}
+// Client data access. Despite the file name (kept so existing imports work),
+// nothing here talks to Firestore any more: the server is the only writer and
+// stores everything in Postgres; the browser reads through the authenticated
+// /api endpoints and polls for live updates. The save*/add* helpers are no-ops
+// kept for existing call sites: changes must go through the API routes.
 
 const POLL_INTERVAL_MS = 15_000;
 
 // Poll an API endpoint and hand each successful result to the callback.
-function pollApi<T>(url: string, parse: (data: any) => T, callback: (value: T) => void, onError?: (err: Error) => void) {
+function pollApi<T>(url: string, parse: (data: any) => T, callback: (value: T) => void, onError?: (err: Error) => void, intervalMs = POLL_INTERVAL_MS) {
   let stopped = false;
   const tick = async () => {
     try {
@@ -31,7 +22,7 @@ function pollApi<T>(url: string, parse: (data: any) => T, callback: (value: T) =
     }
   };
   void tick();
-  const timer = setInterval(tick, POLL_INTERVAL_MS);
+  const timer = setInterval(tick, intervalMs);
   return () => {
     stopped = true;
     clearInterval(timer);
@@ -43,25 +34,30 @@ function pollApi<T>(url: string, parse: (data: any) => T, callback: (value: T) =
 export async function seedInitialFirestoreData(): Promise<void> {}
 
 // --- USERS ---
+function parseUser(data: any): User | null {
+  const u = data && data.id ? (data as User) : null;
+  if (u) u.accountAgeDays = calculateAccountAgeDays(u.createdAt, u.accountAgeDays);
+  return u;
+}
+
+// The signed-in member's own record (the server derives identity from the
+// Firebase token; `userId` is only used to refuse obviously bad calls).
 export async function getUserFromFirestore(userId: string): Promise<User | null> {
   if (!userId || typeof userId !== 'string' || !userId.trim()) return null;
   try {
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (!userDoc.exists()) return null;
-    const userData = userDoc.data() as User;
-    if (userData) {
-      userData.accountAgeDays = calculateAccountAgeDays(userData.createdAt, userData.accountAgeDays);
-    }
-    return userData;
+    const res = await fetch('/api/users/current');
+    if (!res.ok) return null;
+    return parseUser(await res.json());
   } catch (err) {
-    if ((err as any)?.code === 'permission-denied') return null;
-    throw wrapError(`getUserFromFirestore(${userId})`, err);
+    console.warn('[dataService] getUser error:', err);
+    return null;
   }
 }
 
 // No-op: profile changes are saved through POST /api/users/sync.
 export async function saveUserToFirestore(_user: User): Promise<void> {}
 
+// Live balance/profile updates for the signed-in member, by polling.
 export function subscribeToUser(
   userId: string,
   callback: (user: User | null) => void,
@@ -71,21 +67,7 @@ export function subscribeToUser(
     callback(null);
     return () => {};
   }
-  return onSnapshot(
-    doc(db, 'users', userId),
-    (docSnap) => {
-      if (!docSnap.exists()) {
-        callback(null);
-        return;
-      }
-      const u = docSnap.data() as User;
-      if (u) {
-        u.accountAgeDays = calculateAccountAgeDays(u.createdAt, u.accountAgeDays);
-      }
-      callback(u);
-    },
-    (err) => onError?.(wrapError(`subscribeToUser(${userId})`, err))
-  );
+  return pollApi('/api/users/current', parseUser, callback, onError, 10_000);
 }
 
 // --- PODS ---

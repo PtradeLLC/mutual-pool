@@ -1,0 +1,59 @@
+# Fly.io configuration for the MutualPool server.
+#
+# The server keeps state in memory and writes it through to Postgres, so it
+# must run as EXACTLY ONE machine, and a deploy must stop the old machine
+# before starting the new one. Do not raise the machine count or switch to a
+# rolling/blue-green strategy without first moving state out of memory.
+#
+# First-time setup: see DEPLOY.md.
+
+app = "mutual-pool"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+  # VITE_* values are inlined into the browser bundle at build time. They are
+  # public Firebase web-app settings, not secrets; pass them with
+  # `fly deploy --build-arg ...` (the GitHub Action does this from repository
+  # secrets) or fill them in here.
+  [build.args]
+    VITE_PROD_URL = "https://themutualpool.com"
+    VITE_TREASURY_ENABLED = "false"
+    VITE_SUPPORT_EMAIL = "support@themutualpool.com"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  TZ = "America/New_York"
+  STORAGE_BACKEND = "postgres"
+  APP_URL = "https://themutualpool.com"
+  TREASURY_ENABLED = "false"
+  SUPPORT_EMAIL = "support@themutualpool.com"
+
+[deploy]
+  # Stop the running machine before starting the new one: never two copies.
+  strategy = "immediate"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 400
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

@@ -1,11 +1,8 @@
+// Firebase on the client is used for sign-in only (Firebase Auth). All
+// application data comes from the authenticated /api endpoints; the server
+// stores it in Postgres.
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  EmailAuthProvider, 
-  PhoneAuthProvider 
-} from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import firebaseConfigJson from '../../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -20,12 +17,6 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-
-const dbId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId;
-
-export const defaultDb = (dbId && dbId !== '(default)') ? getFirestore(app, dbId) : getFirestore(app);
-export const db = defaultDb;
-export const allDbs = [defaultDb];
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({

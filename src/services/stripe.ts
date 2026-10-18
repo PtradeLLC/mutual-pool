@@ -1,6 +1,4 @@
 import Stripe from 'stripe';
-import { getDb, COLLECTIONS, timestampToISO } from '../config/firebase';
-import { Timestamp } from 'firebase-admin/firestore';
 import { getSiteUrl } from '../utils/siteUrl';
 import { DEMO_MODE } from '../server/runtime';
 
@@ -304,85 +302,6 @@ export async function getFinancialAccountBalance(financialAccountId: string): Pr
     available: balance?.available?.[0]?.amount || 0,
     pending: balance?.pending?.[0]?.amount || 0,
   };
-}
-
-// Webhook Handlers
-export async function handleStripeWebhook(event: Stripe.Event): Promise<void> {
-  const db = getDb();
-  if (!db) {
-    console.warn('[Stripe Webhook] Admin DB not available, skipping database sync.');
-    return;
-  }
-  
-  switch (event.type as string) {
-    case 'account.updated': {
-      const account = event.data.object as Stripe.Account;
-      // Update user's Connect account status
-      await db.collection(COLLECTIONS.USERS)
-        .where('treasury.stripeAccountId', '==', account.id)
-        .get()
-        .then(snapshot => {
-          const batch = db.batch();
-          snapshot.docs.forEach(doc => {
-            batch.update(doc.ref, {
-              'treasury.status': account.capabilities?.transfers === 'active' ? 'ACTIVE' : 'PENDING_REQUIREMENTS',
-              updatedAt: Timestamp.now(),
-            });
-          });
-          return batch.commit();
-        });
-      break;
-    }
-    
-    case 'treasury.financial_account.features_status_updated': {
-      const financialAccount = event.data.object as any;
-      // Update financial account features status
-      console.log('Financial account features updated:', financialAccount.id);
-      break;
-    }
-    
-    case 'treasury.outbound_transfer.posted': {
-      const transfer = event.data.object as any;
-      // Record successful payout
-      console.log('Outbound transfer posted:', transfer.id);
-      break;
-    }
-    
-    case 'treasury.outbound_transfer.failed': {
-      const transfer = event.data.object as any;
-      // Handle failed payout
-      console.error('Outbound transfer failed:', transfer.id, transfer.failure_details);
-      break;
-    }
-    
-    case 'treasury.inbound_transfer.posted': {
-      const transfer = event.data.object as any;
-      // Record successful deposit
-      console.log('Inbound transfer posted:', transfer.id);
-      break;
-    }
-    
-    case 'treasury.inbound_transfer.failed': {
-      const transfer = event.data.object as any;
-      // Handle failed deposit
-      console.error('Inbound transfer failed:', transfer.id, transfer.failure_details);
-      break;
-    }
-    
-    case 'identity.verification_session.verified': {
-      const session = event.data.object as any;
-      // KYC verification completed
-      console.log('Identity verification completed:', session.id);
-      break;
-    }
-    
-    case 'identity.verification_session.requires_input': {
-      const session = event.data.object as any;
-      // KYC needs more info
-      console.log('Identity verification requires input:', session.id);
-      break;
-    }
-  }
 }
 
 // Create Identity Verification Session for KYC

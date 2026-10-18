@@ -8711,11 +8711,11 @@ async function startServer() {
   assertProductionConfig(storageConfigProblems());
 
   registerPersistentState();
-  // Production always persists. In development, opt in with PERSIST_STATE=true
-  // (PERSIST_TO_FIRESTORE is the older name); otherwise dev uses the JSON files.
-  const persistInDev = process.env.PERSIST_STATE === 'true' || process.env.PERSIST_TO_FIRESTORE === 'true';
+  // Production always persists (Postgres). In development, opt in with
+  // PERSIST_STATE=true and a DATABASE_URL; otherwise dev uses the JSON files.
+  const persistInDev = process.env.PERSIST_STATE === 'true';
   if (IS_PRODUCTION || persistInDev) {
-    await hydrateFromStorage(createStorageAdapter());
+    await hydrateFromStorage(await createStorageAdapter());
     startAutoFlush();
   }
   (app as any).locals.startSweepScheduler?.();

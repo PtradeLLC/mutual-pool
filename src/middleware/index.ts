@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { getAuthAdmin } from '../config/firebase';
 import { z, ZodSchema } from 'zod';
 import rateLimit from 'express-rate-limit';
-import { idempotencyRepository } from '../repositories';
 
 // Extend Express Request type
 declare global {
@@ -180,40 +179,6 @@ export function idempotencyMiddleware(req: Request, res: Response, next: NextFun
   
   req.idempotencyKey = idempotencyKey;
   next();
-}
-
-export async function checkIdempotency(req: Request, res: Response, next: NextFunction): Promise<void> {
-  if (!req.idempotencyKey) return next();
-  
-  try {
-    const { isNew, response } = await idempotencyRepository.checkAndStore(
-      req.idempotencyKey,
-      null, // Will be filled after handler
-      60 // 60 minutes TTL
-    );
-    
-    if (!isNew) {
-      // Return cached response
-      res.setHeader('X-Idempotency-Replay', 'true');
-      res.json(response);
-      return;
-    }
-    
-    // Store original json method
-    const originalJson = res.json.bind(res);
-    
-    // Override json to capture response
-    res.json = (body: any) => {
-      // Update idempotency record with actual response
-      idempotencyRepository.checkAndStore(req.idempotencyKey!, body, 60);
-      return originalJson(body);
-    };
-    
-    next();
-  } catch (error) {
-    console.error('Idempotency error:', error);
-    next(); // Continue without idempotency on error
-  }
 }
 
 // Concurrency Control - Optimistic Locking
