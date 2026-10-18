@@ -60,8 +60,14 @@ machine or change the strategy without first moving state out of memory.
    make sure both Stripe webhook destinations point at
    `https://themutualpool.com/api/webhooks/stripe`.
 
-6. First deploy, passing the public Firebase web settings as build args
-   (they are inlined into the browser bundle):
+6. First deploy. The public Firebase web settings are inlined into the
+   browser bundle, so they go in as build args. `npm run deploy` reads them
+   from `.env` and runs the command below for you (it also checks afterwards
+   that exactly one machine is running and that `/api/health` answers):
+
+       npm run deploy
+
+   Or by hand:
 
        fly deploy --remote-only --ha=false \
          --build-arg VITE_FIREBASE_API_KEY=... \
@@ -80,6 +86,12 @@ machine or change the strategy without first moving state out of memory.
 Push to `main`. The GitHub Action in `.github/workflows/fly-deploy.yml` runs
 the test suite and then `fly deploy`. It needs the repository secrets listed at
 the top of that file (`FLY_API_TOKEN` plus the six `VITE_FIREBASE_*` values).
+
+To deploy from your own machine instead (or when Actions is unavailable):
+
+    npm run deploy
+
+Set `DEPLOY_DRY_RUN=1` to print the command it would run without deploying.
 
 ## Weekly sweeps
 
