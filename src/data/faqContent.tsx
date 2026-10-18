@@ -165,7 +165,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
               <strong>¡No! MutualPool no es un prestamista ni una compañía de tarjetas de crédito.</strong> Tiene <strong>0% de interés</strong>, cero acumulación de deudas y no exige puntaje crediticio mínimo.
             </p>
             <p>
-              En lugar de recurrir a préstamos de día de pago con intereses abusivos, ahorras tus propios ingresos con compañeros verificados de la comunidad. Cada dólar aportado proviene directamente de tus ingresos o saldo en Stripe Treasury.
+              En lugar de recurrir a préstamos de día de pago con intereses abusivos, ahorras tus propios ingresos con compañeros verificados de la comunidad. Cada dólar aportado a la rotación proviene directamente de tus ingresos o de tu saldo de MutualPool.
             </p>
           </div>
         )
@@ -193,10 +193,78 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
                   Grupo Abierto (Público)
                 </strong>
                 <p className="text-slate-800">
-                  Abierto a cualquier miembro verificado de MutualPool. Para crear un Grupo Abierto, el creador debe haber completado al menos 1 ciclo completo con un historial de pagos 100% puntual.
+                  Abierto a cualquier miembro verificado de MutualPool. Para crear un Grupo Abierto debes haber completado al menos un grupo, o llevar 90 días o más en MutualPool.
                 </p>
               </div>
             </div>
+            <p className="text-[11px] text-slate-600">
+              En ambos casos necesitas identidad verificada y una autorización de débito bancario activa antes de poder crear o unirte a un grupo, y puedes tener como máximo 3 grupos creados por ti en formación o activos a la vez.
+            </p>
+          </div>
+        )
+      },
+      {
+        id: 'faq_pod_size_ladder',
+        category: 'BASICS',
+        question: '¿Hay un límite en el tamaño del grupo al que puedo unirme?',
+        tags: ['tope fondo', 'tamano grupo', 'limite', '$1,000', '$2,500', '$5,000', 'historial', 'grupos completados', 'escalera'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Sí. El fondo máximo al que puedes unirte crece con tu historial en MutualPool. El fondo es el depósito semanal multiplicado por el número de miembros.
+            </p>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
+              <div className="flex justify-between text-slate-700"><span>Sin grupos completados todavía</span><span className="font-bold">hasta $1,000</span></div>
+              <div className="flex justify-between text-slate-700"><span>1 grupo completado</span><span className="font-bold">hasta $2,500</span></div>
+              <div className="flex justify-between text-slate-700"><span>2 grupos completados</span><span className="font-bold">hasta $5,000</span></div>
+              <div className="flex justify-between text-emerald-800 font-bold"><span>3 o más grupos completados</span><span>sin límite</span></div>
+            </div>
+            <p className="text-[11px] text-slate-600">
+              Solo cuentan los grupos que terminaste sin fallar ningún depósito. Un depósito fallido sin resolver te devuelve al primer nivel hasta que se regularice.
+            </p>
+            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
+              💡 <strong>Por qué:</strong> esto protege a cada grupo de alguien que cobra temprano y luego deja de depositar. Los miembros ganan acceso a fondos más grandes completando primero los más pequeños.
+            </div>
+          </div>
+        )
+      },
+      {
+        id: 'faq_early_slots_trust',
+        category: 'BASICS',
+        question: '¿Cómo se decide el orden de cobro? ¿Quién recibe los primeros turnos?',
+        tags: ['orden rotacion', 'primeros turnos', 'confianza', 'antiguedad', '90 dias', 'experiencia', 'bloqueo', 'aleatorio', 'primera mitad'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Cuando el creador bloquea el grupo, la primera mitad de la rotación se asigna a los miembros con mejor historial. Dentro de cada nivel el orden es aleatorio, y el creador siempre ocupa el último turno.
+            </p>
+            <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li><strong>Los miembros que han completado un grupo</strong> van primero.</li>
+              <li><strong>Los miembros con 90+ días en MutualPool</strong> van después.</li>
+              <li><strong>Los miembros más nuevos</strong> ocupan los turnos restantes.</li>
+            </ol>
+            <p>
+              Para fondos superiores a <strong>$1,000</strong>, cada turno temprano debe estar ocupado por un miembro de los dos primeros niveles. Si no hay suficientes, el grupo no puede bloquearse hasta que se unan más miembros con experiencia o se reduzca el fondo. Los fondos de $1,000 o menos siempre se bloquean.
+            </p>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+              ⚖️ Los intercambios y las votaciones de repriorización no pueden colocar a un miembro más nuevo por delante de uno más consolidado en la primera mitad de la rotación.
+            </div>
+          </div>
+        )
+      },
+      {
+        id: 'faq_pod_commitment',
+        category: 'BASICS',
+        question: '¿Puedo salir de un grupo antes de tiempo? ¿A qué me comprometo al unirme?',
+        tags: ['salir grupo', 'abandonar', 'compromiso', 'ciclo completo', 'despues del cobro', 'depositos restantes', 'obligacion'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Al crear o unirte a un grupo te comprometes al depósito semanal durante el <strong>ciclo completo</strong>, una semana por miembro, <strong>incluidas las semanas posteriores a recibir tu propio cobro</strong>. Eso es lo que hace posible el cobro de todos los demás.
+            </p>
+            <p>
+              Solo puedes salir de un grupo una vez que todos los miembros hayan recibido su cobro. Si sales o te retiran después de cobrar, los depósitos que aún debes siguen pendientes, y MutualPool puede cobrarlos de tu saldo, de cobros futuros o de tu cuenta bancaria vinculada conforme a tu autorización de débito bancario.
+            </p>
           </div>
         )
       },
@@ -254,7 +322,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
               </div>
             </div>
             <p className="text-[11px] text-slate-600">
-              ¡A lo largo de 19 cobros de compañeros, el Creador gana <strong>$228.00 acumulados</strong> acreditados directamente en su saldo Stripe Treasury!
+              ¡A lo largo de 19 cobros de compañeros, el Creador gana <strong>$228.00 acumulados</strong> acreditados directamente en su saldo de MutualPool!
             </p>
           </div>
         )
@@ -306,17 +374,43 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_deposits_collection',
         category: 'DEPOSITS_PAYOUTS',
         question: '¿Cómo se cobran los depósitos semanales?',
-        tags: ['deposito', 'pago', 'debito directo', 'stripe treasury', 'automatico', 'banco'],
+        tags: ['deposito', 'pago', 'jueves', 'corte', 'saldo', 'automatico', 'banco', 'recarga'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Los depósitos se cobran automáticamente cada semana en la fecha de corte programada. Puedes fondear tus aportes mediante:
+              Cada <strong>jueves a las 12:00 AM (hora del Este)</strong>, MutualPool toma el depósito de esa semana, más la tarifa de depósito del 5%, <strong>de tu saldo de MutualPool</strong> por cada grupo activo en el que participas. Mantén saldo suficiente para cubrirlo.
             </p>
+            <p>Puedes fondear tu saldo de tres formas:</p>
             <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
-              <li><strong>Saldo en tu Cuenta Stripe Treasury:</strong> Fondos disponibles en tu billetera verificada de MutualPool.</li>
-              <li><strong>Cuenta Bancaria Vinculada (Débito Directo ACH):</strong> Respaldado por Plaid / Stripe Financial Connections.</li>
-              <li><strong>Ganancias Diarias de Campañas de Marca:</strong> Los ingresos obtenidos en turnos verificados de entrega pueden compensar automáticamente tus aportes semanales.</li>
+              <li><strong>Recarga con tarjeta a través de Stripe:</strong> sin tarifa de MutualPool por recargas.</li>
+              <li><strong>Transferencia bancaria desde tu cuenta vinculada:</strong> conectada a través de Stripe.</li>
+              <li><strong>Cobros y ganancias de campañas de marca:</strong> se acreditan en el mismo saldo, por lo que pueden cubrir depósitos futuros.</li>
             </ol>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+              ⚠️ Si tu saldo no puede cubrir un depósito, se registra como depósito fallido. Tienes hasta el cobro del viernes para recargar, y MutualPool puede debitar tu cuenta bancaria vinculada conforme a tu autorización de débito bancario.
+            </div>
+          </div>
+        )
+      },
+      {
+        id: 'faq_bank_debit_mandate',
+        category: 'DEPOSITS_PAYOUTS',
+        question: '¿Por qué debo autorizar débitos bancarios antes de poder crear o unirme a un grupo?',
+        tags: ['debito bancario', 'ach', 'mandato', 'autorizacion', 'financial connections', 'banco vinculado', 'revocar'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Antes de crear o unirte a un grupo, vinculas una cuenta bancaria a través de Stripe y autorizas a MutualPool a debitarla. Los depósitos normalmente se toman de tu saldo; la autorización es el respaldo que permite que el grupo siga adelante si un saldo se queda sin fondos.
+            </p>
+            <p>Con la autorización solo podemos debitar tu cuenta bancaria por:</p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li>un depósito semanal que tu saldo no pudo cubrir;</li>
+              <li>cualquier monto que MutualPool haya adelantado en tu nombre, como un adelanto por dificultad;</li>
+              <li>los depósitos restantes a los que te comprometiste si sales o te retiran de un grupo después de recibir su cobro.</li>
+            </ul>
+            <p className="text-[11px] text-slate-600">
+              Te avisamos en la app antes de cada débito. Puedes revocar la autorización contactando a soporte, pero eso no cancela lo que debes, y sin ella no puedes crear ni unirte a grupos.
+            </p>
           </div>
         )
       },
@@ -324,24 +418,30 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_payout_fee_explained',
         category: 'DEPOSITS_PAYOUTS',
         question: '¿Cuáles son las tarifas de la plataforma y a dónde se destina el dinero?',
-        tags: ['tarifas', '5%', '10%', 'tarifa servicio', 'costo', 'tesoreria', 'comisiones'],
+        tags: ['tarifas', '5%', '10%', '7%', 'tarifa servicio', 'costo', 'comisiones', 'tarifa retiro', 'recarga'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              MutualPool aplica tarifas de servicio simples y transparentes, sin ningún interés compuesto oculto:
+              MutualPool cobra tres tarifas, y nada más. No hay intereses, no hay tarifa de retiro y no hay tarifa por recargas con tarjeta.
             </p>
             <ul className="space-y-2 text-[11px]">
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Tarifa de Depósito Inicial (5%):</strong> Se aplica únicamente al depósito inicial al crear o unirse a un grupo para inicializar tu saldo de Tesorería.
+                <strong>Tarifa de Depósito (5%):</strong> se cobra en <strong>cada depósito semanal</strong> al momento de tomarlo. En un depósito de $20, salen $21 de tu saldo.
               </li>
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Tarifa de Servicio de Pago (10%):</strong> Se deduce cuando se entrega el pago acumulado al beneficiario del turno (ej. $40 en un fondo de $400 $\rightarrow$ $360 de pago neto).
+                <strong>Tarifa de Cobro (10%):</strong> se deduce de cada cobro de la rotación antes de acreditarlo (ej. $40 en un fondo de $400, así que el beneficiario recibe $360).
                 <div className="mt-1 text-[10px] text-slate-600">
-                  • <strong>3%</strong> se abona al Creador del Grupo como Recompensa de Anfitrión.<br />
-                  • <strong>7%</strong> financia la operación de tesorería y la Reserva de Contingencia del Primer Ciclo.
+                  • <strong>3%</strong> del fondo va al miembro que ocupa el último turno (normalmente el creador) como Recompensa de Anfitrión.<br />
+                  • <strong>7%</strong> va a MutualPool.
                 </div>
               </li>
+              <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                <strong>Tarifa de Reembolso por Dificultad (7%):</strong> se añade a un adelanto por dificultad cuando lo reembolsas. Solo la pagas si usaste un adelanto por dificultad.
+              </li>
             </ul>
+            <p className="text-[11px] text-slate-600">
+              Los cambios de tarifas se anuncian en la app con al menos 30 días de antelación y solo aplican a los grupos que comiencen después del período de aviso.
+            </p>
           </div>
         )
       },
@@ -349,20 +449,21 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_payout_execution',
         category: 'DEPOSITS_PAYOUTS',
         question: '¿Cómo y cuándo recibo mi pago acumulado?',
-        tags: ['cobro', 'retiro', 'transferencia', 'turno', 'calendario', 'desembolso'],
+        tags: ['cobro', 'retiro', 'transferencia', 'turno', 'calendario', 'viernes', 'banco', '1-3 dias habiles'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Cuando llega tu semana programada en la rotación, el monto neto completo (ej. <strong>$360.00</strong>) se transfiere de inmediato a tu <strong>Cuenta Financiera Stripe Treasury</strong>.
+              Cada semana de liquidación sigue un calendario fijo: los depósitos se toman el <strong>jueves a las 12:00 AM (hora del Este)</strong>, y el cobro de la semana se acredita el <strong>viernes a las 12:00 AM (hora del Este)</strong>. Cuando es tu turno, el monto neto (ej. <strong>$360.00</strong> en un fondo de $400) llega a tu <strong>saldo de MutualPool</strong>.
             </p>
-            <p>
-              Una vez depositado en Treasury:
-            </p>
+            <p>Desde tu saldo puedes:</p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
-              <li>Puedes retirarlo inmediatamente a tu banco externo vinculado mediante Stripe OutboundTransfer.</li>
-              <li>Puedes mantener el saldo en Treasury para cubrir futuros aportes u obtener rendimientos.</li>
-              <li><strong>Las semanas de rotación siguientes nunca se detienen ni se bloquean por retiros bancarios pendientes.</strong></li>
+              <li>Retirarlo a la cuenta bancaria que verificaste con Stripe. No hay tarifa de retiro; tu banco normalmente lo acredita en 1 a 3 días hábiles.</li>
+              <li>Dejarlo en tu saldo para cubrir tus depósitos semanales restantes. Los saldos no generan intereses.</li>
+              <li><strong>Las semanas de rotación siguientes nunca esperan por un retiro bancario pendiente.</strong></li>
             </ul>
+            <p className="text-[11px] text-slate-600">
+              Los fondos depositados recientemente pueden retenerse mientras un pago con tarjeta todavía sea impugnable, y los fondos sujetos a un contracargo, reembolso o revisión por fraude pueden retenerse o revertirse.
+            </p>
           </div>
         )
       },
@@ -370,18 +471,25 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_missed_deposit_default',
         category: 'AI_CUSTODIAN_ESCROW',
         question: '¿Qué ocurre si un miembro no realiza un depósito semanal o incurre en impago?',
-        tags: ['pago retrasado', 'impago', 'colchon contingencia', 'welcome match', 'periodo gracia', 'reemplazo'],
+        tags: ['pago retrasado', 'impago', 'colchon contingencia', 'welcome match', 'periodo gracia', 'retiro del grupo', 'cobranza', 'deuda'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              MutualPool cuenta con una red de seguridad multicapa para garantizar que los beneficiarios <strong>reciban el 100% de su cobro puntual</strong>:
+              Si el corte del jueves encuentra un saldo que no puede cubrir el depósito, esto es lo que ocurre, en orden:
             </p>
             <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-700 pl-1">
-              <li><strong>Período de Gracia de 72 Horas:</strong> Los miembros reciben recordatorios automáticos para regularizar su depósito sin penalización.</li>
-              <li><strong>Fondo de Contingencia del Primer Ciclo (Welcome Match):</strong> En el Ciclo 1, el Welcome Match financiado por la plataforma cubre el depósito faltante para no interrumpir la rotación.</li>
-              <li><strong>Reemplazo del Miembro Moroso:</strong> Si un miembro no regulariza su saldo, su plaza se abre como sustitución urgente para otros miembros verificados.</li>
-              <li><strong>Cuenta de Depósitos de Custodia (Escrow) del Sistema:</strong> La plataforma respalda automáticamente cualquier diferencia para que el pago semanal nunca se retrase.</li>
+              <li><strong>Se registra como depósito fallido</strong> y se notifica al miembro. Tiene hasta el cobro del viernes para recargar; un depósito tardío reembolsa lo que se haya cubierto en lugar de inflar el fondo.</li>
+              <li><strong>El colchón de contingencia del grupo puede cubrirlo.</strong> Un primer grupo puede contar con un Welcome Match equivalente a un depósito, que cubre una semana fallida para que el cobro se realice igual.</li>
+              <li><strong>El escrow de MutualPool puede cubrirlo</strong> si el colchón está vacío. Cualquier monto cubierto en nombre de un miembro se convierte en dinero que ese miembro debe.</li>
+              <li><strong>Cobranza.</strong> Lo adeudado se deduce del saldo del miembro, de cualquier cobro futuro en cualquier grupo, o se debita de su cuenta bancaria vinculada conforme a su autorización de débito bancario. El dinero recuperado de esta forma reembolsa el escrow, restaura el colchón y cubre las semanas posteriores del grupo.</li>
+              <li><strong>Gracia o retiro.</strong> El creador puede conceder un período de gracia; MutualPool puede cubrir la diferencia o retirar al miembro. Un miembro retirado <em>después</em> de recibir su cobro sigue debiendo los depósitos restantes del ciclo.</li>
             </ol>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+              ⚠️ Un miembro que cobra y luego deja de depositar está en impago: su cuenta puede ser suspendida, su saldo retenido para cubrir el faltante y el monto reclamado. Un depósito fallido también lo devuelve al límite de tamaño de grupo de $1,000 hasta que se regularice.
+            </div>
+            <p className="text-[11px] text-slate-600">
+              Los colchones y el escrow existen para mantener los cobros a tiempo, pero son limitados y discrecionales. En última instancia, los miembros dependen unos de otros, y por eso existen la escalera de tamaño de grupo y las reglas de los primeros turnos.
+            </p>
           </div>
         )
       },
@@ -404,8 +512,8 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
                 Lainie gestiona todas las operaciones, el bloqueo de turnos y los cobros semanales automáticos con <strong>cero carga administrativa para los miembros</strong>.
               </p>
               <p className="text-purple-200/80 text-[10px]">
-                • El Creador pierde su Recompensa del 3%.<br />
-                • La totalidad de la Tarifa de Servicio del 10% se redirige a la <strong>Cuenta de Escrow del Sistema</strong> para respaldar futuros pagos.
+                • El Creador pierde su Recompensa de Anfitrión del 3%.<br />
+                • Ese 3% se redirige a la <strong>Cuenta de Depósitos de Custodia (Escrow) del Sistema</strong> para respaldar futuros cobros de los miembros.
               </p>
             </div>
           </div>
@@ -415,14 +523,17 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_system_escrow',
         category: 'AI_CUSTODIAN_ESCROW',
         question: '¿Qué es la Cuenta de Depósitos de Custodia (Escrow) del Sistema?',
-        tags: ['escrow sistema', 'liquidez', 'adelanto', 'reserva', 'garantia'],
+        tags: ['escrow sistema', 'liquidez', 'adelanto', 'reserva', 'faltante', 'cobertura'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              La <strong>Cuenta de Depósitos de Custodia del Sistema</strong> es una reserva central de liquidez gestionada por MutualPool.
+              La <strong>Cuenta de Depósitos de Custodia del Sistema</strong> es una reserva de liquidez gestionada por MutualPool.
             </p>
             <p>
-              Si un grupo tiene una vacante o un depósito no cobrado, el Escrow del Sistema adelanta el depósito semanal requerido (ej. <strong>$20.00</strong>) en nombre del grupo. Esto garantiza que los beneficiarios del turno reciban el 100% de su fondo programado sin esperar a que se incorporen nuevos miembros.
+              Cuando el colchón de contingencia propio de un grupo no puede cubrir un depósito fallido, el escrow puede cubrir el depósito de la semana (ej. <strong>$20.00</strong>) para que el cobro programado se realice igual. Todo lo que el escrow adelanta se convierte en dinero que el miembro ausente debe, y cualquier monto que luego se recupere de él reembolsa primero al escrow.
+            </p>
+            <p className="text-[11px] text-slate-600">
+              El escrow es limitado y se usa a discreción de MutualPool. Es un respaldo, no una garantía de que se cubrirá cada faltante causado por otro miembro.
             </p>
           </div>
         )
@@ -431,14 +542,22 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_hardship_relief',
         category: 'AI_CUSTODIAN_ESCROW',
         question: '¿Qué sucede si tengo dificultades personales o financieras durante un ciclo activo?',
-        tags: ['dificultad', 'emergencia', 'pausa', 'accidente', 'medico', 'alivio'],
+        tags: ['dificultad', 'emergencia', 'adelanto', 'accidente', 'medico', 'alivio', '90 dias', 'reembolso', '7%'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Entendemos que el trabajo independiente puede ser impredecible debido a averías mecánicas, accidentes o emergencias médicas.
+              El trabajo independiente es impredecible: hay averías, accidentes y emergencias médicas. Si una coincide con una semana de depósito, puedes enviar una <strong>Solicitud por Dificultad</strong> desde la pantalla de tu grupo.
             </p>
             <p>
-              Los miembros pueden enviar una <strong>Solicitud de Ayuda por Dificultad Financiera</strong> directamente desde la pantalla de su grupo. La plataforma puede otorgar un período de gracia extendido, activar la cobertura de contingencia o realizar una transición ordenada sin afectar tu reputación en la plataforma.
+              Una solicitud aprobada significa que <strong>MutualPool realiza ese depósito semanal en tu nombre</strong>, para que tu grupo siga en calendario y conserves tu buena reputación. Es un adelanto contra tus propios cobros futuros, no un préstamo.
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li>Eres elegible después de <strong>90 días</strong> como miembro de un grupo.</li>
+              <li>MutualPool revisa las solicitudes y puede rechazarlas. Aplican límites por grupo y por semana (un adelanto aprobado por grupo por ciclo, y como máximo dos pendientes por grupo).</li>
+              <li>El adelanto debe reembolsarse, más la <strong>tarifa de reembolso por dificultad del 7%</strong>, antes de que puedas unirte a otro grupo o crear uno.</li>
+            </ul>
+            <p className="text-[11px] text-slate-600">
+              Si un <em>creador</em> entra en una pausa por dificultad, la Custodia Autónoma de Lainie asume la gestión del grupo para que los demás miembros no se vean afectados.
             </p>
           </div>
         )
@@ -468,10 +587,10 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Conforme a las regulaciones bancarias federales (Ley de Secreto Bancario / Prevención de Lavado de Dinero) y las políticas de Stripe Treasury, la verificación de identidad es un requisito legal para abrir cuentas financieras.
+              Stripe, que procesa cada depósito, cobro, retiro y débito bancario en MutualPool, exige una identidad verificada antes de mover dinero por ti, conforme a las normas federales de prevención de lavado de dinero.
             </p>
             <p>
-              La verificación también protege a nuestra comunidad al garantizar que cada participante sea una persona real y autenticada, protegiendo a todos contra fraudes y cuentas duplicadas.
+              La verificación también protege al propio grupo: garantiza una sola cuenta por persona y que las personas a las que confías tus depósitos semanales sean reales y autenticadas, no cuentas duplicadas o desechables.
             </p>
           </div>
         )
@@ -480,18 +599,27 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_slot_swap',
         category: 'SECURITY_FDIC',
         question: '¿Pueden los miembros intercambiar turnos para cobrar antes? ¿Aplica también al Creador?',
-        tags: ['intercambio', 'cambio turno', 'adelantar cobro', 'creador swap', 'emergencia', 'orden rotacion', 'swap'],
+        tags: ['intercambio', 'repriorizar', 'votacion', 'cambio turno', 'adelantar cobro', 'creador swap', 'emergencia', 'orden rotacion', 'swap'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              <strong>¡Sí, confirmado!</strong> Los miembros de un grupo pueden intercambiar puestos de rotación para recibir un cobro anticipado (por ejemplo, si te toca cobrar semanas después pero necesitas adelantar tu pago para la próxima semana por una reparación urgente).
+              <strong>Sí.</strong> Hay dos formas de adelantarte cuando surge un gasto inesperado:
             </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li><strong>Intercambio de turno:</strong> envía una propuesta a otro miembro. Cuando ambos aceptan en la app, sus posiciones se intercambian y el calendario se actualiza para todo el grupo.</li>
+              <li><strong>Votación de repriorización:</strong> pide al grupo que te mueva al siguiente turno de cobro. Si más de la mitad de los miembros vota a favor, ocupas ese turno y el miembro desplazado pasa a tu antiguo turno.</li>
+            </ul>
             <p>
-              <strong>¿El Creador también puede intercambiar turnos?</strong> ¡Sí! El Creador puede intercambiar posiciones como cualquier otro participante. Sin embargo, el <strong>corte semanal del 3% sobre todos los cobros de compañeros se transferirá automáticamente a la persona con quien intercambie el turno</strong> una vez aprobado el cambio.
+              <strong>¿El Creador también puede intercambiar turnos?</strong> Sí, como cualquier otro miembro. Pero la <strong>Recompensa de Anfitrión del 3% va con el último turno</strong>: quien termine ocupándolo recibe el 3% de cada cobro posterior.
             </p>
-            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
-              🤝 <strong>Aprobación Mutua y Registro Seguro:</strong> Cuando la contraparte acepta la propuesta en su app, las posiciones se actualizan instantáneamente y la transacción queda sellada en el registro de auditoría.
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium space-y-1">
+              <div>⚖️ <strong>Límites:</strong></div>
+              <div>• Los miembros que ya recibieron su cobro no pueden intercambiar.</div>
+              <div>• En la primera mitad de la rotación, ningún intercambio ni votación puede colocar a un miembro más nuevo por delante de uno más consolidado, y en fondos superiores a $1,000 cada turno temprano debe permanecer con un miembro que haya completado un grupo o tenga 90+ días en MutualPool.</div>
             </div>
+            <p className="text-[11px] text-slate-600">
+              El resultado de cada intercambio y votación queda registrado en el historial de auditoría del grupo y es vinculante para todos los miembros.
+            </p>
           </div>
         )
       },
@@ -508,7 +636,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
               <li><strong>Ropa y Equipamiento Gratuito:</strong> Los repartidores aprobados reciben sudaderas impermeables premium, bolsas térmicas aisladas y camisetas oficiales.</li>
               <li><strong>Pagos Diarios por Campaña:</strong> Los embajadores reciben pagos garantizados de forma diaria (de <strong>$55.00 a $75.00/día</strong>) por cada turno completado y verificado en las campañas seleccionadas en las que participan.</li>
-              <li><strong>Abono Directo en Stripe Treasury:</strong> Los ingresos diarios se depositan directamente en tu cuenta Stripe Treasury tras la verificación del turno por IA Vision, listos para transferir a tu banco o usar en tus fondos.</li>
+              <li><strong>Abono en tu saldo de MutualPool:</strong> Los ingresos diarios se acreditan en tu saldo una vez que cada turno es verificado por IA Vision, listos para retirar o para cubrir tus depósitos semanales del grupo.</li>
             </ul>
           </div>
         )
@@ -524,7 +652,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
               Los repartidores simplemente se toman una selfie vistiendo su indumentaria de patrocinador al inicio de su ruta de entrega.
             </p>
             <p>
-              Nuestro motor de <strong>IA Visual multimodal</strong> verifica que el equipamiento se use correctamente, mientras el GPS registra el kilometraje de la ruta activa durante las horas de la campaña. Una vez verificado, los ingresos diarios se liberan instantáneamente a tu billetera Stripe Treasury.
+              Nuestro motor de <strong>IA Visual multimodal</strong> verifica que el equipamiento se use correctamente, mientras el GPS registra el kilometraje de la ruta activa durante las horas de la campaña. Una vez verificado, los ingresos diarios se acreditan en tu saldo de MutualPool.
             </p>
           </div>
         )
@@ -564,7 +692,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
               <strong>Non ! MutualPool n'est ni un prêteur ni une société de carte de crédit.</strong> Il n'y a <strong>aucun intérêt</strong>, aucune dette cumulée et aucune exigence de score de crédit.
             </p>
             <p>
-              Plutôt que d'emprunter auprès d'organismes de crédit à taux usuraires, vous mutualisez vos propres revenus avec des pairs vérifiés de votre communauté. Chaque dollar versé provient directement de vos revenus ou de votre solde Stripe Treasury.
+              Plutôt que d'emprunter auprès d'organismes de crédit à taux usuraires, vous mutualisez vos propres revenus avec des pairs vérifiés de votre communauté. Chaque dollar versé dans la rotation provient directement de vos revenus ou de votre solde MutualPool.
             </p>
           </div>
         )
@@ -592,10 +720,78 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
                   Groupe Ouvert (Public)
                 </strong>
                 <p className="text-slate-800">
-                  Ouvert à tout membre vérifié de MutualPool. Pour créer un Groupe Ouvert, le créateur doit avoir complété au moins 1 cycle complet avec 100 % de paiements ponctuels.
+                  Ouvert à tout membre vérifié de MutualPool. Pour créer un Groupe Ouvert, vous devez avoir complété au moins un groupe, ou être membre de MutualPool depuis 90 jours ou plus.
                 </p>
               </div>
             </div>
+            <p className="text-[11px] text-slate-600">
+              Dans les deux cas, vous devez avoir une identité vérifiée et une autorisation de prélèvement bancaire active avant de pouvoir créer ou rejoindre un groupe, et vous pouvez avoir au maximum 3 groupes créés par vous en formation ou actifs en même temps.
+            </p>
+          </div>
+        )
+      },
+      {
+        id: 'faq_pod_size_ladder',
+        category: 'BASICS',
+        question: 'Y a-t-il une limite à la taille du groupe que je peux rejoindre ?',
+        tags: ['plafond cagnotte', 'taille groupe', 'limite', '1000', '2500', '5000', 'historique', 'groupes completes', 'paliers'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Oui. La cagnotte maximale que vous pouvez rejoindre augmente avec votre historique sur MutualPool. La cagnotte correspond à la cotisation hebdomadaire multipliée par le nombre de membres.
+            </p>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
+              <div className="flex justify-between text-slate-700"><span>Aucun groupe complété pour l'instant</span><span className="font-bold">jusqu'à 1 000 $</span></div>
+              <div className="flex justify-between text-slate-700"><span>1 groupe complété</span><span className="font-bold">jusqu'à 2 500 $</span></div>
+              <div className="flex justify-between text-slate-700"><span>2 groupes complétés</span><span className="font-bold">jusqu'à 5 000 $</span></div>
+              <div className="flex justify-between text-emerald-800 font-bold"><span>3 groupes complétés ou plus</span><span>aucune limite</span></div>
+            </div>
+            <p className="text-[11px] text-slate-600">
+              Seuls les groupes terminés sans aucune cotisation manquée comptent. Une cotisation manquée non régularisée vous ramène au premier palier jusqu'à son règlement.
+            </p>
+            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
+              💡 <strong>Pourquoi :</strong> cela protège chaque groupe contre une personne qui encaisse un versement anticipé puis cesse de cotiser. Les membres gagnent l'accès à des cagnottes plus importantes en terminant d'abord les plus petites.
+            </div>
+          </div>
+        )
+      },
+      {
+        id: 'faq_early_slots_trust',
+        category: 'BASICS',
+        question: 'Comment l\'ordre des versements est-il décidé ? Qui obtient les premiers créneaux ?',
+        tags: ['ordre rotation', 'premiers creneaux', 'confiance', 'anciennete', '90 jours', 'experimente', 'verrouillage', 'aleatoire', 'premiere moitie'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Lorsque le créateur verrouille le groupe, la première moitié de la rotation est attribuée aux membres ayant le meilleur historique. Au sein de chaque palier, l'ordre est aléatoire, et le créateur occupe toujours le dernier créneau.
+            </p>
+            <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li><strong>Les membres ayant complété un groupe</strong> passent en premier.</li>
+              <li><strong>Les membres présents depuis 90 jours ou plus sur MutualPool</strong> viennent ensuite.</li>
+              <li><strong>Les membres plus récents</strong> occupent les créneaux restants.</li>
+            </ol>
+            <p>
+              Pour les cagnottes supérieures à <strong>1 000 $</strong>, chaque créneau anticipé doit être occupé par un membre des deux premiers paliers. S'il n'y en a pas assez, le groupe ne peut pas être verrouillé tant que des membres plus expérimentés ne l'ont pas rejoint ou que la cagnotte n'a pas été réduite. Les cagnottes de 1 000 $ ou moins se verrouillent toujours.
+            </p>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+              ⚖️ Les échanges et les votes de repriorisation ne peuvent pas placer un membre plus récent devant un membre plus établi dans la première moitié de la rotation.
+            </div>
+          </div>
+        )
+      },
+      {
+        id: 'faq_pod_commitment',
+        category: 'BASICS',
+        question: 'Puis-je quitter un groupe avant la fin ? À quoi est-ce que je m\'engage en rejoignant ?',
+        tags: ['quitter groupe', 'abandon', 'engagement', 'cycle complet', 'apres versement', 'cotisations restantes', 'obligation'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Lorsque vous créez ou rejoignez un groupe, vous vous engagez à verser la cotisation hebdomadaire pendant le <strong>cycle complet</strong>, une semaine par membre, <strong>y compris les semaines qui suivent la réception de votre propre versement</strong>. C'est ce qui rend possible le versement de tous les autres.
+            </p>
+            <p>
+              Vous ne pouvez quitter un groupe qu'une fois que chaque membre a reçu son versement. Si vous partez ou êtes retiré après avoir encaissé votre versement, les cotisations que vous devez encore restent dues, et MutualPool peut les recouvrer sur votre solde, sur vos versements futurs ou sur votre compte bancaire lié dans le cadre de votre autorisation de prélèvement bancaire.
+            </p>
           </div>
         )
       },
@@ -653,7 +849,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
               </div>
             </div>
             <p className="text-[11px] text-slate-600">
-              Sur 19 versements de coéquipiers, le Créateur accumule <strong>228,00 $ de primes</strong> versées directement sur son compte Stripe Treasury !
+              Sur 19 versements de coéquipiers, le Créateur accumule <strong>228,00 $ de primes</strong> créditées directement sur son solde MutualPool !
             </p>
           </div>
         )
@@ -705,17 +901,43 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_deposits_collection',
         category: 'DEPOSITS_PAYOUTS',
         question: 'Comment les cotisations hebdomadaires sont-elles prélevées ?',
-        tags: ['depot', 'paiement', 'prelevement automatique', 'stripe treasury', 'automatique', 'banque'],
+        tags: ['depot', 'paiement', 'jeudi', 'prelevement', 'solde', 'automatique', 'banque', 'recharge'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Les dépôts sont prélevés automatiquement chaque semaine à la date d'échéance programmée. Vous pouvez approvisionner vos cotisations via :
+              Chaque <strong>jeudi à 00 h 00 (heure de l'Est)</strong>, MutualPool prélève la cotisation de la semaine, plus les frais de dépôt de 5 %, <strong>sur votre solde MutualPool</strong> pour chaque groupe actif dont vous faites partie. Gardez un solde suffisant pour la couvrir.
             </p>
+            <p>Vous pouvez approvisionner votre solde de trois façons :</p>
             <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
-              <li><strong>Solde du Compte Stripe Treasury :</strong> Fonds disponibles dans votre portefeuille MutualPool vérifié.</li>
-              <li><strong>Compte Bancaire Lié (Prélèvement Automatique ACH) :</strong> Sécurisé par Plaid / Stripe Financial Connections.</li>
-              <li><strong>Revenus Quotidiens de Campagnes de Marque :</strong> Les gains quotidiens issus de vos tournées sponsorisées peuvent compenser automatiquement vos cotisations de groupe.</li>
+              <li><strong>Recharge par carte via Stripe :</strong> aucun frais MutualPool sur les recharges.</li>
+              <li><strong>Virement bancaire depuis votre compte lié :</strong> connecté via Stripe.</li>
+              <li><strong>Versements et gains de campagnes de marque :</strong> crédités sur le même solde, ils peuvent donc couvrir vos futures cotisations.</li>
             </ol>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+              ⚠️ Si votre solde ne peut pas couvrir une cotisation, elle est enregistrée comme cotisation manquée. Vous avez jusqu'au versement du vendredi pour recharger, et MutualPool peut prélever votre compte bancaire lié dans le cadre de votre autorisation de prélèvement bancaire.
+            </div>
+          </div>
+        )
+      },
+      {
+        id: 'faq_bank_debit_mandate',
+        category: 'DEPOSITS_PAYOUTS',
+        question: 'Pourquoi dois-je autoriser les prélèvements bancaires avant de pouvoir créer ou rejoindre un groupe ?',
+        tags: ['prelevement bancaire', 'ach', 'mandat', 'autorisation', 'financial connections', 'banque liee', 'revoquer'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              Avant de créer ou rejoindre un groupe, vous liez un compte bancaire via Stripe et autorisez MutualPool à le prélever. Les cotisations sont normalement prises sur votre solde ; l'autorisation est le filet de sécurité qui permet au groupe de continuer si un solde est à sec.
+            </p>
+            <p>Dans le cadre de cette autorisation, nous ne pouvons prélever votre compte bancaire que pour :</p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li>une cotisation hebdomadaire que votre solde n'a pas pu couvrir ;</li>
+              <li>tout montant avancé par MutualPool en votre nom, comme une avance pour coup dur ;</li>
+              <li>les cotisations restantes auxquelles vous vous êtes engagé si vous quittez ou êtes retiré d'un groupe après avoir reçu son versement.</li>
+            </ul>
+            <p className="text-[11px] text-slate-600">
+              Nous vous prévenons dans l'application avant chaque prélèvement. Vous pouvez révoquer l'autorisation en contactant le support, mais cela n'annule pas ce que vous devez, et vous ne pouvez ni créer ni rejoindre de groupes sans elle.
+            </p>
           </div>
         )
       },
@@ -723,24 +945,30 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_payout_fee_explained',
         category: 'DEPOSITS_PAYOUTS',
         question: 'Quels sont les frais de plateforme et à quoi servent-ils ?',
-        tags: ['frais', '5%', '10%', 'frais service', 'cout', 'tresorerie', 'commissions'],
+        tags: ['frais', '5%', '10%', '7%', 'frais service', 'cout', 'commissions', 'frais retrait', 'recharge'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              MutualPool applique des frais de service simples et transparents, sans aucun intérêt composé :
+              MutualPool applique trois frais, et rien d'autre. Il n'y a aucun intérêt, aucun frais de retrait et aucun frais sur les recharges par carte.
             </p>
             <ul className="space-y-2 text-[11px]">
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Frais de Dépôt Initial (5 %) :</strong> Appliqués uniquement lors de votre premier versement lors de la création ou de l'adhésion à un groupe pour initialiser votre solde de trésorerie.
+                <strong>Frais de Dépôt (5 %) :</strong> appliqués sur <strong>chaque cotisation hebdomadaire</strong> au moment du prélèvement. Pour une cotisation de 20 $, 21 $ sont débités de votre solde.
               </li>
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Frais de Service de Versement (10 %) :</strong> Déduits lors du versement de la cagnotte au bénéficiaire du tour (ex. 40 $ sur une cagnotte de 400 $ $\rightarrow$ 360 $ net versés).
+                <strong>Frais de Versement (10 %) :</strong> déduits de chaque versement de la rotation avant qu'il ne soit crédité (ex. 40 $ sur une cagnotte de 400 $, le bénéficiaire reçoit donc 360 $).
                 <div className="mt-1 text-[10px] text-slate-600">
-                  • <strong>3 %</strong> sont versés au Créateur du Groupe sous forme de Prime de Gouvernance Hôte.<br />
-                  • <strong>7 %</strong> financent les opérations de trésorerie et le Fonds de Réserve du Premier Cycle.
+                  • <strong>3 %</strong> de la cagnotte vont au membre qui occupe le dernier créneau (normalement le créateur) au titre de la Prime Hôte.<br />
+                  • <strong>7 %</strong> vont à MutualPool.
                 </div>
               </li>
+              <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                <strong>Frais de Remboursement pour Coup Dur (7 %) :</strong> ajoutés à une avance pour coup dur lorsque vous la remboursez. Vous ne les payez que si vous avez utilisé une avance pour coup dur.
+              </li>
             </ul>
+            <p className="text-[11px] text-slate-600">
+              Les modifications de frais sont annoncées dans l'application au moins 30 jours à l'avance et ne s'appliquent qu'aux groupes qui démarrent après la période de préavis.
+            </p>
           </div>
         )
       },
@@ -748,20 +976,21 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_payout_execution',
         category: 'DEPOSITS_PAYOUTS',
         question: 'Comment et quand vais-je recevoir mon versement forfaitaire ?',
-        tags: ['versement', 'retrait', 'virement', 'tour', 'calendrier', 'paiement'],
+        tags: ['versement', 'retrait', 'virement', 'tour', 'calendrier', 'vendredi', 'banque', '1-3 jours ouvres'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Dès que votre semaine de rotation programmée arrive, la somme forfaitaire nette (ex. <strong>360,00 $</strong>) est transférée instantanément sur votre <strong>Compte Financier Stripe Treasury</strong>.
+              Chaque semaine de règlement suit un calendrier fixe : les cotisations sont prélevées le <strong>jeudi à 00 h 00 (heure de l'Est)</strong>, et le versement de la semaine est crédité le <strong>vendredi à 00 h 00 (heure de l'Est)</strong>. Quand c'est votre tour, le montant net (ex. <strong>360,00 $</strong> sur une cagnotte de 400 $) arrive sur votre <strong>solde MutualPool</strong>.
             </p>
-            <p>
-              Une fois sur votre compte Treasury :
-            </p>
+            <p>Depuis votre solde, vous pouvez :</p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
-              <li>Vous pouvez transférer les fonds immédiatement vers votre compte bancaire externe via Stripe OutboundTransfer.</li>
-              <li>Vous pouvez conserver le solde dans Treasury pour couvrir automatiquement vos futurs versements ou générer des intérêts.</li>
-              <li><strong>Les rotations des semaines suivantes ne sont jamais interrompues ni bloquées par des délais de virement bancaire externe.</strong></li>
+              <li>Le retirer vers le compte bancaire que vous avez vérifié avec Stripe. Il n'y a aucun frais de retrait ; votre banque crédite généralement les fonds sous 1 à 3 jours ouvrés.</li>
+              <li>Le laisser sur votre solde pour couvrir vos cotisations hebdomadaires restantes. Les soldes ne produisent pas d'intérêts.</li>
+              <li><strong>Les semaines de rotation suivantes n'attendent jamais un retrait bancaire en cours.</strong></li>
             </ul>
+            <p className="text-[11px] text-slate-600">
+              Les fonds récemment déposés peuvent être retenus tant qu'un paiement par carte reste contestable, et les fonds faisant l'objet d'une rétrofacturation, d'un remboursement ou d'un contrôle antifraude peuvent être retenus ou annulés.
+            </p>
           </div>
         )
       },
@@ -769,18 +998,25 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_missed_deposit_default',
         category: 'AI_CUSTODIAN_ESCROW',
         question: 'Que se passe-t-il si un membre manque un dépôt hebdomadaire ou est en défaut de paiement ?',
-        tags: ['impaye', 'defaut', 'tampon continuite', 'welcome match', 'periode grace', 'remplacement'],
+        tags: ['impaye', 'defaut', 'tampon continuite', 'welcome match', 'periode grace', 'retrait du groupe', 'recouvrement', 'dette'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              MutualPool dispose d'un filet de sécurité multi-niveaux garantissant que les bénéficiaires <strong>reçoivent toujours 100 % de leur versement à temps</strong> :
+              Si le prélèvement du jeudi trouve un solde qui ne peut pas couvrir la cotisation, voici ce qui se passe, dans l'ordre :
             </p>
             <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-700 pl-1">
-              <li><strong>Période de Grâce de 72 Heures :</strong> Les membres reçoivent des rappels automatisés pour régulariser leur dépôt sans pénalité.</li>
-              <li><strong>Tampon de Continuité Premier Cycle (Welcome Match) :</strong> Au Cycle 1, le Welcome Match financé par la plateforme couvre le dépôt manquant pour ne pas interrompre la rotation.</li>
-              <li><strong>Remplacement du Membre Défaillant :</strong> Si un membre ne régularise pas sa situation, sa place est ouverte en remplacement urgent pour d'autres membres vérifiés.</li>
-              <li><strong>Compte d'Entiercement Système (Escrow) :</strong> La plateforme compense automatiquement tout écart afin que le versement hebdomadaire ne subisse aucun retard.</li>
+              <li><strong>Elle est enregistrée comme cotisation manquée</strong> et le membre est notifié. Il a jusqu'au versement du vendredi pour recharger ; une cotisation tardive rembourse ce qui a été avancé au lieu de gonfler la cagnotte.</li>
+              <li><strong>Le tampon de continuité du groupe peut la couvrir.</strong> Un premier groupe peut disposer d'un Welcome Match égal à une cotisation, qui couvre une semaine manquée afin que le versement ait quand même lieu.</li>
+              <li><strong>L'entiercement de MutualPool peut la couvrir</strong> si le tampon est vide. Tout montant avancé au nom d'un membre devient une somme que ce membre doit.</li>
+              <li><strong>Recouvrement.</strong> La somme due est déduite du solde du membre, de tout versement futur dans n'importe quel groupe, ou prélevée sur son compte bancaire lié dans le cadre de son autorisation de prélèvement bancaire. L'argent ainsi récupéré rembourse l'entiercement, reconstitue le tampon et couvre les semaines suivantes du groupe.</li>
+              <li><strong>Grâce ou retrait.</strong> Le créateur peut accorder un délai de grâce ; MutualPool peut combler l'écart ou retirer le membre. Un membre retiré <em>après</em> avoir reçu son versement doit toujours les cotisations restantes du cycle.</li>
             </ol>
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+              ⚠️ Un membre qui encaisse un versement puis cesse de cotiser est en défaut : son compte peut être suspendu, son solde conservé pour couvrir le manque et la somme recouvrée. Une cotisation manquée le ramène également à la limite de taille de groupe de 1 000 $ jusqu'à régularisation.
+            </div>
+            <p className="text-[11px] text-slate-600">
+              Les tampons et l'entiercement servent à maintenir les versements à l'heure, mais ils sont limités et discrétionnaires. En définitive, les membres comptent les uns sur les autres, et c'est pourquoi les paliers de taille de groupe et les règles des premiers créneaux existent.
+            </p>
           </div>
         )
       },
@@ -803,8 +1039,8 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
                 Lainie prend en charge la gestion complète du groupe, le verrouillage de la rotation et l'exécution automatisée des versements avec <strong>zéro charge administrative pour les membres</strong>.
               </p>
               <p className="text-purple-200/80 text-[10px]">
-                • Le Créateur perd sa Prime de 3 %.<br />
-                • L'intégralité des 10 % de Frais de Service est réaffectée au <strong>Compte d'Entiercement Système</strong> pour garantir les versements futurs.
+                • Le Créateur perd sa Prime Hôte de 3 %.<br />
+                • Ces 3 % sont réaffectés au <strong>Compte d'Entiercement Système</strong> pour sécuriser les versements futurs des membres.
               </p>
             </div>
           </div>
@@ -814,14 +1050,17 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_system_escrow',
         category: 'AI_CUSTODIAN_ESCROW',
         question: 'Qu\'est-ce que le Compte d\'Entiercement Système (Escrow) ?',
-        tags: ['entiercement systeme', 'liquidite', 'avance', 'reserve', 'garantie'],
+        tags: ['entiercement systeme', 'liquidite', 'avance', 'reserve', 'manque', 'relais'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Le <strong>Compte d'Entiercement Système</strong> est une réserve centrale de liquidité gérée par MutualPool.
+              Le <strong>Compte d'Entiercement Système</strong> est une réserve de liquidité gérée par MutualPool.
             </p>
             <p>
-              Si un groupe comporte une place vacante ou une cotisation non perçue, l'Entiercement Système avance le dépôt hebdomadaire requis (ex. <strong>20,00 $</strong>) au nom du groupe. Cela garantit que les membres perçoivent 100 % de leur cagnotte programmée sans devoir attendre l'arrivée d'un remplaçant.
+              Lorsque le tampon de continuité propre à un groupe ne peut pas couvrir une cotisation manquée, l'entiercement peut avancer la cotisation de la semaine (ex. <strong>20,00 $</strong>) afin que le versement programmé parte quand même. Tout ce que l'entiercement avance devient une somme due par le membre défaillant, et tout ce qui est ensuite récupéré auprès de lui rembourse d'abord l'entiercement.
+            </p>
+            <p className="text-[11px] text-slate-600">
+              L'entiercement est limité et utilisé à la discrétion de MutualPool. C'est un filet de sécurité, pas une garantie que chaque manque causé par un autre membre sera couvert.
             </p>
           </div>
         )
@@ -830,14 +1069,22 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_hardship_relief',
         category: 'AI_CUSTODIAN_ESCROW',
         question: 'Que se passe-t-il si je rencontre une difficulté personnelle ou financière durant un cycle actif ?',
-        tags: ['difficulte', 'urgence', 'pause', 'accident', 'medical', 'aide'],
+        tags: ['difficulte', 'urgence', 'avance', 'accident', 'medical', 'aide', '90 jours', 'rembourser', '7%'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Nous savons que le travail indépendant comporte des imprévus tels que des pannes de véhicule, des accidents ou des urgences médicales.
+              Le travail indépendant est imprévisible : pannes, accidents et urgences médicales arrivent. Si l'un d'eux tombe sur une semaine de cotisation, vous pouvez soumettre une <strong>Demande d'Aide pour Coup Dur</strong> depuis l'écran de votre groupe.
             </p>
             <p>
-              Les membres peuvent soumettre une <strong>Demande d'Aide pour Coup Dur</strong> directement depuis l'écran de leur groupe. La plateforme peut accorder un délai de grâce prolongé, activer le fonds de solidarité ou réorganiser le groupe en toute sérénité sans pénaliser votre profil.
+              Une demande approuvée signifie que <strong>MutualPool effectue cette cotisation hebdomadaire en votre nom</strong>, afin que votre groupe reste dans les temps et que vous conserviez votre bonne réputation. C'est une avance sur vos propres versements futurs, pas un prêt.
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li>Vous devenez éligible après <strong>90 jours</strong> d'appartenance à un groupe.</li>
+              <li>Les demandes sont examinées par MutualPool et peuvent être refusées. Des limites s'appliquent par groupe et par semaine (une avance approuvée par groupe et par cycle, au maximum deux en cours par groupe).</li>
+              <li>L'avance doit être remboursée, plus les <strong>frais de remboursement pour coup dur de 7 %</strong>, avant de pouvoir rejoindre ou créer un autre groupe.</li>
+            </ul>
+            <p className="text-[11px] text-slate-600">
+              Si un <em>créateur</em> entre en suspension pour coup dur, la Gardienne Autonome Lainie reprend la gestion du groupe afin que les autres membres ne soient pas affectés.
             </p>
           </div>
         )
@@ -867,10 +1114,10 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Conformément aux réglementations bancaires fédérales (loi sur le secret bancaire / lutte contre le blanchiment d'argent) et aux exigences de Stripe Treasury, la vérification d'identité est obligatoire pour ouvrir des comptes financiers.
+              Stripe, qui traite chaque cotisation, versement, retrait et prélèvement bancaire sur MutualPool, exige une identité vérifiée avant de déplacer de l'argent pour vous, conformément aux règles fédérales de lutte contre le blanchiment.
             </p>
             <p>
-              Cette vérification protège également l'ensemble de notre communauté en s'assurant que chaque participant est une personne authentique et certifiée, évitant ainsi les fraudes et faux profils.
+              La vérification protège aussi le groupe lui-même : elle impose un seul compte par personne et garantit que les membres à qui vous confiez vos cotisations hebdomadaires sont des personnes réelles et authentifiées, pas des comptes en double ou jetables.
             </p>
           </div>
         )
@@ -879,18 +1126,27 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         id: 'faq_slot_swap',
         category: 'SECURITY_FDIC',
         question: 'Les membres peuvent-ils échanger leur place dans la rotation pour un versement anticipé ? Est-ce aussi valable pour le Créateur ?',
-        tags: ['echange', 'creneau', 'versement anticipe', 'createur swap', 'urgence', 'ordre rotation', 'swap'],
+        tags: ['echange', 'repriorisation', 'vote', 'creneau', 'versement anticipe', 'createur swap', 'urgence', 'ordre rotation', 'swap'],
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              <strong>Oui, tout à fait !</strong> Les membres d'un groupe peuvent échanger leurs places dans le calendrier de rotation pour recevoir une cagnotte anticipée (par exemple pour parer à une dépense imprévue ou une réparation de véhicule).
+              <strong>Oui.</strong> Il existe deux façons d'avancer dans la rotation lorsqu'une dépense imprévue survient :
             </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li><strong>Échange de place :</strong> envoyez une proposition à un autre membre. Dès que vous avez tous les deux accepté dans l'application, vos positions sont échangées et le calendrier est mis à jour pour tout le groupe.</li>
+              <li><strong>Vote de repriorisation :</strong> demandez au groupe de vous placer sur le prochain créneau de versement. Si plus de la moitié des membres votent oui, vous prenez ce créneau et le membre déplacé reprend votre ancienne place.</li>
+            </ul>
             <p>
-              <strong>Le Créateur peut-il aussi échanger sa place ?</strong> Oui ! Le Créateur peut échanger sa place selon ses besoins comme tout autre membre. Toutefois, la <strong>prime hebdomadaire de 3 % sur tous les versements des coéquipiers sera transférée au membre avec lequel le Créateur a échangé sa place</strong> dès l'activation de l'échange.
+              <strong>Le Créateur peut-il aussi échanger sa place ?</strong> Oui, comme tout autre membre. Mais la <strong>Prime Hôte de 3 % suit le dernier créneau</strong> : celui qui finit par l'occuper reçoit les 3 % sur chaque versement ultérieur.
             </p>
-            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
-              🤝 <strong>Validation Mutuelle & Audit Inaltérable :</strong> Dès validation par les deux parties, les rangs s'inversent immédiatement et l'opération est inscrite dans le journal d'audit de sécurité.
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium space-y-1">
+              <div>⚖️ <strong>Limites :</strong></div>
+              <div>• Les membres ayant déjà reçu leur versement ne peuvent pas échanger.</div>
+              <div>• Dans la première moitié de la rotation, aucun échange ni vote ne peut placer un membre plus récent devant un membre plus établi, et pour les cagnottes supérieures à 1 000 $, chaque créneau anticipé doit rester attribué à un membre ayant complété un groupe ou présent depuis 90 jours ou plus sur MutualPool.</div>
             </div>
+            <p className="text-[11px] text-slate-600">
+              Le résultat de chaque échange et de chaque vote est consigné dans le journal d'audit du groupe et engage tous les membres.
+            </p>
           </div>
         )
       },
@@ -907,7 +1163,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
               <li><strong>Équipement Sponsor Gratuit :</strong> Les coursiers sélectionnés reçoivent des sweats imperméables haut de gamme, des sacs de livraison isothermes et des t-shirts officiels.</li>
               <li><strong>Rémunération Quotidienne par Campagne :</strong> Les ambassadeurs sont rémunérés sur une base quotidienne (de <strong>55,00 $ à 75,00 $/jour</strong>) pour chaque tournée validée dans les campagnes sélectionnées auxquelles ils participent.</li>
-              <li><strong>Versement Direct sur Stripe Treasury :</strong> Vos gains quotidiens sont instantanément crédités sur votre compte Stripe Treasury dès la validation de votre tournée par IA Vision, prêts pour un virement bancaire ou pour alimenter vos cotisations d'épargne.</li>
+              <li><strong>Crédité sur votre solde MutualPool :</strong> Vos gains quotidiens sont crédités sur votre solde dès la validation de chaque tournée par IA Vision, prêts à être retirés ou à couvrir vos cotisations hebdomadaires de groupe.</li>
             </ul>
           </div>
         )
@@ -923,7 +1179,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
               Les coursiers prennent simplement un selfie avec leur équipement de sponsor au début de leur tournée de livraison.
             </p>
             <p>
-              Notre moteur de <strong>Vision IA multimodal</strong> vérifie le port de l'équipement, tandis que le GPS enregistre le kilométrage actif pendant les heures de campagne. Une fois validé, votre rémunération quotidienne est créditée immédiatement sur votre compte Stripe Treasury.
+              Notre moteur de <strong>Vision IA multimodal</strong> vérifie le port de l'équipement, tandis que le GPS enregistre le kilométrage actif pendant les heures de campagne. Une fois validé, votre rémunération quotidienne est créditée sur votre solde MutualPool.
             </p>
           </div>
         )
@@ -1385,10 +1641,10 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            Under federal banking regulations (Bank Secrecy Act / Anti-Money Laundering) and Stripe Treasury policies, identity verification is legally required to establish financial holding accounts.
+            Stripe, which processes every deposit, payout, withdrawal and bank debit on MutualPool, requires verified identity before it will move money for you, in line with federal anti-money-laundering rules.
           </p>
           <p>
-            Verification also safeguards our gig community by ensuring every pool participant is a real, authenticated individual—protecting everyone against fraud and duplicate accounts.
+            Verification also protects the pod itself: it enforces one account per person, and it means the people you are trusting with weekly deposits are real, authenticated individuals, not duplicate or throwaway accounts.
           </p>
         </div>
       )
