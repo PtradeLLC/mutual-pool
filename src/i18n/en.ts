@@ -73,7 +73,7 @@ export const en = {
   "calculator.netPayoutTitle": "Net Single Rotation Payout (After 10% Fee)",
   "calculator.usdNet": "USD Net",
   "calculator.baseWeeklyLabel": "Base Weekly Contribution:",
-  "calculator.depositFeeLabel": "Initial Deposit Fee (5%):",
+  "calculator.depositFeeLabel": "Deposit Fee (5% per deposit):",
   "calculator.grossPoolLabel": "Gross Collective Pool ({members} Members):",
   "calculator.payoutFeeLabel": "Payout Service Fee (10%):",
   "calculator.payoutFeeSplitActive":
@@ -2029,7 +2029,7 @@ export const en = {
   "treasuryModal.useTestCardBtn":
     "⚡ Use Official Stripe Test Card (4242 4242 4242 4242)",
   "treasuryModal.baseDepositLabel": "Base Treasury Deposit:",
-  "treasuryModal.feeLabel": "Initial Deposit Fee (5% Platform Fee):",
+  "treasuryModal.feeLabel": "Deposit Fee (5% per weekly deposit):",
   "treasuryModal.totalPaymentLabel": "Total Payment Processed:",
   "treasuryModal.feeBreakdownNote":
     "✓ Net ${amount}.00 is credited directly to your Stripe Treasury Balance (5% platform fee is processed separately).",

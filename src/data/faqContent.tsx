@@ -963,7 +963,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             <strong>No! MutualPool is neither a lender nor a credit card company.</strong> There is <strong>zero interest</strong>, no compounding debt, and no minimum credit score requirement.
           </p>
           <p>
-            Instead of borrowing from a predatory payday lender, you are pooling your own hard-earned income with verified community peers. Every dollar paid into the rotation comes directly from your earnings or Stripe Treasury balance.
+            Instead of borrowing from a predatory payday lender, you are pooling your own hard-earned income with verified community peers. Every dollar paid into the rotation comes directly from your earnings or your MutualPool balance.
           </p>
         </div>
       )
@@ -991,10 +991,78 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
                 Open Pod (Public)
               </strong>
               <p className="text-slate-800">
-                Open to any verified MutualPool member. To create an Open Pod, creators must have completed at least 1 full cycle with 100% on-time deposit history.
+                Open to any verified MutualPool member. To create an Open Pod you must have completed at least one pod, or have been on MutualPool for 90 days or more.
               </p>
             </div>
           </div>
+          <p className="text-[11px] text-slate-600">
+            Either way, you need verified identity and an active bank debit authorization before you can create or join a pod, and you can have at most 3 pods you created forming or active at once.
+          </p>
+        </div>
+      )
+    },
+    {
+      id: 'faq_pod_size_ladder',
+      category: 'BASICS',
+      question: 'Is there a limit on the size of pod I can join?',
+      tags: ['pot cap', 'pod size', 'limit', '$1,000', '$2,500', '$5,000', 'track record', 'completed pods', 'ladder'],
+      answer: (
+        <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+          <p>
+            Yes. The largest pot you can join grows with your track record on MutualPool. A pot is the weekly deposit multiplied by the number of members.
+          </p>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
+            <div className="flex justify-between text-slate-700"><span>No completed pods yet</span><span className="font-bold">up to $1,000</span></div>
+            <div className="flex justify-between text-slate-700"><span>1 completed pod</span><span className="font-bold">up to $2,500</span></div>
+            <div className="flex justify-between text-slate-700"><span>2 completed pods</span><span className="font-bold">up to $5,000</span></div>
+            <div className="flex justify-between text-emerald-800 font-bold"><span>3 or more completed pods</span><span>no limit</span></div>
+          </div>
+          <p className="text-[11px] text-slate-600">
+            Only pods you finished without missing a deposit count. An unresolved missed deposit puts you back on the first tier until it is settled.
+          </p>
+          <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
+            💡 <strong>Why:</strong> this protects every pod from someone who takes an early payout and then stops depositing. Members earn access to bigger pots by finishing smaller ones first.
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'faq_early_slots_trust',
+      category: 'BASICS',
+      question: 'How is the payout order decided? Who gets the early slots?',
+      tags: ['rotation order', 'early slots', 'trust', 'tenure', '90 days', 'seasoned', 'lock', 'random', 'first half'],
+      answer: (
+        <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+          <p>
+            When the creator locks the pod, the first half of the rotation goes to the members with the strongest track record. Within each group the order is random, and the creator always takes the final slot.
+          </p>
+          <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+            <li><strong>Members who have completed a pod</strong> come first.</li>
+            <li><strong>Members with 90+ days on MutualPool</strong> come next.</li>
+            <li><strong>Newer members</strong> fill the remaining slots.</li>
+          </ol>
+          <p>
+            For pots over <strong>$1,000</strong>, every early slot must be held by a member from the first two groups. If there are not enough of them, the pod cannot lock until more experienced members join or the pot is reduced. Pots of $1,000 or less always lock.
+          </p>
+          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+            ⚖️ Swaps and reprioritization votes cannot move a newer member ahead of a more established one in the early half of the rotation.
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'faq_pod_commitment',
+      category: 'BASICS',
+      question: 'Can I leave a pod early? What am I committing to when I join?',
+      tags: ['leave pod', 'quit', 'commitment', 'full cycle', 'after payout', 'remaining deposits', 'obligation'],
+      answer: (
+        <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+          <p>
+            When you create or join a pod you commit to the weekly deposit for the <strong>full cycle</strong>, one week per member, <strong>including the weeks after you have received your own payout</strong>. That is what makes everyone else's payout possible.
+          </p>
+          <p>
+            You can leave a pod only once every member has received a payout. If you leave or are removed after taking your payout, the deposits you still owe remain due, and MutualPool may collect them from your balance, from future payouts, or from your linked bank account under your bank debit authorization.
+          </p>
         </div>
       )
     },
@@ -1052,7 +1120,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             </div>
           </div>
           <p className="text-[11px] text-slate-600">
-            Over 19 teammate payouts, the Creator earns <strong>$228.00 in cumulative host rewards</strong> credited directly to their Stripe Treasury balance!
+            Over 19 teammate payouts, the Creator earns <strong>$228.00 in cumulative host rewards</strong> credited directly to their MutualPool balance!
           </p>
         </div>
       )
@@ -1104,17 +1172,43 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       id: 'faq_deposits_collection',
       category: 'DEPOSITS_PAYOUTS',
       question: 'How are weekly deposits collected?',
-      tags: ['deposit', 'payment', 'direct debit', 'stripe treasury', 'automatic', 'bank'],
+      tags: ['deposit', 'payment', 'thursday', 'sweep', 'balance', 'automatic', 'bank', 'top up'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            Deposits are collected automatically each week on the scheduled cycle cutoff date. You can fund your deposits using:
+            Every <strong>Thursday at 12:00 AM Eastern</strong>, MutualPool takes that week's deposit, plus the 5% deposit fee, <strong>from your MutualPool balance</strong> for each active pod you are in. Keep enough balance to cover it.
           </p>
+          <p>You can fund your balance in three ways:</p>
           <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
-            <li><strong>Stripe Treasury Account Balance:</strong> Funds available in your verified MutualPool Treasury wallet.</li>
-            <li><strong>Linked Bank Account (ACH Direct Debit):</strong> Backed by Plaid / Stripe Financial Connections.</li>
-            <li><strong>Brand Campaign Daily Courier Earnings:</strong> Daily wages earned from verified brand delivery shifts can automatically offset weekly pod contributions.</li>
+            <li><strong>Card top-up through Stripe:</strong> no MutualPool fee on top-ups.</li>
+            <li><strong>Bank transfer from your linked account:</strong> connected through Stripe.</li>
+            <li><strong>Payouts and brand campaign earnings:</strong> credited to the same balance, so they can cover future deposits.</li>
           </ol>
+          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+            ⚠️ If your balance cannot cover a deposit, it is recorded as a missed deposit. You have until the Friday payout to top up, and MutualPool may debit your linked bank account under your bank debit authorization.
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'faq_bank_debit_mandate',
+      category: 'DEPOSITS_PAYOUTS',
+      question: 'Why do I have to authorize bank debits before I can create or join a pod?',
+      tags: ['bank debit', 'ach', 'mandate', 'authorization', 'financial connections', 'linked bank', 'revoke'],
+      answer: (
+        <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+          <p>
+            Before you create or join a pod you link a bank account through Stripe and authorize MutualPool to debit it. Deposits are normally taken from your balance; the authorization is the backstop that lets the pod keep going if a balance runs dry.
+          </p>
+          <p>Under the authorization we may debit your bank account only for:</p>
+          <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+            <li>a weekly deposit your balance could not cover;</li>
+            <li>anything MutualPool advanced on your behalf, such as a hardship advance;</li>
+            <li>the remaining deposits you committed to if you leave or are removed from a pod after receiving its payout.</li>
+          </ul>
+          <p className="text-[11px] text-slate-600">
+            We tell you in the app before each debit. You can revoke the authorization by contacting support, but that does not cancel what you owe, and you cannot create or join pods without it.
+          </p>
         </div>
       )
     },
@@ -1122,24 +1216,30 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       id: 'faq_payout_fee_explained',
       category: 'DEPOSITS_PAYOUTS',
       question: 'What are the platform fees and where does the money go?',
-      tags: ['fees', '5%', '10%', 'service fee', 'cost', 'treasury', 'charges'],
+      tags: ['fees', '5%', '10%', '7%', 'service fee', 'cost', 'charges', 'withdrawal fee', 'top up'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            MutualPool charges transparent, simple service fees with zero hidden compounding interest:
+            MutualPool charges three fees, and nothing else. There is no interest, no withdrawal fee, and no fee on card top-ups.
           </p>
           <ul className="space-y-2 text-[11px]">
             <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-              <strong>Initial Deposit Fee (5%):</strong> Applied only to your initial deposit when creating or joining a pod to initialize your Treasury balance.
+              <strong>Deposit Fee (5%):</strong> charged on <strong>each weekly deposit</strong> when it is taken. On a $20 deposit, $21 leaves your balance.
             </li>
             <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-              <strong>Payout Service Fee (10%):</strong> Deducted when a lump-sum payout is disbursed to the rotation recipient (e.g., $40 on a $400 pool $\rightarrow$ $360 net payout).
+              <strong>Payout Fee (10%):</strong> deducted from each rotation payout before it is credited (e.g., $40 on a $400 pot, so the recipient receives $360).
               <div className="mt-1 text-[10px] text-slate-600">
-                • <strong>3%</strong> is disbursed to the active Pod Creator as a Host Stewardship Reward.<br />
-                • <strong>7%</strong> funds MutualPool Treasury operations and the First-Cycle Contingency Reserve.
+                • <strong>3%</strong> of the pot goes to the member holding the final slot (normally the creator) as the Host Reward.<br />
+                • <strong>7%</strong> goes to MutualPool.
               </div>
             </li>
+            <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+              <strong>Hardship Repayment Fee (7%):</strong> added to a hardship advance when you repay it. You only pay it if you used a hardship advance.
+            </li>
           </ul>
+          <p className="text-[11px] text-slate-600">
+            Fee changes are announced in the app at least 30 days ahead and apply only to pods that start after the notice period.
+          </p>
         </div>
       )
     },
@@ -1147,20 +1247,21 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       id: 'faq_payout_execution',
       category: 'DEPOSITS_PAYOUTS',
       question: 'How and when do I receive my lump-sum payout?',
-      tags: ['payout', 'withdrawal', 'transfer', 'turn', 'schedule', 'earmarked'],
+      tags: ['payout', 'withdrawal', 'transfer', 'turn', 'schedule', 'friday', 'bank', '1-3 business days'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            When your scheduled rotation week arrives, the full net lump-sum (e.g. <strong>$360.00</strong>) is instantly transferred directly into your <strong>Stripe Treasury Financial Account</strong>.
+            Each settlement week runs on a fixed schedule: deposits are taken on <strong>Thursday at 12:00 AM Eastern</strong>, and the week's payout is credited on <strong>Friday at 12:00 AM Eastern</strong>. When it is your turn, the net amount (e.g. <strong>$360.00</strong> on a $400 pot) lands in your <strong>MutualPool balance</strong>.
           </p>
-          <p>
-            Once deposited in Treasury:
-          </p>
+          <p>From your balance you can:</p>
           <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
-            <li>You can withdraw funds immediately to your linked external bank via Stripe OutboundTransfer.</li>
-            <li>You can keep the balance in Treasury to automatically cover future pod deposits or earn interest.</li>
-            <li><strong>Subsequent rotation weeks never wait, pause, or block for delayed withdrawals.</strong></li>
+            <li>Withdraw to the bank account you verified with Stripe. There is no withdrawal fee; your bank usually posts it within 1 to 3 business days.</li>
+            <li>Leave it in your balance to cover your remaining weekly deposits. Balances do not earn interest.</li>
+            <li><strong>Later rotation weeks never wait for a pending bank withdrawal.</strong></li>
           </ul>
+          <p className="text-[11px] text-slate-600">
+            Recently deposited funds may be held while a card payment is still contestable, and funds subject to a chargeback, refund or fraud review may be held or reversed.
+          </p>
         </div>
       )
     },
@@ -1168,18 +1269,25 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       id: 'faq_missed_deposit_default',
       category: 'AI_CUSTODIAN_ESCROW',
       question: 'What happens if a member misses a weekly deposit or defaults?',
-      tags: ['missed payment', 'default', 'contingency buffer', 'welcome match', 'grace period', 'replacement'],
+      tags: ['missed payment', 'default', 'contingency buffer', 'welcome match', 'grace period', 'removal', 'collections', 'owe'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            MutualPool has a multi-layered safety net to ensure that weekly rotation recipients <strong>always receive their 100% full payout on time</strong>:
+            If the Thursday sweep finds a balance that cannot cover the deposit, here is what happens, in order:
           </p>
           <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-700 pl-1">
-            <li><strong>72-Hour Grace Period:</strong> Members receive automated reminders to clear overdue deposits without penalty.</li>
-            <li><strong>First-Cycle Contingency Buffer (Welcome Match):</strong> In Cycle 1, MutualPool's platform-funded Welcome Match covers the missing deposit so the rotation is not interrupted.</li>
-            <li><strong>Delinquent Member Replacement:</strong> If a member fails to resolve their balance, their spot is opened as an urgent replacement for verified members.</li>
-            <li><strong>System Deposits Escrow Account:</strong> The platform automatically backstops any remaining shortfall so the weekly payout is never delayed.</li>
+            <li><strong>It is recorded as a missed deposit</strong> and the member is notified. They have until the Friday payout to top up; a late deposit repays whatever was bridged instead of inflating the pot.</li>
+            <li><strong>The pod's contingency buffer may bridge it.</strong> A first pod can carry a Welcome Match equal to one deposit, which covers one missed week so the payout still happens.</li>
+            <li><strong>MutualPool's escrow may bridge it</strong> if the buffer is empty. Any amount bridged on a member's behalf becomes money that member owes.</li>
+            <li><strong>Collection.</strong> What is owed is deducted from the member's balance, from any future payout in any pod, or debited from their linked bank account under their bank debit authorization. Money recovered this way repays escrow, restores the buffer, and bridges the pod's later weeks.</li>
+            <li><strong>Grace or removal.</strong> The creator can grant a grace period; MutualPool can cover the gap or remove the member. A member removed <em>after</em> receiving their payout still owes the remaining deposits of the cycle.</li>
           </ol>
+          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
+            ⚠️ A member who takes a payout and then stops depositing is in default: their account may be suspended, their balance kept to cover the shortfall, and the amount pursued. A missed deposit also drops them back to the $1,000 pod size limit until it is settled.
+          </div>
+          <p className="text-[11px] text-slate-600">
+            The buffers and escrow are there to keep payouts on schedule, but they are limited and discretionary. Members ultimately rely on each other, which is why the pod size ladder and early slot rules exist.
+          </p>
         </div>
       )
     },
@@ -1203,7 +1311,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             </p>
             <p className="text-purple-200/80 text-[10px]">
               • Creator forfeits their 3% Host Reward.<br />
-              • The full 10% Payout Service Fee is redirected into the <strong>System Deposits Escrow Account</strong> to backstop future member payouts.
+              • That 3% is redirected into the <strong>System Deposits Escrow Account</strong> to backstop future member payouts.
             </p>
           </div>
         </div>
@@ -1213,14 +1321,17 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       id: 'faq_system_escrow',
       category: 'AI_CUSTODIAN_ESCROW',
       question: 'What is the System Deposits Escrow Account?',
-      tags: ['system escrow', 'liquidity', 'advance', 'reserve', 'shortfall', 'guarantee'],
+      tags: ['system escrow', 'liquidity', 'advance', 'reserve', 'shortfall', 'bridge'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            The <strong>System Deposits Escrow Account</strong> is a central platform liquidity reserve managed by MutualPool.
+            The <strong>System Deposits Escrow Account</strong> is a liquidity reserve managed by MutualPool.
           </p>
           <p>
-            If a pod has a vacant spot or an uncollected deposit, the System Escrow advances the required weekly deposit (e.g. <strong>$20.00</strong>) on behalf of the pod. This guarantees that rotation recipients receive 100% of their scheduled lump sum without waiting for replacement members to join.
+            When a pod's own contingency buffer cannot cover a missed deposit, escrow may bridge the week's deposit (e.g. <strong>$20.00</strong>) so the scheduled payout still goes out. Whatever escrow advances becomes money the missing member owes, and anything later recovered from them repays escrow first.
+          </p>
+          <p className="text-[11px] text-slate-600">
+            Escrow is limited and used at MutualPool's discretion. It is a backstop, not a guarantee that every shortfall caused by another member will be covered.
           </p>
         </div>
       )
@@ -1229,14 +1340,22 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       id: 'faq_hardship_relief',
       category: 'AI_CUSTODIAN_ESCROW',
       question: 'What if I experience personal or financial hardship during an active cycle?',
-      tags: ['hardship', 'emergency', 'pause', 'accident', 'medical', 'relief'],
+      tags: ['hardship', 'emergency', 'advance', 'accident', 'medical', 'relief', '90 days', 'repay', '7%'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            We understand gig work can be unpredictable due to vehicle breakdowns, accidents, or medical emergencies.
+            Gig work is unpredictable: breakdowns, accidents and medical emergencies happen. If one lands on a deposit week, you can submit a <strong>Hardship Request</strong> from your pod screen.
           </p>
           <p>
-            Members can submit a <strong>Financial Hardship Relief Request</strong> directly from their pod screen. The platform can grant an extended deposit grace period, activate contingency coverage, or gracefully transition the pod without damaging your platform standing.
+            An approved request means <strong>MutualPool makes that one weekly deposit on your behalf</strong>, so your pod stays on schedule and you keep your standing. It is an advance against your own future payouts, not a loan.
+          </p>
+          <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+            <li>You become eligible after <strong>90 days</strong> of pod membership.</li>
+            <li>Requests are reviewed by MutualPool and may be declined. Limits apply per pod and per week (one approved advance per pod per cycle, at most two outstanding per pod).</li>
+            <li>The advance must be repaid, plus the <strong>7% hardship repayment fee</strong>, before you can join or create another pod.</li>
+          </ul>
+          <p className="text-[11px] text-slate-600">
+            If a <em>creator</em> enters a hardship hold, Lainie's Autonomous Custodian takes over pod stewardship so the other members are unaffected.
           </p>
         </div>
       )
@@ -1278,18 +1397,27 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       id: 'faq_slot_swap',
       category: 'SECURITY_FDIC',
       question: 'Can members of a pod switch places for an early payout? Can the Pod Creator switch too?',
-      tags: ['swap', 'reprioritize', 'trade slot', 'early payout', 'creator swap', 'emergency', 'rotation order', 'peer swap'],
+      tags: ['swap', 'reprioritize', 'vote', 'trade slot', 'early payout', 'creator swap', 'emergency', 'rotation order', 'peer swap'],
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            <strong>Yes!</strong> Any member who needs an earlier payout for an unexpected expense (such as vehicle repairs or medical bills) can send a <strong>Spot Trade Proposal</strong> to another member in their pod.
+            <strong>Yes.</strong> There are two ways to move up when an unexpected expense hits:
           </p>
+          <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+            <li><strong>Spot swap:</strong> send a proposal to one other member. Once both of you consent in the app, your positions trade and the schedule updates for the whole pod.</li>
+            <li><strong>Reprioritization vote:</strong> ask the pod to move you into the next payout slot. If more than half of the members vote yes, you take that slot and the member you displaced moves into your old one.</li>
+          </ul>
           <p>
-            <strong>Can the Creator switch places too?</strong> Yes! The Creator can switch places as they please just like any other member. However, the <strong>3% weekly cut on all teammate payouts will be given to whomever the Creator switches spots with</strong> once the switch is approved and active.
+            <strong>Can the Creator switch places too?</strong> Yes, like any other member. But the <strong>3% Host Reward goes with the final slot</strong>: whoever ends up holding it receives the 3% on every later payout.
           </p>
-          <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-900 font-medium">
-            🤝 <strong>Mutual Consent & Instant Realignment:</strong> Once both members consent in the app, queue positions trade atomically, the payout schedule updates across the pod, and an audit trail entry is permanently logged.
+          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium space-y-1">
+            <div>⚖️ <strong>Limits:</strong></div>
+            <div>• Members who have already received their payout cannot swap.</div>
+            <div>• In the early half of the rotation, no swap or vote can put a newer member ahead of a more established one, and in pots over $1,000 every early slot must stay with a member who has completed a pod or has 90+ days on MutualPool.</div>
           </div>
+          <p className="text-[11px] text-slate-600">
+            Every swap and vote outcome is recorded in the pod's audit log and is binding on all members.
+          </p>
         </div>
       )
     },
@@ -1306,7 +1434,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
           <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
             <li><strong>Free Sponsor Apparel:</strong> Approved couriers receive premium weatherproof hoodies, insulated delivery bags, and t-shirts.</li>
             <li><strong>Daily Payouts per Selected Campaign:</strong> Ambassadors are paid on a daily basis (typically <strong>$55.00 to $75.00/day</strong>) based on the specific campaigns they participate in and complete qualifying delivery shifts for.</li>
-            <li><strong>Instant Stripe Treasury Payouts:</strong> Daily earnings are automatically credited to your Stripe Treasury wallet upon completing and verifying each shift with AI Vision.</li>
+            <li><strong>Credited to your MutualPool balance:</strong> Daily earnings are credited to your balance once each shift is verified with AI Vision, ready to withdraw or to cover your weekly pod deposits.</li>
           </ul>
         </div>
       )
@@ -1322,7 +1450,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             Couriers simply snap a selfie wearing their sponsor gear at the start of their delivery route.
           </p>
           <p>
-            Our multi-modal <strong>AI Vision engine</strong> verifies that the partner gear is properly worn, while GPS tracks active route mileage during campaign hours. Once verified, daily wages are released instantly to your Stripe Treasury wallet.
+            Our multi-modal <strong>AI Vision engine</strong> verifies that the partner gear is properly worn, while GPS tracks active route mileage during campaign hours. Once verified, daily wages are credited to your MutualPool balance.
           </p>
         </div>
       )

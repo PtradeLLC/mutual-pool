@@ -7861,7 +7861,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isEs) {
           return {
             spokenText: "Los Creadores de grupos toman el último turno de cobro como garantía de confianza y reciben una recompensa de anfitrión del 3% en cada desembolso semanal de sus compañeros.",
-            displayText: "🌟 Recompensa del Creador (3%) y Compromiso Real\n\n• Garantía de Confianza: El Creador se fija en el último turno (#N) para proteger al grupo contra fraudes.\n• Recompensa del 3%: Por liderar el grupo, el Creador gana el 3% de cada desembolso semanal (ej. $12/semana en un pozo de $400, sumando $228 en 20 semanas).\n• Depósito Directo: Las ganancias se acreditan automáticamente a su saldo de Stripe Treasury.",
+            displayText: "🌟 Recompensa del Creador (3%) y Compromiso Real\n\n• Garantía de Confianza: El Creador se fija en el último turno (#N) para proteger al grupo contra fraudes.\n• Recompensa del 3%: Por liderar el grupo, el Creador gana el 3% de cada desembolso semanal (ej. $12/semana en un pozo de $400, sumando $228 en 20 semanas).\n• Depósito Directo: Las ganancias se acreditan automáticamente a su saldo de MutualPool.",
             suggestedActions: [
               { label: "Crear un Grupo Ahora", action: "OPEN_MODAL", modal: "CREATE_POD" },
               { label: "Ver FAQ de Creadores", action: "OPEN_MODAL", modal: "FAQ" }
@@ -7872,7 +7872,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isFr) {
           return {
             spokenText: "Les Créateurs de groupes occupent le dernier tour de versement pour garantir la sécurité et reçoivent une prime d'hôte de 3% sur chaque versement de leurs coéquipiers.",
-            displayText: "🌟 Prime d'Hôte Créateur (3%) & Sécurité Totale\n\n• Engagement Garanti : Le Créateur est placé au dernier tour (#N) pour éliminer tout risque de désistement précoce.\n• Prime de Gestion de 3% : En contrepartie, le Créateur perçoit 3% sur chaque versement hebdomadaire (ex. 12 $/semaine sur un pot de 400 $, soit 228 $ sur 20 semaines).\n• Crédité sur Treasury : Versements directs sur votre compte Stripe Treasury.",
+            displayText: "🌟 Prime d'Hôte Créateur (3%) & Sécurité Totale\n\n• Engagement Garanti : Le Créateur est placé au dernier tour (#N) pour éliminer tout risque de désistement précoce.\n• Prime de Gestion de 3% : En contrepartie, le Créateur perçoit 3% sur chaque versement hebdomadaire (ex. 12 $/semaine sur un pot de 400 $, soit 228 $ sur 20 semaines).\n• Crédité sur Treasury : Versements directs sur votre solde MutualPool.",
             suggestedActions: [
               { label: "Créer un Groupe", action: "OPEN_MODAL", modal: "CREATE_POD" },
               { label: "FAQ Créateurs", action: "OPEN_MODAL", modal: "FAQ" }
@@ -7882,7 +7882,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         return {
           spokenText: "Pod Creators take the final rotation slot as a skin-in-the-game safety guarantee. In return, they earn a 3% Host Stewardship Reward on every teammate payout, totaling up to $228 in passive earnings.",
-          displayText: "🌟 3% Creator Host Stewardship Reward & Skin-in-the-Game\n\n• Skin-in-the-Game: The Creator is pinned to the final rotation slot (#N) so they stay committed to the cycle.\n• 3% Host Reward: The Creator earns 3% on every teammate payout (e.g. $12/payout on a $400 pot → $228 total on a 20-member pod).\n• Direct Deposit: Rewards disburse automatically into the Creator's Stripe Treasury wallet.",
+          displayText: "🌟 3% Creator Host Stewardship Reward & Skin-in-the-Game\n\n• Skin-in-the-Game: The Creator is pinned to the final rotation slot (#N) so they stay committed to the cycle.\n• 3% Host Reward: The Creator earns 3% on every teammate payout (e.g. $12/payout on a $400 pot → $228 total on a 20-member pod).\n• Direct Deposit: Rewards are credited automatically to the Creator's MutualPool balance.",
           suggestedActions: [
             { label: "Create a Pod Now", action: "OPEN_MODAL", modal: "CREATE_POD" },
             { label: "Read Creator FAQ", action: "OPEN_MODAL", modal: "FAQ" }
@@ -7930,8 +7930,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       if (q.includes('escrow') || q.includes('system deposit') || q.includes('missed') || q.includes('default') || q.includes('shortfall') || q.includes('garantía') || q.includes('falta') || q.includes('impago') || q.includes('entiercement') || q.includes('retard')) {
         if (isEs) {
           return {
-            spokenText: "La Cuenta de Depósitos de Custodia del Sistema es una reserva de liquidez que adelanta depósitos impagos para asegurar que el miembro de turno reciba su desembolso completo a tiempo.",
-            displayText: "🛡️ Cuenta de Depósitos de Custodia del Sistema y Protección ante Impagos\n\n1. Periodo de Gracia de 72 Horas: Notificaciones automáticas para regularizar depósitos.\n2. Fondo de Contingencia de Primer Ciclo: Cubre vacantes iniciales.\n3. Adelanto del Sistema Escrow: La plataforma adelanta el depósito faltante para que el receptor de la semana cobre el 100% de su pozo sin demoras.\n4. Reemplazo de Miembros: Las vacantes se abren para conductores verificados.",
+            spokenText: "Si tu saldo no cubre el depósito del jueves, se registra como depósito faltante y tienes hasta el cobro del viernes para recargar. El colchón del grupo o el escrow de MutualPool pueden cubrir esa semana, pero lo adelantado se convierte en una deuda que se cobra de tu saldo, tus cobros futuros o tu banco.",
+            displayText: "🛡️ Depósitos Faltantes y Escrow del Sistema\n\n1. El barrido del jueves registra el depósito faltante y te avisa; tienes hasta el cobro del viernes para recargar tu saldo.\n2. El colchón de contingencia del grupo (en tu primer grupo, el Welcome Match equivale a un depósito) puede cubrir la semana.\n3. Si no alcanza, el Escrow del Sistema puede adelantar el depósito.\n4. Todo lo adelantado se te cobra: de tu saldo, de cobros futuros o por débito bancario autorizado. Lo recuperado repone el escrow y el colchón.\n5. El Creador puede dar un periodo de gracia; MutualPool puede cubrir la diferencia o retirarte del grupo. Si te retiran después de cobrar, sigues debiendo los depósitos restantes.\n\nEl escrow y los colchones son limitados y discrecionales: ayudan a mantener los cobros a tiempo, pero no son una garantía.",
             suggestedActions: [
               { label: "Ver FAQ de Protección", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Fondo de Solidaridad", action: "OPEN_MODAL", modal: "HARDSHIP" }
@@ -7941,8 +7941,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Le Compte d'Entiercement du Système est une réserve centrale qui avance les dépôts manquants afin que le membre du tour reçoive son versement complet dans les délais.",
-            displayText: "🛡️ Entiercement du Système & Protection Anti-Défaut\n\n1. Période de Grâce de 72h : Rappels sans pénalité pour régulariser les cotisations.\n2. Buffer de Contingence Cycle 1 : Prise en charge des imprévus.\n3. Avance d'Entiercement du Système : La plateforme avance les fonds manquants pour verser 100% du pot sans retard.\n4. Remplacement Rapide : Réattribution du créneau à un chauffeur vérifié.",
+            spokenText: "Si votre solde ne couvre pas la cotisation du jeudi, elle est enregistrée comme manquée et vous avez jusqu'au versement du vendredi pour recharger. Le tampon du groupe ou l'entiercement MutualPool peuvent couvrir la semaine, mais l'avance devient une dette prélevée sur votre solde, vos versements futurs ou votre banque.",
+            displayText: "🛡️ Cotisations Manquées & Entiercement du Système\n\n1. Le prélèvement du jeudi enregistre la cotisation manquée et vous prévient ; vous avez jusqu'au versement du vendredi pour recharger.\n2. Le tampon de contingence du groupe (dans votre premier groupe, le Welcome Match vaut une cotisation) peut couvrir la semaine.\n3. Sinon, l'Entiercement du Système peut avancer la cotisation.\n4. Toute avance vous est réclamée : sur votre solde, vos versements futurs ou par prélèvement bancaire autorisé. Les sommes récupérées remboursent l'entiercement puis le tampon.\n5. Le Créateur peut accorder un délai de grâce ; MutualPool peut combler l'écart ou vous retirer du groupe. Retiré après votre versement, vous devez encore les cotisations restantes.\n\nL'entiercement et les tampons sont limités et discrétionnaires : ils aident à tenir le calendrier, sans constituer une garantie.",
             suggestedActions: [
               { label: "FAQ Protection & Entiercement", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Fonds de Solidarité", action: "OPEN_MODAL", modal: "HARDSHIP" }
@@ -7951,8 +7951,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "The System Deposits Escrow Account is a liquidity reserve that advances missing deposits if a member is late. This guarantees that weekly rotation recipients always get their 100% full payout on time.",
-          displayText: "🛡️ System Deposits Escrow Account & Default Protection\n\n1. 72-Hour Grace Period: Automated reminders to resolve pending deposits without penalty.\n2. First-Cycle Contingency Buffer: Welcome match cushions initial cycle delays.\n3. System Escrow Advance: MutualPool advances the missing weekly contribution so the recipient gets 100% of their lump sum.\n4. Verified Replacement: Delinquent slots are opened to verified gig couriers.",
+          spokenText: "If your balance can't cover the Thursday deposit, it is recorded as a missed deposit and you have until the Friday payout to top up. The pod's buffer or MutualPool's escrow may bridge that week, but whatever is advanced becomes money you owe, collected from your balance, future payouts, or your bank.",
+          displayText: "🛡️ Missed Deposits & System Escrow\n\n1. The Thursday sweep records the missed deposit and notifies you; you have until the Friday payout to top up your balance.\n2. The pod's contingency buffer (in your first pod, the Welcome Match equals one deposit) may bridge the week.\n3. If that's empty, the System Deposits Escrow may advance the deposit.\n4. Anything advanced is owed: it is collected from your balance, from future payouts, or by authorized bank debit. Recovered money repays escrow and restores the buffer.\n5. The Creator can grant a grace period; MutualPool can cover the gap or remove the member. A member removed after their payout still owes the remaining deposits.\n\nEscrow and buffers are limited and discretionary: they keep payouts on schedule in most cases, but they are not a guarantee.",
           suggestedActions: [
             { label: "Open FAQ on Escrow", action: "OPEN_MODAL", modal: "FAQ" },
             { label: "Hardship Protection", action: "OPEN_MODAL", modal: "HARDSHIP" }
@@ -7961,12 +7961,47 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         };
       }
 
-      // 5. Fees (5% Initial Deposit Fee, 10% Payout Service Fee)
+      // 4b. Pod rules: bank debit authorization, pod size ladder, early slots, commitment
+      if (q.includes('mandate') || q.includes('bank debit') || q.includes('authoriz') || q.includes('pot cap') || q.includes('limit') || q.includes('pod size') || q.includes('how big') || q.includes('early slot') || q.includes('tenure') || q.includes('seasoned') || q.includes('90 days') || q.includes('leave') || q.includes('quit') || q.includes('commit') || q.includes('autoriz') || q.includes('límite') || q.includes('tamaño') || q.includes('salir') || q.includes('mandat') || q.includes('limite') || q.includes('taille') || q.includes('quitter')) {
+        if (isEs) {
+          return {
+            spokenText: "Antes de crear o unirte a un grupo debes verificar tu identidad y autorizar débitos bancarios con Stripe. El tamaño del pozo que puedes unirte crece con tu historial: hasta $1,000 antes de tu primer grupo completado, $2,500 después de uno, $5,000 después de dos y sin límite a partir del tercero.",
+            displayText: "📏 Reglas de los Grupos\n\n• Requisitos: identidad verificada y autorización de débito bancario (vía Stripe). Se usa solo si tu saldo no cubre un depósito, para adelantos a tu favor o para los depósitos pendientes si sales tras cobrar.\n• Tamaño del pozo según tu historial: hasta $1,000 sin grupos completados; $2,500 tras 1; $5,000 tras 2; sin límite tras 3. Un depósito faltante sin resolver te devuelve al primer nivel.\n• Turnos tempranos: la primera mitad de la rotación va a quienes completaron un grupo, luego a quienes llevan 90+ días, luego a los nuevos. Aleatorio dentro de cada nivel; el Creador siempre al final. Pozos mayores a $1,000 no se bloquean hasta que todos los turnos tempranos estén cubiertos por miembros experimentados.\n• Compromiso: depositas cada semana durante todo el ciclo, incluso después de cobrar. Solo puedes salir cuando todos hayan cobrado.\n• Máximo 3 grupos creados activos a la vez; mínimo 2 miembros para iniciar.",
+            suggestedActions: [
+              { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Vincular Banco", action: "OPEN_MODAL", modal: "BANK" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        if (isFr) {
+          return {
+            spokenText: "Avant de créer ou rejoindre un groupe, vous devez vérifier votre identité et autoriser les prélèvements bancaires via Stripe. La taille de cagnotte accessible grandit avec votre historique : jusqu'à 1 000 $ avant votre premier groupe terminé, 2 500 $ après un, 5 000 $ après deux, sans limite à partir du troisième.",
+            displayText: "📏 Règles des Groupes\n\n• Prérequis : identité vérifiée et autorisation de prélèvement bancaire (via Stripe). Utilisée seulement si votre solde ne couvre pas une cotisation, pour une avance consentie, ou pour les cotisations restantes si vous partez après avoir été payé.\n• Taille de cagnotte selon l'historique : jusqu'à 1 000 $ sans groupe terminé ; 2 500 $ après 1 ; 5 000 $ après 2 ; sans limite après 3. Une cotisation manquée non réglée vous ramène au premier palier.\n• Créneaux précoces : la première moitié de la rotation revient aux membres ayant terminé un groupe, puis à ceux ayant 90+ jours d'ancienneté, puis aux nouveaux. Ordre aléatoire dans chaque palier ; le Créateur toujours en dernier. Les cagnottes de plus de 1 000 $ ne se verrouillent que si tous les créneaux précoces sont tenus par des membres expérimentés.\n• Engagement : vous cotisez chaque semaine pendant tout le cycle, même après votre versement. Vous ne pouvez partir qu'une fois tout le monde payé.\n• Maximum 3 groupes créés actifs à la fois ; minimum 2 membres pour démarrer.",
+            suggestedActions: [
+              { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+              { label: "Lier ma Banque", action: "OPEN_MODAL", modal: "BANK" }
+            ],
+            navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+          };
+        }
+        return {
+          spokenText: "Before you create or join a pod you verify your identity and authorize bank debits through Stripe. The pot size you can join grows with your track record: up to $1,000 before your first completed pod, $2,500 after one, $5,000 after two, and no limit from the third.",
+          displayText: "📏 Pod Rules\n\n• Requirements: verified identity and a bank debit authorization (through Stripe). It is used only if your balance can't cover a deposit, for anything advanced on your behalf, or for the remaining deposits if you leave after your payout.\n• Pod size ladder: pots up to $1,000 with no completed pods; $2,500 after 1; $5,000 after 2; no limit after 3. An unresolved missed deposit drops you back to the first tier.\n• Early slots: the first half of the rotation goes to members who completed a pod, then members with 90+ days on MutualPool, then newer members. Random within each tier; the Creator is always last. Pots over $1,000 can't lock until every early slot is held by an experienced member.\n• Commitment: you deposit every week for the full cycle, including after your own payout. You can only leave once everyone has been paid.\n• At most 3 pods you created can be forming or active at once; a pod needs 2 members to start.",
+          suggestedActions: [
+            { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },
+            { label: "Link Bank Account", action: "OPEN_MODAL", modal: "BANK" }
+          ],
+          navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
+        };
+      }
+
+      // 5. Fees (5% per deposit, 10% on payouts, 7% hardship repayment)
       if (q.includes('fee') || q.includes('cost') || q.includes('charge') || q.includes('5%') || q.includes('10%') || q.includes('comisi') || q.includes('tarifa') || q.includes('cuota') || q.includes('frais') || q.includes('coût')) {
         if (isEs) {
           return {
-            spokenText: "Cobramos una tarifa inicial del 5% al configurar tu cuenta Treasury y una tarifa de servicio del 10% sobre los desembolsos. El 3% se destina al Creador del grupo y el 7% a las reservas de la plataforma.",
-            displayText: "💳 Estructura Transparente de Tarifas\n\n• Tarifa de Depósito Inicial (5%): Solo en tu primer depósito para inicializar tu cuenta bancaria asegurada por la FDIC en Stripe Treasury.\n• Tarifa de Desembolso (10%): Deducida al entregar el pozo acumulado (ej. $40 en un pozo de $400 → $360 netos al conductor):\n  - 3% para el Creador del grupo como Recompensa de Anfitrión.\n  - 7% para operaciones de la plataforma, reservas de contingencia y cumplimiento FDIC.\n• 0% Intereses: Cero intereses acumulativos ni cargos ocultos.",
+            spokenText: "Cobramos una tarifa del 5% sobre cada depósito semanal y una tarifa del 10% sobre cada cobro. De ese 10%, el 3% va a quien ocupa el último turno, normalmente el Creador, y el 7% a MutualPool. No hay comisiones por retiros ni por recargas con tarjeta.",
+            displayText: "💳 Estructura Transparente de Tarifas\n\n• Tarifa de Depósito (5%): sobre cada depósito semanal, al momento del cobro del depósito (un depósito de $20 descuenta $21 de tu saldo).\n• Tarifa de Cobro (10%): se deduce de cada cobro (ej. $40 en un pozo de $400 → $360 netos):\n  - 3% del pozo para quien ocupa el último turno (normalmente el Creador) como Recompensa de Anfitrión.\n  - 7% para MutualPool.\n• Tarifa de Reembolso por Dificultad (7%): solo si usaste un adelanto por dificultad, al reembolsarlo.\n• Sin comisión por retiros, sin comisión por recargas con tarjeta y 0% de interés.",
             suggestedActions: [
               { label: "Ver FAQ de Tarifas", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" }
@@ -7976,8 +8011,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Nous appliquons des frais initiaux de 5% à l'ouverture de votre compte Treasury et des frais de service de 10% sur les versements (dont 3% pour le Créateur hôte et 7% pour les réserves de la plateforme).",
-            displayText: "💳 Structure Claire des Frais\n\n• Frais de Dépôt Initial (5%) : Appliqués uniquement sur la 1ère cotisation pour initialiser le compte Stripe Treasury protégé FDIC.\n• Frais de Versement (10%) : Déduits lors de la réception du pot (ex. 40 $ sur un pot de 400 $ → 360 $ nets versés) :\n  - 3% versés au Créateur du groupe (Prime d'Hôte).\n  - 7% pour l'infrastructure Treasury, les garanties anti-défaut et la conformité FDIC.\n• 0% Intérêt : Zéro dette ni frais cachés.",
+            spokenText: "Nous prélevons 5 % sur chaque cotisation hebdomadaire et 10 % sur chaque versement. Sur ces 10 %, 3 % reviennent au titulaire du dernier créneau, normalement le Créateur, et 7 % à MutualPool. Aucun frais de retrait ni de recharge par carte.",
+            displayText: "💳 Structure Claire des Frais\n\n• Frais de Dépôt (5 %) : sur chaque cotisation hebdomadaire, au moment du prélèvement (une cotisation de 20 $ coûte 21 $ sur votre solde).\n• Frais de Versement (10 %) : déduits de chaque versement (ex. 40 $ sur une cagnotte de 400 $ → 360 $ nets) :\n  - 3 % de la cagnotte au titulaire du dernier créneau (normalement le Créateur), Prime d'Hôte.\n  - 7 % pour MutualPool.\n• Frais de Remboursement d'Aide (7 %) : uniquement si vous avez utilisé une avance pour coup dur, lors du remboursement.\n• Aucun frais de retrait, aucun frais de recharge par carte, 0 % d'intérêt.",
             suggestedActions: [
               { label: "Voir la FAQ Frais", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
@@ -7986,8 +8021,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "MutualPool charges a 5% initial deposit setup fee and a 10% Payout Service Fee when you receive your lump sum. 3% goes to the Pod Creator as a Host Reward and 7% funds platform reserves and FDIC compliance.",
-          displayText: "💳 Transparent Platform Fee Structure\n\n• Initial Deposit Fee (5%): One-time fee on your first deposit to initialize your FDIC-insured Stripe Treasury account.\n• Payout Service Fee (10%): Deducted only when the lump-sum pot is disbursed (e.g. $40 fee on a $400 pool → $360.00 net payout):\n  - 3% paid directly to the active Pod Creator as a Host Stewardship Reward.\n  - 7% funds platform liquidity reserves, First-Cycle buffer, and banking compliance.\n• Zero Interest: No predatory loan APRs or compounding balance fees.",
+          spokenText: "MutualPool charges 5% on each weekly deposit and 10% on each payout. Of that 10%, 3% goes to whoever holds the final slot, normally the Creator, and 7% goes to MutualPool. There is no withdrawal fee and no fee on card top-ups.",
+          displayText: "💳 Transparent Platform Fee Structure\n\n• Deposit Fee (5%): on every weekly deposit, charged when the deposit is taken (a $20 deposit takes $21 from your balance).\n• Payout Fee (10%): deducted from each payout (e.g. $40 on a $400 pot → $360.00 net):\n  - 3% of the pot to the final-slot holder (normally the Creator) as the Host Reward.\n  - 7% to MutualPool.\n• Hardship Repayment Fee (7%): only if you used a hardship advance, added when you repay it.\n• No withdrawal fee, no card top-up fee, and zero interest.",
           suggestedActions: [
             { label: "Read Fees FAQ", action: "OPEN_MODAL", modal: "FAQ" },
             { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
@@ -8144,7 +8179,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isEs) {
           return {
             spokenText: "Para iniciar un nuevo grupo, pulsa Crear Grupo arriba. Puedes elegir un Círculo de Confianza para tus compañeros o un Grupo Abierto con verificación automática de identidad.",
-            displayText: "🚀 Crear un Grupo de Ahorro\n\n1. Haz clic en + Iniciar Grupo en la parte superior.\n2. Elige Círculo de Confianza (amigos/familiares) o Grupo Abierto (repartidores verificados con KYC).\n3. Define el monto del pozo, el depósito semanal (ej. $50/sem) y la duración del ciclo.",
+            displayText: "🚀 Crear un Grupo de Ahorro\n\n1. Verifica tu identidad y autoriza débitos bancarios (ambos obligatorios para crear o unirte).\n2. Haz clic en + Iniciar Grupo y elige Círculo de Confianza (invitación) o Grupo Abierto (requiere 1 grupo completado o 90+ días en MutualPool).\n3. Define el depósito semanal y el número de miembros. El pozo (depósito × miembros) debe respetar tu límite: $1,000 sin grupos completados, $2,500 tras 1, $5,000 tras 2, sin límite tras 3.\n4. Tu primer depósito se toma de tu saldo de MutualPool. Puedes bloquear la rotación con 2 o más miembros; tú ocupas el último turno y recibes la Recompensa del 3%.\n5. Máximo 3 grupos creados activos a la vez.",
             suggestedActions: [
               { label: "Crear un Grupo Ahora", action: "OPEN_MODAL", modal: "CREATE_POD" },
               { label: "Explorar Grupos Abiertos", action: "NAVIGATE_TAB", tab: "explore-pods" }
@@ -8155,7 +8190,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isFr) {
           return {
             spokenText: "Pour créer un groupe, cliquez sur Créer un Groupe en haut. Vous pouvez choisir un Cercle de Confiance ou un Groupe Ouvert avec vérification d'identité KYC.",
-            displayText: "🚀 Créer un Groupe d'Épargne\n\n1. Cliquez sur + Créer un Groupe dans l'en-tête.\n2. Choisissez Cercle de Confiance (invitation uniquement) ou Groupe Ouvert (membres vérifiés KYC).\n3. Définissez le montant cible, la cotisation hebdomadaire et la durée du cycle.",
+            displayText: "🚀 Créer un Groupe d'Épargne\n\n1. Vérifiez votre identité et autorisez les prélèvements bancaires (obligatoires pour créer ou rejoindre).\n2. Cliquez sur + Créer un Groupe et choisissez Cercle de Confiance (invitation) ou Groupe Ouvert (1 groupe terminé ou 90+ jours sur MutualPool requis).\n3. Définissez la cotisation hebdomadaire et le nombre de membres. La cagnotte (cotisation × membres) doit respecter votre palier : 1 000 $ sans groupe terminé, 2 500 $ après 1, 5 000 $ après 2, sans limite après 3.\n4. Votre première cotisation est prélevée sur votre solde MutualPool. Vous pouvez verrouiller la rotation dès 2 membres ; vous occupez le dernier créneau et recevez la Prime de 3 %.\n5. Maximum 3 groupes créés actifs à la fois.",
             suggestedActions: [
               { label: "Créer un Groupe", action: "OPEN_MODAL", modal: "CREATE_POD" },
               { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
@@ -8165,7 +8200,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         return {
           spokenText: "To start a new Pod, click Create Pod at the top. You can choose a Trusted Circle for your trusted contacts or an Open Pod with automated KYC verification.",
-          displayText: "🚀 Creating a Savings Pod\n\n1. Click + Create Pod in the dashboard header.\n2. Select Trusted Circle (invite-only, family/friends) or Open Pod (KYC-verified gig couriers).\n3. Set your target amount, weekly deposit (e.g. $50/wk), and cycle length.",
+          displayText: "🚀 Creating a Savings Pod\n\n1. Verify your identity and authorize bank debits (both required to create or join).\n2. Click + Create Pod and pick Trusted Circle (invite-only) or Open Pod (needs 1 completed pod or 90+ days on MutualPool).\n3. Set the weekly deposit and member count. The pot (deposit × members) must fit your tier: $1,000 with no completed pods, $2,500 after 1, $5,000 after 2, no limit after 3.\n4. Your first deposit is taken from your MutualPool balance. You can lock the rotation with 2 or more members; you take the final slot and earn the 3% Host Reward.\n5. At most 3 pods you created can be forming or active at once.",
           suggestedActions: [
             { label: "Create a Pod Now", action: "OPEN_MODAL", modal: "CREATE_POD" },
             { label: "Explore Open Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
@@ -8179,7 +8214,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isEs) {
           return {
             spokenText: "Con el programa de Embajadores de Marca, los conductores reciben pagos diarios garantizados de $55 a $75 por participar en campañas seleccionadas e indumentaria verificada con IA Vision.",
-            displayText: "🚗 Campañas de Publicidad y Embajadores de Marca\n\n• Pagos diarios garantizados de $55 a $75/día según las campañas seleccionadas en las que participes.\n• Recibe sudaderas y bolsas térmicas oficiales gratuitas de la marca asociada.\n• Abono diario directo a tu cuenta Stripe Treasury tras verificar el turno.\n• Verificación de turnos por IA Vision (selfie) y seguimiento GPS.",
+            displayText: "🚗 Campañas de Publicidad y Embajadores de Marca\n\n• Pagos diarios garantizados de $55 a $75/día según las campañas seleccionadas en las que participes.\n• Recibe sudaderas y bolsas térmicas oficiales gratuitas de la marca asociada.\n• Abono diario directo a tu saldo de MutualPool tras verificar el turno.\n• Verificación de turnos por IA Vision (selfie) y seguimiento GPS.",
             suggestedActions: [
               { label: "Ver Campañas Activas", action: "NAVIGATE_TAB", tab: "campaigns" },
               { label: "Portal de Anunciantes", action: "OPEN_ADVERTISER" }
@@ -8190,7 +8225,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isFr) {
           return {
             spokenText: "Grâce au programme Ambassadeur de Marque, les coursiers reçoivent une rémunération quotidienne de 55$ à 75$/jour pour chaque campagne sélectionnée validée par IA Vision.",
-            displayText: "🚗 Campagnes Publicitaires Véhicule & Ambassadeurs\n\n• Rémunération quotidienne de 55$ à 75$/jour selon les campagnes sélectionnées auxquelles vous participez.\n• Équipements premium gratuits (sweats, sacs isothermes) offerts par les marques.\n• Versement quotidien direct sur votre compte Stripe Treasury.\n• Validation instantanée par IA Vision (selfie) et GPS.",
+            displayText: "🚗 Campagnes Publicitaires Véhicule & Ambassadeurs\n\n• Rémunération quotidienne de 55$ à 75$/jour selon les campagnes sélectionnées auxquelles vous participez.\n• Équipements premium gratuits (sweats, sacs isothermes) offerts par les marques.\n• Versement quotidien direct sur votre solde MutualPool.\n• Validation instantanée par IA Vision (selfie) et GPS.",
             suggestedActions: [
               { label: "Voir les Campagnes", action: "NAVIGATE_TAB", tab: "campaigns" },
               { label: "Portail Annonceurs", action: "OPEN_ADVERTISER" }
@@ -8200,7 +8235,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         return {
           spokenText: "Through our Brand Ambassador program, gig drivers earn guaranteed daily payouts of $55 to $75 based on selected campaigns they participate in, verified with AI Vision and GPS.",
-          displayText: "🚗 Brand Ambassador & Sponsor Campaigns\n\n• Earn $55-$75/day in guaranteed daily payouts based on your selected campaigns.\n• Receive free premium sponsor apparel (weatherproof hoodies, insulated delivery bags).\n• Instant daily payouts deposited directly to your Stripe Treasury wallet.\n• Shift verification powered by multimodal AI Vision selfies and GPS tracking.",
+          displayText: "🚗 Brand Ambassador & Sponsor Campaigns\n\n• Earn $55-$75/day in guaranteed daily payouts based on your selected campaigns.\n• Receive free premium sponsor apparel (weatherproof hoodies, insulated delivery bags).\n• Daily payouts credited to your MutualPool balance.\n• Shift verification powered by multimodal AI Vision selfies and GPS tracking.",
           suggestedActions: [
             { label: "View Active Campaigns", action: "NAVIGATE_TAB", tab: "campaigns" },
             { label: "Advertiser Portal", action: "OPEN_ADVERTISER" }
@@ -8268,8 +8303,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       if (q.includes('hardship') || q.includes('emergency') || q.includes('miss') || q.includes('late') || q.includes('delinquent') || q.includes('emergencia') || q.includes('dificultad') || q.includes('avería') || q.includes('urgence') || q.includes('panne')) {
         if (isEs) {
           return {
-            spokenText: "Si sufres una avería imprevista en tu vehículo o una baja de ingresos, puedes solicitar ayuda al Fondo de Solidaridad de MutualPool para cubrir tu depósito sin perder tu posición.",
-            displayText: "🛡️ Protección y Fondo de Solidaridad\n\n• Fondos de emergencia para cubrir tu depósito durante reparaciones mecánicas.\n• Cero intereses abusivos — facilidades de pago justas.\n• Protege tu reputación y mantiene tu grupo activo.",
+            spokenText: "Si una avería o una emergencia cae en semana de depósito, puedes pedir un adelanto por dificultad: MutualPool hace ese depósito semanal por ti. Eres elegible tras 90 días en un grupo, cada solicitud se revisa, y lo reembolsas con una tarifa del 7% antes de unirte a otro grupo.",
+            displayText: "🛡️ Adelanto por Dificultad\n\n• MutualPool hace un depósito semanal en tu nombre para que tu grupo siga en calendario. Es un adelanto contra tus propios cobros futuros, no un préstamo.\n• Elegible tras 90 días de participación en un grupo.\n• Cada solicitud se revisa y puede rechazarse: un adelanto aprobado por grupo y ciclo, máximo dos pendientes por grupo.\n• Se reembolsa con la tarifa de reembolso del 7% antes de crear o unirte a otro grupo.",
             suggestedActions: [
               { label: "Solicitar Ayuda de Emergencia", action: "OPEN_MODAL", modal: "HARDSHIP" }
             ],
@@ -8278,8 +8313,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "En cas de panne de véhicule ou d'imprévu financier, vous pouvez solliciter le Fonds de Solidarité MutualPool pour couvrir votre dépôt sans perdre votre place.",
-            displayText: "🛡️ Protection & Fonds de Solidarité\n\n• Aide d'urgence pour couvrir vos cotisations en cas de réparation mécanique.\n• Aucun intérêt prédateur — conditions de remboursement souples.\n• Préserve votre réputation et le bon fonctionnement du groupe.",
+            spokenText: "Si une panne ou une urgence tombe une semaine de cotisation, vous pouvez demander une avance pour coup dur : MutualPool verse cette cotisation hebdomadaire à votre place. Éligible après 90 jours dans un groupe, chaque demande est examinée, et vous la remboursez avec des frais de 7 % avant de rejoindre un autre groupe.",
+            displayText: "🛡️ Avance pour Coup Dur\n\n• MutualPool verse une cotisation hebdomadaire à votre place pour que le groupe reste dans les temps. C'est une avance sur vos propres versements futurs, pas un prêt.\n• Éligible après 90 jours de participation à un groupe.\n• Chaque demande est examinée et peut être refusée : une avance approuvée par groupe et par cycle, deux en cours maximum par groupe.\n• À rembourser avec les frais de remboursement de 7 % avant de créer ou rejoindre un autre groupe.",
             suggestedActions: [
               { label: "Demander une Aide d'Urgence", action: "OPEN_MODAL", modal: "HARDSHIP" }
             ],
@@ -8287,8 +8322,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "If you experience an unexpected vehicle breakdown or income disruption, you can request support from the MutualPool Hardship Fund to cover your weekly deposit without losing your pod standing.",
-          displayText: "🛡️ MutualPool Hardship Protection\n\n• Emergency bridge funds to cover deposit during vehicle repairs.\n• Zero predatory interest — simple repayment terms.\n• Protects your reputation score and keeps your pod running smoothly.",
+          spokenText: "If a breakdown or emergency lands on a deposit week, you can request a hardship advance: MutualPool makes that one weekly deposit for you. You're eligible after 90 days in a pod, every request is reviewed, and you repay it with a 7% fee before joining another pod.",
+          displayText: "🛡️ Hardship Advance\n\n• MutualPool makes one weekly deposit on your behalf so your pod stays on schedule. It is an advance against your own future payouts, not a loan.\n• Eligible after 90 days of pod membership.\n• Every request is reviewed and may be declined: one approved advance per pod per cycle, at most two outstanding per pod.\n• Repaid, plus the 7% hardship repayment fee, before you can create or join another pod.",
           suggestedActions: [
             { label: "Open Hardship Assistance", action: "OPEN_MODAL", modal: "HARDSHIP" }
           ],
@@ -8327,7 +8362,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
 
       return {
         spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about how savings pods work, the 3% Creator Host Reward, our Autonomous AI Custodian, FDIC insurance, or explore our FAQ!`,
-        displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Stripe Treasury & FDIC Pass-Through Insurance ($250,000)\n• Transparent Fees (5% Setup / 10% Payout Service Fee)\n• Brand Ambassador Earnings & Vision Verification`,
+        displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Stripe Treasury & FDIC Pass-Through Insurance ($250,000)\n• Transparent Fees (5% per deposit / 10% on payouts)\n• Brand Ambassador Earnings & Vision Verification`,
         suggestedActions: [
           { label: "What is a ROSCA / Pod?", action: "SPEAK_EXPLANATION", prompt: "What is MutualPool and how does a Mutual Savings Pod work?" },
           { label: "Is MutualPool a loan?", action: "SPEAK_EXPLANATION", prompt: "Is MutualPool a loan, credit card, or debt?" },
@@ -8359,41 +8394,52 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 1. CATEGORY: BASICS & ROSCAs (TANDAS / SUSU / PARDNA / ARISAN)
 - What is MutualPool? A modernized peer-to-peer Rotating Savings and Credit Association (ROSCA) for gig workers.
 - How Pods Work: Members contribute a fixed weekly deposit (e.g. $20/wk). Each week, one member receives the full collective lump-sum pot (e.g., $400 gross / $360 net for 20 members). Over 20 weeks, all 20 members receive one full lump sum.
-- 0% Interest, 0 Debt, No Credit Checks: MutualPool is NOT a loan, credit card, or bank. There is zero compounding interest, no predatory APR, and no credit score checks.
+- 0% Interest, 0 Debt, No Credit Checks: MutualPool is NOT a loan, credit card, or bank. There is zero compounding interest, no predatory APR, and no credit score checks. Balances do not earn interest.
+- Who can join: 18+, lives in the United States, works (or is eligible to work) with a delivery or rideshare platform. One account per person. Non-US markets are not available yet.
+- Before creating or joining ANY pod a member must (a) verify identity through Stripe and (b) authorize bank debits (link a bank account through Stripe). Both are mandatory.
 - Trusted Circles vs Open Pods:
   * Trusted Circles (Private): Invite-only for friends, family, or close delivery hub crews via private invite link/code.
-  * Open Pods (Public): Open to all KYC-verified drivers across the network. Creators must have completed 1 full cycle with 100% on-time record to host an Open Pod.
+  * Open Pods (Public): Open to all verified members. To CREATE an Open Pod you need at least one completed pod OR 90+ days on MutualPool.
+- A member can have at most 3 pods they created forming or active at the same time. A pod needs at least 2 members to lock and start.
+- POD SIZE LADDER (how big a pot you may join; pot = weekly deposit x members): up to $1,000 before your first completed pod; up to $2,500 after 1 completed pod; up to $5,000 after 2; no limit after 3. Only pods completed with no missed deposit count. An unresolved missed deposit drops you back to the $1,000 tier until it is settled.
+- EARLY SLOTS BY TRUST: when the creator locks the pod, the first half of the rotation goes to the most established members: completed-pod members first, then members with 90+ days on MutualPool, then newer members. Random order within each group; the creator always takes the final slot. For pots over $1,000 every early slot must be held by a completed-pod or 90+ day member, otherwise the pod cannot lock. Pots of $1,000 or less always lock.
+- COMMITMENT: joining means depositing every week for the full cycle (one week per member), INCLUDING after you have received your own payout. You can leave only once every member has received a payout. If you leave or are removed after your payout, the remaining deposits are still owed.
 
 2. CATEGORY: CREATOR HOST REWARDS & SKIN-IN-THE-GAME
-- Skin-in-the-Game Guarantee: The Pod Creator is architecturally pinned to the FINAL rotation slot (Turn #N). This prevents early cash-out fraud and aligns incentives.
-- 3% Host Stewardship Reward: In exchange for hosting and taking the last slot, the Creator earns 3% on every teammate payout (e.g., $12/payout on a $400 pool = $228 in cumulative passive rewards on a 20-member pod), credited directly to their Stripe Treasury balance.
-- Creator Payout Spot Swapping & 3% Cut Transfer Policy: Pod Creators can switch places as they please (just like any other member) for an early payout. However, because the 3% weekly cut is given for being the last to be paid out, whomever the Creator switches spots with will be given the 3% weekly cut on all teammate payouts once the switch is approved and active. For example, if the Pod Creator asks to switch places for an early payout with 'Member X', the 3% weekly cut is transferred to 'Member X' once active.
+- Skin-in-the-Game: The Pod Creator takes the FINAL rotation slot. This prevents early cash-out fraud and aligns incentives.
+- 3% Host Reward: 3% of each pot goes to whoever holds the final slot (normally the Creator) on every teammate payout (e.g., $12/payout on a $400 pot = $228 over a 20-member pod), credited to their MutualPool balance. It is paid out of the 10% payout fee.
+- Creator Swaps: the Creator can swap like any other member, but the 3% Host Reward goes WITH the final slot: whoever ends up holding the final slot receives the 3% on all later payouts.
 - Invite Window & Flexible Early Launch:
   * Invite Windows: 3, 7, 14, or 30 days. Creators choose to auto-open vacant slots to the public or keep waiting upon expiration.
-  * Flexible Early Launch: Creators can launch as soon as 2 or more members join without waiting for all 20 slots. Payouts scale dynamically.
+  * Flexible Early Launch: Creators can lock as soon as 2 or more members join. Payouts scale with the member count.
 
 3. CATEGORY: DEPOSITS, PAYOUTS & TRANSPARENT FEES
-- Deposit Collection: Collected weekly via Stripe Treasury balance, Linked Bank ACH (Plaid/Financial Connections), or offset by Brand Campaign daily courier wages.
-- Payout Execution: Net lump sum (90%) is credited to the recipient's Treasury balance; withdrawals go to their verified bank account via Stripe. Subsequent rotation weeks NEVER wait or block for bank withdrawals.
-- Fee Structure:
-  * 5% Initial Deposit Fee: Applied only on the 1st deposit to initialize the member's Treasury balance.
-  * 10% Payout Service Fee: Deducted on payout (e.g. $40 on $400 pot = $360 net payout). 3% goes to Pod Creator as Host Reward; 7% goes to platform operations and the First-Cycle contingency buffer.
+- Settlement week: deposits are taken THURSDAY 12:00 AM Eastern; the week's payout is credited FRIDAY 12:00 AM Eastern.
+- Deposit Collection: each Thursday the weekly deposit plus the 5% deposit fee is taken from the member's MutualPool balance automatically. Members must keep enough balance. Fund the balance by card top-up through Stripe (no MutualPool fee on top-ups), by bank transfer from the linked account, or with payouts and brand campaign earnings, which land in the same balance.
+- Bank debit authorization: used ONLY for (1) a weekly deposit the balance could not cover, (2) anything MutualPool advanced on the member's behalf (e.g. a hardship advance), (3) the remaining deposits owed if the member leaves or is removed after receiving a payout. The member is told in the app before each debit. It can be revoked via support, but that does not cancel what is owed, and no pods can be created or joined without it.
+- Payout Execution: the net payout (90% of the pot) is credited to the recipient's MutualPool balance on Friday. Withdrawals go to the Stripe-verified bank account, no withdrawal fee, bank posts in 1-3 business days. Later rotation weeks never wait for a pending withdrawal. Recently deposited card funds may be held while contestable; chargebacks or fraud reviews can hold or reverse funds.
+- Fee Structure (the ONLY fees):
+  * 5% Deposit Fee: charged on EVERY weekly deposit when it is taken (a $20 deposit costs $21 from the balance). It is NOT a one-time setup fee.
+  * 10% Payout Fee: deducted from each payout (e.g. $40 on a $400 pot = $360 net). 3% of the pot goes to the final-slot holder as Host Reward; 7% goes to MutualPool.
+  * 7% Hardship Repayment Fee: added to a hardship advance when it is repaid.
+  * No withdrawal fee, no card top-up fee, no interest. Fee changes get 30 days' notice in the app and apply only to pods that start afterwards.
 
-4. CATEGORY: AUTONOMOUS AI CUSTODIAN & SYSTEM ESCROW
-- Autonomous AI Custodian Protocol (Lainie AI): If a Creator defaults or experiences hardship, Lainie AI automatically takes over pod administration with zero administrative burden on members. Creator forfeits the 3% reward, which is redirected to the System Escrow.
-- System Deposits Escrow Account: Platform central liquidity reserve that advances weekly deposits for vacant slots or missed payments so rotation recipients always receive 100% full payout on time.
-- Delinquent Member Replacement: After a 72-hour grace period, unpaid slots are opened to verified replacement drivers.
-- Hardship Relief Fund: Emergency bridge protection for members facing vehicle mechanical breakdowns or medical emergencies.
+4. CATEGORY: MISSED DEPOSITS, AUTONOMOUS AI CUSTODIAN, ESCROW & HARDSHIP
+- Missed deposit sequence: (1) the Thursday sweep finds the balance short, records a missed deposit and notifies the member, who has until the Friday payout to top up; a late deposit repays what was bridged rather than inflating the pot. (2) The pod's contingency buffer may bridge the week (a first pod can carry a Welcome Match equal to one deposit, granted once per person, never paid as cash, returned if unused). (3) MutualPool's System Deposits Escrow may bridge it if the buffer is empty. (4) Anything bridged becomes money the member OWES, collected from their balance, from any future payout in any pod, or by bank debit under their authorization; recovered money repays escrow, restores the buffer, then bridges the pod's later weeks. (5) The creator may grant a grace period; MutualPool may cover the gap or remove the member. A member removed AFTER receiving their payout still owes the remaining deposits.
+- Default: a member who takes a payout and then stops depositing is in default: account may be suspended, balance kept to cover the shortfall, amount pursued, and the default shared with the pod. A missed deposit also drops them to the $1,000 pod size tier until settled.
+- Escrow and buffers are LIMITED and DISCRETIONARY. Never promise that every payout is 100% guaranteed; say they keep payouts on schedule in most cases and that members ultimately rely on each other.
+- Autonomous AI Custodian Protocol (Lainie AI): If a Creator defaults or enters a hardship hold, Lainie AI takes over pod stewardship with zero administrative burden on members. The Creator forfeits the 3% reward, which is redirected to the System Escrow.
+- Hardship Advance: an approved request means MutualPool makes ONE weekly deposit on the member's behalf (an advance against their own future payouts, not a loan). Eligible after 90 days of pod membership; reviewed by MutualPool and may be declined; one approved advance per pod per cycle, at most two outstanding per pod; must be repaid plus the 7% hardship repayment fee before joining or creating another pod.
 
 5. CATEGORY: SECURITY${TREASURY_PROGRAM_ENABLED ? ', FDIC INSURANCE' : ''} & KYC VERIFICATION
-${TREASURY_PROGRAM_ENABLED ? '- FDIC Pass-Through Insurance: Dedicated Stripe Treasury accounts held at FDIC-insured partner institutions (such as Evolve Bank & Trust or Fifth Third Bank) with pass-through insurance up to $250,000 per member.' : '- Custody: Deposits and payouts are processed by Stripe. MutualPool is a technology platform, not a bank; member balances are NOT FDIC insured. Never claim FDIC or deposit insurance.'}
-- Stripe Identity KYC: Required under Bank Secrecy Act / AML regulations to prevent duplicate accounts and fraud.
-- Peer Rotation Slot Swaps: Members of a pod can trade or switch places for early payout with mutual consent. The Pod Creator can also switch places as they please (just like any other member); however, the 3% weekly cut on all teammate payouts will be given to whomever the Creator switches spots with once the switch is approved and active.
+${TREASURY_PROGRAM_ENABLED ? '- FDIC Pass-Through Insurance: Dedicated Stripe Treasury accounts held at FDIC-insured partner institutions (such as Evolve Bank & Trust or Fifth Third Bank) with pass-through insurance up to $250,000 per member.' : '- Custody: Deposits and payouts are processed by Stripe. MutualPool is a technology platform, not a bank; member balances are NOT FDIC insured. Never claim FDIC or deposit insurance, and do not call the balance a "Stripe Treasury" account; call it the MutualPool balance.'}
+- Stripe Identity KYC: Required to prevent duplicate accounts and fraud. One account per person.
+- Peer Rotation Slot Swaps: (a) Spot swap: proposal to one other member, both must consent in the app, positions trade. (b) Reprioritization vote: if more than half of the pod votes yes, the requester moves into the next payout slot and the displaced member takes the requester's old slot. Members who already received their payout cannot swap. In the early half of the rotation no swap or vote may put a newer member ahead of a more established one, and in pots over $1,000 every early slot must stay with a completed-pod or 90+ day member. The 3% Host Reward always follows the final slot.
 
 6. CATEGORY: BRAND AMBASSADOR SPONSORSHIP CAMPAIGNS
 - Daily Campaign Earnings: Couriers earn guaranteed daily payouts of $55-$75/day based on active participation in their selected brand campaigns.
 - Free Apparel & Gear: Approved drivers get premium weatherproof hoodies and insulated bags.
-- Direct Stripe Treasury Credit: Daily payouts are deposited directly to courier accounts upon completing shifts.
+- Credited to the MutualPool balance: daily payouts are credited to the courier's balance once a shift is verified, ready to withdraw or to cover weekly pod deposits.
 - AI Vision & GPS Verification: Shift check-in verified via multimodal camera selfie and GPS route logging.
 
 7. CATEGORY: GIG PERKS MARKETPLACE

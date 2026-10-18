@@ -495,7 +495,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       } else if (q.includes('host') || q.includes('creator') || q.includes('skin in the game') || q.includes('3%') || q.includes('last slot') || q.includes('anfitrión') || q.includes('creador') || q.includes('recompensa') || q.includes('hôte') || q.includes('créateur') || q.includes('prime')) {
         data = isEs ? {
           spokenText: "Los Creadores de grupos toman el último turno de cobro como garantía de confianza y reciben una recompensa de anfitrión del 3% en cada desembolso semanal de sus compañeros.",
-          displayText: "🌟 Recompensa del Creador (3%) y Compromiso Real\n\n• Garantía de Confianza: El Creador se fija en el último turno (#N) para proteger al grupo contra fraudes.\n• Recompensa del 3%: Por liderar el grupo, el Creador gana el 3% de cada desembolso semanal (ej. $12/semana en un pozo de $400, sumando $228 en 20 semanas).\n• Depósito Directo: Las ganancias se acreditan automáticamente a su saldo de Stripe Treasury.",
+          displayText: "🌟 Recompensa del Creador (3%) y Compromiso Real\n\n• Garantía de Confianza: El Creador se fija en el último turno (#N) para proteger al grupo contra fraudes.\n• Recompensa del 3%: Por liderar el grupo, el Creador gana el 3% de cada desembolso semanal (ej. $12/semana en un pozo de $400, sumando $228 en 20 semanas).\n• Depósito Directo: Las ganancias se acreditan automáticamente a su saldo de MutualPool.",
           suggestedActions: [
             { label: "Crear un Grupo Ahora", action: "OPEN_MODAL", modal: "CREATE_POD" },
             { label: "Ver FAQ de Creadores", action: "OPEN_MODAL", modal: "FAQ" }
@@ -503,7 +503,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
           navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
         } : isFr ? {
           spokenText: "Les Créateurs de groupes occupent le dernier tour de versement pour garantir la sécurité et reçoivent une prime d'hôte de 3% sur chaque versement de leurs coéquipiers.",
-          displayText: "🌟 Prime d'Hôte Créateur (3%) & Sécurité Totale\n\n• Engagement Garanti : Le Créateur est placé au dernier tour (#N) pour éliminer tout risque de désistement précoce.\n• Prime de Gestion de 3% : En contrepartie, le Créateur perçoit 3% sur chaque versement hebdomadaire (ex. 12 $/semaine sur un pot de 400 $, soit 228 $ sur 20 semaines).\n• Crédité sur Treasury : Versements directs sur votre compte Stripe Treasury.",
+          displayText: "🌟 Prime d'Hôte Créateur (3%) & Sécurité Totale\n\n• Engagement Garanti : Le Créateur est placé au dernier tour (#N) pour éliminer tout risque de désistement précoce.\n• Prime de Gestion de 3% : En contrepartie, le Créateur perçoit 3% sur chaque versement hebdomadaire (ex. 12 $/semaine sur un pot de 400 $, soit 228 $ sur 20 semaines).\n• Crédité sur Treasury : Versements directs sur votre solde MutualPool.",
           suggestedActions: [
             { label: "Créer un Groupe", action: "OPEN_MODAL", modal: "CREATE_POD" },
             { label: "FAQ Créateurs", action: "OPEN_MODAL", modal: "FAQ" }
@@ -511,7 +511,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
           navigationAction: { type: "OPEN_MODAL", target: "CREATE_POD" }
         } : {
           spokenText: "Pod Creators take the final rotation slot as a skin-in-the-game safety guarantee. In return, they earn a 3% Host Stewardship Reward on every teammate payout, totaling up to $228 in passive earnings.",
-          displayText: "🌟 3% Creator Host Stewardship Reward & Skin-in-the-Game\n\n• Skin-in-the-Game: The Creator is pinned to the final rotation slot (#N) so they stay committed to the cycle.\n• 3% Host Reward: The Creator earns 3% on every teammate payout (e.g. $12/payout on a $400 pot → $228 total on a 20-member pod).\n• Direct Deposit: Rewards disburse automatically into the Creator's Stripe Treasury wallet.",
+          displayText: "🌟 3% Creator Host Stewardship Reward & Skin-in-the-Game\n\n• Skin-in-the-Game: The Creator is pinned to the final rotation slot (#N) so they stay committed to the cycle.\n• 3% Host Reward: The Creator earns 3% on every teammate payout (e.g. $12/payout on a $400 pot → $228 total on a 20-member pod).\n• Direct Deposit: Rewards are credited automatically to the Creator's MutualPool balance.",
           suggestedActions: [
             { label: "Create a Pod Now", action: "OPEN_MODAL", modal: "CREATE_POD" },
             { label: "Read Creator FAQ", action: "OPEN_MODAL", modal: "FAQ" }
@@ -540,7 +540,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
           navigationAction: null
         } : {
           spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about how savings pods work, the 3% Creator Host Reward, our Autonomous AI Custodian, FDIC insurance, or explore our FAQ!`,
-          displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Stripe Treasury & FDIC Pass-Through Insurance ($250,000)\n• Transparent Fees (5% Setup / 10% Payout Service Fee)\n• Brand Ambassador Earnings & Vision Verification`,
+          displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Stripe Treasury & FDIC Pass-Through Insurance ($250,000)\n• Transparent Fees (5% per deposit / 10% on payouts)\n• Brand Ambassador Earnings & Vision Verification`,
           suggestedActions: [
             { label: "What is a ROSCA / Pod?", action: "SPEAK_EXPLANATION", prompt: "What is MutualPool and how does a Mutual Savings Pod work?" },
             { label: "Is MutualPool a loan?", action: "SPEAK_EXPLANATION", prompt: "Is MutualPool a loan, credit card, or debt?" },
