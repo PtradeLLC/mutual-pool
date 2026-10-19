@@ -36,7 +36,10 @@ export const PWAInstallPrompt: React.FC = () => {
   if (!showBanner) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-white border border-[#DDE1E6] rounded-xl p-4 shadow-xl flex items-center justify-between gap-3 text-xs text-[#111827]">
+    // The bottom-right corner belongs to the voice assistant (bottom-6) and the
+    // chat launcher stacked above it (bottom-[88px]). Keep this banner out of that
+    // column: bottom-left on wider screens, and above both on phones.
+    <div className="fixed z-50 bottom-[148px] left-4 right-4 sm:bottom-6 sm:left-6 sm:right-auto sm:max-w-md bg-white border border-[#DDE1E6] rounded-xl p-4 shadow-xl flex items-center justify-between gap-3 text-xs text-[#111827]">
       <div className="flex items-center gap-3">
         <div className="p-2.5 rounded-xl bg-blue-50 text-[#005FB8] shrink-0">
           <Sparkles className="w-5 h-5" />

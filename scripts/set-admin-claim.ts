@@ -7,7 +7,10 @@
 // GOOGLE_APPLICATION_CREDENTIALS) and FIREBASE_PROJECT_ID. The user must sign
 // out and back in (or wait up to an hour) for the new claim to reach their token.
 import 'dotenv/config';
-import { getAuthAdmin, hasFirestoreCredentials } from '../src/config/firebase';
+import { getAuthAdmin } from '../src/config/firebase';
+
+const hasAdminCredentials = (): boolean =>
+  Boolean(process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 async function main() {
   const [email, flag] = process.argv.slice(2);
@@ -15,7 +18,7 @@ async function main() {
     console.error('Usage: npx tsx scripts/set-admin-claim.ts <email> [--revoke]');
     process.exit(1);
   }
-  if (!hasFirestoreCredentials()) {
+  if (!hasAdminCredentials()) {
     console.error([
       'Firebase Admin credentials are missing.',
       'Add a service account to .env:',
