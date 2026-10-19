@@ -1,11 +1,12 @@
 import { IPaymentProvider, PaymentIntentParams, PaymentIntentResult, PayoutDisbursementParams, PayoutDisbursementResult } from './types';
+import { FEES } from '../../lib/legal';
 
 export class StripeTreasuryProvider implements IPaymentProvider {
   readonly providerId = 'stripe_treasury';
   readonly supportedCurrency = 'USD';
 
   async createDepositIntent(params: PaymentIntentParams): Promise<PaymentIntentResult> {
-    const feeMinor = Math.round(params.amountMinorUnits * 0.05); // 5% platform fee
+    const feeMinor = Math.round(params.amountMinorUnits * FEES.depositFeeRate); // platform deposit fee
     const totalMinor = params.amountMinorUnits + feeMinor;
     const id = `pi_us_treasury_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 

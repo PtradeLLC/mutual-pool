@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { FEES } from '../lib/legal';
 import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy } from '../types';
 import { useTranslation } from '../i18n/LanguageContext';
 import { savePodToFirestore } from '../lib/firestoreService';
@@ -86,7 +87,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const canCreateOpenPod = currentUserState.completedPodsCount >= 1 || isSeasoned;
 
   const baseDepositAmount = Number(depositTier) || 20;
-  const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+  const platformFee = Math.round(baseDepositAmount * FEES.depositFeeRate * 100) / 100;
   const totalChargedAmount = baseDepositAmount + platformFee;
   const treasuryBalance = Number(currentUserState.treasury?.balanceUsd ?? 0);
   const hasSufficientBalance = treasuryBalance + 1e-9 >= totalChargedAmount;

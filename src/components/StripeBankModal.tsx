@@ -244,7 +244,9 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
     setSuccessMessage(null);
 
     const depositAmount = Number(topUpAmount) || 100;
-    const feeAmount = Math.round(depositAmount * 0.05 * 100) / 100;
+    // No fee on top-ups: the deposit fee (FEES.depositFeeRate) is charged when
+    // money goes into a pod, matching the server's top-up endpoint and the Terms.
+    const feeAmount = 0;
     const totalCharged = depositAmount + feeAmount;
     const currentBal = user.treasury?.balanceUsd || 0;
     const newBal = currentBal + depositAmount;
@@ -505,19 +507,15 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
                 </button>
               </div>
 
-              {/* 5% Initial Deposit / Platform Fee Breakdown */}
+              {/* Top-up breakdown: no fee on top-ups; the deposit fee applies per pod deposit */}
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 font-mono">
                 <div className="flex justify-between text-slate-700">
                   <span>{t('treasuryModal.baseDepositLabel')}</span>
-                  <span>${topUpAmount}.00</span>
-                </div>
-                <div className="flex justify-between text-[#005FB8]">
-                  <span>{t('treasuryModal.feeLabel')}</span>
-                  <span>+${(topUpAmount * 0.05).toFixed(2)}</span>
+                  <span>${Number(topUpAmount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-200">
                   <span>{t('treasuryModal.totalPaymentLabel')}</span>
-                  <span>${(topUpAmount * 1.05).toFixed(2)}</span>
+                  <span>${Number(topUpAmount).toFixed(2)}</span>
                 </div>
                 <div className="text-[10.5px] text-emerald-700 font-sans pt-0.5">
                   {t('treasuryModal.feeBreakdownNote', { amount: topUpAmount })}

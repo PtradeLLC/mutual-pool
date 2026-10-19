@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FEES } from '../lib/legal';
 import { Pod, User, Perk, isDemoPod } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
 import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
@@ -769,7 +770,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <p className="text-[11px] text-[#6B7280]">
                 * {t('calculator.disclaimer', {
                   deposit: calcDeposit.toString(),
-                  totalDeposit: (calcDeposit * 1.05).toFixed(2),
+                  totalDeposit: (calcDeposit * (1 + FEES.depositFeeRate)).toFixed(2),
                   weeks: calcMembers.toString(),
                   netPayout: ((calcMembers * calcDeposit) * 0.90).toLocaleString()
                 })}
@@ -796,7 +797,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 <div className="flex justify-between text-blue-200">
                   <span className="font-sans">{t('calculator.depositFeeLabel')}</span>
-                  <span>+${(calcDeposit * 0.05).toFixed(2)}</span>
+                  <span>+${(calcDeposit * FEES.depositFeeRate).toFixed(2)}</span>
                 </div>
 
                 <div className="flex justify-between text-blue-100">
@@ -807,11 +808,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="space-y-1">
                   <div className="flex justify-between text-rose-200">
                     <span className="font-sans">{t('calculator.payoutFeeLabel')}</span>
-                    <span>-${(totalPoolPayout * 0.10).toFixed(2)}</span>
+                    <span>-${(totalPoolPayout * FEES.payoutFeeRate).toFixed(2)}</span>
                   </div>
                   <div className="text-[10px] text-blue-200/90 font-sans space-y-0.5 pl-1.5 border-l border-blue-400/50">
                     <div className="text-emerald-300 font-semibold">
-                      {t('calculator.payoutFeeSplitActive', { reward: (totalPoolPayout * 0.03).toFixed(2) })}
+                      {t('calculator.payoutFeeSplitActive', { reward: (totalPoolPayout * FEES.hostRewardRate).toFixed(2) })}
                     </div>
                     <div className="text-blue-300/80">
                       {t('calculator.payoutFeeSplitAutonomous')}
@@ -821,7 +822,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 {/* Host Incentive Highlight Badge */}
                 <div className="p-2.5 rounded-lg bg-blue-900/60 border border-blue-400/40 text-[11px] font-sans text-blue-100 leading-relaxed">
-                  {t('calculator.creatorIncentivePerk', { reward: (totalPoolPayout * 0.03).toFixed(2) })}
+                  {t('calculator.creatorIncentivePerk', { reward: (totalPoolPayout * FEES.hostRewardRate).toFixed(2) })}
                 </div>
 
                 <div className="flex justify-between border-t border-blue-400/40 pt-2">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { FEES } from '../lib/legal';
 import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest, PodDetailTab } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
@@ -481,7 +482,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       if (!res.ok) throw new Error(data.message || 'Payout failed');
 
       const gross = data.grossPayoutAmount || currentActivePool;
-      const fee = data.payoutFee || gross * 0.10;
+      const fee = data.payoutFee || gross * FEES.payoutFeeRate;
       const net = data.payoutAmount || (gross - fee);
       const creatorReward = data.creatorHostReward || 0;
 
@@ -1436,16 +1437,16 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <div className="space-y-0.5">
                   <div className="flex justify-between text-rose-600">
                     <span>10% Platform Payout Service Fee:</span>
-                    <span>-${(currentActivePool * 0.10).toFixed(2)}</span>
+                    <span>-${(currentActivePool * FEES.payoutFeeRate).toFixed(2)}</span>
                   </div>
                   {pod.stewardshipMode === 'AUTONOMOUS_AI' ? (
                     <div className="text-[10px] text-purple-700 font-sans pl-2 border-l-2 border-purple-300">
-                      🤖 <strong>100% (-${(currentActivePool * 0.10).toFixed(2)})</strong> directed to System Escrow & Platform Reserves (Autonomous Custodian Active)
+                      🤖 <strong>100% (-${(currentActivePool * FEES.payoutFeeRate).toFixed(2)})</strong> directed to System Escrow & Platform Reserves (Autonomous Custodian Active)
                     </div>
                   ) : (
                     <div className="text-[10px] text-gray-600 font-sans pl-2 border-l-2 border-emerald-400 space-y-0.5">
                       <div className="text-emerald-700 font-semibold">
-                        🎉 <strong>+${(currentActivePool * 0.03).toFixed(2)} (3%)</strong> Host Stewardship Reward to {pod.hostRewardRecipientName || pod.creatorName}
+                        🎉 <strong>+${(currentActivePool * FEES.hostRewardRate).toFixed(2)} (3%)</strong> Host Stewardship Reward to {pod.hostRewardRecipientName || pod.creatorName}
                         {pod.hostRewardRecipientUserId && pod.hostRewardRecipientUserId !== pod.createdBy && (
                           <span className="text-[10px] text-emerald-800 font-normal ml-1">
                             (Transferred via Creator spot swap)
@@ -1453,7 +1454,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                         )}
                       </div>
                       <div className="text-gray-500">
-                        🏛️ <strong>-${(currentActivePool * 0.07).toFixed(2)} (7%)</strong> Platform Treasury & Network Reserves
+                        🏛️ <strong>-${(currentActivePool * (FEES.payoutFeeRate - FEES.hostRewardRate)).toFixed(2)} (7%)</strong> Platform Treasury & Network Reserves
                       </div>
                     </div>
                   )}
@@ -1497,11 +1498,11 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 </div>
                 <div className="flex justify-between text-[#005FB8]">
                   <span>5% Platform Service Fee:</span>
-                  <span>+${(pod.depositTier * 0.05).toFixed(2)}</span>
+                  <span>+${(pod.depositTier * FEES.depositFeeRate).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-[#111827] pt-1 border-t border-gray-100">
                   <span>Total Total Payment Charged:</span>
-                  <span>${(pod.depositTier * 1.05).toFixed(2)}</span>
+                  <span>${(pod.depositTier * (1 + FEES.depositFeeRate)).toFixed(2)}</span>
                 </div>
               </div>
 
@@ -1513,7 +1514,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   className="px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <DollarSign className="w-4 h-4" />
-                  <span>Submit ${(pod.depositTier * 1.05).toFixed(2)} Weekly Contribution</span>
+                  <span>Submit ${(pod.depositTier * (1 + FEES.depositFeeRate)).toFixed(2)} Weekly Contribution</span>
                 </button>
               )}
             </div>
@@ -1684,7 +1685,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 </div>
                 <div className="bg-white/10 p-2 rounded border border-white/10">
                   <span className="text-blue-200 block text-[10px] uppercase">Service Fee Tagged</span>
-                  <span className="font-bold text-amber-200">+7% (${(pod.depositTier * 0.07).toFixed(2)})</span>
+                  <span className="font-bold text-amber-200">+7% (${(pod.depositTier * FEES.hardshipRepaymentFeeRate).toFixed(2)})</span>
                 </div>
                 <div className="bg-white/10 p-2 rounded border border-white/10">
                   <span className="text-blue-200 block text-[10px] uppercase">Frequency Limit</span>
@@ -1714,7 +1715,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     </p>
                     <div className="flex items-center justify-between pt-2 border-t border-amber-200 text-xs font-mono font-bold text-amber-950">
                       <span>Payoff Required (Deposit + 7% Fee):</span>
-                      <span>${(currentUser.hardshipOwedUsd || (pod.depositTier * 1.07)).toFixed(2)}</span>
+                      <span>${(currentUser.hardshipOwedUsd || (pod.depositTier * (1 + FEES.hardshipRepaymentFeeRate))).toFixed(2)}</span>
                     </div>
                     <button
                       onClick={() => {
@@ -1725,7 +1726,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                     >
                       <DollarSign className="w-4 h-4" />
-                      <span>{repayingHardship ? 'Processing Repayment...' : `Pay $${(currentUser.hardshipOwedUsd || (pod.depositTier * 1.07)).toFixed(2)} & Reactivate Account`}</span>
+                      <span>{repayingHardship ? 'Processing Repayment...' : `Pay $${(currentUser.hardshipOwedUsd || (pod.depositTier * (1 + FEES.hardshipRepaymentFeeRate))).toFixed(2)} & Reactivate Account`}</span>
                     </button>
                   </div>
                 ) : showHardshipForm ? (
@@ -1747,7 +1748,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       <div>• Policy: Eligible after 3 months (90 days) of pod membership</div>
                       <div>• Frequency: Subsequent requests allowed every 4 months once account is paid up</div>
                       <div>• Deposit Funded: ${pod.depositTier}.00</div>
-                      <div>• 7% Fee Added on Payoff: +${(pod.depositTier * 0.07).toFixed(2)} (${(pod.depositTier * 1.07).toFixed(2)} total)</div>
+                      <div>• 7% Fee Added on Payoff: +${(pod.depositTier * FEES.hardshipRepaymentFeeRate).toFixed(2)} (${(pod.depositTier * (1 + FEES.hardshipRepaymentFeeRate)).toFixed(2)} total)</div>
                       <div>• Account Status: Set to INACTIVE / HOLD once approved by MutualPool, until paid off</div>
                     </div>
                     <div className="flex justify-end gap-2">
@@ -1775,7 +1776,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                         Need Help Covering This Week's ${pod.depositTier}.00 Deposit?
                       </span>
                       <span className="text-[11px] text-[#6B7280]">
-                        Request a hardship fund. If approved by MutualPool, ${pod.depositTier}.00 is deposited into the pool. Payoff is ${(pod.depositTier * 1.07).toFixed(2)}.
+                        Request a hardship fund. If approved by MutualPool, ${pod.depositTier}.00 is deposited into the pool. Payoff is ${(pod.depositTier * (1 + FEES.hardshipRepaymentFeeRate)).toFixed(2)}.
                       </span>
                     </div>
                     <button

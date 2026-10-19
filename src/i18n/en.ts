@@ -2032,7 +2032,7 @@ export const en = {
   "treasuryModal.feeLabel": "Deposit Fee (5% per weekly deposit):",
   "treasuryModal.totalPaymentLabel": "Total Payment Processed:",
   "treasuryModal.feeBreakdownNote":
-    "✓ Net ${amount}.00 is credited directly to your Stripe Treasury Balance (5% platform fee is processed separately).",
+    "✓ Net ${amount}.00 is credited directly to your Stripe Treasury Balance. No fee on top-ups: the 5% deposit fee is charged when money goes into a pod.",
   "treasuryModal.processingDeposit":
     "Processing Stripe Treasury InboundTransfer...",
   "treasuryModal.processDepositBtn": "Process +${amount}.00 Treasury Deposit",
@@ -2138,7 +2138,7 @@ export const en = {
   "treasuryModal.headerTitle.noTreasury": "Balance & Bank Accounts",
   "treasuryModal.commercialBalanceTitle.noTreasury": "Available Balance",
   "treasuryModal.depositFormTitle.noTreasury": "Deposit Funds via Stripe",
-  "treasuryModal.feeBreakdownNote.noTreasury": "✓ Net ${amount}.00 is credited directly to your balance (5% platform fee is processed separately).",
+  "treasuryModal.feeBreakdownNote.noTreasury": "✓ Net ${amount}.00 is credited directly to your balance. No fee on top-ups: the 5% deposit fee is charged when money goes into a pod.",
   "treasuryModal.processingDeposit.noTreasury": "Processing your Stripe deposit...",
   "addFundsModal.title.noTreasury": "Add Funds via Stripe",
   "addFundsModal.successMessage.noTreasury": "${amount} was credited to your balance. Your active balance is now ${newBalance}.",

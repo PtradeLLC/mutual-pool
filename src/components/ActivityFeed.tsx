@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { FEES } from '../lib/legal';
 import { Pod, User, AuditLogEntry, DelinquencyStatus } from '../types';
 import { 
   Activity, 
@@ -148,7 +149,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         action === 'SYSTEM_ESCROW_DEPOSIT_DISBURSED'
       ) {
         type = 'DEPOSIT';
-        title = `Deposit of $${amount ? amount.toFixed(2) : (pod.depositTier * 1.05).toFixed(2)} USD Processed`;
+        title = `Deposit of $${amount ? amount.toFixed(2) : (pod.depositTier * (1 + FEES.depositFeeRate)).toFixed(2)} USD Processed`;
       } else if (
         action === 'PAYOUT_EXECUTED' || 
         action === 'FRIDAY_AUTOMATED_PAYOUT_SWEEP' ||
@@ -321,7 +322,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
 
     const totalDepositedUsd = activityItems
       .filter((i) => i.type === 'DEPOSIT')
-      .reduce((sum, item) => sum + (item.amount || (pod.depositTier * 1.05)), 0);
+      .reduce((sum, item) => sum + (item.amount || (pod.depositTier * (1 + FEES.depositFeeRate))), 0);
 
     const totalPaidOutUsd = activityItems
       .filter((i) => i.type === 'PAYOUT')

@@ -38,7 +38,7 @@ import { planRotation, findEarlySlotViolation, trustTier, trustLabel, potCapUsd,
 import { createStorageAdapter, storageConfigProblems } from './src/server/storage';
 import { assessHardshipRisk } from './src/server/hardshipRisk';
 import { generateSpotCheckSchedule, nextCheckAfter, MISSED_GRACE_MS, MAX_CHECKS_PER_SHIFT } from './src/server/shiftSchedule';
-import { TERMS_VERSION, hasAcceptedCurrentTerms } from './src/lib/legal';
+import { FEES, TERMS_VERSION, hasAcceptedCurrentTerms } from './src/lib/legal';
 import { buildLegalDocument, renderLegalHtml } from './src/server/legalPages';
 import { isTraditionId } from './src/data/roscaTraditions';
 import { TREASURY_PROGRAM_ENABLED, sanitizeVoiceGuidePayload } from './src/lib/treasuryClaims';
@@ -2207,7 +2207,7 @@ app.get(['/api/health', '/health'], (req, res) => {
 
       const { amount, sourceCardNumber, autoFund } = req.body || {};
       const depositAmount = Number(amount) || 0;
-      const platformFee = Math.round(depositAmount * 0.05 * 100) / 100;
+      const platformFee = Math.round(depositAmount * FEES.depositFeeRate * 100) / 100;
       const totalChargedAmount = depositAmount + platformFee;
 
       let targetUser = users.find(u => u && u.id === user.id);
@@ -2668,7 +2668,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     const podId = `pod_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 
     const baseDepositAmount = Number(depositTier);
-    const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+    const platformFee = Math.round(baseDepositAmount * FEES.depositFeeRate * 100) / 100;
     const totalChargedAmount = baseDepositAmount + platformFee;
 
     // Check Welcome Match Eligibility (Matches 100% of selected deposit tier for verified KYC first pod creation)
@@ -3027,7 +3027,7 @@ app.get(['/api/health', '/health'], (req, res) => {
 
       // Charge the first deposit + 5% platform fee before adding the member.
       const baseDepositAmount = pod.depositTier || 20;
-      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+      const platformFee = Math.round(baseDepositAmount * FEES.depositFeeRate * 100) / 100;
       const totalChargedAmount = baseDepositAmount + platformFee;
       const targetUser = users.find(u => u && u.id === user.id) || user;
       if (!debitLedger(targetUser, totalChargedAmount)) {
@@ -3400,7 +3400,7 @@ app.get(['/api/health', '/health'], (req, res) => {
 
     // Deduct from Treasury balance with 5% platform fee
     const baseDepositAmount = pod.depositTier;
-    const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+    const platformFee = Math.round(baseDepositAmount * FEES.depositFeeRate * 100) / 100;
     const totalChargedAmount = baseDepositAmount + platformFee;
     const stripePaymentId = newLedgerId('ledger_deposit');
 
@@ -3506,7 +3506,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       }
       
       // Apply 10% payout fee tag (e.g. $400 pool - 10% ($40) = $360 net paid to user)
-      const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
+      const totalPayoutFee = Math.round(grossPayoutAmount * FEES.payoutFeeRate * 100) / 100;
       const netPayoutAmount = grossPayoutAmount - totalPayoutFee;
 
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
@@ -3521,7 +3521,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       let platformFeeRetained = totalPayoutFee;
 
       if (!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod) {
-        creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100; // 3% of gross pool
+        creatorHostReward = Math.round(grossPayoutAmount * FEES.hostRewardRate * 100) / 100; // 3% of gross pool
         platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100; // 7% retained by platform
         
         // Credit Active Host/Spot Beneficiary Treasury ledger with 3% host stewardship reward
@@ -3829,7 +3829,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       if (!pod || !Array.isArray(pod.members) || pod.members.length === 0) continue;
       const cycleWeek = pod.currentCycleWeek || 1;
       const baseDepositAmount = pod.depositTier || 20;
-      const platformFee = Math.round(baseDepositAmount * 0.05 * 100) / 100;
+      const platformFee = Math.round(baseDepositAmount * FEES.depositFeeRate * 100) / 100;
       const totalChargedAmount = baseDepositAmount + platformFee;
 
       for (const member of pod.members) {
@@ -4074,7 +4074,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         details.push(`[${pod.name}] Skipped Week ${cycleWeek} payout: ${!recipientUser ? 'recipient account not found' : 'no deposits collected'}.`);
         continue;
       }
-      const totalPayoutFee = Math.round(grossPayoutAmount * 0.10 * 100) / 100;
+      const totalPayoutFee = Math.round(grossPayoutAmount * FEES.payoutFeeRate * 100) / 100;
       const netPayoutAmount = Math.max(0, grossPayoutAmount - totalPayoutFee);
 
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
@@ -4088,7 +4088,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       let platformFeeRetained = totalPayoutFee;
 
       if (!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod) {
-        creatorHostReward = Math.round(grossPayoutAmount * 0.03 * 100) / 100;
+        creatorHostReward = Math.round(grossPayoutAmount * FEES.hostRewardRate * 100) / 100;
         platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100;
 
         if (!hostRewardUser.treasury) {
@@ -5294,7 +5294,7 @@ Return ONLY a valid JSON object in this exact schema:
     }
 
     const depositAmount = pod.depositTier;
-    const feeAmount = Math.round(depositAmount * 0.07 * 100) / 100;
+    const feeAmount = Math.round(depositAmount * FEES.hardshipRepaymentFeeRate * 100) / 100;
     const totalPayoffAmount = Math.round((depositAmount + feeAmount) * 100) / 100;
 
     const newRequest: HardshipFundRequest = {

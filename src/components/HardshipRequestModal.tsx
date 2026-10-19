@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { FEES } from '../lib/legal';
 import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { 
   HeartHandshake, 
@@ -261,7 +262,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
   };
 
   const depositTier = selectedPod ? selectedPod.depositTier : 20;
-  const feeAmount = Math.round(depositTier * 0.07 * 100) / 100;
+  const feeAmount = Math.round(depositTier * FEES.hardshipRepaymentFeeRate * 100) / 100;
   const totalPayoff = Math.round((depositTier + feeAmount) * 100) / 100;
 
   const currentMember = selectedPod?.members?.find((m) => m.userId === currentUser.id);
