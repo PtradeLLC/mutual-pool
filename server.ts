@@ -8048,7 +8048,7 @@ MutualPool`,
     const problems: string[] = [];
     if (!firstName || !lastName) problems.push('first and last name');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) problems.push('date of birth (YYYY-MM-DD)');
-    if (!/^\d{9}$/.test(ssn)) problems.push('9-digit Social Security Number');
+    if (!/^\d{9}$/.test(ssn)) problems.push('9-digit Social Security Number or ITIN');
     if (!line1 || !city || !/^[A-Z]{2}$/.test(state) || !/^\d{5}(-\d{4})?$/.test(postalCode)) problems.push('US street address');
     if (problems.length) return res.status(400).json({ error: 'INVALID_INPUT', message: `Please provide: ${problems.join(', ')}.` });
     try {

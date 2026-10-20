@@ -131,7 +131,7 @@ export const CustodyAccountPanel: React.FC<Props> = ({ user, onUpdated }) => {
             <div><label className={label}>First name</label><input className={field} value={firstName} onChange={e => setFirstName(e.target.value)} required /></div>
             <div><label className={label}>Last name</label><input className={field} value={lastName} onChange={e => setLastName(e.target.value)} required /></div>
             <div><label className={label}>Date of birth</label><input className={field} type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)} required /></div>
-            <div><label className={label}>Social Security Number</label><input className={field} inputMode="numeric" autoComplete="off" placeholder="123-45-6789" value={ssn} onChange={e => setSsn(e.target.value)} required /></div>
+            <div><label className={label}>SSN or ITIN</label><input className={field} inputMode="numeric" autoComplete="off" placeholder="123-45-6789" value={ssn} onChange={e => setSsn(e.target.value)} required /></div>
             <div className="col-span-2"><label className={label}>Street address</label><input className={field} value={line1} onChange={e => setLine1(e.target.value)} required /></div>
             <div className="col-span-2"><label className={label}>Apartment, unit (optional)</label><input className={field} value={line2} onChange={e => setLine2(e.target.value)} /></div>
             <div><label className={label}>City</label><input className={field} value={city} onChange={e => setCity(e.target.value)} required /></div>
