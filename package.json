@@ -12,11 +12,12 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-postgres.test.ts tests/hardship-risk.test.ts tests/treasury-claims.test.ts tests/shift-schedule.test.ts tests/rotation.test.ts tests/sweep-schedule.test.ts tests/default-controls-rules.test.ts && npm run test:security && npm run test:integration",
+    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-postgres.test.ts tests/hardship-risk.test.ts tests/treasury-claims.test.ts tests/shift-schedule.test.ts tests/rotation.test.ts tests/sweep-schedule.test.ts tests/default-controls-rules.test.ts tests/custody.test.ts && npm run test:security && npm run test:integration",
     "test:security": "tsx scripts/run-server-tests.ts --env=secure tests/security.test.ts",
     "test:integration": "tsx scripts/run-server-tests.ts --env=demo tests/feature-integration.test.ts tests/anti-collusion.test.ts tests/treasury-gate.test.ts tests/shift-spot-checks.test.ts tests/tenure-slots.test.ts tests/ach-collections.test.ts tests/default-controls.test.ts tests/ops-readiness.test.ts",
     "set-admin": "tsx scripts/set-admin-claim.ts",
-    "i18n:draft": "tsx scripts/draft-translation.ts"
+    "i18n:draft": "tsx scripts/draft-translation.ts",
+    "column:smoke": "tsx scripts/column-smoke.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

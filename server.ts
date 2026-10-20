@@ -21,7 +21,7 @@ import {
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
   HardshipFundRequest, AppNotification, NotificationType, SwapRequest,
   PlatformScheduleStatus, SweepExecutionResult, PaymentHistoryItem,
-  DepositDefault, AchCollection, DefaultRecoverySource, DebitMandate, AdCampaign, AccountRestriction, PodPauseVoteChoice, PodPauseVote, PodReplacementVoteChoice, PodReplacementVote } from './src/types';
+  DepositDefault, AchCollection, DefaultRecoverySource, DebitMandate, AdCampaign, AccountRestriction, PodPauseVoteChoice, PodPauseVote, PodReplacementVoteChoice, PodReplacementVote, CustodyMovement, CustodySettings, CustodyAccountRef, CustodyPurpose } from './src/types';
 import {
   getNextThursdayMidnight,
   getNextFridayMidnight,
@@ -45,6 +45,8 @@ import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFl
 import { sendEmail, getOutboundEmails, setOutboundEmails, getMailerStatus } from './src/server/mailer';
 import { reportIncident, recentIncidents, incidentCounts } from './src/server/alerts';
 import { DEFAULT_REMOVAL_GRACE_MS, PAUSE_VOTE_DEFAULTERS, buildPauseVote, buildReplacementVote, coverShareUsd, defaultingUserIds, isUnsettled, removalDue, resolvePauseVote, resolveReplacementVote, tallyPauseVote, tallyReplacementVote } from './src/server/defaultControls';
+import { custodyMode, custodyStatus, fundFromBank, handleColumnEvent, initCustody, linkExternalBank, memberBalanceAtColumn, pendingMovements, provisionMemberAccount, recordMovement, rememberEvent, settlePendingMovements, withdrawToBank } from './src/server/custody';
+import { verifyColumnSignature, getBankAccount as getColumnBankAccount } from './src/services/column';
 import { dueSweeps, weekKeyFor, runId as sweepRunId, SweepRun, SweepType } from './src/server/sweepSchedule';
 import { avatarUrlFor } from './src/utils/avatar';
 import { apiRateLimiter, authRateLimiter, aiRateLimiter, publicFormRateLimiter, moneyRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
@@ -588,6 +590,7 @@ function releaseContingencyBuffer(pod: Pod): void {
   const initial = roundCents(Number(pod.contingencyBufferInitialUsd) || 0);
   const grant = welcomeMatchGrants.find(g => g.podId === pod.id && g.status === 'ACTIVE');
   pod.contingencyBufferUsd = 0;
+  if (remaining > 0) mv(POD(pod.id), PLATFORM('operating'), remaining, 'WELCOME_MATCH', 'Unused welcome match returned to MutualPool', { podId: pod.id });
   for (const g of welcomeMatchGrants.filter(g => g.podId === pod.id && g.status === 'ACTIVE')) {
     g.usedUsd = roundCents(Math.max(0, initial - remaining));
     g.releasedUsd = remaining;
@@ -1099,6 +1102,7 @@ function applyCoverShare(pod: Pod, cycleWeek: number, details: string[]): void {
       createdAt: new Date().toISOString(),
     });
     pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + share);
+    mv(MEMBER(u.id), POD(pod.id), share, 'COVER_SHARE', `Week ${cycleWeek} cover share`, { podId: pod.id, userId: u.id, cycleWeek });
     covered = roundCents(covered + share);
     createNotification({ userId: u.id, type: 'DEPOSIT_CONFIRMED', title: '🤝 Cover share taken', message: `$${share.toFixed(2)}, your equal share of this week's missing deposits in "${pod.name}", was taken from your balance as the members agreed.`, podId: pod.id, podName: pod.name, metadata: { cycleWeek, share } });
     details.push(`[${pod.name}] Cover share $${share.toFixed(2)} from ${m.displayName} (Week ${cycleWeek})`);
@@ -1513,6 +1517,7 @@ function applyDefaultRecovery(d: DepositDefault, amountUsd: number, source: Defa
   if (remaining <= 0) return;
   const applied = remaining;
   const pod = pods.find(p => p && p.id === d.podId);
+  if (source === 'MEMBER_BALANCE' || source === 'MEMBER_DEPOSIT') mv(MEMBER(d.userId), PLATFORM('operating'), applied, 'COLLECTION', `Missed deposit repaid from balance (${source})`, { podId: d.podId, userId: d.userId, defaultId: d.id, cycleWeek: d.cycleWeek });
 
   const alreadyRepaid = (bucket: 'escrow' | 'buffer' | 'other') => {
     // Recoveries fill buckets in order; derive what each bucket has received so far.
@@ -1527,6 +1532,7 @@ function applyDefaultRecovery(d: DepositDefault, amountUsd: number, source: Defa
   const toEscrow = roundCents(Math.min(remaining, Math.max(0, (d.escrowCoveredUsd || 0) - alreadyRepaid('escrow'))));
   if (toEscrow > 0 && pod) {
     pod.systemEscrowDrawnUsd = roundCents(Math.max(0, (pod.systemEscrowDrawnUsd || 0) - toEscrow));
+    mv(PLATFORM('operating'), PLATFORM('escrow'), toEscrow, 'ESCROW_REPAYMENT', 'Recovered default repays the system escrow', { podId: d.podId, userId: d.userId, defaultId: d.id });
     remaining = roundCents(remaining - toEscrow);
   } else if (toEscrow > 0) {
     remaining = roundCents(remaining - toEscrow);
@@ -1534,7 +1540,10 @@ function applyDefaultRecovery(d: DepositDefault, amountUsd: number, source: Defa
 
   const toBuffer = roundCents(Math.min(remaining, Math.max(0, (d.bufferCoveredUsd || 0) - alreadyRepaid('buffer'))));
   if (toBuffer > 0) {
-    if (pod && pod.status !== 'COMPLETED') pod.contingencyBufferUsd = roundCents((pod.contingencyBufferUsd || 0) + toBuffer);
+    if (pod && pod.status !== 'COMPLETED') {
+      pod.contingencyBufferUsd = roundCents((pod.contingencyBufferUsd || 0) + toBuffer);
+      mv(PLATFORM('operating'), POD(pod.id), toBuffer, 'BUFFER_RESTORE', 'Recovered default restores the pod buffer', { podId: pod.id, userId: d.userId, defaultId: d.id });
+    }
     remaining = roundCents(remaining - toBuffer);
   }
 
@@ -1741,6 +1750,19 @@ function roundCents(amount: number): number {
   return Math.round(amount * 100) / 100;
 }
 
+// Custody: record (and, with CUSTODY_PROVIDER=column, execute at the bank) a
+// money movement that the ledger just made. Never throws into a money path.
+const MEMBER = (userId: string): CustodyAccountRef => ({ kind: 'member', userId });
+const POD = (podId: string): CustodyAccountRef => ({ kind: 'pod', podId });
+const PLATFORM = (account: 'operating' | 'escrow' | 'revenue'): CustodyAccountRef => ({ kind: 'platform', account });
+function mv(from: CustodyAccountRef, to: CustodyAccountRef, amountUsd: number, purpose: CustodyPurpose, description: string, refs: CustodyMovement['refs'] = {}): void {
+  try {
+    recordMovement({ from, to, amountUsd, purpose, description, refs });
+  } catch (err) {
+    console.warn('[custody] movement not recorded:', err);
+  }
+}
+
 function debitLedger(user: User, amount: number): boolean {
   if (!user.treasury || !Number.isFinite(amount) || amount <= 0) return false;
   const balance = Number(user.treasury.balanceUsd) || 0;
@@ -1884,6 +1906,8 @@ let achCollections: AchCollection[] = [];
 let campaigns: AdCampaign[] = [];
 // Settlement sweep runs by week (src/server/sweepSchedule.ts).
 let sweepRuns: SweepRun[] = [];
+let custodyMovements: CustodyMovement[] = [];
+let custodySettings: CustodySettings | null = null;
 // Messages from the public contact form.
 interface SupportMessage { id: string; name: string; email: string; message: string; userId?: string; createdAt: string; }
 let supportMessages: SupportMessage[] = [];
@@ -2453,6 +2477,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       connectWebhookConfigured: Boolean(process.env.STRIPE_CONNECT_WEBHOOK_SECRET),
       aiConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY),
       mailer: getMailerStatus(),
+      custody: custodyStatus(),
       alertWebhookConfigured: Boolean(process.env.ALERT_WEBHOOK_URL),
       incidentsLast24h: incidentCounts(),
       recentIncidents: recentIncidents(20),
@@ -2839,6 +2864,7 @@ app.get(['/api/health', '/health'], (req, res) => {
 
       if (typeof autoFund === 'boolean') targetUser.demoAutoFund = autoFund;
       targetUser.treasury.balanceUsd += depositAmount;
+      mv(PLATFORM('operating'), MEMBER(targetUser.id), depositAmount, 'TOPUP', 'Demo top-up', { userId: targetUser.id });
       saveUsersToDisk();
 
       addAuditLog(
@@ -3310,6 +3336,10 @@ app.get(['/api/health', '/health'], (req, res) => {
       }
     }
 
+    mv(MEMBER(creatorUser.id), POD(podId), baseDepositAmount, 'DEPOSIT', 'Week 1 deposit (pod created)', { podId, userId: creatorUser.id, cycleWeek: 1 });
+    mv(MEMBER(creatorUser.id), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', 'Week 1 deposit fee', { podId, userId: creatorUser.id, cycleWeek: 1 });
+    if (welcomeMatchAmount > 0) mv(PLATFORM('operating'), POD(podId), welcomeMatchAmount, 'WELCOME_MATCH', 'Welcome match into the pod buffer', { podId, userId: creatorUser.id });
+
     // Process initial deposit record for creator (Member #1)
     const creatorMemberId = `pm_${Date.now()}_1`;
     const initialDeposit: Deposit = {
@@ -3641,6 +3671,8 @@ app.get(['/api/health', '/health'], (req, res) => {
         return insufficientFunds(res, totalChargedAmount, targetUser);
       }
       saveUsersToDisk();
+      mv(MEMBER(targetUser.id), POD(pod.id), baseDepositAmount, 'DEPOSIT', 'First deposit (joined pod)', { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
+      mv(MEMBER(targetUser.id), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', 'First deposit fee', { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
 
       const memberDisplayName = user.displayName && user.displayName !== 'Verified Member' ? user.displayName : (user.email ? user.email.split('@')[0] : 'Member');
       const newMember: PodMembership = {
@@ -4015,6 +4047,8 @@ app.get(['/api/health', '/health'], (req, res) => {
     if (!debitLedger(targetUser, totalChargedAmount)) {
       return insufficientFunds(res, totalChargedAmount, targetUser);
     }
+    mv(MEMBER(targetUser.id), POD(pod.id), baseDepositAmount, 'DEPOSIT', `Week ${pod.currentCycleWeek || 1} deposit (member)`, { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
+    mv(MEMBER(targetUser.id), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', `Week ${pod.currentCycleWeek || 1} deposit fee`, { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
 
     const newDeposit: Deposit = {
       id: newLedgerId('dep'),
@@ -4133,6 +4167,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         
         // Credit Active Host/Spot Beneficiary Treasury ledger with 3% host stewardship reward
         creditLedger(hostRewardUser, creatorHostReward);
+        mv(POD(pod.id), MEMBER(hostRewardUser.id), creatorHostReward, 'HOST_REWARD', `Week ${pod.currentCycleWeek} host reward`, { podId: pod.id, userId: hostRewardUser.id, cycleWeek: pod.currentCycleWeek });
         hostRewardUser.treasury.totalPayoutsReceivedUsd = roundCents((hostRewardUser.treasury.totalPayoutsReceivedUsd || 0) + creatorHostReward);
         pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
 
@@ -4175,6 +4210,8 @@ app.get(['/api/health', '/health'], (req, res) => {
       // paying here AND transferring would pay twice.
       const stripeTransferId = newLedgerId('ledger_payout');
       creditLedger(recipientUser, netPayoutAmount);
+      mv(POD(pod.id), MEMBER(recipientUser.id), netPayoutAmount, 'PAYOUT', `Week ${pod.currentCycleWeek} payout`, { podId: pod.id, userId: recipientUser.id, cycleWeek: pod.currentCycleWeek });
+      mv(POD(pod.id), PLATFORM('revenue'), platformFeeRetained, 'PAYOUT_FEE', `Week ${pod.currentCycleWeek} payout fee`, { podId: pod.id, cycleWeek: pod.currentCycleWeek });
       recipientUser.treasury.totalPayoutsReceivedUsd = roundCents((recipientUser.treasury.totalPayoutsReceivedUsd || 0) + netPayoutAmount);
 
       recipientMember.hasReceivedPayout = true;
@@ -4264,10 +4301,16 @@ app.get(['/api/health', '/health'], (req, res) => {
       return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter a valid withdrawal amount.' });
     }
 
-    const accountId = targetUser.treasury?.stripeAccountId || '';
-    const payoutsReady = targetUser.kycStatus === 'VERIFIED' && targetUser.treasury?.status === 'ACTIVE' && accountId.startsWith('acct_');
+    const columnWithdrawal = custodyMode() === 'column' && !DEMO_MODE;
+    const accountId = columnWithdrawal ? `column_cp_${targetUser.custody?.counterpartyId || ''}` : (targetUser.treasury?.stripeAccountId || '');
+    const payoutsReady = columnWithdrawal
+      ? targetUser.kycStatus === 'VERIFIED' && Boolean(targetUser.custody?.bankAccountId && targetUser.custody?.counterpartyId)
+      : targetUser.kycStatus === 'VERIFIED' && targetUser.treasury?.status === 'ACTIVE' && accountId.startsWith('acct_');
     if (!payoutsReady) {
-      return res.status(400).json({ error: 'PAYOUT_ACCOUNT_REQUIRED', message: 'Finish Stripe onboarding (identity + bank account) before withdrawing.' });
+      return res.status(400).json({
+        error: 'PAYOUT_ACCOUNT_REQUIRED',
+        message: columnWithdrawal ? 'Open your MutualPool bank account and link an external bank before withdrawing.' : 'Finish Stripe onboarding (identity + bank account) before withdrawing.',
+      });
     }
 
     if (activeWithdrawals.has(targetUser.id)) {
@@ -4305,6 +4348,11 @@ app.get(['/api/health', '/health'], (req, res) => {
       try {
         if (DEMO_MODE) {
           withdrawTransferId = `tr_demo_${withdrawal.id}`;
+          mv(MEMBER(targetUser.id), { kind: 'external', label: 'demo bank' }, withdrawAmount, 'WITHDRAWAL', 'Demo withdrawal', { userId: targetUser.id, withdrawalId: withdrawal.id });
+        } else if (columnWithdrawal) {
+          // ACH credit from the member's Column account to their linked bank.
+          const movement = await withdrawToBank(targetUser, withdrawAmount, withdrawal.id);
+          withdrawTransferId = movement.columnTransferId || movement.id;
         } else {
           const transfer = await transferToConnectedAccount({
             destinationAccountId: accountId,
@@ -4320,7 +4368,9 @@ app.get(['/api/health', '/health'], (req, res) => {
         withdrawal.error = String(stripeErr?.message || stripeErr).slice(0, 500);
         // Stripe definitively refused the request: nothing was transferred, so refund the ledger.
         const definitelyRejected = ['StripeInvalidRequestError', 'StripeCardError', 'StripePermissionError', 'StripeAuthenticationError'].includes(stripeErr?.type)
-          || (typeof stripeErr?.statusCode === 'number' && stripeErr.statusCode >= 400 && stripeErr.statusCode < 500 && stripeErr.statusCode !== 408 && stripeErr.statusCode !== 429);
+          || (typeof stripeErr?.statusCode === 'number' && stripeErr.statusCode >= 400 && stripeErr.statusCode < 500 && stripeErr.statusCode !== 408 && stripeErr.statusCode !== 429)
+          || (stripeErr?.name === 'ColumnError' && typeof stripeErr?.status === 'number' && stripeErr.status >= 400 && stripeErr.status < 500 && stripeErr.status !== 408 && stripeErr.status !== 429)
+          || /^(MEMBER_ACCOUNT_|EXTERNAL_BANK_MISSING)/.test(String(stripeErr?.message || ''));
         if (definitelyRejected) {
           withdrawal.status = 'FAILED';
           creditLedger(targetUser, withdrawAmount);
@@ -4487,6 +4537,8 @@ app.get(['/api/health', '/health'], (req, res) => {
           deposits.unshift(newDeposit);
           pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + baseDepositAmount;
           totalTransactionsCount += 1;
+          mv(MEMBER(member.userId), POD(pod.id), baseDepositAmount, 'DEPOSIT', `Week ${cycleWeek} deposit (Thursday sweep)`, { podId: pod.id, userId: member.userId, cycleWeek, depositId: newDeposit.id });
+          mv(MEMBER(member.userId), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', `Week ${cycleWeek} deposit fee`, { podId: pod.id, userId: member.userId, cycleWeek, depositId: newDeposit.id });
           totalVolumeUsd += baseDepositAmount;
 
           try {
@@ -4583,6 +4635,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         d.reserveUsd = roundCents(d.reserveUsd - bridged);
         d.updatedAt = new Date().toISOString();
         pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + bridged);
+        mv(PLATFORM('operating'), POD(pod.id), bridged, 'RESERVE_BRIDGE', `Week ${cycleWeek} bridged from recovered default funds`, { podId: pod.id, cycleWeek, defaultId: d.id });
         totalVolumeUsd += bridged;
         try {
           addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'DEFAULT_RESERVE_BRIDGED_DEPOSIT',
@@ -4714,6 +4767,7 @@ app.get(['/api/health', '/health'], (req, res) => {
           };
         }
         hostRewardUser.treasury.balanceUsd = (hostRewardUser.treasury.balanceUsd || 0) + creatorHostReward;
+        mv(POD(pod.id), MEMBER(hostRewardUser.id), creatorHostReward, 'HOST_REWARD', `Week ${cycleWeek} host reward`, { podId: pod.id, userId: hostRewardUser.id, cycleWeek });
         hostRewardUser.treasury.totalPayoutsReceivedUsd = (hostRewardUser.treasury.totalPayoutsReceivedUsd || 0) + creatorHostReward;
         pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
 
@@ -4752,6 +4806,8 @@ app.get(['/api/health', '/health'], (req, res) => {
           };
         }
         recipientUser.treasury.balanceUsd = (recipientUser.treasury.balanceUsd || 0) + netPayoutAmount;
+        mv(POD(pod.id), MEMBER(recipientUser.id), netPayoutAmount, 'PAYOUT', `Week ${cycleWeek} payout`, { podId: pod.id, userId: recipientUser.id, cycleWeek });
+        mv(POD(pod.id), PLATFORM('revenue'), platformFeeRetained, 'PAYOUT_FEE', `Week ${cycleWeek} payout fee`, { podId: pod.id, cycleWeek });
         recipientUser.treasury.totalPayoutsReceivedUsd = (recipientUser.treasury.totalPayoutsReceivedUsd || 0) + netPayoutAmount;
       }
 
@@ -4901,6 +4957,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     const sweepInterval = setInterval(() => {
       runDueSweeps()
         .then(() => runDelinquencyTick())
+        .then(() => settlePendingMovements())
         .catch(err => console.error('[Scheduled Sweeps] tick error:', err));
     }, 60_000);
     if (typeof sweepInterval.unref === 'function') sweepInterval.unref();
@@ -6074,6 +6131,7 @@ Return ONLY a valid JSON object in this exact schema:
       pod.systemEscrowActive = true;
       pod.creatorDefaultedAt = new Date().toISOString();
       pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + request.depositAmount;
+      mv(PLATFORM('escrow'), POD(pod.id), request.depositAmount, 'HARDSHIP_ADVANCE', 'Hardship advance deposited on the member\'s behalf', { podId: pod.id, userId: request.userId, requestId: request.id, cycleWeek: pod.currentCycleWeek || 1 });
 
       addAuditLog(
         pod.id,
@@ -6187,6 +6245,8 @@ Return ONLY a valid JSON object in this exact schema:
     if (!debitLedger(targetUser, totalPayoff)) {
       return insufficientFunds(res, totalPayoff, targetUser);
     }
+    mv(MEMBER(targetUser.id), PLATFORM('escrow'), Math.min(totalPayoff, request.depositAmount), 'HARDSHIP_REPAYMENT', 'Hardship advance repaid', { userId: targetUser.id, requestId: request.id, podId: request.podId });
+    if (totalPayoff > request.depositAmount) mv(MEMBER(targetUser.id), PLATFORM('revenue'), roundCents(totalPayoff - request.depositAmount), 'HARDSHIP_REPAYMENT', 'Hardship repayment fee', { userId: targetUser.id, requestId: request.id, podId: request.podId });
 
     request.status = 'PAID_OFF';
     request.paidOffAt = new Date().toISOString();
@@ -7178,6 +7238,7 @@ Return ONLY a valid JSON object in this exact schema:
     }
     const amount = roundCents(amountUsd);
     creditLedger(target, amount);
+    mv(PLATFORM('operating'), MEMBER(target.id), amount, 'TOPUP', `Card top-up via Stripe (${source})`, { userId: target.id, stripeRef: paymentId });
     processedPayments.push({ id: paymentId, userId, amountUsd: amount, processedAt: new Date().toISOString(), ...(paymentIntentId ? { paymentIntentId } : {}) } as any);
     saveUsersToDisk();
     addAuditLog(undefined, target.id, target.displayName, 'TREASURY_TOPUP' as any,
@@ -7440,6 +7501,7 @@ Return ONLY a valid JSON object in this exact schema:
             systemEscrowUsed = potStillShort;
             pod.systemEscrowActive = true;
             pod.systemEscrowDrawnUsd = roundCents((pod.systemEscrowDrawnUsd || 0) + systemEscrowUsed);
+            mv(PLATFORM('escrow'), POD(pod.id), systemEscrowUsed, 'ESCROW_BRIDGE', 'System escrow covered a missed deposit', { podId: pod.id, userId: memberUserId, cycleWeek: pod.currentCycleWeek || 1 });
             pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + systemEscrowUsed);
             existingDefault.potShortfallUsd = roundCents(existingDefault.potShortfallUsd - systemEscrowUsed);
             existingDefault.escrowCoveredUsd = roundCents((existingDefault.escrowCoveredUsd || 0) + systemEscrowUsed);
@@ -7910,6 +7972,183 @@ MutualPool`,
     savePodsToDisk();
     requestFlush();
     res.json({ success: true, pod });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Custody (Column): the member's own bank account, their linked external
+  // bank, ACH funding, and the bank's webhooks. See src/server/custody.ts.
+  // ---------------------------------------------------------------------------
+  const publicCustody = (u: User) => {
+    const c = u.custody;
+    if (!c) return null;
+    return {
+      status: c.status,
+      accountNumberLast4: c.accountNumberLast4,
+      routingNumber: c.routingNumber,
+      externalBankLast4: c.counterpartyLast4 || null,
+      externalBankName: c.counterpartyName || null,
+      openedAt: c.createdAt,
+    };
+  };
+  const custodyDisabled = (res: Response) => res.status(400).json({ error: 'CUSTODY_DISABLED', message: 'Bank accounts are not enabled on this server (CUSTODY_PROVIDER).' });
+  const custodyProviderError = (res: Response, err: unknown) => {
+    const e = err as { status?: number; message?: string; code?: string };
+    const message = String(e?.message || err);
+    if (/^MEMBER_ACCOUNT_MISSING/.test(message)) return res.status(400).json({ error: 'MEMBER_ACCOUNT_MISSING', message: 'Open your MutualPool bank account first.' });
+    if (/^EXTERNAL_BANK_MISSING/.test(message)) return res.status(400).json({ error: 'EXTERNAL_BANK_MISSING', message: 'Link an external bank account first.' });
+    if (/^MEMBER_ACCOUNT_/.test(message)) return res.status(409).json({ error: message, message: 'Your bank account is not active yet.' });
+    console.error('[custody] provider error:', message);
+    return res.status(502).json({ error: 'CUSTODY_PROVIDER_ERROR', message: 'The bank could not complete the request. Nothing was changed. Please try again.' });
+  };
+
+  app.get(['/api/users/custody', '/users/custody'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    const target = users.find(u => u && u.id === user.id) || user;
+    let balances: unknown = null;
+    let directDeposit: { routingNumber: string; accountNumber: string } | null = null;
+    if (custodyMode() === 'column' && target.custody?.bankAccountId) {
+      if (req.query.sync === '1') {
+        try { balances = await memberBalanceAtColumn(target); } catch (err) { console.warn('[custody] balance sync failed:', err); }
+      }
+      // The full account number is fetched from the bank on request and never stored.
+      if (req.query.reveal === '1' && target.custody.status === 'VERIFIED') {
+        try {
+          const acct = await getColumnBankAccount(target.custody.bankAccountId);
+          directDeposit = { routingNumber: acct.routing_number, accountNumber: acct.default_account_number };
+        } catch (err) { console.warn('[custody] account reveal failed:', err); }
+      }
+    }
+    const mine = custodyMovements.filter(m => m.refs.userId === target.id || (m.from.kind === 'member' && m.from.userId === target.id) || (m.to.kind === 'member' && m.to.userId === target.id)).slice(0, 25);
+    res.json({ mode: custodyMode(), account: publicCustody(target), balances, directDeposit, movements: mine });
+  });
+
+  // Open the member's bank account at Column. Identity details are sent to the
+  // bank and never stored here; only Column ids are kept on the member.
+  app.post(['/api/users/custody/account', '/users/custody/account'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (custodyMode() !== 'column') return custodyDisabled(res);
+    const target = users.find(u => u && u.id === user.id) || user;
+    if (target.kycStatus !== 'VERIFIED') return res.status(403).json({ error: 'KYC_REQUIRED', message: 'Verify your identity before opening a bank account.' });
+    if (target.custody?.bankAccountId) return res.json({ success: true, account: publicCustody(target) });
+    const b = req.body || {};
+    const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const firstName = text(b.firstName, 60);
+    const lastName = text(b.lastName, 60);
+    const dateOfBirth = text(b.dateOfBirth, 10);
+    const ssn = text(b.ssn, 11).replace(/\D/g, '');
+    const phone = text(b.phone, 20);
+    const address = b.address || {};
+    const line1 = text(address.line1, 120);
+    const line2 = text(address.line2, 120);
+    const city = text(address.city, 80);
+    const state = text(address.state, 2).toUpperCase();
+    const postalCode = text(address.postalCode, 10);
+    const problems: string[] = [];
+    if (!firstName || !lastName) problems.push('first and last name');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) problems.push('date of birth (YYYY-MM-DD)');
+    if (!/^\d{9}$/.test(ssn)) problems.push('9-digit Social Security Number');
+    if (!line1 || !city || !/^[A-Z]{2}$/.test(state) || !/^\d{5}(-\d{4})?$/.test(postalCode)) problems.push('US street address');
+    if (problems.length) return res.status(400).json({ error: 'INVALID_INPUT', message: `Please provide: ${problems.join(', ')}.` });
+    try {
+      const c = await provisionMemberAccount(target, { firstName, lastName, dateOfBirth, ssn, phone: phone || undefined, address: { line1, line2: line2 || undefined, city, state, postalCode } });
+      saveUsersToDisk();
+      requestFlush();
+      createNotification({ userId: target.id, type: 'STATUS_CHANGE', title: '🏦 MutualPool bank account opened', message: c.status === 'VERIFIED' ? `Your account ending ${c.accountNumberLast4} is ready. Link an external bank to fund it, or use it as a direct-deposit destination.` : 'Your account is being verified by the bank. We will tell you when it is ready.' });
+      res.json({ success: true, account: publicCustody(target) });
+    } catch (err) {
+      return custodyProviderError(res, err);
+    }
+  });
+
+  // Link the member's external bank (account + routing) for ACH funding and withdrawals.
+  app.post(['/api/users/custody/external-bank', '/users/custody/external-bank'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (custodyMode() !== 'column') return custodyDisabled(res);
+    const target = users.find(u => u && u.id === user.id) || user;
+    const b = req.body || {};
+    const accountNumber = String(b.accountNumber || '').replace(/\D/g, '');
+    const routingNumber = String(b.routingNumber || '').replace(/\D/g, '');
+    const accountType = b.accountType === 'savings' ? 'savings' : 'checking';
+    if (!/^\d{4,17}$/.test(accountNumber) || !/^\d{9}$/.test(routingNumber)) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Enter a valid account number and 9-digit routing number.' });
+    }
+    try {
+      await linkExternalBank(target, { accountNumber, routingNumber, accountType, name: target.displayName });
+      saveUsersToDisk();
+      requestFlush();
+      res.json({ success: true, account: publicCustody(target) });
+    } catch (err) {
+      return custodyProviderError(res, err);
+    }
+  });
+
+  // Pull money from the linked external bank into the member's account (ACH
+  // debit). The balance is credited when the bank reports it settled.
+  app.post(['/api/users/custody/fund', '/users/custody/fund'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (custodyMode() !== 'column') return custodyDisabled(res);
+    const target = users.find(u => u && u.id === user.id) || user;
+    if (target.riskHold) return riskHoldResponse(res, target);
+    const amount = parseMoneyAmount(req.body?.amount, { max: 5_000 });
+    if (amount === null || amount < 1) return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter an amount between $1 and $5,000.' });
+    try {
+      const movement = await fundFromBank(target, amount);
+      createNotification({ userId: target.id, type: 'DEPOSIT_DUE', title: '🏦 Bank transfer started', message: `$${amount.toFixed(2)} is on its way from your bank ending ${target.custody?.counterpartyLast4 || ''}. It usually arrives in 1 to 2 business days and is added to your balance when it settles.`, metadata: { movementId: movement.id } });
+      requestFlush();
+      res.json({ success: true, movement });
+    } catch (err) {
+      return custodyProviderError(res, err);
+    }
+  });
+
+  // Column webhooks: ACH settlement and returns, book transfers, identity.
+  app.post('/api/webhooks/column', async (req: Request, res: Response) => {
+    const rawBody: Buffer | undefined = (req as any).rawBody;
+    const secret = process.env.COLUMN_WEBHOOK_SECRET || '';
+    const signature = getHeaderValue(req, 'column-signature');
+    if (!rawBody || !secret) return res.status(503).json({ error: 'WEBHOOK_NOT_CONFIGURED' });
+    if (!verifyColumnSignature(rawBody, signature, secret)) {
+      reportIncident('error', 'column_webhook_bad_signature', 'Column webhook signature did not verify');
+      return res.status(400).json({ error: 'BAD_SIGNATURE' });
+    }
+    let event: any;
+    try { event = JSON.parse(rawBody.toString('utf8')); } catch { return res.status(400).json({ error: 'BAD_JSON' }); }
+    if (!event?.id || !event?.type) return res.status(400).json({ error: 'BAD_EVENT' });
+    if (!rememberEvent(String(event.id))) return res.json({ received: true, outcome: 'duplicate' });
+    try {
+      const outcome = await handleColumnEvent(event);
+      savePodsToDisk();
+      saveUsersToDisk();
+      res.json({ received: true, outcome });
+    } catch (err) {
+      console.error('[column webhook] handler failed:', err);
+      res.status(500).json({ error: 'HANDLER_FAILED' });
+    }
+  });
+
+  app.get('/api/admin/custody', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    res.json({
+      status: custodyStatus(),
+      pending: pendingMovements().slice(0, 100),
+      failed: custodyMovements.filter(m => m.status === 'FAILED' || m.status === 'RETURNED').slice(0, 100),
+      recent: custodyMovements.slice(0, 100),
+    });
+  });
+
+  // Execute pending book transfers now (the scheduler does this every minute).
+  app.post('/api/platform/schedule/custody-settle', async (req: Request, res: Response) => {
+    const provided = getHeaderValue(req, 'x-cron-secret');
+    const cronOk = Boolean(process.env.CRON_SECRET) && provided === process.env.CRON_SECRET;
+    if (!cronOk && !checkIsAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const result = await settlePendingMovements();
+    savePodsToDisk();
+    res.json({ success: true, mode: custodyMode(), ...result });
   });
 
   // Admin: resume a paused pod once its defaults are settled (or force it).
@@ -9467,6 +9706,35 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'achCollections', get: () => achCollections, set: docs => { achCollections = docs; } });
   registerCollection({ collection: 'campaigns', get: () => campaigns, set: docs => { campaigns = docs; } });
   registerCollection({ collection: 'sweepRuns', get: () => sweepRuns, set: docs => { sweepRuns = docs; } });
+  registerCollection({ collection: 'custodyMovements', get: () => custodyMovements, set: docs => { custodyMovements = docs; } });
+  registerCollection({ collection: 'custodySettings', get: () => (custodySettings ? [custodySettings] : []), set: docs => { custodySettings = (docs && docs[0]) || null; } });
+  initCustody({
+    getUsers: () => users,
+    getPods: () => pods,
+    getMovements: () => custodyMovements,
+    setMovements: docs => { custodyMovements = docs; },
+    getSettings: () => custodySettings,
+    setSettings: doc => { custodySettings = doc; },
+    onChange: () => { requestFlush(); },
+    audit: (podId, action, detail, metadata) => { try { addAuditLog(podId, 'SYSTEM', 'MutualPool Custody', action, detail, metadata || {}); } catch (err) { console.warn('[custody audit]', err); } },
+    incident: (severity, kind, message, metadata) => reportIncident(severity, kind, message, metadata),
+    creditLedger: (user, amount) => { creditLedger(user, amount); saveUsersToDisk(); },
+    // A returned ACH funding after it was credited: take it back even if that
+    // leaves the balance negative, and hold the account until an admin clears it.
+    debitLedger: (user, amount) => {
+      const ok = debitLedger(user, amount);
+      if (!ok && user.treasury) {
+        user.treasury.balanceUsd = roundCents((Number(user.treasury.balanceUsd) || 0) - amount);
+        user.riskHold = { reason: `Bank funding of $${amount.toFixed(2)} was returned after it was credited`, at: new Date().toISOString(), amountUsd: amount };
+        notifyAdmins({ type: 'PAYMENT_FAILED', title: '⚠️ Returned bank funding', message: `${user.displayName}'s ACH funding of $${amount.toFixed(2)} was returned after being credited; balance is now $${user.treasury.balanceUsd.toFixed(2)} and the account is on hold.`, metadata: { userId: user.id } });
+      }
+      saveUsersToDisk();
+      return true;
+    },
+    notify: (userId, title, message, metadata) => { try { createNotification({ userId, type: 'DEPOSIT_CONFIRMED', title, message, metadata }); } catch (err) { console.warn('[custody notify]', err); } },
+    onWithdrawalSettled: (withdrawalId) => { const w = withdrawals.find(x => x.id === withdrawalId); if (w && w.status === 'PENDING') { w.status = 'COMPLETED'; w.updatedAt = new Date().toISOString(); } },
+    onWithdrawalReturned: (withdrawalId, reason) => { const w = withdrawals.find(x => x.id === withdrawalId); if (w) { w.status = 'FAILED'; w.error = reason; w.updatedAt = new Date().toISOString(); } },
+  });
   registerCollection({ collection: 'supportMessages', get: () => supportMessages, set: docs => { supportMessages = docs; } });
   registerCollection({ collection: 'outboundEmails', get: getOutboundEmails, set: setOutboundEmails });
   registerCollection({ collection: 'shifts', get: () => shifts, set: docs => { shifts = docs; } });

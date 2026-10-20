@@ -21,6 +21,7 @@ import { saveUserToFirestore } from '../lib/firestoreService';
 import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { useLanguage } from '../i18n';
 import { TREASURY_PROGRAM_ENABLED } from '../lib/treasuryClaims';
+import { CustodyAccountPanel } from './CustodyAccountPanel';
 
 interface AddFundsModalProps {
   isOpen: boolean;
@@ -308,10 +309,10 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
   if (!CLIENT_DEMO_MODE) {
     return (
       <div
-        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827]">
+        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827] my-6">
           <button
             type="button"
             onClick={onClose}
@@ -329,6 +330,13 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
               <p className="text-xs text-[#6B7280]">Current balance: ${currentBalance.toFixed(2)}</p>
             </div>
           </div>
+          {/* Column custody (when enabled on the server): the member's own bank
+              account, linked bank, ACH funding and direct-deposit details. The
+              panel renders nothing when the server runs in ledger mode. */}
+          <div className="mb-4">
+            <CustodyAccountPanel user={user} onUpdated={() => onSuccess(user)} />
+          </div>
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Or add by card</div>
           <div className="grid grid-cols-4 gap-2 mb-3">
             {[25, 50, 100, 250].map(val => (
               <button

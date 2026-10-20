@@ -10,6 +10,7 @@ import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { HardshipReviewQueue } from './HardshipReviewQueue';
 import { LanguageStatsCard } from './LanguageStatsCard';
 import { DepositDefaultsPanel } from './DepositDefaultsPanel';
+import { CustodyOpsPanel } from './CustodyOpsPanel';
 import { ReviewQueuePanel } from './ReviewQueuePanel';
 import { CampaignReviewPanel } from './CampaignReviewPanel';
 import { 
@@ -631,6 +632,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
 
       {/* Deposit defaults & ACH collections */}
       <DepositDefaultsPanel currentUser={currentUser} onChanged={onRefreshData} />
+      <CustodyOpsPanel />
 
       {/* Brand campaign catalog approvals */}
       <CampaignReviewPanel currentUser={currentUser} />

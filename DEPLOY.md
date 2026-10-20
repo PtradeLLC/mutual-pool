@@ -121,6 +121,39 @@ manual dump:
 
 or `pg_dump` through `fly proxy 15432:5432 -a mutual-pool-db`.
 
+## Custody: member bank accounts at Column
+
+Stripe Treasury was declined, so member balances live at Column (column.com),
+a chartered bank with an API. With `CUSTODY_PROVIDER=column` every member,
+pod and platform balance is a real Column bank account; the server's ledger
+moves (deposits, payouts, fees, bridges, cover shares) are executed as Column
+book transfers by a settlement pass that runs every minute, and money enters
+or leaves Column by ACH between the member's account and their linked bank.
+With the default `ledger` the same movements are only recorded, so nothing
+changes at a bank until the switch is flipped.
+
+Keys: `COLUMN_API_KEY` (`test_` sandbox / `live_` production; the prefix
+selects the environment), `COLUMN_WEBHOOK_SECRET`, and in production the
+platform entity and accounts (`COLUMN_PLATFORM_ENTITY_ID`,
+`COLUMN_OPERATING_ACCOUNT_ID`, `COLUMN_ESCROW_ACCOUNT_ID`,
+`COLUMN_REVENUE_ACCOUNT_ID`). In the sandbox they are created on first use.
+
+Prove the integration against the sandbox at any time:
+
+    npm run column:smoke
+
+Webhook: in the Column dashboard create an endpoint for
+`https://themutualpool.com/api/webhooks/column` with events `ach.*`,
+`book.*` and `identity.*`, and put its signing secret in
+`COLUMN_WEBHOOK_SECRET`. Webhooks arrive from `44.231.156.17`.
+
+Going live with Column is a compliance process, not a key swap: KYB on the
+business, a BSA/AML program (KYC on every member, CIP, OFAC screening), an ACH
+risk assessment and debit authorizations, and a program reserve. See
+https://docs.column.com/guides/going-live. Members' identity details (name,
+date of birth, SSN, address) are sent straight to Column when their account is
+opened and are never stored by MutualPool.
+
 ## Before launch: move to Managed Postgres
 
 Do this before real members deposit money. Managed Postgres (`fly mpg`) gives

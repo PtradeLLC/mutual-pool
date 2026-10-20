@@ -124,6 +124,8 @@ export interface User {
   riskHold?: { reason: string; at: string; amountUsd?: number; stripeRef?: string };
   debitMandate?: DebitMandate;
   accountRestriction?: AccountRestriction;
+  // Bank account in the member's name at Column (see src/server/custody.ts).
+  custody?: MemberCustody;
   completedPodsCount: number;
   welcomeMatchReceived?: boolean;
   welcomeMatchAmountUsd?: number;
@@ -274,6 +276,8 @@ export interface Pod {
   renewalDecision?: 'PENDING' | 'RENEWED' | 'CLOSED';
   renewedFromPodId?: string;
   renewedToPodId?: string;
+  // The pod's own holding account at Column (created on first movement).
+  custody?: PodCustody;
 }
 
 // A missed weekly deposit, and what the member still owes because of it.
@@ -321,6 +325,82 @@ export interface DepositDefault {
   collectionStartedAt?: string;
   secondDefaultNoticeAt?: string;
   createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Custody: where member money actually sits (src/server/custody.ts).
+//   ledger  - the in-memory ledger is the only record (demo / pre-launch)
+//   column  - every member, pod and platform balance is a real bank account at
+//             Column; ledger moves are settled as Column book transfers.
+// ---------------------------------------------------------------------------
+export type CustodyProviderName = 'ledger' | 'column';
+export type MemberCustodyStatus = 'PENDING' | 'VERIFIED' | 'MANUAL_REVIEW' | 'DENIED' | 'FROZEN';
+export interface MemberCustody {
+  provider: 'column';
+  entityId: string;
+  bankAccountId: string;
+  accountNumberId: string;
+  accountNumberLast4: string;
+  routingNumber: string;
+  status: MemberCustodyStatus;
+  // External bank linked for ACH funding and withdrawals.
+  counterpartyId?: string;
+  counterpartyLast4?: string;
+  counterpartyName?: string;
+  // The linked bank accepts RTP/FedNow: withdrawals land in seconds instead of by ACH.
+  realtimeEligible?: boolean;
+  counterpartyBankName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface PodCustody {
+  provider: 'column';
+  bankAccountId: string;
+  accountNumberId: string;
+  createdAt: string;
+}
+// Platform-owned Column accounts. One document, id 'platform'.
+export interface CustodySettings {
+  id: 'platform';
+  entityId: string;
+  operatingAccountId: string;      // float: card top-ups fronted, recoveries, reserves
+  operatingAccountNumberId?: string;
+  escrowAccountId: string;         // System Deposits Escrow: bridges missed deposits
+  revenueAccountId: string;        // fees
+  webhookEndpointId?: string;
+  processedEventIds?: string[];    // recent Column event ids (idempotent webhooks)
+  updatedAt: string;
+}
+export type CustodyAccountRef =
+  | { kind: 'member'; userId: string }
+  | { kind: 'pod'; podId: string }
+  | { kind: 'platform'; account: 'operating' | 'escrow' | 'revenue' }
+  | { kind: 'external'; label: string };   // outside Column: a member's own bank, Stripe
+export type CustodyPurpose =
+  | 'DEPOSIT' | 'DEPOSIT_FEE' | 'PAYOUT' | 'PAYOUT_FEE' | 'HOST_REWARD' | 'WELCOME_MATCH'
+  | 'ESCROW_BRIDGE' | 'ESCROW_REPAYMENT' | 'BUFFER_RESTORE' | 'RESERVE_BRIDGE'
+  | 'HARDSHIP_ADVANCE' | 'HARDSHIP_REPAYMENT' | 'COVER_SHARE' | 'COLLECTION'
+  | 'TOPUP' | 'WITHDRAWAL' | 'ADJUSTMENT';
+export type CustodyMovementStatus = 'PENDING' | 'SETTLED' | 'FAILED' | 'RETURNED';
+// One money movement. In ledger mode it is a record; in column mode it is
+// executed as a book transfer (or tracked as an ACH transfer) at Column.
+export interface CustodyMovement {
+  id: string;
+  from: CustodyAccountRef;
+  to: CustodyAccountRef;
+  amountUsd: number;
+  purpose: CustodyPurpose;
+  description: string;
+  refs: { podId?: string; userId?: string; cycleWeek?: number; depositId?: string; withdrawalId?: string; stripeRef?: string; defaultId?: string; requestId?: string };
+  provider: CustodyProviderName;
+  status: CustodyMovementStatus;
+  columnTransferId?: string;
+  columnTransferKind?: 'book' | 'ach' | 'realtime';
+  attempts: number;
+  lastError?: string;
+  createdAt: string;
+  settledAt?: string;
   updatedAt: string;
 }
 
@@ -637,7 +717,11 @@ export interface AuditLogEntry {
     | 'POD_OPENED_TO_PUBLIC'
     | 'POD_COMPLETED'
     | 'POD_RENEWAL_CLOSED'
-    | 'POD_RENEWED';
+    | 'POD_RENEWED'
+    | 'CUSTODY_ACCOUNT_OPENED'
+    | 'CUSTODY_MOVEMENT_FAILED'
+    | 'CUSTODY_ACH_SETTLED'
+    | 'CUSTODY_ACH_RETURNED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
