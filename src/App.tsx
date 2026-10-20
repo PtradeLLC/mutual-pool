@@ -285,6 +285,7 @@ export default function App() {
       impressionsTarget: draft.impressionsTarget,
       startDate: draft.startDate,
     };
+    
     const res = await fetch('/api/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
