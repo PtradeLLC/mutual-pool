@@ -55,6 +55,7 @@ import {
   HeartHandshake, DollarSign, AlertTriangle, ExternalLink, HelpCircle,
   Megaphone, BarChart3, Shirt, Shield, QrCode, Scan, X
 } from 'lucide-react';
+import type { CreatePodPrefill } from './components/CreatePodModal';
 import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
 import { scrollToTabSection } from './utils/navigation';
@@ -196,6 +197,7 @@ export default function App() {
   const [showTermsModal, setShowTermsModal] = useState(() => typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/terms');
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
+  const [createPodPrefill, setCreatePodPrefill] = useState<CreatePodPrefill | null>(null);
   const [showKycModal, setShowKycModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
@@ -1331,6 +1333,22 @@ export default function App() {
           </div>
         )}
 
+        {/* Account restricted over an unsettled missed deposit (default controls) */}
+        {!isAdvertiser && activeUser.accountRestriction?.status === 'RESTRICTED' && (
+          <div id="account-restriction-banner" className="bg-rose-50 border-2 border-rose-300 rounded-xl p-4 sm:p-5 shadow-xs flex items-start gap-3 text-xs">
+            <div className="p-2.5 bg-rose-100 rounded-lg text-rose-800 shrink-0 mt-0.5">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <div className="font-extrabold text-sm text-rose-950">{t('restriction.title')}</div>
+              <p className="text-rose-900/90 leading-relaxed">{t('restriction.body')}</p>
+              <div className="inline-block font-mono font-bold text-rose-900 bg-rose-100 border border-rose-200 rounded-full px-2.5 py-0.5">
+                {t('restriction.owed', { amount: `$${(activeUser.accountRestriction.owedUsd || 0).toFixed(2)}` })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Financial Hardship Hold & Repayment Alert Banner (Couriers & Admin only) */}
         {!isAdvertiser && activeUser.isHardshipInactive && (
           <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
@@ -1944,7 +1962,8 @@ export default function App() {
             user={currentUser}
             existingPods={allPods}
             userCreatedPodsCount={createdPodsCount}
-            onClose={() => setShowCreatePodModal(false)}
+            prefill={createPodPrefill ?? undefined}
+            onClose={() => { setShowCreatePodModal(false); setCreatePodPrefill(null); }}
             onUserUpdated={handleUserUpdated}
             onOpenAddFunds={() => setShowAddFundsModal(true)}
             onDebitMandateRequired={(message) => {
@@ -1954,6 +1973,7 @@ export default function App() {
             }}
             onPodCreated={(newPod) => {
               setShowCreatePodModal(false);
+              setCreatePodPrefill(null);
               if (newPod) {
                 setAllPods((prev) => {
                   const exists = prev.some(p => p.id === newPod.id);
@@ -1992,6 +2012,22 @@ export default function App() {
             onClose={() => setSelectedPodDetail(null)}
             onRefreshPod={fetchAppData}
             onOpenBankModal={() => setShowBankModal(true)}
+            onRenewPod={(p) => {
+              setSelectedPodDetail(null);
+              setCreatePodPrefill({
+                name: `${p.name.replace(/ · Round \d+$/, '')} · Round ${((p.name.match(/ · Round (\d+)$/)?.[1] ? Number(p.name.match(/ · Round (\d+)$/)?.[1]) : 1) + 1)}`,
+                description: p.description,
+                category: p.category,
+                podType: p.podType,
+                activationPolicy: p.activationPolicy,
+                inviteWindowDays: p.inviteWindowDays,
+                autoOpenOnExpire: p.autoOpenOnExpire,
+                sizeTier: p.sizeTier,
+                depositTier: p.depositTier,
+                renewedFromPodId: p.id,
+              });
+              setShowCreatePodModal(true);
+            }}
             onOpenAgreementModal={() => {
               setAgreementPod(selectedPodDetail);
             }}

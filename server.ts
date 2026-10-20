@@ -21,8 +21,7 @@ import {
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
   HardshipFundRequest, AppNotification, NotificationType, SwapRequest,
   PlatformScheduleStatus, SweepExecutionResult, PaymentHistoryItem,
-  DepositDefault, AchCollection, DefaultRecoverySource, DebitMandate, AdCampaign
-} from './src/types';
+  DepositDefault, AchCollection, DefaultRecoverySource, DebitMandate, AdCampaign, AccountRestriction, PodPauseVoteChoice, PodPauseVote, PodReplacementVoteChoice, PodReplacementVote } from './src/types';
 import {
   getNextThursdayMidnight,
   getNextFridayMidnight,
@@ -45,6 +44,7 @@ import { TREASURY_PROGRAM_ENABLED, sanitizeVoiceGuidePayload } from './src/lib/t
 import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFlush, flushNow, persistNow, startAutoFlush, getPersistenceHealth, onBeforeShutdown } from './src/server/persistence';
 import { sendEmail, getOutboundEmails, setOutboundEmails, getMailerStatus } from './src/server/mailer';
 import { reportIncident, recentIncidents, incidentCounts } from './src/server/alerts';
+import { DEFAULT_REMOVAL_GRACE_MS, PAUSE_VOTE_DEFAULTERS, buildPauseVote, buildReplacementVote, coverShareUsd, defaultingUserIds, isUnsettled, removalDue, resolvePauseVote, resolveReplacementVote, tallyPauseVote, tallyReplacementVote } from './src/server/defaultControls';
 import { dueSweeps, weekKeyFor, runId as sweepRunId, SweepRun, SweepType } from './src/server/sweepSchedule';
 import { avatarUrlFor } from './src/utils/avatar';
 import { apiRateLimiter, authRateLimiter, aiRateLimiter, publicFormRateLimiter, moneyRateLimiter, countryContextMiddleware, validateCountryCurrency } from './src/middleware';
@@ -798,6 +798,8 @@ function refreshDefaultStatus(d: DepositDefault): void {
   if (defaultRemainingUsd(d) <= 0.005) d.status = 'RECOVERED';
   else d.status = inFlight ? 'COLLECTING' : 'OPEN';
   d.updatedAt = new Date().toISOString();
+  // Paying every default in full restores a restricted account automatically.
+  if (d.status === 'RECOVERED') maybeRestoreAccount(d.userId);
 }
 
 // Record (or extend) the default for a member's missed deposit this cycle and
@@ -880,7 +882,9 @@ function recordDepositDefault(input: {
 
 Your $${pod.depositTier.toFixed(2)} weekly deposit for "${pod.name}" (week ${cycleWeek}) could not be taken from your MutualPool balance.
 
-Please add funds and make the deposit from the pod page as soon as you can. Under your Pod Agreement, amounts the pod or MutualPool advance for you become money you owe, and may be debited from your bank account under the authorization you gave when you joined.
+Please add funds and make the deposit from the pod page within 24 hours of this notice. The other members of your pod have been told.
+
+If it is still unpaid after 24 hours, you will be removed from the pod, your account will be restricted (no creating or joining pods, swaps, votes or hardship requests) until everything you owe is paid in full, and the amount will be debited from your bank account under the authorization you gave when you joined. Paying in full restores your account automatically.
 
 Open MutualPool: ${appUrl()}`,
       onChange: requestFlush,
@@ -891,7 +895,607 @@ Open MutualPool: ${appUrl()}`,
 Review: ${appUrl()} → Admin Ops → Deposit Defaults.`);
     if (d.payoutReceivedUsd > 0) reportIncident('error', 'default_after_payout', `${member.displayName} defaulted after taking $${d.payoutReceivedUsd.toFixed(2)} in "${pod.name}"`, { defaultId: d.id, podId: pod.id, userId: member.userId });
   }
+  if (isNew && input.trigger === 'THURSDAY_SWEEP') {
+    // Default controls: the whole pod is told, the 24-hour clock starts, and a
+    // second defaulting member in the same pod opens the pause vote.
+    d.memberNotifiedAt = nowIso;
+    d.removalDueAt = new Date(Date.now() + DEFAULT_REMOVAL_GRACE_MS).toISOString();
+    const hoursText = `${Math.round(DEFAULT_REMOVAL_GRACE_MS / 3_600_000)} hours`;
+    notifyPodMembers(pod, {
+      type: 'POD_MEMBER_DEFAULT',
+      title: `⚠️ ${member.displayName} missed this week's deposit`,
+      message: `${member.displayName} did not make the Week ${cycleWeek} deposit ($${pod.depositTier.toFixed(2)}) in "${pod.name}". They have ${hoursText} to pay before they are removed from the pod and their account is restricted. ${d.bufferCoveredUsd > 0 ? 'The pod’s contingency buffer covered this week, so Friday’s payout is not affected.' : 'This week’s pot is short by that amount until it is paid.'}`,
+      excludeUserId: member.userId,
+      metadata: { defaultId: d.id, memberUserId: member.userId, removalDueAt: d.removalDueAt },
+      email: {
+        kind: 'pod_member_default',
+        subject: `${member.displayName} missed this week's deposit in "${pod.name}"`,
+        text: `${member.displayName} did not make the Week ${cycleWeek} deposit ($${pod.depositTier.toFixed(2)}) in your pod "${pod.name}".
+
+They have ${hoursText} from now to pay. If they do not, they are removed from the pod, their account is restricted until they have paid in full, and the amount is collected from their bank account under the authorization they gave when they joined.
+
+${d.bufferCoveredUsd > 0 ? 'The pod’s contingency buffer covered this week, so Friday’s payout is not affected.' : 'Until it is paid, this week’s pot is short by that amount.'} You are being told because every member of a pod should know where it stands. A friendly nudge from a teammate often resolves this fastest.`,
+      },
+    });
+    d.podNotifiedAt = nowIso;
+    checkPodDefaultThreshold(pod, d);
+  }
   return d;
+}
+
+// ---------------------------------------------------------------------------
+// Default controls: pod-wide notice, timed removal + account restriction,
+// automatic collection, restoration on full repayment, and the pause vote.
+// Rules and constants: src/server/defaultControls.ts.
+// ---------------------------------------------------------------------------
+function restrictionFor(user: User | undefined | null): AccountRestriction | null {
+  if (!user) return null;
+  const fresh = users.find(u => u && u.id === user.id) || user;
+  return fresh.accountRestriction?.status === 'RESTRICTED' ? fresh.accountRestriction : null;
+}
+function accountRestrictedResponse(res: Response, user: User) {
+  const r = restrictionFor(user);
+  return res.status(403).json({
+    error: 'ACCOUNT_RESTRICTED',
+    message: `Your account is restricted because of an unsettled missed deposit ($${(r?.owedUsd || 0).toFixed(2)} owed). Pay it in full from your pod page, or add funds so it can be collected, and your account is restored automatically.`,
+    restriction: r,
+  });
+}
+function podMemberUsers(pod: Pod, excludeUserId?: string): User[] {
+  const out: User[] = [];
+  for (const m of pod.members) {
+    if (!m || !m.userId || m.userId === excludeUserId) continue;
+    const u = users.find(x => x && x.id === m.userId);
+    if (u) out.push(u);
+  }
+  return out;
+}
+// One in-app notification (and optionally one email) to every member of a pod.
+function notifyPodMembers(pod: Pod, input: {
+  type: NotificationType;
+  title: string;
+  message: string;
+  excludeUserId?: string;
+  metadata?: Record<string, unknown>;
+  email?: { kind: string; subject: string; text: string };
+}): void {
+  for (const u of podMemberUsers(pod, input.excludeUserId)) {
+    try {
+      createNotification({ userId: u.id, type: input.type, title: input.title, message: input.message, podId: pod.id, podName: pod.name, metadata: input.metadata });
+      if (input.email) {
+        sendEmail({
+          to: u.email,
+          kind: input.email.kind,
+          subject: input.email.subject,
+          text: `Hi ${u.displayName},
+
+${input.email.text}
+
+Open MutualPool: ${appUrl()}`,
+          onChange: requestFlush,
+        });
+      }
+    } catch (err) {
+      console.warn('[notifyPodMembers]', err);
+    }
+  }
+}
+function unsettledDefaultsFor(userId: string): DepositDefault[] {
+  return depositDefaults.filter(d => d.userId === userId && isUnsettled(d));
+}
+// Restrict an account over an unsettled default. Idempotent: re-running only
+// refreshes the amount owed.
+function restrictAccount(user: User | undefined, d: DepositDefault): void {
+  if (!user) return;
+  const open = unsettledDefaultsFor(user.id);
+  if (open.length === 0) return;
+  const owed = roundCents(open.reduce((s, x) => s + defaultRemainingUsd(x), 0));
+  const already = user.accountRestriction?.status === 'RESTRICTED';
+  user.accountRestriction = {
+    status: 'RESTRICTED',
+    reason: 'DEPOSIT_DEFAULT',
+    since: already ? user.accountRestriction!.since : new Date().toISOString(),
+    defaultIds: open.map(x => x.id),
+    owedUsd: owed,
+  };
+  saveUsersToDisk();
+  if (already) return;
+  addAuditLog(d.podId, 'SYSTEM', 'MutualPool Default Monitor', 'ACCOUNT_RESTRICTED',
+    `${user.displayName}'s account was restricted: $${owed.toFixed(2)} owed from missed deposits. No new pods, swaps, votes or hardship requests until it is paid in full.`,
+    { userId: user.id, owedUsd: owed, defaultIds: open.map(x => x.id) });
+  createNotification({
+    userId: user.id,
+    type: 'ACCOUNT_RESTRICTED',
+    title: '🔒 Account restricted',
+    message: `Your account is restricted until the $${owed.toFixed(2)} you owe from missed deposits is paid in full. You can still add funds and pay. Everything is restored automatically once it is settled.`,
+    podId: d.podId,
+    podName: d.podName,
+    metadata: { defaultIds: open.map(x => x.id), owedUsd: owed },
+  });
+  sendEmail({
+    to: user.email,
+    kind: 'account_restricted',
+    subject: 'Your MutualPool account is restricted',
+    text: `Hi ${user.displayName},
+
+Your MutualPool account is restricted because $${owed.toFixed(2)} from missed deposits is still unpaid.
+
+While restricted you cannot create or join pods, swap slots, vote, or request hardship help. You can still add funds to your balance and pay what you owe. As soon as it is paid in full, your account is restored automatically.
+
+If it is not paid, the amount is debited from your linked bank account under the authorization you gave when you joined.
+
+Open MutualPool: ${appUrl()}`,
+    onChange: requestFlush,
+  });
+}
+function maybeRestoreAccount(userId: string): void {
+  const user = users.find(u => u && u.id === userId);
+  if (!user || user.accountRestriction?.status !== 'RESTRICTED') return;
+  if (unsettledDefaultsFor(userId).length > 0) return;
+  const since = user.accountRestriction.since;
+  const last = depositDefaults.find(d => d.userId === userId);
+  delete user.accountRestriction;
+  saveUsersToDisk();
+  addAuditLog(last?.podId || '', 'SYSTEM', 'MutualPool Default Monitor', 'ACCOUNT_RESTORED',
+    `${user.displayName}'s account was restored: every missed deposit has been paid in full (restricted since ${since}).`,
+    { userId });
+  createNotification({
+    userId,
+    type: 'ACCOUNT_RESTORED',
+    title: '✅ Account restored',
+    message: 'Everything you owed from missed deposits is paid. Your account is fully restored: you can create and join pods again.',
+  });
+  sendEmail({
+    to: user.email,
+    kind: 'account_restored',
+    subject: 'Your MutualPool account is restored',
+    text: `Hi ${user.displayName},
+
+Everything you owed from missed deposits has been paid in full, so your MutualPool account is fully restored. You can create and join pods again.
+
+Thank you for settling it.
+
+Open MutualPool: ${appUrl()}`,
+    onChange: requestFlush,
+  });
+}
+// Split this week's uncovered shortfall among the members who are not in
+// default (the COVER outcome of a pause vote). Cover deposits are recorded as
+// ordinary deposits with a dep_cover_ id, so the week is never charged twice.
+function applyCoverShare(pod: Pod, cycleWeek: number, details: string[]): void {
+  if (!pod.coverShareActive || pod.status !== 'ACTIVE') return;
+  const cycleId = `cyc_w${cycleWeek}`;
+  const shortfall = roundCents(depositDefaults
+    .filter(d => d.podId === pod.id && d.cycleWeek === cycleWeek && isUnsettled(d))
+    .reduce((s, d) => s + (Number(d.potShortfallUsd) || 0), 0));
+  const alreadyCovered = roundCents(deposits
+    .filter(d => d && d.podId === pod.id && d.cycleId === cycleId && d.status === 'COMPLETE' && d.id.startsWith('dep_cover_'))
+    .reduce((s, d) => s + d.amount, 0));
+  const remaining = roundCents(Math.max(0, shortfall - alreadyCovered));
+  if (remaining <= 0) return;
+  const defaulters = new Set(defaultingUserIds(pod.id, depositDefaults));
+  const coverers = pod.members.filter(m => m && m.userId && !defaulters.has(m.userId));
+  const share = coverShareUsd(remaining, coverers.length);
+  if (share <= 0) return;
+  let covered = 0;
+  for (const m of coverers) {
+    const u = users.find(x => x && x.id === m.userId);
+    if (!u) continue;
+    if (!debitLedger(u, share)) {
+      createNotification({ userId: u.id, type: 'DEPOSIT_DUE', title: 'Cover share could not be taken', message: `Your $${share.toFixed(2)} share of this week's missing deposits in "${pod.name}" could not be taken: your balance is too low. Add funds so the pod stays whole.`, podId: pod.id, podName: pod.name });
+      details.push(`[${pod.name}] Cover share $${share.toFixed(2)} not available from ${m.displayName}`);
+      continue;
+    }
+    deposits.unshift({
+      id: `dep_cover_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      membershipId: m.id,
+      podId: pod.id,
+      cycleId,
+      userId: m.userId,
+      userName: m.displayName,
+      amount: share,
+      stripePaymentId: newLedgerId('ledger_cover'),
+      status: 'COMPLETE',
+      createdAt: new Date().toISOString(),
+    });
+    pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + share);
+    covered = roundCents(covered + share);
+    createNotification({ userId: u.id, type: 'DEPOSIT_CONFIRMED', title: '🤝 Cover share taken', message: `$${share.toFixed(2)}, your equal share of this week's missing deposits in "${pod.name}", was taken from your balance as the members agreed.`, podId: pod.id, podName: pod.name, metadata: { cycleWeek, share } });
+    details.push(`[${pod.name}] Cover share $${share.toFixed(2)} from ${m.displayName} (Week ${cycleWeek})`);
+  }
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'COVER_SHARE_CHARGED',
+    `Members covered $${covered.toFixed(2)} of this week's $${remaining.toFixed(2)} shortfall ($${share.toFixed(2)} each from ${coverers.length} member(s)) as agreed in the pause vote.`,
+    { cycleWeek, shortfallUsd: remaining, coveredUsd: covered, shareUsd: share });
+}
+function applyPauseVoteOutcome(pod: Pod, outcome: PodPauseVoteChoice, now: Date): void {
+  const vote = pod.pauseVote;
+  if (!vote || vote.status !== 'OPEN') return;
+  vote.status = 'RESOLVED';
+  vote.outcome = outcome;
+  vote.resolvedAt = now.toISOString();
+  const { pause, cover, eligible } = tallyPauseVote(vote);
+  const tallyText = `${pause} to pause, ${cover} to cover, of ${eligible} eligible`;
+  if (outcome === 'PAUSE') {
+    pod.status = 'PAUSED';
+    pod.pausedAt = now.toISOString();
+    pod.pauseReason = `Two or more members in unsettled default (vote: ${tallyText}).`;
+    pod.coverShareActive = false;
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_PAUSED',
+      `Pod paused by member vote (${tallyText}). Weekly deposits and payouts are on hold until the missed deposits are settled and an administrator resumes the pod.`,
+      { voteId: vote.id, pause, cover, eligible });
+    notifyPodMembers(pod, {
+      type: 'POD_PAUSED',
+      title: '⏸️ Pod paused',
+      message: `"${pod.name}" is paused (vote: ${tallyText}). No deposits are taken and no payouts made until the missed deposits are settled and the pod is resumed. Money in your balance stays yours.`,
+      metadata: { voteId: vote.id },
+      email: {
+        kind: 'pod_paused',
+        subject: `"${pod.name}" is paused`,
+        text: `The members of "${pod.name}" voted to pause the pod (${tallyText}).
+
+While paused, no weekly deposits are taken and no payouts are made. Money already in your MutualPool balance stays yours. The pod resumes once the missed deposits are settled and an administrator restarts it. We will keep you informed.`,
+      },
+    });
+    notifyAdmins({ type: 'STATUS_CHANGE', title: '⏸️ Pod paused by vote', message: `"${pod.name}" was paused by its members (${tallyText}). Resume it from Admin Ops once the defaults are settled.`, podId: pod.id, podName: pod.name, metadata: { voteId: vote.id } });
+  } else {
+    pod.coverShareActive = true;
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_PAUSE_VOTED',
+      `Members voted to keep the pod going and cover the missing deposits between them (${tallyText}). Each Thursday the shortfall is split among the members not in default until the defaults are settled.`,
+      { voteId: vote.id, pause, cover, eligible });
+    notifyPodMembers(pod, {
+      type: 'POD_PAUSE_VOTE',
+      title: '🤝 Pod continues: members will cover',
+      message: `"${pod.name}" stays active (vote: ${tallyText}). Each Thursday the missing deposits are split equally among the members not in default and taken from their balances, until the defaults are settled or the members are replaced.`,
+      metadata: { voteId: vote.id },
+      email: {
+        kind: 'pod_cover',
+        subject: `"${pod.name}" continues: members will cover the missing deposits`,
+        text: `The members of "${pod.name}" voted to keep the pod going (${tallyText}).
+
+Each Thursday, the deposits missed by the members in default are split equally among the rest of you and taken from your MutualPool balances, until those defaults are settled or the members are replaced. Keep enough balance to cover your own deposit plus your share.`,
+      },
+    });
+    applyCoverShare(pod, pod.currentCycleWeek || 1, []);
+  }
+  savePodsToDisk();
+}
+function openPauseVote(pod: Pod, newest: DepositDefault): void {
+  const now = new Date();
+  const vote = buildPauseVote({ id: newLedgerId('pvote'), pod, defaults: depositDefaults, now });
+  pod.pauseVote = vote;
+  const names = vote.defaulterUserIds.map(id =>
+    pod.members.find(m => m.userId === id)?.displayName
+    || depositDefaults.find(d => d.userId === id && d.podId === pod.id)?.userName
+    || 'a member');
+  const closes = new Date(vote.closesAt).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' }) + ' ET';
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_PAUSE_VOTE_OPENED',
+    `Pause vote opened: ${names.join(' and ')} have unsettled missed deposits. ${vote.eligibleVoterIds.length} member(s) may vote PAUSE or COVER until ${closes}.`,
+    { voteId: vote.id, defaulterUserIds: vote.defaulterUserIds, closesAt: vote.closesAt });
+  notifyPodMembers(pod, {
+    type: 'POD_PAUSE_VOTE',
+    title: '🗳️ Pod Pause notice: your vote is needed',
+    message: `${names.join(' and ')} both have unsettled missed deposits in "${pod.name}", which puts the pod at high risk. Members not in default can vote to PAUSE the pod or to COVER the missing deposits between them each week. The vote closes ${closes}. If it is not decided, the pod pauses.`,
+    metadata: { voteId: vote.id, podId: pod.id },
+    email: {
+      kind: 'pod_pause_vote',
+      subject: `Pod Pause notice for "${pod.name}": your vote is needed`,
+      text: `${names.join(' and ')} both have unsettled missed deposits in "${pod.name}". That makes the pod high risk, so it is up to the members who are paying to decide what happens next:
+
+• PAUSE: deposits and payouts stop until the defaults are settled.
+• COVER: the pod keeps going and the remaining members split the missing deposits each Thursday until the defaults are settled.
+
+Vote from the pod page. The vote closes ${closes}. If it is not decided by then, the pod pauses.`,
+    },
+  });
+  notifyAdmins({
+    type: 'STATUS_CHANGE',
+    title: '🗳️ Pod pause vote opened',
+    message: `"${pod.name}" has ${vote.defaulterUserIds.length} members in unsettled default (${names.join(', ')}). The ${vote.eligibleVoterIds.length} remaining member(s) are voting to pause or cover until ${closes}.`,
+    podId: pod.id,
+    podName: pod.name,
+    metadata: { voteId: vote.id, defaulterUserIds: vote.defaulterUserIds },
+  });
+  // The newest defaulter is told they are the second default in this pod.
+  newest.secondDefaultNoticeAt = now.toISOString();
+  const second = users.find(u => u && u.id === newest.userId);
+  if (second) {
+    const owed = defaultRemainingUsd(newest);
+    createNotification({
+      userId: second.id,
+      type: 'PAYMENT_FAILED',
+      title: '⚠️ Second default in your pod',
+      message: `You are the second member of "${pod.name}" with an unsettled missed deposit. The other members are now voting on whether to pause the pod. Paying what you owe ($${owed.toFixed(2)}) right away is the only way to prevent that.`,
+      podId: pod.id,
+      podName: pod.name,
+      metadata: { defaultId: newest.id, voteId: vote.id },
+    });
+    sendEmail({
+      to: second.email,
+      kind: 'second_default_notice',
+      subject: `Second default in "${pod.name}": the pod may be paused`,
+      text: `Hi ${second.displayName},
+
+You are the second member of "${pod.name}" with an unsettled missed deposit. Because two members are now in default, the other members are voting on whether to pause the pod.
+
+Paying what you owe ($${owed.toFixed(2)}) right away is the only way to prevent that. Add funds to your balance and make the deposit from the pod page.
+
+Open MutualPool: ${appUrl()}`,
+      onChange: requestFlush,
+    });
+  }
+  savePodsToDisk();
+}
+function checkPodDefaultThreshold(pod: Pod, newest: DepositDefault): void {
+  if (pod.status !== 'ACTIVE') return;
+  if (pod.pauseVote?.status === 'OPEN') return;
+  const current = defaultingUserIds(pod.id, depositDefaults);
+  if (current.length < PAUSE_VOTE_DEFAULTERS) return;
+  // Members already chose to cover these defaulters: only a new one reopens the question.
+  if (pod.pauseVote?.status === 'RESOLVED' && pod.pauseVote.outcome === 'COVER') {
+    const prev = new Set(pod.pauseVote.defaulterUserIds);
+    if (current.every(id => prev.has(id))) return;
+  }
+  openPauseVote(pod, newest);
+}
+function etDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' }) + ' ET';
+}
+// After a removal from a private pod: the remaining members decide whether to
+// list the pod publicly so a verified member can take the open slot.
+function openReplacementVote(pod: Pod, removed: PodMembership): void {
+  const now = new Date();
+  const vote = buildReplacementVote({ id: newLedgerId('rvote'), pod, defaults: depositDefaults, removedUserId: removed.userId, removedUserName: removed.displayName, now });
+  pod.replacementVote = vote;
+  const closes = etDateTime(vote.closesAt);
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_REPLACEMENT_VOTE_OPENED',
+    `Replacement vote opened after ${removed.displayName} was removed: ${vote.eligibleVoterIds.length} member(s) may vote to list the pod publicly (OPEN) or keep it private (KEEP) until ${closes}.`,
+    { voteId: vote.id, removedUserId: removed.userId, closesAt: vote.closesAt });
+  notifyPodMembers(pod, {
+    type: 'POD_REPLACEMENT_VOTE',
+    title: '🗳️ Fill the open slot? Your vote is needed',
+    message: `${removed.displayName}'s slot in "${pod.name}" is open. Vote to list the pod publicly so a verified member can take over the remaining weeks, or keep it private and continue with ${pod.members.length} members. The vote closes ${closes}; if undecided, the pod stays private.`,
+    excludeUserId: removed.userId,
+    metadata: { voteId: vote.id, removedUserId: removed.userId },
+    email: {
+      kind: 'pod_replacement_vote',
+      subject: `Fill the open slot in "${pod.name}"? Your vote is needed`,
+      text: `${removed.displayName} was removed from "${pod.name}", so one slot is open. The members decide what happens next:
+
+• OPEN: list the pod publicly so a verified MutualPool member can take over the remaining weeks.
+• KEEP: stay private and continue with ${pod.members.length} members.
+
+Vote from the pod page. The vote closes ${closes}. If it is not decided by then, the pod stays private.`,
+    },
+  });
+}
+function applyReplacementVoteOutcome(pod: Pod, outcome: PodReplacementVoteChoice, now: Date): void {
+  const vote = pod.replacementVote;
+  if (!vote || vote.status !== 'OPEN') return;
+  vote.status = 'RESOLVED';
+  vote.outcome = outcome;
+  vote.resolvedAt = now.toISOString();
+  const { open, keep, eligible } = tallyReplacementVote(vote);
+  const tallyText = `${open} to open, ${keep} to keep private, of ${eligible} eligible`;
+  if (outcome === 'OPEN') {
+    pod.podType = 'OPEN_POD';
+    pod.isPrioritizedForReplacement = true;
+    pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_OPENED_TO_PUBLIC',
+      `Members voted to list the pod publicly to fill ${vote.removedUserName}'s slot (${tallyText}).`, { voteId: vote.id, open, keep, eligible });
+    notifyPodMembers(pod, {
+      type: 'POD_REPLACEMENT_VOTE',
+      title: '🌐 Pod listed publicly to fill the slot',
+      message: `"${pod.name}" is now listed as an Open Pod (vote: ${tallyText}). A verified member can take over the open slot's remaining weeks.`,
+      metadata: { voteId: vote.id },
+      email: { kind: 'pod_opened_public', subject: `"${pod.name}" is now listed publicly`, text: `The members of "${pod.name}" voted to list the pod publicly (${tallyText}) so a verified member can fill the open slot. You will be told when someone joins.` },
+    });
+  } else {
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_REPLACEMENT_VOTED',
+      `Members voted to keep the pod private and continue with ${pod.members.length} members (${tallyText}).`, { voteId: vote.id, open, keep, eligible });
+    notifyPodMembers(pod, {
+      type: 'POD_REPLACEMENT_VOTE',
+      title: '🔒 Pod stays private',
+      message: `"${pod.name}" stays private and continues with ${pod.members.length} members (vote: ${tallyText}).`,
+      metadata: { voteId: vote.id },
+      email: { kind: 'pod_kept_private', subject: `"${pod.name}" stays private`, text: `The members of "${pod.name}" voted to keep the pod private (${tallyText}). The rotation continues with ${pod.members.length} members.` },
+    });
+  }
+  savePodsToDisk();
+}
+// Every member has been paid: thank the pod and give the creator the choice to
+// start a new round (a new pod with the same settings, members invited) or close it.
+function onPodCompleted(pod: Pod): void {
+  if (pod.completedAt) return;
+  const nowIso = new Date().toISOString();
+  pod.completedAt = nowIso;
+  pod.renewalDecision = 'PENDING';
+  if (pod.pauseVote?.status === 'OPEN') { pod.pauseVote.status = 'RESOLVED'; pod.pauseVote.resolvedAt = nowIso; }
+  if (pod.replacementVote?.status === 'OPEN') { pod.replacementVote.status = 'RESOLVED'; pod.replacementVote.resolvedAt = nowIso; }
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool', 'POD_COMPLETED', `Every member has received a payout. ${pod.creatorName} may start a new round or close the pod.`, { memberCount: pod.members.length });
+  notifyPodMembers(pod, {
+    type: 'POD_COMPLETED',
+    title: '🎉 Pod complete',
+    message: `Every member of "${pod.name}" has received their payout. Thank you for seeing it through. ${pod.creatorName} can now start a new round with the same group or close the pod; you will be invited if a new round starts.`,
+    excludeUserId: pod.createdBy,
+    metadata: { completedAt: nowIso },
+    email: { kind: 'pod_completed', subject: `"${pod.name}" is complete`, text: `Every member of "${pod.name}" has received their payout. Thank you for seeing it through.\n\n${pod.creatorName} can now start a new round with the same group or close the pod. If a new round starts you will receive an invitation.` },
+  });
+  const creator = users.find(u => u && u.id === pod.createdBy);
+  if (creator) {
+    createNotification({
+      userId: creator.id,
+      type: 'POD_COMPLETED',
+      title: '🎉 Your pod is complete. Start a new round?',
+      message: `Every member of "${pod.name}" has been paid out. Open the pod page to start a new round with the same settings (your members are invited automatically) or to close it.`,
+      podId: pod.id,
+      podName: pod.name,
+      metadata: { completedAt: nowIso, renewal: true },
+    });
+    sendEmail({
+      to: creator.email,
+      kind: 'pod_completed_creator',
+      subject: `"${pod.name}" is complete: start a new round?`,
+      text: `Hi ${creator.displayName},
+
+Every member of "${pod.name}" has received their payout. Well done.
+
+You now have a choice, from the pod page:
+• Start a new round: a new pod with the same settings; your members are invited automatically.
+• Close the pod: it stays in your history as completed.
+
+Open MutualPool: ${appUrl()}`,
+      onChange: requestFlush,
+    });
+  }
+}
+// A new pod created as "a new round" of a completed one: link the two and
+// invite the previous members.
+function linkRenewal(newPod: Pod, fromPodId: unknown): void {
+  if (typeof fromPodId !== 'string' || !fromPodId) return;
+  const old = pods.find(p => p && p.id === fromPodId);
+  if (!old || old.createdBy !== newPod.createdBy || old.status !== 'COMPLETED' || old.renewalDecision === 'RENEWED') return;
+  old.renewalDecision = 'RENEWED';
+  old.renewedToPodId = newPod.id;
+  newPod.renewedFromPodId = old.id;
+  addAuditLog(old.id, newPod.createdBy, newPod.creatorName, 'POD_RENEWED', `${newPod.creatorName} started a new round: "${newPod.name}".`, { newPodId: newPod.id });
+  for (const m of old.members) {
+    if (!m || !m.userId || m.userId === newPod.createdBy) continue;
+    const u = users.find(x => x && x.id === m.userId);
+    if (!u) continue;
+    createNotification({
+      userId: u.id,
+      type: 'POD_JOINED',
+      title: `🔁 New round of "${old.name}"`,
+      message: `${newPod.creatorName} started "${newPod.name}" with the same settings as your completed pod. Join with invite code ${newPod.inviteCode} from Explore Pods, or ask ${newPod.creatorName} for the invite link.`,
+      podId: newPod.id,
+      podName: newPod.name,
+      metadata: { inviteCode: newPod.inviteCode, renewedFromPodId: old.id },
+    });
+    sendEmail({
+      to: u.email,
+      kind: 'pod_renewal_invite',
+      subject: `${newPod.creatorName} started a new round of "${old.name}"`,
+      text: `Hi ${u.displayName},
+
+${newPod.creatorName} started a new round: "${newPod.name}", with the same weekly deposit ($${newPod.depositTier.toFixed(2)}) and settings as the pod you just completed together.
+
+Invite code: ${newPod.inviteCode}
+
+Open MutualPool: ${appUrl()}`,
+      onChange: requestFlush,
+    });
+  }
+}
+// 24 hours after the notice and still unpaid: out of the pod, account
+// restricted, collection started.
+function autoRemoveDefaultedMember(d: DepositDefault, now: Date): void {
+  const pod = pods.find(p => p && p.id === d.podId);
+  const user = users.find(u => u && u.id === d.userId);
+  const hoursText = `${Math.round(DEFAULT_REMOVAL_GRACE_MS / 3_600_000)} hours`;
+  d.autoRemovedAt = now.toISOString();
+  if (pod && pod.status === 'ACTIVE') {
+    const member = pod.members.find(m => m && m.userId === d.userId);
+    if (member) {
+      recordRemovalDefault(pod, member, 'AUTO_REMOVE'); // extends this default with the deposits still owed
+      removeMemberFromRotation(pod, d.userId);
+      // An Open Pod is public already: just flag the vacancy. A Trusted Circle
+      // stays private unless the remaining members vote to list it.
+      const alreadyPublic = pod.podType === 'OPEN_POD';
+      if (alreadyPublic) {
+        pod.isPrioritizedForReplacement = true;
+        pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+      }
+      const slotText = alreadyPublic
+        ? 'The slot is open for a replacement member.'
+        : 'The remaining members will vote on listing the pod publicly to fill the slot.';
+      addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'MEMBER_AUTO_REMOVED',
+        `${member.displayName} was removed from "${pod.name}": the Week ${d.cycleWeek} missed deposit was not paid within ${hoursText} of notice. Still owed: $${defaultRemainingUsd(d).toFixed(2)}. ${slotText}`,
+        { defaultId: d.id, memberUserId: d.userId, remainingMembers: pod.memberCount });
+      notifyPodMembers(pod, {
+        type: 'STATUS_CHANGE',
+        title: '👋 Member removed after missed deposit',
+        message: `${member.displayName} was removed from "${pod.name}" after not paying the Week ${d.cycleWeek} deposit within ${hoursText}. What they owe is being collected under their bank debit authorization. ${slotText}`,
+        excludeUserId: d.userId,
+        metadata: { defaultId: d.id, memberUserId: d.userId },
+        email: {
+          kind: 'pod_member_removed',
+          subject: `${member.displayName} was removed from "${pod.name}"`,
+          text: `${member.displayName} was removed from your pod "${pod.name}" after not paying the Week ${d.cycleWeek} deposit within ${hoursText} of notice.
+
+What they owe ($${defaultRemainingUsd(d).toFixed(2)}) is being collected under their bank debit authorization. Money recovered repays whoever fronted the deposit first, then bridges the pod's later weeks. ${slotText}`,
+        },
+      });
+      if (!alreadyPublic && pod.status === 'ACTIVE') openReplacementVote(pod, member);
+      savePodsToDisk();
+    }
+  }
+  if (user) {
+    createNotification({
+      userId: user.id,
+      type: 'STATUS_CHANGE',
+      title: 'Removed from pod after missed deposit',
+      message: `You were removed from "${d.podName}" because the Week ${d.cycleWeek} deposit was not paid within ${hoursText}. You still owe $${defaultRemainingUsd(d).toFixed(2)}, which is collected under your bank debit authorization. Pay it in full to restore your account.`,
+      podId: d.podId,
+      podName: d.podName,
+      metadata: { defaultId: d.id },
+    });
+    restrictAccount(user, d);
+  }
+  d.updatedAt = now.toISOString();
+}
+// Runs every minute from the scheduler (and on demand from the tick endpoint).
+async function runDelinquencyTick(now: Date = new Date()): Promise<{ removed: number; collectionsStarted: number; votesResolved: number }> {
+  let removed = 0;
+  let collectionsStarted = 0;
+  let votesResolved = 0;
+  for (const d of [...depositDefaults]) {
+    if (!removalDue(d, now)) continue;
+    try {
+      autoRemoveDefaultedMember(d, now);
+      removed += 1;
+    } catch (err) {
+      console.error('[Default controls] auto-remove failed:', err);
+      continue;
+    }
+    if (!d.collectionStartedAt) {
+      d.collectionStartedAt = now.toISOString();
+      try {
+        const r = await startAchCollection(d, { id: 'SYSTEM', displayName: 'MutualPool Default Monitor' }, undefined);
+        if (r.ok) {
+          collectionsStarted += 1;
+        } else {
+          const why = String((r.body as { message?: string }).message || (r.body as { error?: string }).error || 'unknown');
+          addAuditLog(d.podId, 'SYSTEM', 'MutualPool Default Monitor', 'DELINQUENCY_HANDLED', `Automatic ACH collection could not start for ${d.userName}: ${why} Admins can retry from Admin Ops.`, { defaultId: d.id });
+          notifyAdmins({ type: 'PAYMENT_FAILED', title: '⚠️ Automatic collection not started', message: `${d.userName} was removed from "${d.podName}" but the ACH debit could not start: ${why} Review in Admin Ops → Deposit Defaults.`, podId: d.podId, podName: d.podName, metadata: { defaultId: d.id } });
+        }
+      } catch (err) {
+        console.error('[Default controls] auto-collection failed:', err);
+      }
+    }
+  }
+  for (const pod of pods) {
+    if (!pod) continue;
+    if (pod.pauseVote?.status === 'OPEN') {
+      const outcome = resolvePauseVote(pod.pauseVote, now);
+      if (outcome) {
+        applyPauseVoteOutcome(pod, outcome, now);
+        votesResolved += 1;
+      }
+    }
+    if (pod.replacementVote?.status === 'OPEN') {
+      const outcome = resolveReplacementVote(pod.replacementVote, now);
+      if (outcome) {
+        applyReplacementVoteOutcome(pod, outcome, now);
+        votesResolved += 1;
+      }
+    }
+  }
+  if (removed || collectionsStarted || votesResolved) {
+    savePodsToDisk();
+    saveUsersToDisk();
+    requestFlush();
+  }
+  return { removed, collectionsStarted, votesResolved };
 }
 
 // Deposits the member still owes under the Pod Agreement if they drop out now.
@@ -2624,6 +3228,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       return debitMandateRequiredResponse(res);
     }
     if (user.riskHold) return riskHoldResponse(res, user);
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
 
     // Hard Gate: Maximum 3 Created Pods per User Limit (Anti-Fraud & Financial Integrity Policy)
     const userActiveCreatedPodsCount = pods.filter(p => {
@@ -2771,6 +3376,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     };
 
     pods.unshift(newPod);
+    linkRenewal(newPod, body.renewedFromPodId); // "start a new round" of a completed pod
     savePodsToDisk();
     saveUsersToDisk();
     for (const ic of newPod.invitedContacts) sendPodInvitationEmail(newPod, ic);
@@ -2957,6 +3563,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         return debitMandateRequiredResponse(res);
       }
       if (user.riskHold) return riskHoldResponse(res, user);
+      if (restrictionFor(user)) return accountRestrictedResponse(res, user);
       // Join cap ladder: how big a pot a member may join grows with completed pods.
       if (pod.createdBy !== user.id) {
         const capProblem = potCapProblem(users.find(u => u && u.id === user.id) || user, pod);
@@ -3610,6 +4217,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         const u = users.find(usr => usr.id === m.userId);
         if (u) u.completedPodsCount += 1;
       });
+      onPodCompleted(pod);
     } else {
       pod.currentCycleWeek += 1;
     }
@@ -3787,8 +4395,8 @@ app.get(['/api/health', '/health'], (req, res) => {
 
     // DEMO_MODE only: auto-activate a pod so the sweep can be exercised locally.
     if (DEMO_MODE && activePods.length === 0) {
-      const candidatePod = pods.find(p => p && Array.isArray(p.members) && p.members.length >= 2) ||
-                           pods.find(p => p && Array.isArray(p.members) && p.members.length >= 1);
+      const candidatePod = pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 2) ||
+                           pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 1);
       if (candidatePod) {
         candidatePod.status = 'ACTIVE';
         candidatePod.currentCycleWeek = 1;
@@ -3952,7 +4560,7 @@ app.get(['/api/health', '/health'], (req, res) => {
               userId: member.userId,
               type: 'PAYMENT_FAILED',
               title: '⚠️ Thursday Deposit Attention Required',
-              message: `Thursday auto-debit for "${pod.name}" had insufficient balance ($${userBalance.toFixed(2)}). 24-hour grace active before Friday 12:00 AM payout settlement. Please fund your Treasury balance.`,
+              message: `Thursday auto-debit for "${pod.name}" had insufficient balance ($${userBalance.toFixed(2)}). Add funds and make the deposit within 24 hours, or you will be removed from the pod, your account restricted, and the amount collected from your bank. The other members have been told.`,
               podId: pod.id,
             });
           } catch (notifErr) {
@@ -3962,6 +4570,9 @@ app.get(['/api/health', '/health'], (req, res) => {
           details.push(`[${pod.name}] Incomplete debit for ${member.displayName || member.userId}: Balance $${userBalance} < $${totalChargedAmount}${bufferDrawn ? ' (Contingency buffer bridged)' : ''}`);
         }
       }
+
+      // COVER outcome of a pause vote: the members not in default split what is missing.
+      if (pod.coverShareActive) applyCoverShare(pod, cycleWeek, details);
 
       // Money recovered from earlier defaults (ACH debits, later balance) that
       // nobody had fronted bridges one deposit per week for the slot that was lost.
@@ -4013,8 +4624,8 @@ app.get(['/api/health', '/health'], (req, res) => {
 
     // DEMO_MODE only: auto-activate a funded pod so the sweep can be exercised locally.
     if (DEMO_MODE && activePods.length === 0) {
-      const candidatePod = pods.find(p => p && Array.isArray(p.members) && p.members.length >= 2) ||
-                           pods.find(p => p && Array.isArray(p.members) && p.members.length >= 1);
+      const candidatePod = pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 2) ||
+                           pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 1);
       if (candidatePod) {
         candidatePod.status = 'ACTIVE';
         candidatePod.currentCycleWeek = 1;
@@ -4198,6 +4809,7 @@ app.get(['/api/health', '/health'], (req, res) => {
           const u = users.find(usr => usr && usr.id === m.userId);
           if (u) u.completedPodsCount = (u.completedPodsCount || 0) + 1;
         });
+        onPodCompleted(pod);
         details.push(`[${pod.name}] Final Week ${cycleWeek} payout complete. Pod marked COMPLETED!`);
       } else {
         pod.currentCycleWeek = cycleWeek + 1;
@@ -4286,7 +4898,11 @@ app.get(['/api/health', '/health'], (req, res) => {
     if (!(IS_PRODUCTION || isPersistenceEnabled())) return;
     // Give storage hydration a moment, then check every minute.
     setTimeout(() => { runDueSweeps().catch(err => console.error('[Scheduled Sweeps] startup error:', err)); }, 15_000).unref();
-    const sweepInterval = setInterval(() => { runDueSweeps().catch(err => console.error('[Scheduled Sweeps] tick error:', err)); }, 60_000);
+    const sweepInterval = setInterval(() => {
+      runDueSweeps()
+        .then(() => runDelinquencyTick())
+        .catch(err => console.error('[Scheduled Sweeps] tick error:', err));
+    }, 60_000);
     if (typeof sweepInterval.unref === 'function') sweepInterval.unref();
   }
   (app as any).locals.startSweepScheduler = startSweepScheduler;
@@ -5241,6 +5857,7 @@ Return ONLY a valid JSON object in this exact schema:
     if (!member) {
       return res.status(403).json({ error: 'You are not a member of this pod.' });
     }
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
 
     // Enforcement 1: Members are only eligible after first 3 months (90 days) of participating as members of a pod
     const bypassTenureCheck = DEMO_MODE && Boolean(req.body?.bypassTenureCheck);
@@ -5613,6 +6230,7 @@ Return ONLY a valid JSON object in this exact schema:
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     const { reason } = req.body || {};
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
     const pod = await findPodById(req.params.id, user);
 
     if (!pod) {
@@ -5785,6 +6403,7 @@ Return ONLY a valid JSON object in this exact schema:
     }
     const { targetMemberUserId, targetUserId, memberId, note } = req.body || {};
     const targetId = targetMemberUserId || targetUserId || memberId;
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
     const pod = await findPodById(req.params.id, user);
 
     if (!pod) return res.status(404).json({ error: 'Pod not found' });
@@ -5893,6 +6512,7 @@ Return ONLY a valid JSON object in this exact schema:
     }
     const { action } = req.body || {}; // 'ACCEPT' | 'DECLINE'
     const requestId = req.params.requestId;
+    if (action === 'ACCEPT' && restrictionFor(user)) return accountRestrictedResponse(res, user);
 
     const swapReq = swapRequests.find(sr => sr.id === requestId && sr.podId === req.params.id);
     if (!swapReq) {
@@ -6737,8 +7357,9 @@ Return ONLY a valid JSON object in this exact schema:
       );
     } else if (actionChoice === 'REMOVE') {
       // Direct removal. A member leaving after taking the pot owes the rest of their deposits.
-      recordRemovalDefault(pod, member, 'ADMIN_REMOVE');
+      const removalDefault = recordRemovalDefault(pod, member, 'ADMIN_REMOVE');
       removeMemberFromRotation(pod, memberUserId);
+      if (removalDefault) restrictAccount(memberUser, removalDefault);
       pod.podType = 'OPEN_POD';
       pod.isPrioritizedForReplacement = true;
       pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
@@ -7090,30 +7711,29 @@ Return ONLY a valid JSON object in this exact schema:
 
   // Admin-initiated ACH debit under the member's mandate. ACH settles later: the
   // Stripe webhook marks the collection settled/failed and applies the recovery.
-  app.post('/api/admin/defaults/:id/collect', async (req: Request, res: Response) => {
-    const admin = getCurrentUser(req);
-    if (!admin || !checkIsAdmin(req)) {
-      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
-    }
-    const d = depositDefaults.find(x => x.id === req.params.id);
-    if (!d) return res.status(404).json({ error: 'DEFAULT_NOT_FOUND', message: 'Default record not found.' });
+  // Start an ACH debit for what a default still owes, under the member's
+  // mandate. Used by the admin endpoint below and by the default controls
+  // (automatic collection after the 24-hour window).
+  type AchStartResult = { ok: boolean; status: number; body: Record<string, unknown> };
+  async function startAchCollection(d: DepositDefault, admin: { id: string; displayName: string }, requestedAmount: unknown): Promise<AchStartResult> {
+    const fail = (status: number, body: Record<string, unknown>): AchStartResult => ({ ok: false, status, body });
     if (d.status === 'WRITTEN_OFF' || d.status === 'RECOVERED') {
-      return res.status(400).json({ error: 'DEFAULT_CLOSED', message: `This default is ${d.status.toLowerCase().replace('_', ' ')}.` });
+      return fail(400, { error: 'DEFAULT_CLOSED', message: `This default is ${d.status.toLowerCase().replace('_', ' ')}.` });
     }
     if (achCollections.some(c => c.defaultId === d.id && (c.status === 'PROCESSING' || c.status === 'NEEDS_REVIEW'))) {
-      return res.status(409).json({ error: 'COLLECTION_IN_PROGRESS', message: 'An ACH debit for this default is already processing or awaiting review. Resolve it first.' });
+      return fail(409, { error: 'COLLECTION_IN_PROGRESS', message: 'An ACH debit for this default is already processing or awaiting review. Resolve it first.' });
     }
     const member = users.find(u => u && u.id === d.userId);
     const mandate = member?.debitMandate;
     if (!member || !mandate || mandate.status !== 'ACTIVE' || !mandate.paymentMethodId || !(mandate.stripeCustomerId || member.stripeCustomerId)) {
-      return res.status(400).json({ error: 'NO_ACTIVE_MANDATE', message: `${d.userName} has no active bank debit mandate; nothing can be collected by ACH.` });
+      return fail(400, { error: 'NO_ACTIVE_MANDATE', message: `${d.userName} has no active bank debit mandate; nothing can be collected by ACH.` });
     }
     const remaining = defaultRemainingUsd(d);
-    const amount = req.body?.amountUsd === undefined || req.body?.amountUsd === null || req.body?.amountUsd === ''
+    const amount = requestedAmount === undefined || requestedAmount === null || requestedAmount === ''
       ? remaining
-      : parseMoneyAmount(req.body.amountUsd, { max: 10_000 });
+      : parseMoneyAmount(requestedAmount as string | number, { max: 10_000 });
     if (amount === null || amount <= 0 || amount > remaining + 1e-9) {
-      return res.status(400).json({ error: 'INVALID_AMOUNT', message: `Enter an amount between $0.01 and $${remaining.toFixed(2)} (what is still owed).` });
+      return fail(400, { error: 'INVALID_AMOUNT', message: `Enter an amount between $0.01 and $${remaining.toFixed(2)} (what is still owed).` });
     }
 
     const nowIso = new Date().toISOString();
@@ -7139,7 +7759,7 @@ Return ONLY a valid JSON object in this exact schema:
     if (!(await persistNow())) {
       achCollections = achCollections.filter(c => c.id !== collection.id);
       refreshDefaultStatus(d);
-      return res.status(503).json({ error: 'COLLECTION_UNAVAILABLE', message: 'Collections are temporarily unavailable. Nothing was debited.' });
+      return fail(503, { error: 'COLLECTION_UNAVAILABLE', message: 'Collections are temporarily unavailable. Nothing was debited.' });
     }
 
     try {
@@ -7171,14 +7791,14 @@ Return ONLY a valid JSON object in this exact schema:
         collection.status = 'FAILED';
         refreshDefaultStatus(d);
         console.error('[ACH collect] Stripe rejected the debit:', collection.failureReason);
-        return res.status(502).json({ error: 'COLLECTION_FAILED', message: 'Stripe could not start the debit. Nothing was collected.', collection });
+        return fail(502, { error: 'COLLECTION_FAILED', message: 'Stripe could not start the debit. Nothing was collected.', collection });
       }
       // Timeout/outage: Stripe may have created the debit. Keep the record so the
       // idempotency key is reused and let an admin confirm in the dashboard.
       collection.status = 'NEEDS_REVIEW';
       refreshDefaultStatus(d);
       reportIncident('error', 'ach_collection_needs_review', `ACH debit ${collection.id} for ${d.userName} ($${collection.amountUsd.toFixed(2)}) got an ambiguous Stripe error: ${collection.failureReason}`, { collectionId: collection.id, defaultId: d.id });
-      return res.status(502).json({ error: 'COLLECTION_PENDING_REVIEW', message: 'We could not confirm the debit with Stripe. It is flagged for review; do not retry until it is resolved.', collection });
+      return fail(502, { error: 'COLLECTION_PENDING_REVIEW', message: 'We could not confirm the debit with Stripe. It is flagged for review; do not retry until it is resolved.', collection });
     }
     collection.updatedAt = new Date().toISOString();
 
@@ -7207,7 +7827,131 @@ MutualPool`,
       onChange: requestFlush,
     });
     savePodsToDisk();
-    res.json({ success: true, collection, default: defaultView(d) });
+    return { ok: true, status: 200, body: { success: true, collection, default: defaultView(d) } };
+  }
+
+
+  app.post('/api/admin/defaults/:id/collect', async (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) {
+      return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    }
+    const d = depositDefaults.find(x => x.id === req.params.id);
+    if (!d) return res.status(404).json({ error: 'DEFAULT_NOT_FOUND', message: 'Default record not found.' });
+    const r = await startAchCollection(d, { id: admin.id, displayName: admin.displayName }, req.body?.amountUsd);
+    return res.status(r.status).json(r.body);
+  });
+
+  // Member vote when two or more members of a pod are in unsettled default:
+  // PAUSE the pod, or COVER the missing deposits between the remaining members.
+  app.post(['/api/pods/:id/pause-vote', '/pods/:id/pause-vote'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    const pod = await findPodById(req.params.id, user);
+    if (!pod) return res.status(404).json({ error: 'Pod not found' });
+    const vote = pod.pauseVote;
+    if (!vote || vote.status !== 'OPEN') return res.status(400).json({ error: 'NO_OPEN_VOTE', message: 'There is no open pause vote for this pod.' });
+    const choice = String(req.body?.choice || '').toUpperCase();
+    if (choice !== 'PAUSE' && choice !== 'COVER') return res.status(400).json({ error: 'INVALID_CHOICE', message: 'choice must be PAUSE or COVER.' });
+    if (!vote.eligibleVoterIds.includes(user.id)) return res.status(403).json({ error: 'NOT_ELIGIBLE', message: 'Only members who are not in default can vote.' });
+    vote.votes[user.id] = choice;
+    addAuditLog(pod.id, user.id, user.displayName, 'POD_PAUSE_VOTED', `${user.displayName} voted ${choice} in the pod pause vote.`, { voteId: vote.id, choice });
+    const now = new Date();
+    const outcome = resolvePauseVote(vote, now);
+    if (outcome) applyPauseVoteOutcome(pod, outcome, now);
+    savePodsToDisk();
+    requestFlush();
+    res.json({ success: true, vote: pod.pauseVote, podStatus: pod.status, tally: tallyPauseVote(pod.pauseVote as PodPauseVote) });
+  });
+
+  // Member vote after a removal from a private pod: list it publicly (OPEN) to
+  // fill the slot, or keep it private (KEEP).
+  app.post(['/api/pods/:id/replacement-vote', '/pods/:id/replacement-vote'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    const pod = await findPodById(req.params.id, user);
+    if (!pod) return res.status(404).json({ error: 'Pod not found' });
+    const vote = pod.replacementVote;
+    if (!vote || vote.status !== 'OPEN') return res.status(400).json({ error: 'NO_OPEN_VOTE', message: 'There is no open replacement vote for this pod.' });
+    const choice = String(req.body?.choice || '').toUpperCase();
+    if (choice !== 'OPEN' && choice !== 'KEEP') return res.status(400).json({ error: 'INVALID_CHOICE', message: 'choice must be OPEN or KEEP.' });
+    if (!vote.eligibleVoterIds.includes(user.id)) return res.status(403).json({ error: 'NOT_ELIGIBLE', message: 'Only members who are not in default can vote.' });
+    vote.votes[user.id] = choice;
+    addAuditLog(pod.id, user.id, user.displayName, 'POD_REPLACEMENT_VOTED', `${user.displayName} voted ${choice} on listing the pod publicly.`, { voteId: vote.id, choice });
+    const now = new Date();
+    const outcome = resolveReplacementVote(vote, now);
+    if (outcome) applyReplacementVoteOutcome(pod, outcome, now);
+    savePodsToDisk();
+    requestFlush();
+    res.json({ success: true, vote: pod.replacementVote, podType: pod.podType, tally: tallyReplacementVote(pod.replacementVote as PodReplacementVote) });
+  });
+
+  // Creator's choice once a pod is complete. Closing is recorded here; starting
+  // a new round goes through POST /api/pods with renewedFromPodId, which links
+  // the pods and invites the previous members.
+  app.post(['/api/pods/:id/renewal', '/pods/:id/renewal'], async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    const pod = await findPodById(req.params.id, user);
+    if (!pod) return res.status(404).json({ error: 'Pod not found' });
+    if (pod.createdBy !== user.id && !checkIsAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN', message: 'Only the pod creator can decide this.' });
+    if (pod.status !== 'COMPLETED') return res.status(400).json({ error: 'NOT_COMPLETED', message: 'The pod has not completed yet.' });
+    if (pod.renewalDecision === 'RENEWED') return res.status(409).json({ error: 'ALREADY_RENEWED', message: 'A new round of this pod has already been started.' });
+    const decision = String(req.body?.decision || '').toUpperCase();
+    if (decision !== 'CLOSE') return res.status(400).json({ error: 'INVALID_DECISION', message: 'decision must be CLOSE; to start a new round create a pod with renewedFromPodId.' });
+    pod.renewalDecision = 'CLOSED';
+    addAuditLog(pod.id, user.id, user.displayName, 'POD_RENEWAL_CLOSED', `${user.displayName} closed the pod after completion.`, {});
+    notifyPodMembers(pod, {
+      type: 'POD_COMPLETED',
+      title: `"${pod.name}" has been closed`,
+      message: `${pod.creatorName} closed "${pod.name}" after everyone was paid out. Thank you for being part of it. You can join or create another pod any time.`,
+      excludeUserId: user.id,
+    });
+    savePodsToDisk();
+    requestFlush();
+    res.json({ success: true, pod });
+  });
+
+  // Admin: resume a paused pod once its defaults are settled (or force it).
+  app.post('/api/admin/pods/:id/resume', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    const pod = pods.find(p => p && p.id === req.params.id);
+    if (!pod) return res.status(404).json({ error: 'Pod not found' });
+    if (pod.status !== 'PAUSED') return res.status(400).json({ error: 'NOT_PAUSED', message: 'This pod is not paused.' });
+    const stillDefaulting = defaultingUserIds(pod.id, depositDefaults).filter(id => pod.members.some(m => m.userId === id));
+    if (stillDefaulting.length > 0 && !req.body?.force) {
+      return res.status(409).json({ error: 'DEFAULTS_UNSETTLED', message: `${stillDefaulting.length} current member(s) still have unsettled defaults. Settle or remove them first, or pass force: true.` });
+    }
+    pod.status = 'ACTIVE';
+    pod.pausedAt = undefined;
+    pod.pauseReason = undefined;
+    addAuditLog(pod.id, admin.id, admin.displayName, 'POD_RESUMED', `Pod resumed by ${admin.displayName}. Weekly deposits and payouts continue from Week ${pod.currentCycleWeek || 1}.`, { force: Boolean(req.body?.force) });
+    notifyPodMembers(pod, {
+      type: 'POD_RESUMED',
+      title: '▶️ Pod resumed',
+      message: `"${pod.name}" is active again. Weekly deposits and payouts continue from Week ${pod.currentCycleWeek || 1}.`,
+      email: { kind: 'pod_resumed', subject: `"${pod.name}" has resumed`, text: `"${pod.name}" is active again. Weekly deposits and payouts continue from Week ${pod.currentCycleWeek || 1}. Keep enough balance for Thursday.` },
+    });
+    savePodsToDisk();
+    requestFlush();
+    res.json({ success: true, pod });
+  });
+
+  // Run the default controls now (the scheduler does this every minute). The
+  // cron secret or an admin may call it; DEMO_MODE accepts a clock override so
+  // tests can jump past the 24-hour window.
+  app.post('/api/platform/schedule/delinquency-tick', async (req: Request, res: Response) => {
+    const provided = getHeaderValue(req, 'x-cron-secret');
+    const cronOk = Boolean(process.env.CRON_SECRET) && provided === process.env.CRON_SECRET;
+    if (!cronOk && !checkIsAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+    let now = new Date();
+    if (DEMO_MODE && req.body?.now) {
+      const t = new Date(req.body.now);
+      if (!isNaN(t.getTime())) now = t;
+    }
+    const result = await runDelinquencyTick(now);
+    res.json({ success: true, now: now.toISOString(), ...result });
   });
 
   app.post('/api/admin/defaults/:id/write-off', (req: Request, res: Response) => {
@@ -7930,8 +8674,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       if (q.includes('escrow') || q.includes('system deposit') || q.includes('missed') || q.includes('default') || q.includes('shortfall') || q.includes('garantía') || q.includes('falta') || q.includes('impago') || q.includes('entiercement') || q.includes('retard')) {
         if (isEs) {
           return {
-            spokenText: "Si tu saldo no cubre el depósito del jueves, se registra como depósito faltante y tienes hasta el cobro del viernes para recargar. El colchón del grupo o el escrow de MutualPool pueden cubrir esa semana, pero lo adelantado se convierte en una deuda que se cobra de tu saldo, tus cobros futuros o tu banco.",
-            displayText: "🛡️ Depósitos Faltantes y Escrow del Sistema\n\n1. El barrido del jueves registra el depósito faltante y te avisa; tienes hasta el cobro del viernes para recargar tu saldo.\n2. El colchón de contingencia del grupo (en tu primer grupo, el Welcome Match equivale a un depósito) puede cubrir la semana.\n3. Si no alcanza, el Escrow del Sistema puede adelantar el depósito.\n4. Todo lo adelantado se te cobra: de tu saldo, de cobros futuros o por débito bancario autorizado. Lo recuperado repone el escrow y el colchón.\n5. El Creador puede dar un periodo de gracia; MutualPool puede cubrir la diferencia o retirarte del grupo. Si te retiran después de cobrar, sigues debiendo los depósitos restantes.\n\nEl escrow y los colchones son limitados y discrecionales: ayudan a mantener los cobros a tiempo, pero no son una garantía.",
+            spokenText: "Si tu saldo no cubre el depósito del jueves, tú y todos los demás miembros del grupo reciben aviso de inmediato y tienes 24 horas para pagar. Después, se te retira del grupo, tu cuenta queda restringida hasta que pagues todo, y el monto se cobra de tu banco. Si dos miembros del mismo grupo están en mora, los demás votan si pausar el grupo o cubrir los depósitos faltantes.",
+            displayText: "🛡️ Depósitos Faltantes: qué pasa, paso a paso\n\n1. Jueves: se registra el depósito faltante. Recibes correo y aviso en la app, igual que todos los demás miembros del grupo. Tienes 24 horas para pagar.\n2. Mientras tanto, el colchón del grupo (el Welcome Match de un primer grupo) o el escrow de MutualPool pueden cubrir la semana. Todo lo cubierto es una deuda tuya.\n3. 24 horas después, sin pagar: se te retira del grupo, tu cuenta queda restringida (sin grupos nuevos, intercambios, votos ni ayuda por dificultad) y empieza el cobro ACH bajo tu autorización de débito bancario.\n4. Paga todo lo que debes y tu cuenta se restaura automáticamente.\n5. Dos miembros del mismo grupo en mora: el segundo recibe una advertencia y los demás votan PAUSAR el grupo o CUBRIR los depósitos faltantes entre ellos cada jueves. Si no deciden, el grupo se pausa.\n\nEl escrow y los colchones son limitados y discrecionales: ayudan a mantener los cobros a tiempo, pero no son una garantía.",
             suggestedActions: [
               { label: "Ver FAQ de Protección", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Fondo de Solidaridad", action: "OPEN_MODAL", modal: "HARDSHIP" }
@@ -7941,8 +8685,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Si votre solde ne couvre pas la cotisation du jeudi, elle est enregistrée comme manquée et vous avez jusqu'au versement du vendredi pour recharger. Le tampon du groupe ou l'entiercement MutualPool peuvent couvrir la semaine, mais l'avance devient une dette prélevée sur votre solde, vos versements futurs ou votre banque.",
-            displayText: "🛡️ Cotisations Manquées & Entiercement du Système\n\n1. Le prélèvement du jeudi enregistre la cotisation manquée et vous prévient ; vous avez jusqu'au versement du vendredi pour recharger.\n2. Le tampon de contingence du groupe (dans votre premier groupe, le Welcome Match vaut une cotisation) peut couvrir la semaine.\n3. Sinon, l'Entiercement du Système peut avancer la cotisation.\n4. Toute avance vous est réclamée : sur votre solde, vos versements futurs ou par prélèvement bancaire autorisé. Les sommes récupérées remboursent l'entiercement puis le tampon.\n5. Le Créateur peut accorder un délai de grâce ; MutualPool peut combler l'écart ou vous retirer du groupe. Retiré après votre versement, vous devez encore les cotisations restantes.\n\nL'entiercement et les tampons sont limités et discrétionnaires : ils aident à tenir le calendrier, sans constituer une garantie.",
+            spokenText: "Si votre solde ne couvre pas la cotisation du jeudi, vous et tous les autres membres du groupe êtes prévenus immédiatement, et vous avez 24 heures pour payer. Ensuite, vous êtes retiré du groupe, votre compte est restreint jusqu'au paiement intégral, et le montant est prélevé sur votre banque. Si deux membres d'un même groupe sont en défaut, les autres votent pour mettre le groupe en pause ou couvrir les cotisations manquantes.",
+            displayText: "🛡️ Cotisations Manquées : ce qui se passe, étape par étape\n\n1. Jeudi : la cotisation manquée est enregistrée. Vous recevez un e-mail et une notification, comme tous les autres membres du groupe. Vous avez 24 heures pour payer.\n2. Entre-temps, le tampon du groupe (le Welcome Match d'un premier groupe) ou l'entiercement MutualPool peuvent couvrir la semaine. Tout ce qui est avancé est une dette.\n3. 24 heures plus tard, toujours impayé : vous êtes retiré du groupe, votre compte est restreint (ni nouveau groupe, ni échange, ni vote, ni aide) et le prélèvement ACH démarre sous votre autorisation bancaire.\n4. Payez tout ce que vous devez et votre compte est rétabli automatiquement.\n5. Deux membres du même groupe en défaut : le second est averti et les autres votent pour METTRE EN PAUSE le groupe ou COUVRIR les cotisations manquantes entre eux chaque jeudi. Sans décision, le groupe est mis en pause.\n\nL'entiercement et les tampons sont limités et discrétionnaires : ils aident à tenir le calendrier, sans constituer une garantie.",
             suggestedActions: [
               { label: "FAQ Protection & Entiercement", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Fonds de Solidarité", action: "OPEN_MODAL", modal: "HARDSHIP" }
@@ -7951,8 +8695,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "If your balance can't cover the Thursday deposit, it is recorded as a missed deposit and you have until the Friday payout to top up. The pod's buffer or MutualPool's escrow may bridge that week, but whatever is advanced becomes money you owe, collected from your balance, future payouts, or your bank.",
-          displayText: "🛡️ Missed Deposits & System Escrow\n\n1. The Thursday sweep records the missed deposit and notifies you; you have until the Friday payout to top up your balance.\n2. The pod's contingency buffer (in your first pod, the Welcome Match equals one deposit) may bridge the week.\n3. If that's empty, the System Deposits Escrow may advance the deposit.\n4. Anything advanced is owed: it is collected from your balance, from future payouts, or by authorized bank debit. Recovered money repays escrow and restores the buffer.\n5. The Creator can grant a grace period; MutualPool can cover the gap or remove the member. A member removed after their payout still owes the remaining deposits.\n\nEscrow and buffers are limited and discretionary: they keep payouts on schedule in most cases, but they are not a guarantee.",
+          spokenText: "If your balance can't cover the Thursday deposit, you and every other member of the pod are told right away, and you have 24 hours to pay. After that you are removed from the pod, your account is restricted until you have paid in full, and the amount is collected from your bank. If two members of one pod are in default, the others vote to pause the pod or cover the missing deposits.",
+          displayText: "🛡️ Missed Deposits: what happens, step by step\n\n1. Thursday: the missed deposit is recorded. You get an email and in-app notice, and so does every other member of the pod. You have 24 hours to pay.\n2. Meanwhile the pod's buffer (a first pod's Welcome Match) or MutualPool's escrow may bridge the week. Anything bridged is money you owe.\n3. 24 hours later, still unpaid: you are removed from the pod, your account is restricted (no new pods, swaps, votes or hardship requests), and ACH collection starts under your bank debit authorization.\n4. Pay everything in full and your account is restored automatically.\n5. Two members of the same pod in default: the second is warned, and the other members vote to PAUSE the pod or to COVER the missing deposits between them each Thursday. Undecided votes pause the pod.\n\nEscrow and buffers are limited and discretionary: they keep payouts on schedule in most cases, but they are not a guarantee.",
           suggestedActions: [
             { label: "Open FAQ on Escrow", action: "OPEN_MODAL", modal: "FAQ" },
             { label: "Hardship Protection", action: "OPEN_MODAL", modal: "HARDSHIP" }
@@ -8425,7 +9169,8 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
   * No withdrawal fee, no card top-up fee, no interest. Fee changes get 30 days' notice in the app and apply only to pods that start afterwards.
 
 4. CATEGORY: MISSED DEPOSITS, AUTONOMOUS AI CUSTODIAN, ESCROW & HARDSHIP
-- Missed deposit sequence: (1) the Thursday sweep finds the balance short, records a missed deposit and notifies the member, who has until the Friday payout to top up; a late deposit repays what was bridged rather than inflating the pot. (2) The pod's contingency buffer may bridge the week (a first pod can carry a Welcome Match equal to one deposit, granted once per person, never paid as cash, returned if unused). (3) MutualPool's System Deposits Escrow may bridge it if the buffer is empty. (4) Anything bridged becomes money the member OWES, collected from their balance, from any future payout in any pod, or by bank debit under their authorization; recovered money repays escrow, restores the buffer, then bridges the pod's later weeks. (5) The creator may grant a grace period; MutualPool may cover the gap or remove the member. A member removed AFTER receiving their payout still owes the remaining deposits.
+- Missed deposit sequence (DEFAULT CONTROLS): (1) The Thursday sweep finds the balance short and records a missed deposit. The member is told in-app and by email, AND SO IS EVERY OTHER MEMBER OF THE POD (full transparency: pods hold each other accountable). The member has 24 HOURS to pay; a late deposit repays what was bridged rather than inflating the pot. (2) Meanwhile the pod's contingency buffer may bridge the week (a first pod can carry a Welcome Match equal to one deposit, granted once per person, never paid as cash, returned if unused), or MutualPool's System Deposits Escrow may bridge it. Anything bridged is money the member OWES. (3) 24 hours after the notice, still unpaid: the member is REMOVED from the pod (the remaining members then vote on whether to list the pod publicly to fill the slot or keep it private; ties keep it private), their ACCOUNT IS RESTRICTED (cannot create or join pods, swap, vote, or request hardship help; they can still add funds and pay), and ACH COLLECTION STARTS AUTOMATICALLY under their bank debit authorization for everything owed. Recovered money repays escrow, restores the buffer, then bridges the pod's later weeks. (4) Paying everything owed in full RESTORES the account automatically; nothing else is needed. (5) If a SECOND member of the same pod is in unsettled default, that member gets a second-default warning and a POD PAUSE VOTE opens for the members not in default: PAUSE (no deposits or payouts until the defaults are settled and an admin resumes) or COVER (keep going; the remaining members split the missing deposits equally each Thursday from their balances). A majority decides at once; the vote closes after 48 hours; undecided or tied votes pause the pod. Admins can also grant a grace period, cover the gap, or remove a member by hand. A member removed AFTER receiving their payout still owes the remaining deposits.
+- POD COMPLETION: once every member has received a payout the pod is complete. The creator then chooses to START A NEW ROUND (a new pod with the same settings; the previous members are invited automatically with the invite code) or to CLOSE the pod. Members are told either way.
 - Default: a member who takes a payout and then stops depositing is in default: account may be suspended, balance kept to cover the shortfall, amount pursued, and the default shared with the pod. A missed deposit also drops them to the $1,000 pod size tier until settled.
 - Escrow and buffers are LIMITED and DISCRETIONARY. Never promise that every payout is 100% guaranteed; say they keep payouts on schedule in most cases and that members ultimately rely on each other.
 - Autonomous AI Custodian Protocol (Lainie AI): If a Creator defaults or enters a hardship hold, Lainie AI takes over pod stewardship with zero administrative burden on members. The Creator forfeits the 3% reward, which is redirected to the System Escrow.

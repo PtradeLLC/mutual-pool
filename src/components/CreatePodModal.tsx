@@ -34,9 +34,26 @@ interface CreatePodModalProps {
   onDebitMandateRequired?: (message: string) => void;
   // Opens the Add Funds flow when the member's balance cannot cover the first deposit.
   onOpenAddFunds?: () => void;
+  // "Start a new round" of a completed pod: fields are prefilled and the server
+  // links the pods and invites the previous members (renewedFromPodId).
+  prefill?: CreatePodPrefill;
+}
+
+export interface CreatePodPrefill {
+  name: string;
+  description?: string;
+  category?: string;
+  podType: PodType;
+  activationPolicy?: ActivationPolicy;
+  inviteWindowDays?: number;
+  autoOpenOnExpire?: boolean;
+  sizeTier: PodSizeTier;
+  depositTier: DepositTier;
+  renewedFromPodId: string;
 }
 
 export const CreatePodModal: React.FC<CreatePodModalProps> = ({ 
+  prefill,
   user, 
   onClose, 
   onPodCreated,
@@ -52,16 +69,16 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const [step, setStep] = useState<'CONFIG' | 'REVIEW' | 'SUCCESS'>('CONFIG');
   
   // Pod configuration states
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Food Delivery & Rideshare');
-  const [podType, setPodType] = useState<PodType>('TRUSTED_CIRCLE');
-  const [activationPolicy, setActivationPolicy] = useState<ActivationPolicy>('WHEN_FULL');
-  const [inviteWindowDays, setInviteWindowDays] = useState<number>(7);
-  const [autoOpenOnExpire, setAutoOpenOnExpire] = useState<boolean>(true);
+  const [name, setName] = useState(prefill?.name ?? '');
+  const [description, setDescription] = useState(prefill?.description ?? '');
+  const [category, setCategory] = useState(prefill?.category ?? 'Food Delivery & Rideshare');
+  const [podType, setPodType] = useState<PodType>(prefill?.podType ?? 'TRUSTED_CIRCLE');
+  const [activationPolicy, setActivationPolicy] = useState<ActivationPolicy>(prefill?.activationPolicy ?? 'WHEN_FULL');
+  const [inviteWindowDays, setInviteWindowDays] = useState<number>(prefill?.inviteWindowDays ?? 7);
+  const [autoOpenOnExpire, setAutoOpenOnExpire] = useState<boolean>(prefill?.autoOpenOnExpire ?? true);
   const [invitedContacts, setInvitedContacts] = useState<InvitedContact[]>([]);
-  const [sizeTier, setSizeTier] = useState<PodSizeTier>(20);
-  const [depositTier, setDepositTier] = useState<DepositTier>(20);
+  const [sizeTier, setSizeTier] = useState<PodSizeTier>(prefill?.sizeTier ?? 20);
+  const [depositTier, setDepositTier] = useState<DepositTier>(prefill?.depositTier ?? 20);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -182,6 +199,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
           invitedContacts,
           sizeTier,
           depositTier,
+          renewedFromPodId: prefill?.renewedFromPodId,
         }),
       }).catch(() => null);
 

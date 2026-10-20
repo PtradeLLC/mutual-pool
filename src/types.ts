@@ -123,6 +123,7 @@ export interface User {
   // pods are blocked until an admin clears it.
   riskHold?: { reason: string; at: string; amountUsd?: number; stripeRef?: string };
   debitMandate?: DebitMandate;
+  accountRestriction?: AccountRestriction;
   completedPodsCount: number;
   welcomeMatchReceived?: boolean;
   welcomeMatchAmountUsd?: number;
@@ -146,7 +147,7 @@ export function calculateAccountAgeDays(createdAt?: string, fallbackDays: number
 
 export type PodSizeTier = 20 | 50 | 100 | 500 | 1000 | 5000 | 10000;
 export type DepositTier = 5 | 10 | 20 | 50 | 100;
-export type PodStatus = 'FORMING' | 'LOCKED' | 'ACTIVE' | 'COMPLETED';
+export type PodStatus = 'FORMING' | 'LOCKED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 export type DelinquencyStatus = 'CLEAN' | 'GRACE_PERIOD' | 'DELINQUENT';
 export type PodType = 'TRUSTED_CIRCLE' | 'OPEN_POD';
 
@@ -258,12 +259,27 @@ export interface Pod {
   earlySlotCount?: number;
   // Pot at lock (members × deposit); pots over $1,000 need seasoned early slots.
   potAtLockUsd?: number;
+  // Default controls: open/last pause vote, and whether the remaining members
+  // agreed to cover missing deposits (split each Thursday) instead of pausing.
+  pauseVote?: PodPauseVote;
+  pausedAt?: string;
+  pauseReason?: string;
+  coverShareActive?: boolean;
+  // After a member is removed for a default, the remaining members vote on
+  // listing the pod publicly to fill the slot (or keeping it private).
+  replacementVote?: PodReplacementVote;
+  // Once every member has been paid, the creator chooses to start a new round
+  // (a new pod linked here) or close the pod.
+  completedAt?: string;
+  renewalDecision?: 'PENDING' | 'RENEWED' | 'CLOSED';
+  renewedFromPodId?: string;
+  renewedToPodId?: string;
 }
 
 // A missed weekly deposit, and what the member still owes because of it.
 // Reported to admins, who may recover it by ACH debit under the member's mandate.
 export type DepositDefaultStatus = 'OPEN' | 'COLLECTING' | 'RECOVERED' | 'WRITTEN_OFF';
-export type DepositDefaultTrigger = 'THURSDAY_SWEEP' | 'ADMIN_COVER_GAP' | 'ADMIN_REMOVE';
+export type DepositDefaultTrigger = 'THURSDAY_SWEEP' | 'ADMIN_COVER_GAP' | 'ADMIN_REMOVE' | 'AUTO_REMOVE';
 export type DefaultRecoverySource = 'MEMBER_BALANCE' | 'MEMBER_DEPOSIT' | 'ACH_DEBIT' | 'WRITE_OFF';
 
 export interface DepositDefault {
@@ -295,8 +311,58 @@ export interface DepositDefault {
   writeOffReason?: string;
   // Last pod cycle week in which the reserve bridged a deposit (one bridge per week).
   lastBridgedCycleWeek?: number;
+  // Default controls (src/server/defaultControls.ts): the member and the rest of
+  // the pod are told at once; if nothing is paid by removalDueAt the member is
+  // removed from the pod, their account is restricted and collection starts.
+  memberNotifiedAt?: string;
+  podNotifiedAt?: string;
+  removalDueAt?: string;
+  autoRemovedAt?: string;
+  collectionStartedAt?: string;
+  secondDefaultNoticeAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// An account limited because of an unsettled deposit default: no creating or
+// joining pods, no swaps, votes or hardship requests until every default is
+// paid in full, at which point the account is restored automatically.
+export interface AccountRestriction {
+  status: 'RESTRICTED';
+  reason: 'DEPOSIT_DEFAULT';
+  since: string;
+  defaultIds: string[];
+  owedUsd: number;
+}
+
+// Opened when two or more members of one pod have unsettled defaults. The
+// members not in default decide: pause the pod, or keep going and split the
+// missing deposits among themselves each week until the defaults are settled.
+export type PodPauseVoteChoice = 'PAUSE' | 'COVER';
+export type PodReplacementVoteChoice = 'OPEN' | 'KEEP';
+export interface PodReplacementVote {
+  id: string;
+  openedAt: string;
+  closesAt: string;
+  removedUserId: string;
+  removedUserName: string;
+  eligibleVoterIds: string[];
+  votes: Record<string, PodReplacementVoteChoice>;
+  status: 'OPEN' | 'RESOLVED';
+  outcome?: PodReplacementVoteChoice;
+  resolvedAt?: string;
+}
+export interface PodPauseVote {
+  id: string;
+  openedAt: string;
+  closesAt: string;
+  defaultIds: string[];
+  defaulterUserIds: string[];
+  eligibleVoterIds: string[];
+  votes: Record<string, PodPauseVoteChoice>;
+  status: 'OPEN' | 'RESOLVED';
+  outcome?: PodPauseVoteChoice;
+  resolvedAt?: string;
 }
 
 // NEEDS_REVIEW: Stripe gave an ambiguous answer (timeout/outage); an admin must
@@ -483,6 +549,14 @@ export type NotificationType =
   | 'DEPOSIT_DUE'
   | 'DEPOSIT_CONFIRMED'
   | 'PAYMENT_FAILED'
+  | 'POD_MEMBER_DEFAULT'
+  | 'ACCOUNT_RESTRICTED'
+  | 'ACCOUNT_RESTORED'
+  | 'POD_PAUSE_VOTE'
+  | 'POD_PAUSED'
+  | 'POD_RESUMED'
+  | 'POD_REPLACEMENT_VOTE'
+  | 'POD_COMPLETED'
   | 'STATUS_CHANGE'
   | 'GENERAL';
 
@@ -549,7 +623,21 @@ export interface AuditLogEntry {
     | 'DEBIT_MANDATE_REVOKED'
     | 'ACH_COLLECTION_INITIATED'
     | 'ACH_COLLECTION_SETTLED'
-    | 'ACH_COLLECTION_FAILED';
+    | 'ACH_COLLECTION_FAILED'
+    | 'MEMBER_AUTO_REMOVED'
+    | 'ACCOUNT_RESTRICTED'
+    | 'ACCOUNT_RESTORED'
+    | 'POD_PAUSE_VOTE_OPENED'
+    | 'POD_PAUSE_VOTED'
+    | 'POD_PAUSED'
+    | 'POD_RESUMED'
+    | 'COVER_SHARE_CHARGED'
+    | 'POD_REPLACEMENT_VOTE_OPENED'
+    | 'POD_REPLACEMENT_VOTED'
+    | 'POD_OPENED_TO_PUBLIC'
+    | 'POD_COMPLETED'
+    | 'POD_RENEWAL_CLOSED'
+    | 'POD_RENEWED';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;

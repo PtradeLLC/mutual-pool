@@ -42,6 +42,8 @@ interface PodDetailModalProps {
   onOpenAgreementModal: () => void;
   // Opens the Treasury & payouts (bank link) modal when no payout bank is linked.
   onOpenBankModal?: () => void;
+  // Creator of a completed pod chose "start a new round": opens Create Pod prefilled.
+  onRenewPod?: (pod: Pod) => void;
 }
 
 export const PodDetailModal: React.FC<PodDetailModalProps> = ({
@@ -51,6 +53,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   allUsers,
   onClose,
   onRefreshPod,
+  onRenewPod,
   onOpenAgreementModal,
   onOpenBankModal,
 }) => {
@@ -272,6 +275,89 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
   const userMembership = activeId ? pod.members?.find(m => m && m.userId === activeId) : undefined;
   const isCreator = Boolean(activeId && pod.createdBy === activeId);
   const isMember = Boolean(userMembership || isCreator);
+
+  // Default controls: pause vote (two or more members in unsettled default).
+  const pauseVote = pod.pauseVote;
+  const [pauseVoting, setPauseVoting] = useState(false);
+  const canVoteOnPause = Boolean(pauseVote && pauseVote.status === 'OPEN' && activeId && pauseVote.eligibleVoterIds.includes(activeId));
+  const myPauseVote = pauseVote && activeId ? pauseVote.votes[activeId] : undefined;
+  const pauseDefaulterNames = (pauseVote?.defaulterUserIds || []).map(id => pod.members.find(m => m.userId === id)?.displayName || 'a former member');
+  const pauseVoteCloses = pauseVote ? new Date(pauseVote.closesAt).toLocaleString(language === 'es' ? 'es-US' : language === 'fr' ? 'fr-FR' : 'en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' }) + ' ET' : '';
+  const pauseTally = pauseVote ? pauseVote.eligibleVoterIds.reduce((acc, id) => {
+    const v = pauseVote.votes[id];
+    if (v === 'PAUSE') acc.pause += 1; else if (v === 'COVER') acc.cover += 1;
+    return acc;
+  }, { pause: 0, cover: 0 }) : { pause: 0, cover: 0 };
+  // Default controls: replacement vote (list publicly after a removal) and the
+  // creator's renew-or-close choice once the pod is complete.
+  const replacementVote = pod.replacementVote;
+  const [replacementVoting, setReplacementVoting] = useState(false);
+  const canVoteOnReplacement = Boolean(replacementVote && replacementVote.status === 'OPEN' && activeId && replacementVote.eligibleVoterIds.includes(activeId));
+  const myReplacementVote = replacementVote && activeId ? replacementVote.votes[activeId] : undefined;
+  const replacementTally = replacementVote ? replacementVote.eligibleVoterIds.reduce((acc, id) => {
+    const v = replacementVote.votes[id];
+    if (v === 'OPEN') acc.open += 1; else if (v === 'KEEP') acc.keep += 1;
+    return acc;
+  }, { open: 0, keep: 0 }) : { open: 0, keep: 0 };
+  const replacementVoteCloses = replacementVote ? new Date(replacementVote.closesAt).toLocaleString(language === 'es' ? 'es-US' : language === 'fr' ? 'fr-FR' : 'en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' }) + ' ET' : '';
+  const castReplacementVote = async (choice: 'OPEN' | 'KEEP') => {
+    if (replacementVoting) return;
+    setReplacementVoting(true);
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/replacement-vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choice }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.message || 'Vote failed');
+      toast.success(t('podPause.youVoted', { choice: choice === 'OPEN' ? t('replace.openBtn') : t('replace.keepBtn') }));
+      onRefreshPod();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Vote failed');
+    } finally {
+      setReplacementVoting(false);
+    }
+  };
+  const [closingPod, setClosingPod] = useState(false);
+  const closeCompletedPod = async () => {
+    if (closingPod) return;
+    setClosingPod(true);
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/renewal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'CLOSE' }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.message || 'Could not close the pod');
+      toast.success(t('complete.closedNote'));
+      onRefreshPod();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not close the pod');
+    } finally {
+      setClosingPod(false);
+    }
+  };
+  const castPauseVote = async (choice: 'PAUSE' | 'COVER') => {
+    if (pauseVoting) return;
+    setPauseVoting(true);
+    try {
+      const res = await fetch(`/api/pods/${pod.id}/pause-vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choice }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.message || 'Vote failed');
+      toast.success(t('podPause.youVoted', { choice: choice === 'PAUSE' ? t('podPause.pauseBtn') : t('podPause.coverBtn') }));
+      onRefreshPod();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Vote failed');
+    } finally {
+      setPauseVoting(false);
+    }
+  };
 
   const effectiveMembers = [...(pod.members || [])];
 
@@ -945,6 +1031,150 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <span>{convertingOpen ? 'Converting...' : 'Open Remaining Spots to Public'}</span>
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Completed pod: the creator chooses a new round or closing; members see a thank-you */}
+          {pod.status === 'COMPLETED' && (
+            <div id="pod-complete-card" className="p-3.5 rounded-xl border-2 bg-emerald-50 border-emerald-300 text-emerald-950 text-xs space-y-2">
+              <div className="flex items-center gap-2 font-extrabold text-sm">
+                <Award className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>{t('complete.title')}</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-emerald-900">{isCreator ? t('complete.creatorBody') : t('complete.memberBody')}</p>
+              {pod.renewalDecision === 'RENEWED' && <div className="text-[11px] font-semibold">{t('complete.renewedNote')}</div>}
+              {pod.renewalDecision === 'CLOSED' && <div className="text-[11px] font-semibold">{t('complete.closedNote')}</div>}
+              {isCreator && pod.renewalDecision !== 'RENEWED' && pod.renewalDecision !== 'CLOSED' && (
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => onRenewPod?.(pod)}
+                    disabled={!onRenewPod}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{t('complete.renewBtn')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeCompletedPod}
+                    disabled={closingPod}
+                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-100/60 text-emerald-900 border border-emerald-300 font-bold text-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {t('complete.closeBtn')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Replacement vote after a removal: list the pod publicly or keep it private */}
+          {replacementVote && replacementVote.status === 'OPEN' && pod.status !== 'COMPLETED' && (
+            <div id="pod-replacement-vote-card" className="p-3.5 rounded-xl border-2 bg-indigo-50 border-indigo-300 text-indigo-950 text-xs space-y-2.5">
+              <div className="flex items-center gap-2 font-extrabold text-sm">
+                <Vote className="w-4 h-4 text-indigo-700 shrink-0" />
+                <span>{t('replace.voteTitle')}</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-indigo-900">{t('replace.voteBody', { name: replacementVote.removedUserName, count: pod.members.length })}</p>
+              <ul className="text-[11px] space-y-1 text-indigo-900/90 pl-1">
+                <li>🌐 {t('replace.openOption')}</li>
+                <li>🔒 {t('replace.keepOption')}</li>
+              </ul>
+              {canVoteOnReplacement ? (
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    disabled={replacementVoting}
+                    onClick={() => castReplacementVote('OPEN')}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs border transition-colors cursor-pointer disabled:opacity-50 ${myReplacementVote === 'OPEN' ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50'}`}
+                  >
+                    {t('replace.openBtn')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={replacementVoting}
+                    onClick={() => castReplacementVote('KEEP')}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs border transition-colors cursor-pointer disabled:opacity-50 ${myReplacementVote === 'KEEP' ? 'bg-slate-700 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                  >
+                    {t('replace.keepBtn')}
+                  </button>
+                  {myReplacementVote && (
+                    <span className="text-[11px] font-semibold text-indigo-900">
+                      {t('podPause.youVoted', { choice: myReplacementVote === 'OPEN' ? t('replace.openBtn') : t('replace.keepBtn') })}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[11px] font-semibold text-indigo-800">{t('podPause.notEligible')}</div>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-indigo-800/90 font-mono">
+                <span>{t('replace.tally', { open: replacementTally.open, keep: replacementTally.keep, eligible: replacementVote.eligibleVoterIds.length })}</span>
+                <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{t('replace.closes', { closes: replacementVoteCloses })}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Default controls: paused pod, cover-share in effect, or an open pause vote */}
+          {pod.status === 'PAUSED' && (
+            <div className="p-3 rounded-lg border bg-rose-50 border-rose-200 text-rose-950 text-xs flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold">{t('podPause.pausedTitle')}</div>
+                <div className="text-[11px] text-rose-900/90 mt-0.5 leading-relaxed">{t('podPause.pausedBody')}</div>
+              </div>
+            </div>
+          )}
+          {pod.status === 'ACTIVE' && pod.coverShareActive && (
+            <div className="p-3 rounded-lg border bg-sky-50 border-sky-200 text-sky-950 text-xs flex items-start gap-2">
+              <Users className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold">{t('podPause.coverActiveTitle')}</div>
+                <div className="text-[11px] text-sky-900/90 mt-0.5 leading-relaxed">{t('podPause.coverActiveBody')}</div>
+              </div>
+            </div>
+          )}
+          {pauseVote && pauseVote.status === 'OPEN' && pod.status === 'ACTIVE' && (
+            <div id="pod-pause-vote-card" className="p-3.5 rounded-xl border-2 bg-amber-50 border-amber-300 text-amber-950 text-xs space-y-2.5">
+              <div className="flex items-center gap-2 font-extrabold text-sm">
+                <Vote className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>{t('podPause.voteTitle')}</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-900">{t('podPause.voteBody', { names: pauseDefaulterNames.join(' & ') })}</p>
+              <ul className="text-[11px] space-y-1 text-amber-900/90 pl-1">
+                <li>⏸️ {t('podPause.pauseOption')}</li>
+                <li>🤝 {t('podPause.coverOption')}</li>
+              </ul>
+              {canVoteOnPause ? (
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    disabled={pauseVoting}
+                    onClick={() => castPauseVote('PAUSE')}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs border transition-colors cursor-pointer disabled:opacity-50 ${myPauseVote === 'PAUSE' ? 'bg-rose-600 text-white border-rose-700' : 'bg-white text-rose-700 border-rose-300 hover:bg-rose-50'}`}
+                  >
+                    {t('podPause.pauseBtn')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pauseVoting}
+                    onClick={() => castPauseVote('COVER')}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-xs border transition-colors cursor-pointer disabled:opacity-50 ${myPauseVote === 'COVER' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'}`}
+                  >
+                    {t('podPause.coverBtn')}
+                  </button>
+                  {myPauseVote && (
+                    <span className="text-[11px] font-semibold text-amber-900">
+                      {t('podPause.youVoted', { choice: myPauseVote === 'PAUSE' ? t('podPause.pauseBtn') : t('podPause.coverBtn') })}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[11px] font-semibold text-amber-800">{t('podPause.notEligible')}</div>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-amber-800/90 font-mono">
+                <span>{t('podPause.tally', { pause: pauseTally.pause, cover: pauseTally.cover, eligible: pauseVote.eligibleVoterIds.length })}</span>
+                <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{t('podPause.closes', { closes: pauseVoteCloses })}</span>
+              </div>
             </div>
           )}
 
