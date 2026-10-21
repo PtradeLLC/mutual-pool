@@ -27,7 +27,7 @@ export const en = {
 
   // Hero Section
   "hero.badge":
-    "Built for Gig Workers, Couriers, Trade Specialists & Independent Contractors",
+    "Built for Gig Workers, Hospitality, Couriers, Trade Specialists & Independent Contractors",
   "hero.title": "Cash pools, Perks & Benefits built for Gig & Trade workers",
   "hero.subtitle":
     "Pool weekly cash deposits with your crew and other members — one member gets the full pot each week, on a fair, fixed rotation.",
