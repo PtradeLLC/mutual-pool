@@ -1120,6 +1120,20 @@ export const en = {
   "createPod.viewMyPodBtn": "View My Pod & Start Inviting Members",
 
   // Trusted Circle Inviter
+  "circleInviter.codePendingTitle": "Your private invite code and link come with the pod",
+  "circleInviter.codePendingDesc":
+    "They are created when the pod is, and shown on the confirmation screen and in the pod's Trusted Circle tab. Add the people you want to invite now; we email them the real link the moment the pod exists.",
+  "circleInviter.invalidContact": "Enter a valid email address or phone number, e.g. carlos@driver.com or +1 415 555 0192.",
+  "circleInviter.skippedInvalid": "{count} entries were skipped because they are not valid email addresses or phone numbers.",
+  "circleInviter.phoneNotice": "MutualPool emails invitations and does not send texts yet. Send your {count} phone contact(s) the invite link yourself once the pod is created.",
+  "circleInviter.deviceUnsupportedDesc": "This browser cannot open your address book (only Android Chrome and Edge can). Paste a list of emails or phone numbers instead.",
+  "circleInviter.pasteListBtn": "Paste a Contact List",
+  "createPod.successInviteTitle": "Your Trusted Circle invite",
+  "createPod.successInviteCode": "Private invite code",
+  "createPod.shareLinkBtn": "Share / Copy",
+  "createPod.linkCopied": "Copied!",
+  "createPod.successInvitesEmailed": "{count} invitation email(s) sent with this link.",
+  "createPod.successInvitesPhone": "{count} phone contact(s) saved. We don't send texts yet, so send them this link yourself.",
   "circleInviter.governanceBadge": "Trusted Circle Governance",
   "circleInviter.onlyInvitedCanJoin": "Only Invited Contacts Can Join",
   "circleInviter.title": "Invite & Manage Trusted Contacts",
@@ -1160,7 +1174,7 @@ export const en = {
   "circleInviter.noContactsMatched": 'No contacts matched "{query}"',
   "circleInviter.alreadyAdded": "Already Added",
   "circleInviter.memberFound": "Member Found",
-  "circleInviter.smsEmail": "SMS/Email",
+  "circleInviter.smsEmail": "Email/Phone",
   "circleInviter.contactsSelectedCount": "{count} contacts selected",
   "circleInviter.importingChecking": "Importing & Checking...",
   "circleInviter.importCrossReference": "Import & Cross-Reference ({count})",
@@ -1172,11 +1186,11 @@ export const en = {
   "circleInviter.instantCrossReference": "Instant cross-reference active",
   "circleInviter.noInvitesSent": "No circle invites sent yet",
   "circleInviter.noInvitesSentDesc":
-    "Import phone contacts or share the private invite link above to fill your pod.",
+    "Add contacts by email or phone, or share the private invite link, to fill your pod.",
   "circleInviter.invitedBy": "Invited by {name}",
   "circleInviter.statusJoined": "Joined Pod",
   "circleInviter.statusAutoInvited": "Member Auto-Invited",
-  "circleInviter.statusSmsEmailSent": "SMS/Email Sent",
+  "circleInviter.statusSmsEmailSent": "Invited",
 
   // Voice Agent (Lainie AI)
   "voiceAgent.triggerOnline": "Voice Assistant Online",

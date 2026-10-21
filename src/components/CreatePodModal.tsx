@@ -4,6 +4,8 @@ import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, Activatio
 import { useTranslation } from '../i18n/LanguageContext';
 import { savePodToFirestore } from '../lib/firestoreService';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
+import { getPodShareUrl } from '../utils/siteUrl';
+import { isPhoneContact, normalizeInviteContact } from '../lib/inviteContacts';
 import { KycVerificationModal } from './KycVerificationModal';
 import { 
   PlusCircle, 
@@ -88,7 +90,6 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const submitLockRef = useRef(false);
 
   // Default invite code generator preview
-  const [generatedInviteCode] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
 
   // 3-Pod Creation Limit Guard (Anti-Fraud & Community Solvency Protection)
   const activeCreatedCount = userCreatedPodsCount !== undefined ? userCreatedPodsCount : (
@@ -110,17 +111,47 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const hasSufficientBalance = treasuryBalance + 1e-9 >= totalChargedAmount;
   const shortfall = Math.max(0, Math.round((totalChargedAmount - treasuryBalance) * 100) / 100);
 
+  // Contacts are held locally until the pod exists; the server validates them
+  // again, stores them on the pod, and emails the real invite link.
   const handleAddContacts = (newItems: { name: string; emailOrPhone: string }[]) => {
-    const freshInvites: InvitedContact[] = newItems.map(item => ({
-      id: `ic_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      name: item.name || item.emailOrPhone,
-      emailOrPhone: item.emailOrPhone,
-      isExistingMember: item.emailOrPhone.includes('gigmutual.app'),
-      status: item.emailOrPhone.includes('gigmutual.app') ? 'PENDING_INVITE' : 'INVITED',
-      invitedAt: new Date().toISOString(),
-    }));
+    setInvitedContacts(prev => {
+      const seen = new Set(prev.map(c => c.emailOrPhone.toLowerCase()));
+      const fresh: InvitedContact[] = [];
+      for (const item of newItems) {
+        const n = normalizeInviteContact(item.emailOrPhone);
+        if (!n || seen.has(n.value)) continue;
+        seen.add(n.value);
+        fresh.push({
+          id: `ic_${Date.now()}_${Math.floor(Math.random() * 1000)}_${fresh.length}`,
+          name: (item.name || '').trim() || n.value,
+          emailOrPhone: n.value,
+          isExistingMember: false,
+          status: 'INVITED',
+          invitedAt: new Date().toISOString(),
+        });
+      }
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
+  };
 
-    setInvitedContacts(prev => [...prev, ...freshInvites]);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const createdInviteLink = createdPodResult && createdPodResult.podType === 'TRUSTED_CIRCLE' && createdPodResult.inviteCode
+    ? getPodShareUrl(createdPodResult.id, createdPodResult.inviteCode)
+    : null;
+  const copyCreatedLink = async () => {
+    if (!createdInviteLink || !createdPodResult) return;
+    const text = `Join my private savings pod "${createdPodResult.name}" on MutualPool. Invite code: ${createdPodResult.inviteCode}. Tap: ${createdInviteLink}`;
+    try {
+      if (typeof navigator !== 'undefined' && (navigator as any).share) {
+        await (navigator as any).share({ title: createdPodResult.name, text, url: createdInviteLink });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      // user cancelled the share sheet or clipboard is unavailable
+    }
   };
 
   // Step 1 -> Step 2 transition: validate pod details before showing Stripe checkout
@@ -625,7 +656,6 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                   {/* EMBEDDED TRUSTED CIRCLE INVITER TOOL */}
                   <TrustedCircleInviter
                     invitedContacts={invitedContacts}
-                    inviteCode={generatedInviteCode}
                     podName={name || 'My Trusted Circle Pod'}
                     onAddContacts={handleAddContacts}
                     currentUser={user}
@@ -1015,6 +1045,33 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 </div>
               )}
             </div>
+
+            {createdInviteLink && createdPodResult && (
+              <div className="max-w-md mx-auto p-4 bg-blue-50 border border-blue-200 rounded-xl text-left space-y-2 text-xs text-[#003A70]">
+                <div className="font-bold text-sm flex items-center gap-1.5"><Lock className="w-4 h-4 text-[#005FB8]" />{t('createPod.successInviteTitle')}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>{t('createPod.successInviteCode')}</span>
+                  <span className="font-mono font-black text-base text-[#005FB8] tracking-widest">{createdPodResult.inviteCode}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="text" readOnly value={createdInviteLink} className="flex-1 min-w-0 bg-white border border-blue-200 rounded-lg px-3 py-1.5 font-mono text-[11px] text-[#374151] select-all focus:outline-none" />
+                  <button type="button" onClick={copyCreatedLink} className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs shrink-0 cursor-pointer">
+                    {linkCopied ? t('createPod.linkCopied') : t('createPod.shareLinkBtn')}
+                  </button>
+                </div>
+                {(() => {
+                  const list = createdPodResult.invitedContacts || [];
+                  const emails = list.filter(c => c && !isPhoneContact(c.emailOrPhone || '')).length;
+                  const phones = list.length - emails;
+                  return (
+                    <div className="text-[11px] space-y-0.5">
+                      {emails > 0 && <p>{t('createPod.successInvitesEmailed', { count: emails })}</p>}
+                      {phones > 0 && <p className="text-amber-800">{t('createPod.successInvitesPhone', { count: phones })}</p>}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               {t('createPod.successFormingDesc')}

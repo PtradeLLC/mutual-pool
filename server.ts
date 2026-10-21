@@ -45,6 +45,7 @@ import { registerCollection, hydrateFromStorage, isPersistenceEnabled, requestFl
 import { sendEmail, getOutboundEmails, setOutboundEmails, getMailerStatus } from './src/server/mailer';
 import { reportIncident, recentIncidents, incidentCounts } from './src/server/alerts';
 import { DEFAULT_REMOVAL_GRACE_MS, PAUSE_VOTE_DEFAULTERS, buildPauseVote, buildReplacementVote, coverShareUsd, defaultingUserIds, isUnsettled, removalDue, resolvePauseVote, resolveReplacementVote, tallyPauseVote, tallyReplacementVote } from './src/server/defaultControls';
+import { normalizeInviteContact } from './src/lib/inviteContacts';
 import { custodyMode, custodyStatus, fundFromBank, handleColumnEvent, initCustody, linkExternalBank, memberBalanceAtColumn, pendingMovements, provisionMemberAccount, recordMovement, rememberEvent, settlePendingMovements, withdrawToBank } from './src/server/custody';
 import { verifyColumnSignature, getBankAccount as getColumnBankAccount } from './src/services/column';
 import { dueSweeps, weekKeyFor, runId as sweepRunId, SweepRun, SweepType } from './src/server/sweepSchedule';
@@ -471,17 +472,23 @@ async function findPodById(id: string, _currentUser?: User): Promise<Pod | undef
 function sanitizeInvitedContacts(raw: unknown, inviter: User): InvitedContact[] {
   if (!Array.isArray(raw)) return [];
   const out: InvitedContact[] = [];
+  const seen = new Set<string>();
   for (const c of raw.slice(0, 200)) {
     if (!c || typeof c !== 'object') continue;
-    const emailOrPhone = typeof (c as any).emailOrPhone === 'string' ? (c as any).emailOrPhone.trim().slice(0, 254) : '';
-    if (!emailOrPhone) continue;
+    const normalized = normalizeInviteContact((c as any).emailOrPhone);
+    if (!normalized || seen.has(normalized.value)) continue;
+    seen.add(normalized.value);
+    const emailOrPhone = normalized.value;
+    if (inviter.email && emailOrPhone === inviter.email.toLowerCase()) continue; // no self-invites
     const name = typeof (c as any).name === 'string' ? (c as any).name.trim().slice(0, 120) : '';
+    const registeredUser = normalized.kind === 'email' ? users.find(u => u && u.email && u.email.toLowerCase() === emailOrPhone) : undefined;
     out.push({
       id: `ic_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
       name: name || emailOrPhone,
       emailOrPhone,
-      isExistingMember: false,
-      status: 'INVITED',
+      isExistingMember: !!registeredUser,
+      memberUserId: registeredUser?.id,
+      status: registeredUser ? 'PENDING_INVITE' : 'INVITED',
       invitedAt: new Date().toISOString(),
       invitedByUserId: inviter.id,
       invitedByName: inviter.displayName,
@@ -3280,6 +3287,12 @@ app.get(['/api/health', '/health'], (req, res) => {
     if (invitedContacts !== undefined && (!Array.isArray(invitedContacts) || invitedContacts.length > 200)) {
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'invitedContacts must be a list of at most 200 contacts.' });
     }
+    for (const c of Array.isArray(invitedContacts) ? invitedContacts : []) {
+      const raw = c && typeof c === 'object' ? (c as any).emailOrPhone : c;
+      if (!normalizeInviteContact(raw)) {
+        return res.status(400).json({ error: 'INVALID_CONTACT', message: `"${String(raw ?? '').slice(0, 60)}" is not a valid email address or phone number. Fix or remove it and try again.`, contact: String(raw ?? '').slice(0, 254) });
+      }
+    }
     if (category !== undefined && (typeof category !== 'string' || category.length > 80)) {
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'category must be at most 80 characters.' });
     }
@@ -3525,10 +3538,13 @@ app.get(['/api/health', '/health'], (req, res) => {
 
     const addedContacts: InvitedContact[] = [];
 
+    const rejected: string[] = [];
     contacts.forEach((c: { name: string; emailOrPhone: string }) => {
-      if (!c || typeof c.emailOrPhone !== 'string' || !c.emailOrPhone.trim() || c.emailOrPhone.length > 254) return;
+      if (!c || typeof c !== 'object') return;
+      const normalized = normalizeInviteContact(c.emailOrPhone);
+      if (!normalized) { rejected.push(String(c.emailOrPhone ?? '').slice(0, 60)); return; }
       if (c.name !== undefined && (typeof c.name !== 'string' || c.name.length > 120)) return;
-      const cleanContact = c.emailOrPhone.trim().toLowerCase();
+      const cleanContact = normalized.value;
       
       // Check if existing
       const existsInPod = pod.invitedContacts.some(ic => ic.emailOrPhone.toLowerCase() === cleanContact);
@@ -3539,8 +3555,8 @@ app.get(['/api/health', '/health'], (req, res) => {
 
       const newInvitedContact: InvitedContact = {
         id: `ic_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-        name: c.name || c.emailOrPhone,
-        emailOrPhone: c.emailOrPhone,
+        name: (c.name || '').trim() || cleanContact,
+        emailOrPhone: cleanContact,
         isExistingMember: !!registeredUser,
         memberUserId: registeredUser?.id,
         status: registeredUser ? 'PENDING_INVITE' : 'INVITED',
@@ -3573,6 +3589,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       success: true,
       pod,
       addedContacts,
+      rejected,
     });
   });
 

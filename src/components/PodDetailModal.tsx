@@ -391,7 +391,8 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
       const data = await readJson(res);
       if (!res.ok) throw new Error(data.message || 'Failed to add contacts');
 
-      setActionSuccess(`Successfully invited ${data.addedContacts.length} contacts to your Trusted Circle!`);
+      const rejected: string[] = Array.isArray(data.rejected) ? data.rejected : [];
+      setActionSuccess(`Invited ${data.addedContacts.length} contact(s) to your Trusted Circle.${rejected.length ? ` Skipped ${rejected.length} that were not valid emails or phone numbers.` : ''}`);
       onRefreshPod();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Adding contacts failed');
@@ -1534,6 +1535,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             <TrustedCircleInviter
               invitedContacts={pod.invitedContacts || []}
               inviteCode={pod.inviteCode || ''}
+              podId={pod.id}
               podName={pod.name}
               onAddContacts={handleAddContacts}
               currentUser={currentUser}

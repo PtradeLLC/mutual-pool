@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { InvitedContact, User } from '../types';
 import { useTranslation } from '../i18n/LanguageContext';
-import { getTrustedCircleInviteUrl } from '../utils/siteUrl';
+import { getPodShareUrl } from '../utils/siteUrl';
+import { isPhoneContact, normalizeInviteContact } from '../lib/inviteContacts';
 import { getTraditionName } from '../data/roscaTraditions';
 import { 
   Users, Lock, Plus, CheckCircle2, UserCheck, Mail, Phone, 
@@ -11,7 +12,11 @@ import {
 
 interface TrustedCircleInviterProps {
   invitedContacts: InvitedContact[];
-  inviteCode: string;
+  // The pod's real invite code and id. Both are assigned by the server when
+  // the pod is created, so the create-pod wizard leaves them out and the
+  // share panel shows a "coming with the pod" notice instead of a fake link.
+  inviteCode?: string;
+  podId?: string;
   podName?: string;
   onAddContacts: (newContacts: { name: string; emailOrPhone: string }[]) => void;
   currentUser?: User;
@@ -63,6 +68,7 @@ const parsePastedContacts = (text: string): { name: string; emailOrPhone: string
 export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
   invitedContacts,
   inviteCode,
+  podId,
   podName = 'My Trusted Savings Circle',
   onAddContacts,
   currentUser,
@@ -79,12 +85,16 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
   const [copied, setCopied] = useState(false);
   const [importing, setImporting] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [skippedCount, setSkippedCount] = useState(0);
 
   const isNativeContactsSupported = typeof window !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window;
 
-  const inviteLink = getTrustedCircleInviteUrl(inviteCode, currentUser?.id);
+  const inviteLink = podId && inviteCode ? getPodShareUrl(podId, inviteCode) : null;
+  const phoneInviteCount = invitedContacts.filter(c => c && isPhoneContact(c.emailOrPhone || '')).length;
 
   const handleCopy = () => {
+    if (!inviteLink) return;
     const circleWord = getTraditionName(currentUser) || 'Trusted Circle savings pod';
     const text = `Hey! Join my private ${circleWord} "${podName}" on MutualPool. Use my invite code: ${inviteCode} or tap: ${inviteLink}`;
     navigator.clipboard.writeText(text);
@@ -92,10 +102,29 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
+  // Keep only valid, normalised, not-yet-invited contacts; count what was dropped.
+  const cleanContacts = (items: { name: string; emailOrPhone: string }[]) => {
+    const seen = new Set(invitedContacts.map(ic => (ic.emailOrPhone || '').toLowerCase()));
+    const out: { name: string; emailOrPhone: string }[] = [];
+    let skipped = 0;
+    for (const item of items) {
+      const n = normalizeInviteContact(item.emailOrPhone);
+      if (!n) { skipped += 1; continue; }
+      if (seen.has(n.value)) continue;
+      seen.add(n.value);
+      out.push({ name: (item.name || '').trim() || n.value, emailOrPhone: n.value });
+    }
+    return { out, skipped };
+  };
+
   const handleAddSingle = (e?: React.SyntheticEvent) => {
     if (e) e.preventDefault();
     if (!customContact.trim()) return;
-    onAddContacts([{ name: customName.trim() || customContact.trim(), emailOrPhone: customContact.trim() }]);
+    const n = normalizeInviteContact(customContact);
+    if (!n) { setAddError(t('circleInviter.invalidContact')); return; }
+    setAddError(null);
+    const { out } = cleanContacts([{ name: customName, emailOrPhone: n.value }]);
+    if (out.length) onAddContacts(out);
     setCustomName('');
     setCustomContact('');
   };
@@ -108,9 +137,12 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
         const contacts = await (navigator as any).contacts.select(props, { multiple: true });
         const formatted = contacts.map((c: any) => {
           const name = c.name?.[0] || 'Phone Contact';
-          const contactVal = c.tel?.[0] || c.email?.[0] || '';
-          return { name, emailOrPhone: contactVal };
-        }).filter((c: any) => c.emailOrPhone);
+          // Prefer email: MutualPool emails invitations and does not send SMS yet.
+          const contactVal = c.email?.[0] || c.tel?.[0] || '';
+          const n = normalizeInviteContact(contactVal);
+          return n ? { name, emailOrPhone: n.value } : null;
+        }).filter(Boolean) as { name: string; emailOrPhone: string }[];
+        setSkippedCount(contacts.length - formatted.length);
 
         if (formatted.length > 0) {
           setImportedDeviceContacts(prev => {
@@ -128,13 +160,18 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
         }
       }
     } else {
-      setPermissionError('Direct contact access is natively supported on mobile Android Chrome / Edge. For iOS or desktop, use the quick paste tool or enter phone numbers below.');
+      setPermissionError(t('circleInviter.deviceUnsupportedDesc'));
+      setShowPasteArea(true);
     }
   };
 
   const handlePasteImport = () => {
     if (!pasteInput.trim()) return;
-    const parsed = parsePastedContacts(pasteInput);
+    const parsedRaw = parsePastedContacts(pasteInput);
+    const parsed = parsedRaw
+      .map(p => { const n = normalizeInviteContact(p.emailOrPhone); return n ? { name: p.name === p.emailOrPhone ? n.value : p.name, emailOrPhone: n.value } : null; })
+      .filter(Boolean) as { name: string; emailOrPhone: string }[];
+    setSkippedCount(parsedRaw.length - parsed.length);
     if (parsed.length > 0) {
       setImportedDeviceContacts(prev => {
         const existing = new Set(prev.map(item => item.emailOrPhone.toLowerCase()));
@@ -170,8 +207,8 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
   const handleConfirmDeviceContacts = () => {
     setImporting(true);
     setTimeout(() => {
-      const itemsToAdd = importedDeviceContacts.filter(c => selectedDeviceContacts.includes(c.emailOrPhone));
-      onAddContacts(itemsToAdd);
+      const { out } = cleanContacts(importedDeviceContacts.filter(c => selectedDeviceContacts.includes(c.emailOrPhone)));
+      if (out.length) onAddContacts(out);
       setShowDevicePicker(false);
       setSelectedDeviceContacts([]);
       setImporting(false);
@@ -204,14 +241,25 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
           </p>
         </div>
 
-        {/* Invite Code Box */}
-        <div className="p-2.5 rounded-lg bg-white border border-[#005FB8] text-center shrink-0 shadow-2xs">
-          <span className="text-[9px] uppercase font-bold text-[#6B7280] block">{t('circleInviter.privateCode')}</span>
-          <span className="font-mono font-black text-base text-[#005FB8] tracking-widest block">{inviteCode}</span>
-        </div>
+        {/* Invite Code Box (only once the server has assigned one) */}
+        {inviteCode && (
+          <div className="p-2.5 rounded-lg bg-white border border-[#005FB8] text-center shrink-0 shadow-2xs">
+            <span className="text-[9px] uppercase font-bold text-[#6B7280] block">{t('circleInviter.privateCode')}</span>
+            <span className="font-mono font-black text-base text-[#005FB8] tracking-widest block">{inviteCode}</span>
+          </div>
+        )}
       </div>
 
       {/* Share Link & Action Controls */}
+      {!inviteLink ? (
+        <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-[11px] text-[#003A70] flex items-start gap-2">
+          <Share2 className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold block">{t('circleInviter.codePendingTitle')}</span>
+            <span>{t('circleInviter.codePendingDesc')}</span>
+          </div>
+        </div>
+      ) : (
       <div className="bg-white p-3 rounded-lg border border-[#DDE1E6] space-y-2">
         <div className="flex items-center justify-between">
           <span className="font-bold text-[#111827] text-[11px] flex items-center gap-1.5">
@@ -247,6 +295,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
           </button>
         </div>
       </div>
+      )}
 
       {/* Add / Import Contacts Controls */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -259,16 +308,16 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
               <span>{t('circleInviter.importDeviceTitle')}</span>
             </span>
             <p className="text-[10px] text-[#6B7280]">
-              {t('circleInviter.importDeviceDesc')}
+              {isNativeContactsSupported ? t('circleInviter.importDeviceDesc') : t('circleInviter.deviceUnsupportedDesc')}
             </p>
           </div>
           <button
             type="button"
-            onClick={() => setShowDevicePicker(true)}
+            onClick={() => { setShowPasteArea(!isNativeContactsSupported); setShowDevicePicker(true); }}
             className="w-full py-2 px-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
           >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>{t('circleInviter.selectContactsBtn')}</span>
+            {isNativeContactsSupported ? <UserCheck className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+            <span>{isNativeContactsSupported ? t('circleInviter.selectContactsBtn') : t('circleInviter.pasteListBtn')}</span>
           </button>
         </div>
 
@@ -306,6 +355,9 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
               className="bg-white border border-gray-300 rounded-md px-2.5 py-1 text-[11px] focus:outline-none focus:border-[#005FB8]"
             />
           </div>
+          {addError && (
+            <p className="text-[10px] text-red-700 flex items-start gap-1"><AlertCircle className="w-3.5 h-3.5 shrink-0" /><span>{addError}</span></p>
+          )}
           <button
             type="button"
             onClick={handleAddSingle}
@@ -347,6 +399,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
             {/* Native Mobile Permission Action Button */}
             <div className="bg-blue-50/70 border border-blue-200/90 rounded-xl p-3 space-y-2 shrink-0">
               <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
+                {isNativeContactsSupported && (
                 <button
                   type="button"
                   onClick={handleNativeContactPicker}
@@ -355,6 +408,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                   <Smartphone className="w-4 h-4" />
                   <span>{t('circleInviter.grantPermissionBtn')}</span>
                 </button>
+                )}
 
                 <button
                   type="button"
@@ -370,6 +424,12 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                 <div className="p-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-start gap-1.5 mt-1">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span>{permissionError}</span>
+                </div>
+              )}
+              {skippedCount > 0 && (
+                <div className="p-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-start gap-1.5 mt-1">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>{t('circleInviter.skippedInvalid', { count: skippedCount })}</span>
                 </div>
               )}
 
@@ -559,6 +619,12 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
 
       {/* Invited Contacts Ledger List */}
       <div>
+        {phoneInviteCount > 0 && (
+          <div className="mb-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-1.5">
+            <Phone className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+            <span>{t('circleInviter.phoneNotice', { count: phoneInviteCount })}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2">
           <h5 className="font-bold text-xs text-[#111827]">
             {t('circleInviter.invitedContactsListTitle', { count: invitedContacts.length })}
