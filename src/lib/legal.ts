@@ -5,7 +5,7 @@
 //
 // Shared by the browser and the server.
 
-export const TERMS_VERSION = '2026-10-14';
+export const TERMS_VERSION = '2026-10-21';
 export const PRIVACY_VERSION = '2026-10-14';
 
 // Guarded so the same file works in the browser bundle and in Node.
@@ -24,7 +24,7 @@ export const GOVERNING_LAW_STATE = envVar('GOVERNING_LAW_STATE') || 'Delaware';
 
 // Platform fee schedule (single source of truth for the Terms and the UI copy).
 export const FEES = {
-  depositFeeRate: 0.05,          // charged on each weekly deposit
+  depositFeeRate: 0.05,          // contingency buffer contribution on each weekly deposit (refunded if unused)
   payoutFeeRate: 0.10,           // deducted from each rotation payout
   hostRewardRate: 0.03,          // share of the payout fee paid to the final-slot holder
   hardshipRepaymentFeeRate: 0.07, // added to a hardship advance when it is repaid

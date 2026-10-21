@@ -230,9 +230,9 @@ export function getTermsOfService(ctx: LegalContext): LegalDocument {
       },
       {
         title: 'Fees',
-        paragraphs: ['These are the only fees MutualPool charges members:'],
+        paragraphs: ['These are the only amounts taken from members beyond their deposits:'],
         bullets: [
-          `**Deposit fee: ${pct(FEES.depositFeeRate)}** of each weekly deposit, charged when the deposit is taken.`,
+          `**Contingency buffer contribution: ${pct(FEES.depositFeeRate)}** of each weekly deposit, taken with the deposit. It is not a MutualPool fee: it goes into your pod's own contingency buffer, which covers a member's missed deposit so the week's payout stays whole. When the pod completes, whatever the buffer did not need is refunded to the members in proportion to the deposits they made.`,
           `**Payout fee: ${pct(FEES.payoutFeeRate)}** of each rotation payout, deducted before the payout is credited. ${pct(FEES.hostRewardRate)} of the pot goes to the member holding the final slot (normally the creator) as the host reward; the rest goes to MutualPool.`,
           `**Hardship repayment fee: ${pct(FEES.hardshipRepaymentFeeRate)}** of a hardship advance, added when you repay it.`,
         ],
@@ -241,7 +241,7 @@ export function getTermsOfService(ctx: LegalContext): LegalDocument {
       {
         title: 'Missed deposits, defaults and what we may do',
         bullets: [
-          'If your balance can\'t cover a deposit, the pod may draw on its contingency buffer or on MutualPool\'s escrow so the week\'s payout still happens. Any amount advanced on your behalf becomes money you owe.',
+          'If your balance can\'t cover a deposit, the pod draws on its contingency buffer (the welcome match plus the members\' 5% contributions) or on MutualPool\'s escrow so the week\'s payout still happens. Any amount advanced on your behalf becomes money you owe.',
           'We may deduct what you owe from your balance, from any future payout in any pod, and, under your bank debit authorization, from your linked bank account.',
           'A member who misses deposits may be given a grace period, removed from the pod, or both, as described in the Pod Agreement.',
           'A member who receives a payout and then stops depositing is in default of this agreement. We may suspend their account, keep any balance to cover the shortfall, pursue the amount owed, and share the default with other members of the pod.',

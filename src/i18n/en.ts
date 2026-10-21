@@ -69,7 +69,7 @@ export const en = {
   "calculator.weeklyDepositTierLabel": "Weekly Deposit Tier:",
   "calculator.weekAbbr": "wk",
   "calculator.disclaimer":
-    "You contribute ${deposit}/wk base deposit (+5% fee = ${totalDeposit} total) for {weeks} weeks. When your rotation turn arrives, you receive a net payout of ${netPayout} after 10% platform fee deduction.",
+    "You contribute ${deposit}/wk base deposit (+5% buffer contribution = ${totalDeposit} total, refunded if unused) for {weeks} weeks. When your rotation turn arrives, you receive a net payout of ${netPayout} after 10% platform fee deduction.",
   "calculator.netPayoutTitle": "Net Single Rotation Payout (After 10% Fee)",
   "calculator.usdNet": "USD Net",
   "calculator.baseWeeklyLabel": "Base Weekly Contribution:",
@@ -1051,7 +1051,7 @@ export const en = {
   "createPod.platformFeeDesc": "Applied to all deposits before creating pool",
   "createPod.totalInitialPaymentLabel":
     "Total Initial Payment Required to Create Pool",
-  "createPod.totalInitialPaymentDesc": "Includes base deposit + 5% fee",
+  "createPod.totalInitialPaymentDesc": "Includes base deposit + 5% contingency buffer contribution (refunded if unused)",
   "createPod.fullCapacityTargetLabel": "Full Capacity Payout Target",
   "createPod.fullCapacityCalculation": "{size} members × ${deposit}/wk",
   "createPod.dynamicPayoutNote":
@@ -2147,7 +2147,7 @@ export const en = {
   // Create Pod: review step (first deposit charged from the member's balance)
   "createPod.reviewTitle": "Review & confirm",
   "createPod.reviewSubtitle": "Your first deposit is taken from your MutualPool balance.",
-  "createPod.treasurySummary": "First deposit ${deposit} + 5% fee = ${total} will be taken from your Treasury balance (current balance ${balance}).",
+  "createPod.treasurySummary": "First deposit ${deposit} + 5% buffer contribution = ${total} will be taken from your balance (current balance ${balance}). The contribution builds your pod's contingency buffer and is refunded if unused.",
   "createPod.insufficientTitle": "Add funds to continue",
   "createPod.insufficientDesc": "You need ${total} available but your balance is ${balance}. Add at least ${shortfall} to create this pod.",
   "createPod.addFundsBtn": "Add funds",

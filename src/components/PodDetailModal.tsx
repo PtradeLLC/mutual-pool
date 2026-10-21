@@ -1222,14 +1222,14 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           {/* FDIC Disclosure Banner */}
           <FDICNoticeBanner />
 
-          {/* First-Cycle Contingency Buffer Banner */}
-          {(pod.contingencyBufferInitialUsd || 0) > 0 && (
+          {/* Contingency Buffer Banner */}
+          {((pod.contingencyBufferInitialUsd || 0) > 0 || (pod.feeBufferContributedUsd || 0) > 0 || (pod.contingencyBufferUsd || 0) > 0) && (
             <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
               <div className="flex items-start sm:items-center gap-2.5">
                 <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 sm:mt-0 fill-emerald-600/20" />
                 <div>
                   <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
-                    <span>First-Cycle Contingency Buffer: ${(pod.contingencyBufferUsd || 0).toFixed(2)} remaining</span>
+                    <span>Contingency Buffer: ${(pod.contingencyBufferUsd || 0).toFixed(2)} available</span>
                     {(pod.contingencyBufferUsd || 0) > 0 ? (
                       <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider">
                         Protected
@@ -1241,7 +1241,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     )}
                   </div>
                   <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
-                    Funded by the MutualPool Welcome Match (${(pod.contingencyBufferInitialUsd || 0).toFixed(2)}). It covers a missed member deposit so the payout schedule holds; anything unused goes back to the platform when the pod completes. It is never paid out as cash.
+                    Funded by the 5% contribution on every deposit (${(pod.feeBufferContributedUsd || 0).toFixed(2)} so far){(pod.contingencyBufferInitialUsd || 0) > 0 ? ` plus the MutualPool Welcome Match ($${(pod.contingencyBufferInitialUsd || 0).toFixed(2)})` : ''}. It covers a member's missed deposit so the payout schedule holds. When the pod completes, unused contributions are refunded to members in proportion to the deposits they made.
                   </p>
                 </div>
               </div>

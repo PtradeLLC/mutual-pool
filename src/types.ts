@@ -241,8 +241,14 @@ export interface Pod {
   currentWeeklyCollected: number;
   welcomeMatchGranted?: boolean;
   welcomeMatchAmountUsd?: number;
+  // Contingency buffer: covers a member's missed weekly deposit so the payout
+  // stays whole. Funded by the welcome match (contingencyBufferInitialUsd) and
+  // by the 5% contribution on every deposit (feeBufferContributedUsd). Unused
+  // member contributions are refunded pro rata when the pod completes.
   contingencyBufferUsd?: number;
   contingencyBufferInitialUsd?: number;
+  feeBufferContributedUsd?: number;
+  feeBufferRefundedUsd?: number;
   isPrioritizedForReplacement?: boolean;
   replacementVacanciesCount?: number;
   campaignAgreement?: PodCampaignAgreement;
@@ -380,6 +386,7 @@ export type CustodyAccountRef =
 export type CustodyPurpose =
   | 'DEPOSIT' | 'DEPOSIT_FEE' | 'PAYOUT' | 'PAYOUT_FEE' | 'HOST_REWARD' | 'WELCOME_MATCH'
   | 'ESCROW_BRIDGE' | 'ESCROW_REPAYMENT' | 'BUFFER_RESTORE' | 'RESERVE_BRIDGE'
+  | 'BUFFER_CONTRIBUTION' | 'BUFFER_REFUND'
   | 'HARDSHIP_ADVANCE' | 'HARDSHIP_REPAYMENT' | 'COVER_SHARE' | 'COLLECTION'
   | 'TOPUP' | 'WITHDRAWAL' | 'ADJUSTMENT';
 export type CustodyMovementStatus = 'PENDING' | 'SETTLED' | 'FAILED' | 'RETURNED';
@@ -695,6 +702,7 @@ export interface AuditLogEntry {
     | 'THURSDAY_AUTOMATED_DEPOSIT_SWEEP'
     | 'FRIDAY_AUTOMATED_PAYOUT_SWEEP'
     | 'CONTINGENCY_BUFFER_BRIDGED_DEPOSIT'
+    | 'CONTINGENCY_BUFFER_REFUNDED'
     | 'DEPOSIT_DEFAULT_RECORDED'
     | 'DEFAULT_RECOVERY_APPLIED'
     | 'DEFAULT_RESERVE_BRIDGED_DEPOSIT'

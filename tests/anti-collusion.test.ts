@@ -113,12 +113,12 @@ test('welcome match is granted once per verified person, not once per account', 
   const first = await api('/api/pods', { method: 'POST', headers: headers(personA1), body: JSON.stringify({ name: `WM1 ${Date.now()}`, sizeTier: 20, depositTier: 20 }) });
   assert.equal(first.status, 200);
   assert.equal(first.body.welcomeMatchGranted, true);
-  assert.equal(first.body.contingencyBufferUsd, 20);
+  assert.equal(first.body.contingencyBufferUsd, 21, 'welcome match $20 + creator\'s $1 buffer contribution');
 
   const second = await api('/api/pods', { method: 'POST', headers: headers(personA2), body: JSON.stringify({ name: `WM2 ${Date.now()}`, sizeTier: 20, depositTier: 20 }) });
   assert.equal(second.status, 200);
   assert.equal(second.body.welcomeMatchGranted, false, 'second account of the same person must not get another match');
-  assert.equal(second.body.contingencyBufferUsd, 0);
+  assert.equal(second.body.contingencyBufferUsd, 1, 'no welcome match: just the $1 contribution');
 });
 
 test('unused welcome match cushion returns to the platform when the pod completes', async () => {
@@ -126,7 +126,7 @@ test('unused welcome match cushion returns to the platform when the pod complete
   const member = makeUser('wm_member');
   for (const u of [creator, member]) await fund(u);
   const pod = await activePod(creator, [member]);
-  assert.equal((await getPod(pod.id)).contingencyBufferUsd, 20);
+  assert.equal((await getPod(pod.id)).contingencyBufferUsd, 22, 'welcome match + two members\' contributions');
 
   // Week 1 payout, then week 2 deposits + payout completes the 2-member pod.
   await sweep('FRIDAY_PAYOUTS');
@@ -136,7 +136,10 @@ test('unused welcome match cushion returns to the platform when the pod complete
   const done = await getPod(pod.id);
   assert.equal(done.status, 'COMPLETED');
   assert.equal(done.contingencyBufferUsd, 0, 'cushion is not left on the pod');
-  assert.ok((done.auditLogs || []).some((l: any) => l.action === 'WELCOME_MATCH_RELEASED' && l.metadata?.returnedUsd === 20));
+  assert.ok((done.auditLogs || []).some((l: any) => l.action === 'WELCOME_MATCH_RELEASED' && l.metadata?.returnedUsd === 20), 'the welcome match goes back to the platform');
+  // Members' 5% contributions ($1 × 2 deposits each = $4) come back to them pro rata.
+  assert.ok((done.auditLogs || []).some((l: any) => l.action === 'CONTINGENCY_BUFFER_REFUNDED' && l.metadata?.refundedUsd === 4));
+  assert.equal(done.feeBufferRefundedUsd, 4);
 
   // And it was never credited to anyone's balance as a bonus.
   const creatorUser = (await api('/api/users/current', { headers: headers(creator) })).body;

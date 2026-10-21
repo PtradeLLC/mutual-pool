@@ -133,8 +133,8 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
     if (pod.systemEscrowDrawnUsd) {
       totalSystemEscrowDrawnUsd += pod.systemEscrowDrawnUsd;
     }
-    const initialBuffer = pod.contingencyBufferInitialUsd ?? 20;
-    const currentBuffer = pod.contingencyBufferUsd ?? 20;
+    const initialBuffer = (pod.contingencyBufferInitialUsd ?? 0) + (pod.feeBufferContributedUsd ?? 0);
+    const currentBuffer = pod.contingencyBufferUsd ?? 0;
     if (currentBuffer < initialBuffer) {
       totalWelcomeMatchReserveDrawnUsd += (initialBuffer - currentBuffer);
     }
@@ -540,7 +540,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
                 <th className="py-2.5 px-3">Status / Cycle</th>
                 <th className="py-2.5 px-3">Stewardship</th>
                 <th className="py-2.5 px-3">Delinquent Members</th>
-                <th className="py-2.5 px-3">Welcome Match Buffer</th>
+                <th className="py-2.5 px-3">Contingency Buffer</th>
                 <th className="py-2.5 px-3">System Escrow Spotted</th>
                 <th className="py-2.5 px-3 text-right">Action</th>
               </tr>
@@ -548,7 +548,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
             <tbody className="divide-y divide-gray-100 font-sans">
               {allPods.map((p) => {
                 const delinquentCount = p.members.filter(m => m.delinquencyStatus !== 'CLEAN' || m.isHardshipInactive).length;
-                const bufferRemaining = p.contingencyBufferUsd ?? 20;
+                const bufferRemaining = p.contingencyBufferUsd ?? 0;
                 const escrowDrawn = p.systemEscrowDrawnUsd || 0;
                 const isAiManaged = p.stewardshipMode === 'AUTONOMOUS_AI';
 

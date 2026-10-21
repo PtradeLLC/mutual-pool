@@ -583,17 +583,68 @@ function removeMemberFromRotation(pod: Pod, userId: string): void {
   syncHostRewardRecipient(pod);
 }
 
-// When a pod completes, any welcome-match cushion it didn't need goes back to
-// the platform (it is never paid out as a bonus).
+// The 5% on every weekly deposit is not platform revenue: it goes into the
+// pod's own contingency buffer, which covers a member's missed deposit so the
+// week's payout stays whole. What is left when the pod completes is refunded
+// to the members (see releaseContingencyBuffer).
+function contributeFeeToBuffer(pod: Pod, userId: string, feeUsd: number, cycleWeek: number, depositId?: string): void {
+  const fee = roundCents(feeUsd);
+  if (fee <= 0) return;
+  pod.contingencyBufferUsd = roundCents((pod.contingencyBufferUsd || 0) + fee);
+  pod.feeBufferContributedUsd = roundCents((pod.feeBufferContributedUsd || 0) + fee);
+  mv(MEMBER(userId), POD(pod.id), fee, 'BUFFER_CONTRIBUTION', `Week ${cycleWeek} contingency buffer contribution (5% of deposit)`, { podId: pod.id, userId, cycleWeek, depositId });
+}
+
+// When a pod completes: members get their unused buffer contributions back
+// pro rata (by deposits made), and whatever is left of the welcome-match
+// cushion returns to the platform (it is never paid out as a bonus).
 function releaseContingencyBuffer(pod: Pod): void {
   const remaining = roundCents(Number(pod.contingencyBufferUsd) || 0);
   const initial = roundCents(Number(pod.contingencyBufferInitialUsd) || 0);
+  const contributed = roundCents(Number(pod.feeBufferContributedUsd) || 0);
   const grant = welcomeMatchGrants.find(g => g.podId === pod.id && g.status === 'ACTIVE');
   pod.contingencyBufferUsd = 0;
-  if (remaining > 0) mv(POD(pod.id), PLATFORM('operating'), remaining, 'WELCOME_MATCH', 'Unused welcome match returned to MutualPool', { podId: pod.id });
+
+  // Members first: their contributions come back before the platform's cushion.
+  let memberShare = roundCents(Math.min(remaining, contributed));
+  const counts = new Map<string, number>();
+  for (const d of deposits) {
+    if (d && d.podId === pod.id && d.status === 'COMPLETE' && d.userId && d.userId !== 'usr_system_escrow_liquidity' && pod.members.some(m => m && m.userId === d.userId)) {
+      counts.set(d.userId, (counts.get(d.userId) || 0) + 1);
+    }
+  }
+  const totalDeposits = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+  let refunded = 0;
+  if (memberShare > 0 && totalDeposits > 0) {
+    for (const [userId, count] of counts) {
+      const share = Math.floor((memberShare * count / totalDeposits) * 100) / 100; // whole cents; dust goes to the platform
+      if (share <= 0) continue;
+      const u = users.find(x => x && x.id === userId);
+      if (!u) continue;
+      creditLedger(u, share);
+      refunded = roundCents(refunded + share);
+      mv(POD(pod.id), MEMBER(userId), share, 'BUFFER_REFUND', 'Unused contingency buffer refunded at pod completion', { podId: pod.id, userId });
+      createNotification({
+        userId,
+        type: 'PAYOUT_RECEIVED',
+        title: 'Contingency buffer refund',
+        message: `"${pod.name}" completed with its contingency buffer unused. Your share of the 5% contributions, $${share.toFixed(2)}, is back in your balance.`,
+        podId: pod.id,
+      });
+    }
+  }
+  pod.feeBufferRefundedUsd = roundCents((pod.feeBufferRefundedUsd || 0) + refunded);
+  const platformShare = roundCents(remaining - refunded);
+  if (platformShare > 0) mv(POD(pod.id), PLATFORM('operating'), platformShare, 'WELCOME_MATCH', 'Unused welcome match (and rounding) returned to MutualPool', { podId: pod.id });
+  if (refunded > 0) {
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Treasury', 'CONTINGENCY_BUFFER_REFUNDED',
+      `Pod "${pod.name}" completed. $${refunded.toFixed(2)} of unused contingency buffer (members' 5% contributions, $${contributed.toFixed(2)} in total) refunded pro rata to ${counts.size} member(s); $${roundCents(contributed - refunded).toFixed(2)} of contributions were used to cover missed deposits.`,
+      { contributedUsd: contributed, refundedUsd: refunded, usedUsd: roundCents(contributed - refunded) });
+  }
+  const welcomeReturned = roundCents(Math.min(platformShare, initial));
   for (const g of welcomeMatchGrants.filter(g => g.podId === pod.id && g.status === 'ACTIVE')) {
-    g.usedUsd = roundCents(Math.max(0, initial - remaining));
-    g.releasedUsd = remaining;
+    g.usedUsd = roundCents(Math.max(0, initial - welcomeReturned));
+    g.releasedUsd = welcomeReturned;
     g.status = 'RELEASED';
     g.releasedAt = new Date().toISOString();
   }
@@ -612,8 +663,8 @@ function releaseContingencyBuffer(pod: Pod): void {
   }
   if (initial > 0 || grant) {
     addAuditLog(pod.id, 'SYSTEM', 'MutualPool Treasury', 'WELCOME_MATCH_RELEASED' as any,
-      `Pod "${pod.name}" completed. Welcome match cushion: $${roundCents(initial - remaining).toFixed(2)} used to cover missed deposits; $${remaining.toFixed(2)} unused, returned to the platform.`,
-      { initialUsd: initial, usedUsd: roundCents(initial - remaining), returnedUsd: remaining });
+      `Pod "${pod.name}" completed. Welcome match cushion: $${roundCents(initial - welcomeReturned).toFixed(2)} used to cover missed deposits; $${welcomeReturned.toFixed(2)} unused, returned to the platform.`,
+      { initialUsd: initial, usedUsd: roundCents(initial - welcomeReturned), returnedUsd: welcomeReturned });
   }
 }
 
@@ -3337,7 +3388,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     }
 
     mv(MEMBER(creatorUser.id), POD(podId), baseDepositAmount, 'DEPOSIT', 'Week 1 deposit (pod created)', { podId, userId: creatorUser.id, cycleWeek: 1 });
-    mv(MEMBER(creatorUser.id), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', 'Week 1 deposit fee', { podId, userId: creatorUser.id, cycleWeek: 1 });
+    mv(MEMBER(creatorUser.id), POD(podId), platformFee, 'BUFFER_CONTRIBUTION', 'Week 1 contingency buffer contribution (5% of deposit)', { podId, userId: creatorUser.id, cycleWeek: 1 });
     if (welcomeMatchAmount > 0) mv(PLATFORM('operating'), POD(podId), welcomeMatchAmount, 'WELCOME_MATCH', 'Welcome match into the pod buffer', { podId, userId: creatorUser.id });
 
     // Process initial deposit record for creator (Member #1)
@@ -3381,8 +3432,10 @@ app.get(['/api/health', '/health'], (req, res) => {
       currentWeeklyCollected: baseDepositAmount,
       welcomeMatchGranted: welcomeMatchAmount > 0,
       welcomeMatchAmountUsd: welcomeMatchAmount,
-      contingencyBufferUsd: welcomeMatchAmount,
+      contingencyBufferUsd: roundCents(welcomeMatchAmount + platformFee),
       contingencyBufferInitialUsd: welcomeMatchAmount,
+      feeBufferContributedUsd: platformFee,
+      feeBufferRefundedUsd: 0,
       stewardshipMode: 'CREATOR_MANAGED',
       managedBy: 'CREATOR',
       creatorLastInRotation: true,
@@ -3672,7 +3725,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       }
       saveUsersToDisk();
       mv(MEMBER(targetUser.id), POD(pod.id), baseDepositAmount, 'DEPOSIT', 'First deposit (joined pod)', { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
-      mv(MEMBER(targetUser.id), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', 'First deposit fee', { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
+      contributeFeeToBuffer(pod, targetUser.id, platformFee, pod.currentCycleWeek || 1);
 
       const memberDisplayName = user.displayName && user.displayName !== 'Verified Member' ? user.displayName : (user.email ? user.email.split('@')[0] : 'Member');
       const newMember: PodMembership = {
@@ -4048,7 +4101,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       return insufficientFunds(res, totalChargedAmount, targetUser);
     }
     mv(MEMBER(targetUser.id), POD(pod.id), baseDepositAmount, 'DEPOSIT', `Week ${pod.currentCycleWeek || 1} deposit (member)`, { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
-    mv(MEMBER(targetUser.id), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', `Week ${pod.currentCycleWeek || 1} deposit fee`, { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
+    contributeFeeToBuffer(pod, targetUser.id, platformFee, pod.currentCycleWeek || 1);
 
     const newDeposit: Deposit = {
       id: newLedgerId('dep'),
@@ -4538,7 +4591,7 @@ app.get(['/api/health', '/health'], (req, res) => {
           pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + baseDepositAmount;
           totalTransactionsCount += 1;
           mv(MEMBER(member.userId), POD(pod.id), baseDepositAmount, 'DEPOSIT', `Week ${cycleWeek} deposit (Thursday sweep)`, { podId: pod.id, userId: member.userId, cycleWeek, depositId: newDeposit.id });
-          mv(MEMBER(member.userId), PLATFORM('revenue'), platformFee, 'DEPOSIT_FEE', `Week ${cycleWeek} deposit fee`, { podId: pod.id, userId: member.userId, cycleWeek, depositId: newDeposit.id });
+          contributeFeeToBuffer(pod, member.userId, platformFee, cycleWeek, newDeposit.id);
           totalVolumeUsd += baseDepositAmount;
 
           try {
@@ -4575,9 +4628,12 @@ app.get(['/api/health', '/health'], (req, res) => {
             details.push(`[${pod.name}] ${member.displayName || member.userId} still owes this week's deposit (default already recorded).`);
             continue;
           }
-          if (pod.contingencyBufferUsd && pod.contingencyBufferUsd >= baseDepositAmount) {
-            pod.contingencyBufferUsd -= baseDepositAmount;
-            pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + baseDepositAmount;
+          // The pod's contingency buffer (welcome match + 5% of every deposit)
+          // covers as much of the missed deposit as it can.
+          const bridgedUsd = roundCents(Math.min(Number(pod.contingencyBufferUsd) || 0, baseDepositAmount));
+          if (bridgedUsd > 0) {
+            pod.contingencyBufferUsd = roundCents((pod.contingencyBufferUsd || 0) - bridgedUsd);
+            pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + bridgedUsd);
             bufferDrawn = true;
 
             try {
@@ -4586,8 +4642,8 @@ app.get(['/api/health', '/health'], (req, res) => {
                 'SYSTEM',
                 'MutualPool Contingency Engine',
                 'CONTINGENCY_BUFFER_BRIDGED_DEPOSIT',
-                `🛡️ First-Cycle Contingency Buffer bridged $${baseDepositAmount.toFixed(2)} deposit for ${member.displayName || member.userId} during Thursday sweep so Friday payout remains 100% on schedule. Remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}.`,
-                { bridgedUserId: member.userId, amount: baseDepositAmount, cycleWeek }
+                `🛡️ Contingency buffer bridged $${bridgedUsd.toFixed(2)} of the $${baseDepositAmount.toFixed(2)} deposit for ${member.displayName || member.userId} during the Thursday sweep so the Friday payout holds. Remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}.`,
+                { bridgedUserId: member.userId, amount: bridgedUsd, depositUsd: baseDepositAmount, cycleWeek }
               );
             } catch (auditErr) {
               console.warn('[Sweep AuditLog Warning]', auditErr);
@@ -4600,8 +4656,8 @@ app.get(['/api/health', '/health'], (req, res) => {
               pod,
               member,
               trigger: 'THURSDAY_SWEEP',
-              bufferCoveredUsd: bufferDrawn ? baseDepositAmount : 0,
-              potShortfallUsd: bufferDrawn ? 0 : baseDepositAmount,
+              bufferCoveredUsd: bridgedUsd,
+              potShortfallUsd: roundCents(baseDepositAmount - bridgedUsd),
             });
           } catch (defaultErr) {
             console.warn('[Sweep Default Record Warning]', defaultErr);

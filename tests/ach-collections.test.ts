@@ -124,8 +124,8 @@ test('a member who takes the pot and misses the next deposit is reported to admi
   const creator = makeUser('creator');
   const walker = makeUser('walker'); // will receive week 1 and then stop
   const honest = makeUser('honest');
-  for (const u of [creator, honest]) { await fund(u, 500); await acceptMandate(u); }
-  await fund(walker, 21); await acceptMandate(walker); // exactly one deposit + fee, nothing left for week 2
+  // Everyone can afford every week; only whoever takes the week-1 pot will walk away.
+  for (const u of [creator, walker, honest]) { await fund(u, 500); await acceptMandate(u); }
 
   const pod = await activePod(creator, [walker, honest]);
   const members: any[] = pod.members;
@@ -163,7 +163,7 @@ test('a member who takes the pot and misses the next deposit is reported to admi
 
   const afterSweep = await getPod(pod.id);
   assert.equal(afterSweep.members.find((m: any) => m.userId === defaulter.id).delinquencyStatus, 'GRACE_PERIOD');
-  assert.equal(afterSweep.contingencyBufferUsd, 0);
+  assert.equal(afterSweep.contingencyBufferUsd, 5, 'welcome match $20 + $5 of contributions, minus the $20 bridge');
 
   // Admins were notified in-app.
   const notes = (await api('/api/notifications', { headers: adminHeaders })).body;
@@ -204,7 +204,7 @@ test('a member who takes the pot and misses the next deposit is reported to admi
   assert.equal(settled.remainingUsd, 0);
   assert.equal(settled.collections[0].status, 'SUCCEEDED');
   const restored = await getPod(pod.id);
-  assert.equal(restored.contingencyBufferUsd, 20, 'the recovered money restored the welcome match buffer');
+  assert.equal(restored.contingencyBufferUsd, 25, 'the recovered money restored the buffer');
   assert.ok((restored.auditLogs || []).some((l: any) => l.action === 'ACH_COLLECTION_SETTLED'));
   assert.equal(restored.members.find((m: any) => m.userId === defaulter.id).delinquencyStatus, 'CLEAN');
 });
@@ -251,14 +251,14 @@ test('a late member deposit repays the bridged default instead of counting twice
   await sweep('THURSDAY_DEPOSITS'); // member misses; buffer bridges $20 into the pot
   let p = await getPod(pod.id);
   assert.equal(p.currentWeeklyCollected, 40, 'creator deposit + bridged deposit');
-  assert.equal(p.contingencyBufferUsd, 0);
+  assert.equal(p.contingencyBufferUsd, 3, '$20 welcome + $3 contributions, minus the $20 bridge');
 
   await fund(member, 100);
   const dep = await api(`/api/pods/${pod.id}/deposit`, { method: 'POST', headers: headers(member), body: '{}' });
   assert.equal(dep.status, 200, JSON.stringify(dep.body));
   p = await getPod(pod.id);
   assert.equal(p.currentWeeklyCollected, 40, 'pot not double counted');
-  assert.equal(p.contingencyBufferUsd, 20, 'buffer restored by the late deposit');
+  assert.equal(p.contingencyBufferUsd, 24, 'buffer restored by the late deposit plus its $1 contribution');
   const d = (await adminDefaults()).defaults.find((x: any) => x.podId === pod.id && x.userId === member.id);
   assert.equal(d.status, 'RECOVERED');
   assert.equal(d.recoveries[0].source, 'MEMBER_DEPOSIT');
