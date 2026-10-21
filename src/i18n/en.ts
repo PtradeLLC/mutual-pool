@@ -124,9 +124,9 @@ export const en = {
   "howItWorks.step2Title": "Rotation Locking",
   "howItWorks.step2Desc":
     "When capacity is reached, a cryptographically random shuffle permanently locks rotation indices.",
-  "howItWorks.step3Title": "Stripe Treasury Payout",
+  "howItWorks.step3Title": "Weekly Payout",
   "howItWorks.step3Desc":
-    "Each week everyone deposits what they can afford. The collected pool then goes into Stripe Treasury holding accounts and transfer the full lump-sum to whoever's next in the rotation.",
+    "Each week everyone deposits the agreed amount. The pot is paid out in full to whoever's next in the rotation, straight into their MutualPool account.",
   "howItWorks.step4Title": "Emergency Voting",
   "howItWorks.step4Desc":
     "Facing sudden transmission or brake failure? Submit a reprioritization request. Members vote to swap payout weeks transparently.",
@@ -145,7 +145,7 @@ export const en = {
   "bottomCta.badge": "Available on iOS & Android PWA",
   "bottomCta.title": "Ready to Build Your Emergency Reserve?",
   "bottomCta.subtitle":
-    "Join gig workers saving together with Stripe Treasury security and pass-through FDIC insurance.",
+    "Join gig workers saving together, each with a MutualPool account in their own name.",
   "bottomCta.returnToDashboard": "Return to Dashboard",
   "bottomCta.createAccountFree": "Create Account Free",
   "bottomCta.signInToAccount": "Sign In to Your Account",
@@ -180,7 +180,7 @@ export const en = {
   "dash.kycPending": "KYC PENDING",
   "dash.verifyIdentity": "VERIFY IDENTITY",
   "dash.verifyIdentityKyc": "VERIFY IDENTITY (KYC)",
-  "dash.stripeTreasuryAccount": "Stripe Treasury Account",
+  "dash.stripeTreasuryAccount": "MutualPool Account",
   "dash.activeTreasury": "Active Treasury",
   "dash.contingencyMatch": "1st-Cycle Contingency Match",
   "dash.contingencyCredited": "${amount}.00 cushion granted",
@@ -314,23 +314,23 @@ export const en = {
   "tradition.help": "We'll use your word in labels and invitations, e.g. \"Join my Tanda\".",
   "hero.knownAs": "Known around the world as",
   "hero.knownAsMore": "and many more",
-  // Shown instead of the FDIC-claim strings until Stripe Treasury accounts are live (see src/lib/treasuryClaims.ts)
-  "hero.fdicBadgeTitle.noTreasury": "Payments by Stripe",
+  // Shown instead of the FDIC-claim strings until MutualPool accounts are live (see src/lib/treasuryClaims.ts)
+  "hero.fdicBadgeTitle.noTreasury": "Secure Payments",
   "hero.fdicBadgeSub.noTreasury": "Bank-grade security",
   "hero.featureSafeDepositsTitle.noTreasury": "Secure Payments",
-  "hero.featureSafeDepositsDesc.noTreasury": "Deposits and payouts processed by Stripe",
+  "hero.featureSafeDepositsDesc.noTreasury": "Deposits and payouts in your own MutualPool account",
   "calculator.fdicStatusLabel.noTreasury": "Payment Processing:",
-  "calculator.fdicEligible.noTreasury": "Stripe (identity-verified members)",
-  "bottomCta.subtitle.noTreasury": "Join gig workers saving together, with deposits and payouts handled by Stripe.",
-  "dash.fdicInsuredFooter.noTreasury": "Payments processed by Stripe. MutualPool is a technology platform, not a bank.",
-  "footer.fdicNotice.noTreasury": "Deposits and payouts are processed by Stripe. MutualPool is a financial technology platform, not a bank, and member balances are not FDIC insured.",
-  "createPod.stripeProtection.noTreasury": "Payments by Stripe: deposits are charged and payouts sent through Stripe, with identity verification for every member.",
+  "calculator.fdicEligible.noTreasury": "Identity-verified members",
+  "bottomCta.subtitle.noTreasury": "Join gig workers saving together. Deposits and payouts stay in your own MutualPool account.",
+  "dash.fdicInsuredFooter.noTreasury": "Card payments are processed by Stripe. MutualPool is a technology platform, not a bank.",
+  "footer.fdicNotice.noTreasury": "Member balances are held with our payments and banking partners. MutualPool is a financial technology platform, not a bank, and member balances are not FDIC insured.",
+  "createPod.stripeProtection.noTreasury": "Every member is identity-verified. Card payments are processed by Stripe; deposits and payouts move between MutualPool accounts.",
   "voiceAgent.q6Label.noTreasury": "How is my money handled?",
   "voiceAgent.q6Query.noTreasury": "How is my Treasury balance handled and paid out?",
-  "aboutModal.fdicTitle.noTreasury": "Payments by Stripe",
-  "aboutModal.fdicDesc.noTreasury": "Deposits, identity verification and payouts run on Stripe, so no card or bank details are stored by MutualPool.",
-  "howItWorksModal.fdicTitle.noTreasury": "Payments by Stripe",
-  "howItWorksModal.fdicDesc.noTreasury": "Your deposits are charged and your payouts sent through Stripe. MutualPool is a technology platform, not a bank.",
+  "aboutModal.fdicTitle.noTreasury": "Secure Payments",
+  "aboutModal.fdicDesc.noTreasury": "Identity verification and card payments run on Stripe, so no card details are stored by MutualPool. Deposits and payouts move between MutualPool accounts.",
+  "howItWorksModal.fdicTitle.noTreasury": "Secure Payments",
+  "howItWorksModal.fdicDesc.noTreasury": "Your deposits and payouts move between MutualPool accounts. Card payments are processed by Stripe. MutualPool is a technology platform, not a bank.",
   "addFundsModal.fdicCoverageNote.noTreasury": "Payments are processed by Stripe; MutualPool never sees your card details.",
   "treasuryModal.headerSubtitle.noTreasury": "Treasury Balance & Bank Transfers",
   "treasuryModal.fdicStatusLabel.noTreasury": "Payment Processing:",
@@ -620,7 +620,7 @@ export const en = {
   "campaigns.stats.dailyEarnings": "Daily Net Earnings",
   "campaigns.stats.dailyEarningsVal": "$55 – $75 / day",
   "campaigns.stats.paymentChannel": "Payment Channel",
-  "campaigns.stats.paymentChannelVal": "Stripe Treasury",
+  "campaigns.stats.paymentChannelVal": "MutualPool account",
   "campaigns.stats.verificationMethod": "Verification Method",
   "campaigns.stats.verificationMethodVal": "GPS + Shift Check-in",
   "campaigns.stats.gearShippedTo": "Gear Shipped To",
@@ -729,7 +729,7 @@ export const en = {
   "campaigns.enroll.termAgreeGps":
     "I agree to shift verification via delivery route check-ins and standard GPS location confirmation to validate active brand impressions.",
   "campaigns.enroll.termAgreeEarnings":
-    "I acknowledge that daily earnings ($55–$75/day) are disbursed directly via Stripe Treasury settlement upon daily shift completion.",
+    "I acknowledge that daily earnings ($55–$75/day) are credited to my MutualPool account upon daily shift completion.",
   "campaigns.enroll.errorCompliance":
     "Please review and check all compliance requirements to proceed.",
   "campaigns.enroll.errorShipping":
@@ -848,22 +848,22 @@ export const en = {
   "shiftModal.aiVerdictMismatch": "Mismatch: Expired / Other Campaign",
   "shiftModal.aiVerdictUnbranded": "Unbranded Casual Apparel Detected",
   "shiftModal.btnReleasePayout":
-    "Authorize ${rate} Daily Payout via Stripe Treasury",
+    "Authorize ${rate} Daily Payout",
 
   // FDIC Disclosure Banner & Modal
   "fdic.insuredTitle": "FDIC Pass-Through Insured",
   "fdic.insuredDesc":
-    " — Deposits are held in Stripe Treasury Financial Accounts backed by partner banks.",
+    " — Deposits are held at our FDIC-insured partner bank.",
   "fdic.disclosureBtn": "Disclosure",
-  "fdic.modalTitle": "Stripe Treasury FDIC Pass-Through Notice",
+  "fdic.modalTitle": "FDIC Pass-Through Notice",
   "fdic.modalSubtitle": "Official Mandatory Banking Disclosure",
   "fdic.coverageTitle": "FDIC Pass-Through Coverage:",
   "fdic.coverageText1":
-    "Funds deposited into member and pod mutual accounts are held in Stripe Treasury Financial Accounts provided by Stripe’s banking partners (Evolve Bank & Trust or Fifth Third Bank, N.A., Members FDIC).",
+    "Funds deposited into member and pod accounts are held in accounts at our partner bank, Member FDIC.",
   "fdic.coverageText2":
     "Pass-through FDIC insurance covers up to $250,000 per user against partner bank failure once funds are deposited into the Financial Account and customer ownership records are established.",
   "fdic.noteText":
-    "Note: Mutual pool rotation payouts and deposits are processed exclusively through licensed financial rails operated by Stripe. Gig Worker Mutual Pool operates as a technology platform layer on top of Stripe Treasury.",
+    "Note: Pod deposits and payouts move between accounts at our partner bank. MutualPool operates as a technology platform on top of that bank.",
 
   // Modals & General UI
   "modal.close": "Close",
@@ -958,7 +958,7 @@ export const en = {
 
   // Create Pod Modal
   "createPod.modalTitle": "Create New Mutual Savings Pod",
-  "createPod.modalSubtitle": "Fixed-Rotation Pod with Stripe Treasury Balance",
+  "createPod.modalSubtitle": "Fixed-Rotation Pod with your own MutualPool account",
   "createPod.welcomeMatchTitle":
     "+${amount}.00 Founding Member Welcome Match & Contingency Buffer",
   "createPod.platformFundedBadge": "100% Platform Funded",
@@ -973,7 +973,7 @@ export const en = {
   "createPod.kycRequiredTitle": "Stripe Identity Verification Required",
   "createPod.kycRequiredBadge": "KYC Required",
   "createPod.kycRequiredDesc":
-    "Federal banking regulations and Stripe Treasury rules require identity verification before creating or managing mutual savings pools.",
+    "Federal banking rules require identity verification before creating or managing mutual savings pools.",
   "createPod.completeKycBtn": "Complete Stripe Identity Verification Now",
   "createPod.limitReachedTitle": "Pod Creation Limit Reached",
   "createPod.limitPolicyTitle": "3-Pod Creation Limit (Anti-Fraud Policy)",
@@ -1080,7 +1080,7 @@ export const en = {
   "createPod.ref": "Ref:",
   "createPod.initialWeeklyDepositSummary":
     "Initial Weekly Deposit ({size} Members @ ${deposit}/wk)",
-  "createPod.stripeFeeSummary": "Stripe Treasury & Platform Reserve Fee (5%)",
+  "createPod.stripeFeeSummary": "Platform Deposit Fee (5%)",
   "createPod.totalDueNow": "Total Due Now",
   "createPod.welcomeMatchBanner":
     "🎁 +${amount}.00 Welcome Match (100% deposit tier match) will be funded automatically by Mutual Pool directly into your Pod First-Cycle Contingency Reserve!",
@@ -1088,7 +1088,7 @@ export const en = {
   "createPod.savedCard": "💳 Saved Visa (4242)",
   "createPod.newCard": "➕ New Card",
   "createPod.applePay": " Apple Pay / GPay",
-  "createPod.stripeTreasuryVisa": "Stripe Treasury Linked Visa",
+  "createPod.stripeTreasuryVisa": "Visa via Stripe",
   "createPod.verifiedBadge": "Verified",
   "createPod.cardholderName": "Cardholder Name",
   "createPod.cardholderNamePlaceholder": "Name as it appears on card",
@@ -1103,15 +1103,15 @@ export const en = {
   "createPod.applePayPrompt":
     "Touch ID or Face ID will be prompted upon clicking Confirm.",
   "createPod.stripeProtection":
-    "Stripe Treasury Protection: Mutual Pool deposits are held in dedicated Stripe Treasury Financial Accounts with FDIC pass-through coverage up to $250,000 per member.",
+    "Your deposits are held in your own MutualPool account at our partner bank, with FDIC pass-through coverage up to $250,000 per member.",
   "createPod.backToConfig": "Back to Pod Configuration",
-  "createPod.processingPayment": "Processing Stripe Payment (${amount})...",
-  "createPod.confirmAndPay": "Confirm & Pay ${amount} via Stripe",
-  "createPod.successTitle": "Stripe Payment Authorized & Pod Initialized!",
+  "createPod.processingPayment": "Processing your first deposit (${amount})...",
+  "createPod.confirmAndPay": "Confirm & Pay ${amount}",
+  "createPod.successTitle": "First Deposit Received & Pod Initialized!",
   "createPod.successDesc":
-    "Your initial deposit of ${amount} has been processed via Stripe.",
+    "Your initial deposit of ${amount} has been taken from your MutualPool balance.",
   "createPod.successPodName": "Pod Name:",
-  "createPod.stripePaymentRef": "Stripe Payment Ref:",
+  "createPod.stripePaymentRef": "Payment Ref:",
   "createPod.holdingAccount": "Holding Account:",
   "createPod.welcomeMatchGranted": "Welcome Match Granted:",
   "createPod.welcomeMatchAdded": "+${amount}.00 to Contingency Buffer",
@@ -1214,7 +1214,7 @@ export const en = {
   "voiceAgent.welcomeSpoken":
     "Hi there! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about savings pods, spot swaps, gig & trade perks, or sponsor brand campaigns!",
   "voiceAgent.welcomeDisplay":
-    "👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n• Saving in Pods (Weekly rotations & Susu/Tanda rules)\n• Spot Swaps (Trading payout turns safely)\n• Everyday Perks (food trucks, tire patches, phone repair, massage, parking)\n• Brand Ambassador Sponsorships (Apparel sent to verified gig workers)\n• Stripe Treasury & FDIC Pass-Through",
+    "👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n• Saving in Pods (Weekly rotations & Susu/Tanda rules)\n• Spot Swaps (Trading payout turns safely)\n• Everyday Perks (food trucks, tire patches, phone repair, massage, parking)\n• Brand Ambassador Sponsorships (Apparel sent to verified gig workers)\n• Your MutualPool account, deposits and payouts",
   "voiceAgent.q1Label": "How does fixed rotation work?",
   "voiceAgent.q1Query":
     "How does the fixed weekly rotation payout work in a savings pod?",
@@ -1231,7 +1231,7 @@ export const en = {
     "How can I earn money with Brand Ambassador vehicle wrap campaigns?",
   "voiceAgent.q6Label": "Is my Treasury balance FDIC insured?",
   "voiceAgent.q6Query":
-    "Is my Stripe Treasury balance FDIC pass-through insured?",
+    "Is my MutualPool balance insured?",
   "voiceAgent.q7Label": "3% Creator Host Rewards",
   "voiceAgent.q7Query": "How does the 3% Creator Host Stewardship Reward work?",
   "voiceAgent.q8Label": "Is MutualPool a loan?",
@@ -1266,7 +1266,7 @@ export const en = {
   "contactModal.emailPlaceholder": "e.g. marcus.vance@example.com",
   "contactModal.inquiryTopicLabel": "Inquiry Topic",
   "contactModal.topicDriverSupport": "General Member & Worker Assistance",
-  "contactModal.topicPayoutTreasury": "Stripe Treasury & Payouts",
+  "contactModal.topicPayoutTreasury": "Balance & Payouts",
   "contactModal.topicSwapRequest": "Emergency Slot Swap Inquiry",
   "contactModal.topicFleetPerks": "Member Perks & Partnerships",
   "contactModal.messageLabel": "Message / Question",
@@ -1286,7 +1286,7 @@ export const en = {
     "MutualPool was founded to solve a critical issue faced by millions of independent gig workers, tradespeople, couriers, and freelancers: unpredictable cash flow and unexpected emergencies that can instantly disrupt work and income.",
   "aboutModal.fdicTitle": "Pass-Through FDIC",
   "aboutModal.fdicDesc":
-    "Partnered with Stripe Treasury to provide pass-through FDIC insurance up to $250,000 per member account.",
+    "Member balances are held at our FDIC-insured partner bank, with pass-through coverage up to $250,000 per member.",
   "aboutModal.roscaTitle": "0% Interest ROSCAs",
   "aboutModal.roscaDesc":
     "Traditional peer-to-peer rotating savings. You put in $20/week for 20 weeks and receive 1 full $400 lump payout. No interest, no fees.",
@@ -1374,7 +1374,7 @@ export const en = {
     "Your deposits sit in your own individually held account, not in one shared pot controlled by another person. No single member ever holds or controls anyone else's money.",
   "howItWorksModal.fdicTitle": "FDIC Pass-Through Insurance",
   "howItWorksModal.fdicDesc":
-    "Funds held in your account are eligible for FDIC pass-through insurance up to $250,000 per member through Stripe Treasury banking partners.",
+    "Funds held in your MutualPool account are eligible for FDIC pass-through insurance up to $250,000 per member through our partner bank.",
   "howItWorksModal.lockedOnceTitle": "Locked Once Deposited",
   "howItWorksModal.lockedOnceDesc":
     "Once you deposit into a cycle, that deposit can't be withdrawn or canceled. It's released automatically to that week's recipient.",
@@ -1489,7 +1489,7 @@ export const en = {
 
   "howItWorksModal.understandBtn": "I Understand the Rules",
   "howItWorksModal.footerText":
-    "MutualPool Governance & Rules • Stripe Treasury Protected",
+    "MutualPool Governance & Rules",
 
   // In-App Chat
   "chat.title": "Member & Pod Chat",
@@ -1593,7 +1593,7 @@ export const en = {
     "Every payout is backed by verified active route activity and in-app photo confirmations. You only pay for active, verified campaign delivery shifts.",
   "advertiser.prop3Title": "Direct Social & Community Impact",
   "advertiser.prop3Desc":
-    "Earnings go directly to hardworking gig workers through Stripe Treasury, helping them build emergency savings.",
+    "Earnings go directly into gig workers' MutualPool accounts, helping them build emergency savings.",
 
   // Calculator
   "advertiser.calcBadge": "Interactive Planning & Budget Tool",
@@ -1647,7 +1647,7 @@ export const en = {
     "Based on {days} active shift days × {couriers} couriers in target corridors",
   "advertiser.summaryEarnings": "Direct Gig Worker Wages (65%)",
   "advertiser.summaryEarningsSub":
-    "65% ($65–$97.50/day) credited directly to couriers via Stripe Treasury",
+    "65% ($65–$97.50/day) credited directly to couriers' MutualPool accounts",
   "advertiser.summaryPlatformProfit": "Platform Margin & Ops (35%)",
   "advertiser.summaryPlatformProfitSub":
     "Includes hardware amortization, corridor GPS matching & QR attribution",
@@ -1830,7 +1830,7 @@ export const en = {
     "Yes! You can target specific metropolitan areas (e.g. Lower Manhattan, West Hollywood, Downtown Chicago) and courier delivery types (Bike/E-bike, Scooter, Foot, Car).",
   "advertiser.faq4_q": "Where do our sponsorship funds go?",
   "advertiser.faq4_a":
-    "65% of campaign sponsorship funds are credited directly to verified couriers' Stripe Treasury accounts as daily supplemental earnings ($55–$75/day). The remaining 35% is invested into custom high-durability gear manufacturing, fulfillment, GPS verification, and operational overhead.",
+    "65% of campaign sponsorship funds are credited directly to verified couriers' MutualPool accounts as daily supplemental earnings ($55–$75/day). The remaining 35% is invested into custom high-durability gear manufacturing, fulfillment, GPS verification, and operational overhead.",
   "advertiser.faq5_q": "What is the minimum campaign commitment?",
   "advertiser.faq5_a":
     "Campaigns start at 25 courier ambassadors for a minimum 2-week active run and can scale up to multi-city enterprise deployments.",
@@ -1839,7 +1839,7 @@ export const en = {
   // Audit Log & Ledger Translations
   "audit.title": "Immutable Transparent Audit Ledger",
   "audit.subtitle":
-    "Append-only verification trail documenting all pod creation events, digital agreement signatures, rotation locks, Stripe Treasury payouts, and voluntary slot swaps.",
+    "Append-only verification trail documenting all pod creation events, digital agreement signatures, rotation locks, weekly payouts, and voluntary slot swaps.",
   "audit.refresh": "Refresh Ledger",
   "audit.refreshing": "Refreshing...",
   "audit.searchPlaceholder": "Search by actor, pod ID, or action...",
@@ -2013,16 +2013,16 @@ export const en = {
     "Trade request sent to {name}! They must accept the request in their notification center before the swap can be executed.",
   "hardship.swapSuccessTitle": "Spot Swap Executed!",
 
-  // Stripe Treasury & Bank Modal
-  "treasuryModal.headerTitle": "Stripe Treasury & Accounts",
+  // MutualPool account & Bank Modal
+  "treasuryModal.headerTitle": "Accounts & Balance",
   "treasuryModal.headerSubtitle":
     "FDIC-Insured Pass-Through Treasury Holding & Bank Transfer",
   "treasuryModal.tabTreasuryTopup": "Treasury Balance & Deposit",
   "treasuryModal.tabBankLink": "Link External Bank Account",
-  "treasuryModal.commercialBalanceTitle": "Stripe Treasury Commercial Balance",
+  "treasuryModal.commercialBalanceTitle": "MutualPool Balance",
   "treasuryModal.fdicStatusLabel": "FDIC Pass-Through Status:",
   "treasuryModal.eligible250k": "Eligible ($250k)",
-  "treasuryModal.depositFormTitle": "Deposit Funds to Stripe Treasury",
+  "treasuryModal.depositFormTitle": "Add Funds",
   "treasuryModal.stripeApiBadge": "Stripe API",
   "treasuryModal.selectPresetAmountLabel": "Select Deposit Preset Amount (USD)",
   "treasuryModal.testCardNumberLabel": "Stripe Test Credit Card Number",
@@ -2032,9 +2032,9 @@ export const en = {
   "treasuryModal.feeLabel": "Deposit Fee (5% per weekly deposit):",
   "treasuryModal.totalPaymentLabel": "Total Payment Processed:",
   "treasuryModal.feeBreakdownNote":
-    "✓ Net ${amount}.00 is credited directly to your Stripe Treasury Balance. No fee on top-ups: the 5% deposit fee is charged when money goes into a pod.",
+    "✓ Net ${amount}.00 is credited directly to your MutualPool balance. No fee on top-ups: the 5% deposit fee is charged when money goes into a pod.",
   "treasuryModal.processingDeposit":
-    "Processing Stripe Treasury InboundTransfer...",
+    "Processing your deposit...",
   "treasuryModal.processDepositBtn": "Process +${amount}.00 Treasury Deposit",
   "treasuryModal.successTopupMsg":
     "Successfully processed +${deposit} Treasury Deposit! Total charged: ${total} (${deposit} deposit + ${fee} 5% platform fee). Updated Treasury Balance: ${newBalance} USD.",
@@ -2062,7 +2062,7 @@ export const en = {
     "Bank account linked ({bankName}) successfully!",
 
   // Add Funds Modal
-  "addFundsModal.title": "Add Funds via Stripe Treasury",
+  "addFundsModal.title": "Add Funds",
   "addFundsModal.subtitle":
     "Guide your deposit through linking a verified bank account or adding a digital card to power your treasury balance.",
   "addFundsModal.currentBalance": "Current Treasury Balance",
@@ -2084,10 +2084,10 @@ export const en = {
   "addFundsModal.fdicCoverageNote":
     "Protected by FDIC pass-through coverage up to $250,000 via Evolve Bank & Trust / Fifth Third Bank, N.A.",
   "addFundsModal.submitTopUp": "Confirm & Add ${amount} to Treasury",
-  "addFundsModal.processing": "Processing Stripe InboundTransfer...",
+  "addFundsModal.processing": "Processing your transfer...",
   "addFundsModal.successTitle": "Funds Successfully Added!",
   "addFundsModal.successMessage":
-    "${amount} was credited to your Stripe Treasury account. Your active balance is now ${newBalance}.",
+    "${amount} was credited to your MutualPool account. Your active balance is now ${newBalance}.",
   "addFundsModal.doneBtn": "Done",
   "addFundsModal.addMoreBtn": "Add More Funds",
   "addFundsModal.digitalCardNumber": "Card Number",
@@ -2097,7 +2097,7 @@ export const en = {
   "addFundsModal.cardholderName": "Name on Card",
   "addFundsModal.instantFunding": "Instant Availability",
   "addFundsModal.saveCardLabel":
-    "Save digital card securely in Stripe Treasury for future 1-click pod deposits",
+    "Save card securely with Stripe for future 1-click pod deposits",
   "addFundsModal.bankInstantVerify": "Instant Verification (Plaid / Stripe)",
   "addFundsModal.useDemoCard": "Fill Demo Card (4242)",
   "addFundsModal.digitalCardPreview": "Digital Treasury Card",
@@ -2117,30 +2117,30 @@ export const en = {
   // Bank link validation
   "treasuryModal.errorAccountNumberRequired": "Enter your bank account number to continue.",
 
-  // Shown instead of the Stripe Treasury-claim strings until the Treasury program is live (see src/lib/treasuryClaims.ts)
-  "howItWorks.step3Title.noTreasury": "Stripe Payout",
-  "howItWorks.step3Desc.noTreasury": "Each week everyone deposits what they can afford. The collected pool is then paid out in full, through Stripe, to whoever's next in the rotation.",
+  // Shown instead of the MutualPool account-claim strings until the Treasury program is live (see src/lib/treasuryClaims.ts)
+  "howItWorks.step3Title.noTreasury": "Weekly Payout",
+  "howItWorks.step3Desc.noTreasury": "Each week everyone deposits the agreed amount. The pot is paid out in full to whoever's next in the rotation, straight into their MutualPool account.",
   "dash.stripeTreasuryAccount.noTreasury": "Balance & Payouts",
-  "campaigns.stats.paymentChannelVal.noTreasury": "Stripe",
-  "campaigns.enroll.termAgreeEarnings.noTreasury": "I acknowledge that daily earnings ($55–$75/day) are disbursed directly via Stripe upon daily shift completion.",
-  "shiftModal.btnReleasePayout.noTreasury": "Authorize ${rate} Daily Payout via Stripe",
-  "createPod.modalSubtitle.noTreasury": "Fixed-Rotation Pod with Stripe-processed deposits and payouts",
+  "campaigns.stats.paymentChannelVal.noTreasury": "MutualPool account",
+  "campaigns.enroll.termAgreeEarnings.noTreasury": "I acknowledge that daily earnings ($55–$75/day) are credited to my MutualPool account upon daily shift completion.",
+  "shiftModal.btnReleasePayout.noTreasury": "Authorize ${rate} Daily Payout",
+  "createPod.modalSubtitle.noTreasury": "Fixed-Rotation Pod with your own MutualPool account",
   "createPod.kycRequiredDesc.noTreasury": "Identity verification through Stripe is required before creating or managing mutual savings pools.",
-  "createPod.stripeFeeSummary.noTreasury": "Stripe Processing & Platform Reserve Fee (5%)",
+  "createPod.stripeFeeSummary.noTreasury": "Platform Deposit Fee (5%)",
   "createPod.stripeTreasuryVisa.noTreasury": "Visa via Stripe",
-  "voiceAgent.welcomeDisplay.noTreasury": "👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n• Saving in Pods (Weekly rotations & Susu/Tanda rules)\n• Spot Swaps (Trading payout turns safely)\n• Everyday Perks (food trucks, tire patches, phone repair, massage, parking)\n• Brand Ambassador Sponsorships (Apparel sent to verified gig workers)\n• How deposits and payouts are processed by Stripe",
+  "voiceAgent.welcomeDisplay.noTreasury": "👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n• Saving in Pods (Weekly rotations & Susu/Tanda rules)\n• Spot Swaps (Trading payout turns safely)\n• Everyday Perks (food trucks, tire patches, phone repair, massage, parking)\n• Brand Ambassador Sponsorships (Apparel sent to verified gig workers)\n• Your MutualPool account, deposits and payouts",
   "contactModal.topicPayoutTreasury.noTreasury": "Payments & Payouts",
-  "howItWorksModal.footerText.noTreasury": "MutualPool Governance & Rules • Payments by Stripe",
-  "advertiser.prop3Desc.noTreasury": "Earnings go directly to hardworking gig workers through Stripe, helping them build emergency savings.",
-  "advertiser.summaryEarningsSub.noTreasury": "65% ($65–$97.50/day) credited directly to couriers via Stripe",
+  "howItWorksModal.footerText.noTreasury": "MutualPool Governance & Rules",
+  "advertiser.prop3Desc.noTreasury": "Earnings go directly into gig workers' MutualPool accounts, helping them build emergency savings.",
+  "advertiser.summaryEarningsSub.noTreasury": "65% ($65–$97.50/day) credited directly to couriers' MutualPool accounts",
   "advertiser.faq4_a.noTreasury": "65% of campaign sponsorship funds are credited directly to verified couriers via Stripe as daily supplemental earnings ($55–$75/day). The remaining 35% is invested into custom high-durability gear manufacturing, fulfillment, GPS verification, and operational overhead.",
-  "audit.subtitle.noTreasury": "Append-only verification trail documenting all pod creation events, digital agreement signatures, rotation locks, Stripe payouts, and voluntary slot swaps.",
+  "audit.subtitle.noTreasury": "Append-only verification trail documenting all pod creation events, digital agreement signatures, rotation locks, weekly payouts, and voluntary slot swaps.",
   "treasuryModal.headerTitle.noTreasury": "Balance & Bank Accounts",
   "treasuryModal.commercialBalanceTitle.noTreasury": "Available Balance",
-  "treasuryModal.depositFormTitle.noTreasury": "Deposit Funds via Stripe",
+  "treasuryModal.depositFormTitle.noTreasury": "Add Funds",
   "treasuryModal.feeBreakdownNote.noTreasury": "✓ Net ${amount}.00 is credited directly to your balance. No fee on top-ups: the 5% deposit fee is charged when money goes into a pod.",
-  "treasuryModal.processingDeposit.noTreasury": "Processing your Stripe deposit...",
-  "addFundsModal.title.noTreasury": "Add Funds via Stripe",
+  "treasuryModal.processingDeposit.noTreasury": "Processing your deposit...",
+  "addFundsModal.title.noTreasury": "Add Funds",
   "addFundsModal.successMessage.noTreasury": "${amount} was credited to your balance. Your active balance is now ${newBalance}.",
   "addFundsModal.saveCardLabel.noTreasury": "Save digital card securely with Stripe for future 1-click pod deposits",
 

@@ -153,23 +153,23 @@ export const PodAgreementModal: React.FC<PodAgreementModalProps> = ({ pod, user,
           <section>
             <h4 className="font-bold text-[#111827] text-sm mb-1">5. Missed Deposit, Account Balance Deduction & Welcome Match Policy</h4>
             <p>
-              Weekly deposits close on scheduled cycle cutoffs. Upon payment or delinquency recovery, the full deposit amount is deducted directly from the member's account balance (supplemental gig earnings/Treasury). If the member's balance is insufficient, the <strong>Welcome Match Credited / First-Cycle Contingency Reserve</strong> covers the remainder. Once the Welcome Match kicks in due to insufficient user balance, the member is automatically removed from the Pod due to missed deposit default, and the Pod is publicly listed as an Open Pod with high replacement priority to fill the vacant spot.
+              Weekly deposits close on scheduled cycle cutoffs. Upon payment or delinquency recovery, the full deposit amount is deducted directly from the member's account balance (gig earnings or MutualPool balance). If the member's balance is insufficient, the <strong>Welcome Match Credited / First-Cycle Contingency Reserve</strong> covers the remainder. Once the Welcome Match kicks in due to insufficient user balance, the member is automatically removed from the Pod due to missed deposit default, and the Pod is publicly listed as an Open Pod with high replacement priority to fill the vacant spot.
             </p>
           </section>
 
           <section>
             {TREASURY_PROGRAM_ENABLED ? (
               <>
-                <h4 className="font-bold text-[#111827] text-sm mb-1">6. Stripe Treasury FDIC Pass-Through Disclosure</h4>
+                <h4 className="font-bold text-[#111827] text-sm mb-1">6. FDIC Pass-Through Disclosure</h4>
                 <p>
-                  Pod cycle balances sit in Stripe Treasury Financial Accounts backed by Evolve Bank & Trust or Fifth Third Bank, N.A., Members FDIC. Deposits are FDIC-insured pass-through up to $250,000 per user, subject to standard policy conditions.
+                  Pod cycle balances sit in accounts at our partner bank, Member FDIC. Deposits are FDIC-insured pass-through up to $250,000 per user, subject to standard policy conditions.
                 </p>
               </>
             ) : (
               <>
                 <h4 className="font-bold text-[#111827] text-sm mb-1">6. Custody of Funds</h4>
                 <p>
-                  Deposits are charged, and payouts sent, through Stripe. Between deposit and payout, member and pod balances are recorded in MutualPool's ledger and held in MutualPool's account with Stripe. MutualPool is a financial technology platform, not a bank, and member balances are not FDIC insured.
+                  Deposits and payouts move between MutualPool accounts. Between deposit and payout, member and pod balances are recorded in MutualPool's ledger and held with our payments and banking partners for your benefit. MutualPool is a financial technology platform, not a bank, and member balances are not FDIC insured.
                 </p>
               </>
             )}

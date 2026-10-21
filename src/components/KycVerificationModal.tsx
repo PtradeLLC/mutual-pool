@@ -125,7 +125,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
         // quiet ignore backend offline or vercel 500 error
       }
 
-      setSuccessMessage('Identity verified successfully! Stripe Treasury Financial Account activated.');
+      setSuccessMessage('Identity verified successfully! Your MutualPool account is ready.');
       setTimeout(() => {
         onSuccess(updatedUser);
       }, 800);
@@ -183,7 +183,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
                 </div>
                 <p className="text-slate-700 leading-relaxed text-[11px]">
                   {TREASURY_PROGRAM_ENABLED
-                    ? 'Your identity was confirmed by Stripe. Your Stripe Treasury financial account is enabled.'
+                    ? 'Your identity was confirmed by Stripe. Your MutualPool account is enabled.'
                     : 'Your identity was confirmed by Stripe. You can create and join pods and receive payouts to your bank account.'}
                 </p>
                 <div className="pt-2 border-t border-emerald-200/80 grid grid-cols-2 gap-2 text-[11px] font-mono">
@@ -320,7 +320,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
               </div>
               <p className="text-slate-700 leading-relaxed text-[11px]">
                 {TREASURY_PROGRAM_ENABLED
-                  ? 'Your identity verification was processed and confirmed by Stripe Identity. Your active Stripe Treasury Financial Account is enabled with $250,000 FDIC pass-through coverage.'
+                  ? 'Your identity verification was processed and confirmed by Stripe Identity. Your active MutualPool account is enabled with $250,000 FDIC pass-through coverage.'
                   : 'Your identity was verified through Stripe. You can now create and join pods and receive payouts to your bank account.'}
               </p>
               
@@ -391,7 +391,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
           <ul className="space-y-1.5 text-[11px] text-slate-700 leading-relaxed pl-1">
             <li className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong>Stripe Treasury Compliance:</strong> Federal banking regulations require identity verification before opening pod holding accounts.</span>
+              <span><strong>Banking compliance:</strong> Federal banking regulations require identity verification before opening pod holding accounts.</span>
             </li>
             <li className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />

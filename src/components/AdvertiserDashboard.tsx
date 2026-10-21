@@ -621,7 +621,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
             ${metrics.totalWagesDistributed.toLocaleString()}
           </div>
           <div className="text-[11px] text-amber-700 font-medium mt-1">
-            Stripe Treasury credited
+            MutualPool account credited
           </div>
         </div>
 
@@ -840,7 +840,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
                 <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-bold text-slate-950">Direct Stripe Treasury Disbursement</div>
+                    <div className="font-bold text-slate-950">Direct Disbursement to MutualPool accounts</div>
                     <div className="text-slate-500 text-[11px]">65% is deposited directly to gig workers once shift compliance is verified.</div>
                   </div>
                 </div>

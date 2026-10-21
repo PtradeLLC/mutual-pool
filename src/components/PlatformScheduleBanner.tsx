@@ -241,7 +241,7 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
             Thursdays 12:00 AM
           </div>
           <p className="text-[11px] text-slate-300 mt-1 leading-snug">
-            Automated batch sweeps weekly member deposits ($20–$100/wk) from Stripe Treasury or linked bank into pod escrow.
+            Automated batch sweeps weekly member deposits ($20–$100/wk) from each member's MutualPool account into the pod account.
           </p>
 
           <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
@@ -300,7 +300,7 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
             Fridays 12:00 AM
           </div>
           <p className="text-[11px] text-slate-300 mt-1 leading-snug">
-            Collective pot (net of 10% fee) is transferred directly into this week's rotation recipient's Stripe Treasury account.
+            Collective pot (net of 10% fee) is transferred directly into this week's rotation recipient's MutualPool account.
           </p>
 
           <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">

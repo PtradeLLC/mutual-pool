@@ -46,7 +46,7 @@ export const GB_CONFIG: CountryConfig = {
   
   regulations: {
     regulatoryBody: 'Not yet available in the United Kingdom',
-    regulatoryNotice: 'MutualPool is not yet available in the United Kingdom. Pods, deposits and payouts are currently offered to US members only; payments are processed by Stripe.',
+    regulatoryNotice: 'MutualPool is not yet available in the United Kingdom. Pods, deposits and payouts are currently offered to US members only; card payments are processed by Stripe.',
     cookieConsentType: 'opt-in',
     taxIdRequired: true,
     taxIdLabel: 'National Insurance (NI) Number',

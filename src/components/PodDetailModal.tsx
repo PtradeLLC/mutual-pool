@@ -23,8 +23,8 @@ const readJson = async (res: Response): Promise<any> => {
   try { return JSON.parse(text); } catch { return { message: text.slice(0, 200) }; }
 };
 
-// Neutral wording unless the Stripe Treasury program is live.
-const BALANCE_LABEL = TREASURY_PROGRAM_ENABLED ? 'Stripe Treasury Account' : 'MutualPool balance';
+// Neutral wording unless the MutualPool account program is live.
+const BALANCE_LABEL = TREASURY_PROGRAM_ENABLED ? 'MutualPool account Account' : 'MutualPool balance';
 const HOLDING_LABEL = TREASURY_PROGRAM_ENABLED ? 'Treasury holding account' : "the pod's holding balance";
 import { 
   X, ShieldCheck, FileText, Lock, Users, ArrowRightLeft, DollarSign, Sparkles,
@@ -97,7 +97,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
     const codePart = (pod.podType === 'TRUSTED_CIRCLE' && pod.inviteCode)
       ? ` (Private Invite Code: ${pod.inviteCode})`
       : '';
-    return `Join my ${circleWord} "${pod.name}" on MutualPool! We each put in $${pod.depositTier}/week and take turns receiving the pot, with payouts handled by Stripe${codePart}. Tap to view and join: ${link}`;
+    return `Join my ${circleWord} "${pod.name}" on MutualPool! We each put in $${pod.depositTier}/week and take turns receiving the pot, with payouts straight to your MutualPool account${codePart}. Tap to view and join: ${link}`;
   };
 
   const handleCopyLink = async () => {

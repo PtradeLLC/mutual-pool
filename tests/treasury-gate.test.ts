@@ -42,7 +42,7 @@ test('voice guide never claims FDIC insurance while Treasury is off', async () =
 
 test('the banking answer describes the real custody model', async () => {
   const data = await ask('Is my balance safe?');
-  assert.match(String(data.spokenText), /Stripe/);
+  assert.match(String(data.spokenText), /MutualPool account/i);
   assert.match(String(data.spokenText), /not a bank/i);
 });
 

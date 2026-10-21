@@ -621,7 +621,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
 
                       <div className="text-[10px] text-slate-500 flex items-center gap-1 pt-0.5">
                         <Zap className="w-3 h-3 text-emerald-600 shrink-0" />
-                        <span>Direct automated disbursement to Stripe Treasury</span>
+                        <span>Direct automated disbursement to your MutualPool account</span>
                       </div>
                     </div>
                   )}
@@ -866,7 +866,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
                         <span>{formattedDate} {formattedTime && `• ${formattedTime}`}</span>
                         <span>•</span>
                         <span className="text-slate-500 font-mono text-[10px]">
-                          {item.paymentMethod || 'Stripe Treasury'}
+                          {item.paymentMethod || 'MutualPool account'}
                         </span>
                       </div>
                     </div>

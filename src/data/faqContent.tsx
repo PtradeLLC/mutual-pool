@@ -383,7 +383,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             <p>Puedes fondear tu saldo de tres formas:</p>
             <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
               <li><strong>Recarga con tarjeta a través de Stripe:</strong> sin tarifa de MutualPool por recargas.</li>
-              <li><strong>Transferencia bancaria desde tu cuenta vinculada:</strong> conectada a través de Stripe.</li>
+              <li><strong>Transferencia bancaria desde tu cuenta vinculada:</strong> por ACH, normalmente en 1 a 2 días hábiles.</li>
               <li><strong>Cobros y ganancias de campañas de marca:</strong> se acreditan en el mismo saldo, por lo que pueden cubrir depósitos futuros.</li>
             </ol>
             <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
@@ -400,7 +400,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Antes de crear o unirte a un grupo, vinculas una cuenta bancaria a través de Stripe y autorizas a MutualPool a debitarla. Los depósitos normalmente se toman de tu saldo; la autorización es el respaldo que permite que el grupo siga adelante si un saldo se queda sin fondos.
+              Antes de crear o unirte a un grupo, vinculas una cuenta bancaria y autorizas a MutualPool a debitarla. Los depósitos normalmente se toman de tu saldo; la autorización es el respaldo que permite que el grupo siga adelante si un saldo se queda sin fondos.
             </p>
             <p>Con la autorización solo podemos debitar tu cuenta bancaria por:</p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
@@ -457,7 +457,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             </p>
             <p>Desde tu saldo puedes:</p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
-              <li>Retirarlo a la cuenta bancaria que verificaste con Stripe. No hay tarifa de retiro; tu banco normalmente lo acredita en 1 a 3 días hábiles.</li>
+              <li>Retirarlo a tu cuenta bancaria vinculada. No hay tarifa de retiro; los bancos con pagos instantáneos lo reciben en segundos y los demás en 1 a 3 días hábiles.</li>
               <li>Dejarlo en tu saldo para cubrir tus depósitos semanales restantes. Los saldos no generan intereses.</li>
               <li><strong>Las semanas de rotación siguientes nunca esperan por un retiro bancario pendiente.</strong></li>
             </ul>
@@ -571,7 +571,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              <strong>¡Sí!</strong> Todos los fondos y cuentas de custodia de MutualPool se alojan en <strong>Cuentas Financieras de Stripe Treasury</strong> respaldadas por instituciones bancarias miembros de la FDIC (como Evolve Bank & Trust o Fifth Third Bank, N.A.).
+              <strong>¡Sí!</strong> Todos los fondos y cuentas de custodia de MutualPool se alojan en cuentas de nuestro banco asociado, miembro de la FDIC (como Evolve Bank & Trust o Fifth Third Bank, N.A.).
             </p>
             <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-950 font-medium flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -588,7 +588,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Stripe, que procesa cada depósito, cobro, retiro y débito bancario en MutualPool, exige una identidad verificada antes de mover dinero por ti, conforme a las normas federales de prevención de lavado de dinero.
+              MutualPool verifica tu identidad con Stripe Identity antes de que puedas mover dinero, conforme a las normas federales de prevención de lavado de dinero y a los requisitos de nuestro banco asociado.
             </p>
             <p>
               La verificación también protege al propio grupo: garantiza una sola cuenta por persona y que las personas a las que confías tus depósitos semanales sean reales y autenticadas, no cuentas duplicadas o desechables.
@@ -911,7 +911,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             <p>Vous pouvez approvisionner votre solde de trois façons :</p>
             <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
               <li><strong>Recharge par carte via Stripe :</strong> aucun frais MutualPool sur les recharges.</li>
-              <li><strong>Virement bancaire depuis votre compte lié :</strong> connecté via Stripe.</li>
+              <li><strong>Virement bancaire depuis votre compte lié :</strong> par ACH, généralement sous 1 à 2 jours ouvrés.</li>
               <li><strong>Versements et gains de campagnes de marque :</strong> crédités sur le même solde, ils peuvent donc couvrir vos futures cotisations.</li>
             </ol>
             <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
@@ -928,7 +928,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Avant de créer ou rejoindre un groupe, vous liez un compte bancaire via Stripe et autorisez MutualPool à le prélever. Les cotisations sont normalement prises sur votre solde ; l'autorisation est le filet de sécurité qui permet au groupe de continuer si un solde est à sec.
+              Avant de créer ou rejoindre un groupe, vous liez un compte bancaire et autorisez MutualPool à le prélever. Les cotisations sont normalement prises sur votre solde ; l'autorisation est le filet de sécurité qui permet au groupe de continuer si un solde est à sec.
             </p>
             <p>Dans le cadre de cette autorisation, nous ne pouvons prélever votre compte bancaire que pour :</p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
@@ -985,7 +985,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             </p>
             <p>Depuis votre solde, vous pouvez :</p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
-              <li>Le retirer vers le compte bancaire que vous avez vérifié avec Stripe. Il n'y a aucun frais de retrait ; votre banque crédite généralement les fonds sous 1 à 3 jours ouvrés.</li>
+              <li>Le retirer vers votre compte bancaire lié. Aucun frais de retrait ; les banques sur rails instantanés le reçoivent en quelques secondes, les autres sous 1 à 3 jours ouvrés.</li>
               <li>Le laisser sur votre solde pour couvrir vos cotisations hebdomadaires restantes. Les soldes ne produisent pas d'intérêts.</li>
               <li><strong>Les semaines de rotation suivantes n'attendent jamais un retrait bancaire en cours.</strong></li>
             </ul>
@@ -1099,7 +1099,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              <strong>Oui !</strong> Tous les fonds et comptes de séquestre de MutualPool sont hébergés sur des <strong>Comptes Financiers Stripe Treasury</strong> adossés à des banques membres de la FDIC (telles qu'Evolve Bank & Trust ou Fifth Third Bank, N.A.).
+              <strong>Oui !</strong> Tous les fonds et comptes de séquestre de MutualPool sont hébergés sur des comptes de notre banque partenaire, membre de la FDIC (telle qu'Evolve Bank & Trust ou Fifth Third Bank, N.A.).
             </p>
             <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-950 font-medium flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1116,7 +1116,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Stripe, qui traite chaque cotisation, versement, retrait et prélèvement bancaire sur MutualPool, exige une identité vérifiée avant de déplacer de l'argent pour vous, conformément aux règles fédérales de lutte contre le blanchiment.
+              MutualPool vérifie votre identité via Stripe Identity avant que vous puissiez déplacer de l'argent, conformément aux règles fédérales de lutte contre le blanchiment et aux exigences de notre banque partenaire.
             </p>
             <p>
               La vérification protège aussi le groupe lui-même : elle impose un seul compte par personne et garantit que les membres à qui vous confiez vos cotisations hebdomadaires sont des personnes réelles et authentifiées, pas des comptes en double ou jetables.
@@ -1439,7 +1439,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
           <p>You can fund your balance in three ways:</p>
           <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
             <li><strong>Card top-up through Stripe:</strong> no MutualPool fee on top-ups.</li>
-            <li><strong>Bank transfer from your linked account:</strong> connected through Stripe.</li>
+            <li><strong>Bank transfer from your linked bank account:</strong> by ACH, usually 1 to 2 business days.</li>
             <li><strong>Payouts and brand campaign earnings:</strong> credited to the same balance, so they can cover future deposits.</li>
           </ol>
           <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium">
@@ -1456,7 +1456,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            Before you create or join a pod you link a bank account through Stripe and authorize MutualPool to debit it. Deposits are normally taken from your balance; the authorization is the backstop that lets the pod keep going if a balance runs dry.
+            Before you create or join a pod you link a bank account and authorize MutualPool to debit it. Deposits are normally taken from your balance; the authorization is the backstop that lets the pod keep going if a balance runs dry.
           </p>
           <p>Under the authorization we may debit your bank account only for:</p>
           <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
@@ -1513,7 +1513,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
           </p>
           <p>From your balance you can:</p>
           <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600 pl-1">
-            <li>Withdraw to the bank account you verified with Stripe. There is no withdrawal fee; your bank usually posts it within 1 to 3 business days.</li>
+            <li>Withdraw to your linked bank account. There is no withdrawal fee; banks on instant rails receive it in seconds, others within 1 to 3 business days.</li>
             <li>Leave it in your balance to cover your remaining weekly deposits. Balances do not earn interest.</li>
             <li><strong>Later rotation weeks never wait for a pending bank withdrawal.</strong></li>
           </ul>
@@ -1627,7 +1627,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            <strong>Yes!</strong> All MutualPool funds and pod holding accounts reside in dedicated <strong>Stripe Treasury Financial Accounts</strong> backed by FDIC member institutions (such as Evolve Bank & Trust or Fifth Third Bank, N.A.).
+            <strong>Yes!</strong> All MutualPool funds and pod holding accounts reside in accounts at our partner bank, an FDIC member institution (such as Evolve Bank & Trust or Fifth Third Bank, N.A.).
           </p>
           <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-950 font-medium flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1644,7 +1644,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            Stripe, which processes every deposit, payout, withdrawal and bank debit on MutualPool, requires verified identity before it will move money for you, in line with federal anti-money-laundering rules.
+            MutualPool verifies your identity through Stripe Identity before you can move money, in line with federal anti-money-laundering rules and the requirements of our partner bank.
           </p>
           <p>
             Verification also protects the pod itself: it enforces one account per person, and it means the people you are trusting with weekly deposits are real, authenticated individuals, not duplicate or throwaway accounts.

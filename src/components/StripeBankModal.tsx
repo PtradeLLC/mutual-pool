@@ -423,7 +423,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
           </div>
         )}
 
-        {/* TAB 1: Stripe Treasury Account & Top Up */}
+        {/* TAB 1: MutualPool account Account & Top Up */}
         {activeTab === 'TREASURY_TOPUP' && (
           <div className="space-y-4">
             {/* Current Balance Card */}

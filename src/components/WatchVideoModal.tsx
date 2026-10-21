@@ -27,14 +27,14 @@ const CHAPTERS = [
   },
   {
     id: 2,
-    title: TREASURY_PROGRAM_ENABLED ? 'FDIC Security & Stripe Treasury' : 'Security & Stripe Payments',
+    title: TREASURY_PROGRAM_ENABLED ? 'FDIC Security & MutualPool account' : 'Security & Stripe Payments',
     timestamp: '0:20',
     timeSec: 20,
     icon: ShieldCheck,
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-50',
     description: TREASURY_PROGRAM_ENABLED
-      ? 'Your money is held in individual Stripe Treasury accounts, FDIC-insured up to $250k.'
+      ? 'Your money is held in a bank account in your own name, FDIC-insured up to $250k.'
       : 'Deposits and payouts are processed by Stripe; every member is identity-verified.',
     highlight: 'Zero interest • No credit checks • Bank grade',
   },
@@ -224,7 +224,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-300 font-semibold flex items-center gap-1.5">
                         <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        Stripe Treasury Member Account
+                        MutualPool Member Account
                       </span>
                       <span className="text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800">
                         {TREASURY_PROGRAM_ENABLED ? 'FDIC Insured $250k' : 'Powered by Stripe'}
@@ -437,7 +437,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#E2E8F0]">
             <div className="flex items-center gap-2 text-xs text-[#4B5563]">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Free to join • Zero interest • Stripe Treasury bank protection</span>
+              <span>Free to join • Zero interest • bank-held balances</span>
             </div>
 
             <div className="flex items-center gap-2">

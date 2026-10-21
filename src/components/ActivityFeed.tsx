@@ -212,7 +212,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
               type: 'PAYOUT',
               action: 'PAYOUT_EXECUTED',
               title: `Rotational Payout Disbursed to ${member.displayName}`,
-              detail: `Rotational lump sum disbursed to ${member.displayName} for Week ${member.payoutCycleWeek || (member.rotationIndex + 1)} via Stripe Treasury.`,
+              detail: `Rotational lump sum disbursed to ${member.displayName} for Week ${member.payoutCycleWeek || (member.rotationIndex + 1)} to their MutualPool account.`,
               timestamp: member.payoutProcessedAt,
               actorName: member.displayName,
               actorId: member.userId,
@@ -531,7 +531,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
             <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Filter by member name, amount, or Stripe transfer ID..."
+              placeholder="Filter by member name, amount, or transfer ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#005FB8]"
@@ -682,7 +682,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                       </p>
                     </div>
 
-                    {/* Metadata Footer: Actor, Amount & Stripe Transfer Reference */}
+                    {/* Metadata Footer: Actor, Amount & Transfer Reference */}
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap text-xs">
                       <div className="flex items-center gap-1.5 text-slate-600">
                         <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">

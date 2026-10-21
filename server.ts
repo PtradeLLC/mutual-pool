@@ -344,7 +344,7 @@ function loadNotificationsFromDisk(): AppNotification[] {
       userId: 'usr_verified_101',
       type: 'PAYOUT_READY',
       title: 'Weekly Pool Disbursed',
-      message: 'Your Stripe Treasury account received $400.00 from "Moses Boxing Pod" weekly cycle payout.',
+      message: 'Your MutualPool account received $400.00 from "Moses Boxing Pod" weekly cycle payout.',
       isRead: true,
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
     }
@@ -2797,7 +2797,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         targetUser.id,
         targetUser.displayName || 'User',
         'BANK_LINKED' as any,
-        `Linked external bank account (${targetUser.externalBank.bankName} ending in ${last4}) via Stripe Financial Connections for Treasury transfers.`,
+        `Linked external bank account (${targetUser.externalBank.bankName} ending in ${last4}) for transfers.`,
         { bankName, last4 }
       );
 
@@ -2826,7 +2826,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     }
   });
 
-  // 3b. Stripe Treasury Account Test Deposit / Top-up Endpoint
+  // 3b. MutualPool account Account Test Deposit / Top-up Endpoint
   app.post('/api/users/treasury/topup', requireDemoMode, (req: Request, res: Response) => {
     try {
       const user = getCurrentUser(req);
@@ -2872,7 +2872,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         targetUser.id,
         targetUser.displayName || 'User',
         'TREASURY_TOPUP' as any,
-        `Processed Stripe Treasury InboundTransfer (${inboundTransferId}) of $${depositAmount.toFixed(2)} USD base deposit ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged) from test card ending in ${last4} into Treasury Account ${targetUser.treasury.stripeFinAccountId || 'Active Treasury'}. Net credited to Treasury Balance: $${depositAmount.toFixed(2)}.`,
+        `Processed demo top-up (${inboundTransferId}) of $${depositAmount.toFixed(2)} USD base deposit ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged) from test card ending in ${last4} into Treasury Account ${targetUser.treasury.stripeFinAccountId || 'Active Treasury'}. Net credited to Treasury Balance: $${depositAmount.toFixed(2)}.`,
         { amount: depositAmount, platformFee, totalChargedAmount, last4, inboundTransferId, paymentIntentId }
       );
 
@@ -2964,7 +2964,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         });
       }
 
-      // Default US Stripe Treasury flow
+      // Default US MutualPool account flow
       const intent = await createDepositPaymentIntent(
         totalCharged,
         user.id,
@@ -4009,7 +4009,7 @@ app.get(['/api/health', '/health'], (req, res) => {
     }
   });
 
-  // 9. Deposit Weekly Funds to Stripe Treasury Holding Account
+  // 9. Deposit Weekly Funds to MutualPool account Holding Account
   app.post(['/api/pods/:id/deposit', '/pods/:id/deposit'], async (req: Request, res: Response) => {
     const user = getCurrentUser(req);
     if (!user) {
@@ -4096,7 +4096,7 @@ app.get(['/api/health', '/health'], (req, res) => {
   // Concurrency Lock Map to eliminate race conditions on cycle processing and withdrawals
   const activeCycleLocks = new Set<string>();
 
-  // 10. Process Weekly Cycle Payout via Stripe Treasury OutboundTransfer (Option A: Automated Earmarked Settlement)
+  // 10. Process Weekly Cycle Payout to their MutualPool account (Option A: Automated Earmarked Settlement)
   app.post(['/api/pods/:id/cycle/process', '/pods/:id/cycle/process'], async (req: Request, res: Response) => {
     if (!checkIsAdmin(req)) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Cycle payouts are processed by the platform scheduler or an administrator.' });
@@ -4176,8 +4176,8 @@ app.get(['/api/health', '/health'], (req, res) => {
           ? '🎉 3% Weekly Spot Stewardship Reward Disbursed'
           : '🎉 3% Host Stewardship Reward Disbursed';
         const rewardMsg = isTransferredFromCreator
-          ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" (Week ${pod.currentCycleWeek} payout)! Funds added to your Stripe Treasury.`
-          : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your Stripe Treasury.`;
+          ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" (Week ${pod.currentCycleWeek} payout)! Funds added to your MutualPool balance.`
+          : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your MutualPool balance.`;
 
         createNotification({
           userId: hostRewardUser.id,
@@ -4230,7 +4230,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       user.id,
       user.displayName,
       'PAYOUT_EXECUTED',
-      `Week ${pod.currentCycleWeek} payout credited to Treasury ledger (${stripeTransferId}) for ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${totalPayoutFee.toFixed(2)} (${creatorHostReward > 0 ? `3% / $${creatorHostReward.toFixed(2)} to Creator Host, 7% / $${platformFeeRetained.toFixed(2)} to Platform` : `100% / $${totalPayoutFee.toFixed(2)} to Platform System Escrow`}). Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's Stripe Treasury account.`,
+      `Week ${pod.currentCycleWeek} payout credited to Treasury ledger (${stripeTransferId}) for ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${totalPayoutFee.toFixed(2)} (${creatorHostReward > 0 ? `3% / $${creatorHostReward.toFixed(2)} to Creator Host, 7% / $${platformFeeRetained.toFixed(2)} to Platform` : `100% / $${totalPayoutFee.toFixed(2)} to Platform System Escrow`}). Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's MutualPool account account.`,
       { 
         stripeTransferId, 
         recipientId: recipientMember.userId, 
@@ -4776,8 +4776,8 @@ app.get(['/api/health', '/health'], (req, res) => {
             ? '🎉 Friday 3% Spot Stewardship Reward Disbursed'
             : '🎉 Friday 3% Host Stewardship Reward Disbursed';
           const rewardMsg = isTransferredFromCreator
-            ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your Stripe Treasury.`
-            : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your Stripe Treasury.`;
+            ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your MutualPool balance.`
+            : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your MutualPool balance.`;
 
           createNotification({
             userId: hostRewardUser.id,
@@ -4825,7 +4825,7 @@ app.get(['/api/health', '/health'], (req, res) => {
           userId: recipientMember.userId,
           type: 'PAYOUT_READY',
           title: '🎉 Friday Automated Payout Disbursed!',
-          message: `Your rotating lump-sum savings payout of $${netPayoutAmount.toFixed(2)} net ($${grossPayoutAmount.toFixed(2)} gross pool - 10% platform fee) for "${pod.name}" has been transferred into your Stripe Treasury account!`,
+          message: `Your rotating lump-sum savings payout of $${netPayoutAmount.toFixed(2)} net ($${grossPayoutAmount.toFixed(2)} gross pool - 10% platform fee) for "${pod.name}" has been credited to your MutualPool account!`,
           podId: pod.id,
         });
       } catch (notifErr) {
@@ -4838,7 +4838,7 @@ app.get(['/api/health', '/health'], (req, res) => {
           recipientMember.userId,
           recipientMember.displayName || 'Member',
           'FRIDAY_AUTOMATED_PAYOUT_SWEEP',
-          `Friday 12:00 AM Automated Payout Sweep: Disbursed $${netPayoutAmount.toFixed(2)} net ($${grossPayoutAmount.toFixed(2)} gross pool, -$${totalPayoutFee.toFixed(2)} 10% fee) to ${recipientMember.displayName || recipientMember.userId} (Rotation #${recipientMember.rotationIndex + 1}) via Stripe Treasury. Transfer Ref: ${stripeTransferId}.`,
+          `Friday 12:00 AM Automated Payout Sweep: Disbursed $${netPayoutAmount.toFixed(2)} net ($${grossPayoutAmount.toFixed(2)} gross pool, -$${totalPayoutFee.toFixed(2)} 10% fee) to ${recipientMember.displayName || recipientMember.userId} (Rotation #${recipientMember.rotationIndex + 1}) to their MutualPool account. Transfer Ref: ${stripeTransferId}.`,
           {
             stripeTransferId,
             recipientId: recipientMember.userId,
@@ -5098,7 +5098,7 @@ app.get(['/api/health', '/health'], (req, res) => {
           cycleWeek: parsedWeek,
           stripePaymentId: d.stripePaymentId,
           description: `Weekly contribution for ${pod?.name || 'Mutual Pod'} (Cycle Week ${parsedWeek})`,
-          paymentMethod: 'Stripe Treasury / Bank',
+          paymentMethod: 'MutualPool account / Bank',
         });
       }
     }
@@ -5120,7 +5120,7 @@ app.get(['/api/health', '/health'], (req, res) => {
           cycleWeek: weekNum,
           stripeTransferId: member.payoutStripeTransferId,
           description: `Rotating lump-sum payout for ${pod.name} (Cycle Week ${weekNum})`,
-          paymentMethod: 'Stripe Treasury Account',
+          paymentMethod: 'MutualPool account',
         });
       }
     }
@@ -7437,7 +7437,7 @@ Return ONLY a valid JSON object in this exact schema:
         { memberUserId, actionChoice, remainingMembers: pod.memberCount }
       );
     } else if (actionChoice === 'COVER_GAP') {
-      // Step 1: Check account balance (Stripe Treasury / daily wage supplement earnings)
+      // Step 1: Check account balance (MutualPool account / daily wage supplement earnings)
       const currentBalance = memberUser?.treasury?.balanceUsd || 0;
 
       const existingDefault = findOpenDefault(pod.id, memberUserId, pod.currentCycleWeek || 1);
@@ -8948,8 +8948,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       if (q.includes('mandate') || q.includes('bank debit') || q.includes('authoriz') || q.includes('pot cap') || q.includes('limit') || q.includes('pod size') || q.includes('how big') || q.includes('early slot') || q.includes('tenure') || q.includes('seasoned') || q.includes('90 days') || q.includes('leave') || q.includes('quit') || q.includes('commit') || q.includes('autoriz') || q.includes('límite') || q.includes('tamaño') || q.includes('salir') || q.includes('mandat') || q.includes('limite') || q.includes('taille') || q.includes('quitter')) {
         if (isEs) {
           return {
-            spokenText: "Antes de crear o unirte a un grupo debes verificar tu identidad y autorizar débitos bancarios con Stripe. El tamaño del pozo que puedes unirte crece con tu historial: hasta $1,000 antes de tu primer grupo completado, $2,500 después de uno, $5,000 después de dos y sin límite a partir del tercero.",
-            displayText: "📏 Reglas de los Grupos\n\n• Requisitos: identidad verificada y autorización de débito bancario (vía Stripe). Se usa solo si tu saldo no cubre un depósito, para adelantos a tu favor o para los depósitos pendientes si sales tras cobrar.\n• Tamaño del pozo según tu historial: hasta $1,000 sin grupos completados; $2,500 tras 1; $5,000 tras 2; sin límite tras 3. Un depósito faltante sin resolver te devuelve al primer nivel.\n• Turnos tempranos: la primera mitad de la rotación va a quienes completaron un grupo, luego a quienes llevan 90+ días, luego a los nuevos. Aleatorio dentro de cada nivel; el Creador siempre al final. Pozos mayores a $1,000 no se bloquean hasta que todos los turnos tempranos estén cubiertos por miembros experimentados.\n• Compromiso: depositas cada semana durante todo el ciclo, incluso después de cobrar. Solo puedes salir cuando todos hayan cobrado.\n• Máximo 3 grupos creados activos a la vez; mínimo 2 miembros para iniciar.",
+            spokenText: "Antes de crear o unirte a un grupo debes verificar tu identidad y autorizar débitos bancarios. El tamaño del pozo que puedes unirte crece con tu historial: hasta $1,000 antes de tu primer grupo completado, $2,500 después de uno, $5,000 después de dos y sin límite a partir del tercero.",
+            displayText: "📏 Reglas de los Grupos\n\n• Requisitos: identidad verificada y autorización de débito bancario. Se usa solo si tu saldo no cubre un depósito, para adelantos a tu favor o para los depósitos pendientes si sales tras cobrar.\n• Tamaño del pozo según tu historial: hasta $1,000 sin grupos completados; $2,500 tras 1; $5,000 tras 2; sin límite tras 3. Un depósito faltante sin resolver te devuelve al primer nivel.\n• Turnos tempranos: la primera mitad de la rotación va a quienes completaron un grupo, luego a quienes llevan 90+ días, luego a los nuevos. Aleatorio dentro de cada nivel; el Creador siempre al final. Pozos mayores a $1,000 no se bloquean hasta que todos los turnos tempranos estén cubiertos por miembros experimentados.\n• Compromiso: depositas cada semana durante todo el ciclo, incluso después de cobrar. Solo puedes salir cuando todos hayan cobrado.\n• Máximo 3 grupos creados activos a la vez; mínimo 2 miembros para iniciar.",
             suggestedActions: [
               { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Vincular Banco", action: "OPEN_MODAL", modal: "BANK" }
@@ -8959,8 +8959,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Avant de créer ou rejoindre un groupe, vous devez vérifier votre identité et autoriser les prélèvements bancaires via Stripe. La taille de cagnotte accessible grandit avec votre historique : jusqu'à 1 000 $ avant votre premier groupe terminé, 2 500 $ après un, 5 000 $ après deux, sans limite à partir du troisième.",
-            displayText: "📏 Règles des Groupes\n\n• Prérequis : identité vérifiée et autorisation de prélèvement bancaire (via Stripe). Utilisée seulement si votre solde ne couvre pas une cotisation, pour une avance consentie, ou pour les cotisations restantes si vous partez après avoir été payé.\n• Taille de cagnotte selon l'historique : jusqu'à 1 000 $ sans groupe terminé ; 2 500 $ après 1 ; 5 000 $ après 2 ; sans limite après 3. Une cotisation manquée non réglée vous ramène au premier palier.\n• Créneaux précoces : la première moitié de la rotation revient aux membres ayant terminé un groupe, puis à ceux ayant 90+ jours d'ancienneté, puis aux nouveaux. Ordre aléatoire dans chaque palier ; le Créateur toujours en dernier. Les cagnottes de plus de 1 000 $ ne se verrouillent que si tous les créneaux précoces sont tenus par des membres expérimentés.\n• Engagement : vous cotisez chaque semaine pendant tout le cycle, même après votre versement. Vous ne pouvez partir qu'une fois tout le monde payé.\n• Maximum 3 groupes créés actifs à la fois ; minimum 2 membres pour démarrer.",
+            spokenText: "Avant de créer ou rejoindre un groupe, vous devez vérifier votre identité et autoriser les prélèvements bancaires. La taille de cagnotte accessible grandit avec votre historique : jusqu'à 1 000 $ avant votre premier groupe terminé, 2 500 $ après un, 5 000 $ après deux, sans limite à partir du troisième.",
+            displayText: "📏 Règles des Groupes\n\n• Prérequis : identité vérifiée et autorisation de prélèvement bancaire. Utilisée seulement si votre solde ne couvre pas une cotisation, pour une avance consentie, ou pour les cotisations restantes si vous partez après avoir été payé.\n• Taille de cagnotte selon l'historique : jusqu'à 1 000 $ sans groupe terminé ; 2 500 $ après 1 ; 5 000 $ après 2 ; sans limite après 3. Une cotisation manquée non réglée vous ramène au premier palier.\n• Créneaux précoces : la première moitié de la rotation revient aux membres ayant terminé un groupe, puis à ceux ayant 90+ jours d'ancienneté, puis aux nouveaux. Ordre aléatoire dans chaque palier ; le Créateur toujours en dernier. Les cagnottes de plus de 1 000 $ ne se verrouillent que si tous les créneaux précoces sont tenus par des membres expérimentés.\n• Engagement : vous cotisez chaque semaine pendant tout le cycle, même après votre versement. Vous ne pouvez partir qu'une fois tout le monde payé.\n• Maximum 3 groupes créés actifs à la fois ; minimum 2 membres pour démarrer.",
             suggestedActions: [
               { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Lier ma Banque", action: "OPEN_MODAL", modal: "BANK" }
@@ -8969,8 +8969,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "Before you create or join a pod you verify your identity and authorize bank debits through Stripe. The pot size you can join grows with your track record: up to $1,000 before your first completed pod, $2,500 after one, $5,000 after two, and no limit from the third.",
-          displayText: "📏 Pod Rules\n\n• Requirements: verified identity and a bank debit authorization (through Stripe). It is used only if your balance can't cover a deposit, for anything advanced on your behalf, or for the remaining deposits if you leave after your payout.\n• Pod size ladder: pots up to $1,000 with no completed pods; $2,500 after 1; $5,000 after 2; no limit after 3. An unresolved missed deposit drops you back to the first tier.\n• Early slots: the first half of the rotation goes to members who completed a pod, then members with 90+ days on MutualPool, then newer members. Random within each tier; the Creator is always last. Pots over $1,000 can't lock until every early slot is held by an experienced member.\n• Commitment: you deposit every week for the full cycle, including after your own payout. You can only leave once everyone has been paid.\n• At most 3 pods you created can be forming or active at once; a pod needs 2 members to start.",
+          spokenText: "Before you create or join a pod you verify your identity and authorize bank debits. The pot size you can join grows with your track record: up to $1,000 before your first completed pod, $2,500 after one, $5,000 after two, and no limit from the third.",
+          displayText: "📏 Pod Rules\n\n• Requirements: verified identity and a bank debit authorization. It is used only if your balance can't cover a deposit, for anything advanced on your behalf, or for the remaining deposits if you leave after your payout.\n• Pod size ladder: pots up to $1,000 with no completed pods; $2,500 after 1; $5,000 after 2; no limit after 3. An unresolved missed deposit drops you back to the first tier.\n• Early slots: the first half of the rotation goes to members who completed a pod, then members with 90+ days on MutualPool, then newer members. Random within each tier; the Creator is always last. Pots over $1,000 can't lock until every early slot is held by an experienced member.\n• Commitment: you deposit every week for the full cycle, including after your own payout. You can only leave once everyone has been paid.\n• At most 3 pods you created can be forming or active at once; a pod needs 2 members to start.",
           suggestedActions: [
             { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },
             { label: "Link Bank Account", action: "OPEN_MODAL", modal: "BANK" }
@@ -9227,23 +9227,23 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         };
       }
 
-      // 12. Banking, FDIC Insurance & Stripe Treasury
+      // 12. The member's account, balance and (when live) FDIC insurance
       if (q.includes('treasury') || q.includes('bank') || q.includes('fdic') || q.includes('stripe') || q.includes('balance') || q.includes('payout') || q.includes('banco') || q.includes('saldo') || q.includes('seguro') || q.includes('banque') || q.includes('solde') || q.includes('kyc') || q.includes('seguridad')) {
         if (!TREASURY_PROGRAM_ENABLED) {
-          // Member funds are not in Stripe Treasury accounts yet: no insurance claims.
+          // Member funds are not in MutualPool account accounts yet: no insurance claims.
           const neutral = isEs ? {
-            spokenText: "Tu saldo de Tesorería registra tus depósitos y cobros. Los pagos se procesan con Stripe y los retiros van a la cuenta bancaria que verificaste. MutualPool es una plataforma tecnológica, no un banco.",
-            displayText: "🏦 Tu saldo de Tesorería\n\n• Registra tus depósitos semanales y cobros de rotación.\n• Los pagos se procesan a través de Stripe.\n• Los retiros van a la cuenta bancaria verificada en Stripe.\n• MutualPool es una plataforma tecnológica, no un banco.",
+            spokenText: "Tu cuenta MutualPool registra tus depósitos y cobros. Los depósitos y cobros se mueven entre cuentas MutualPool y los retiros van a tu cuenta bancaria vinculada. MutualPool es una plataforma tecnológica, no un banco.",
+            displayText: "🏦 Tu cuenta MutualPool\n\n• Registra tus depósitos semanales y cobros de rotación.\n• Los depósitos y cobros se mueven entre cuentas MutualPool.\n• Los retiros van a tu cuenta bancaria vinculada.\n• MutualPool es una plataforma tecnológica, no un banco.",
             suggestedActions: [{ label: "Administrar Banco", action: "OPEN_MODAL", modal: "BANK" }, { label: "Verificar Identidad (KYC)", action: "OPEN_MODAL", modal: "KYC" }],
             navigationAction: { type: "OPEN_MODAL", target: "BANK" }
           } : isFr ? {
-            spokenText: "Votre solde de trésorerie enregistre vos dépôts et versements. Les paiements sont traités par Stripe et les retraits vont sur le compte bancaire que vous avez vérifié. MutualPool est une plateforme technologique, pas une banque.",
-            displayText: "🏦 Votre solde de trésorerie\n\n• Enregistre vos dépôts hebdomadaires et versements de rotation.\n• Paiements traités par Stripe.\n• Retraits vers le compte bancaire vérifié via Stripe.\n• MutualPool est une plateforme technologique, pas une banque.",
+            spokenText: "Votre compte MutualPool enregistre vos dépôts et versements. Les cotisations et versements circulent entre comptes MutualPool et les retraits vont sur votre compte bancaire lié. MutualPool est une plateforme technologique, pas une banque.",
+            displayText: "🏦 Votre compte MutualPool\n\n• Enregistre vos dépôts hebdomadaires et versements de rotation.\n• Cotisations et versements entre comptes MutualPool.\n• Retraits vers votre compte bancaire lié.\n• MutualPool est une plateforme technologique, pas une banque.",
             suggestedActions: [{ label: "Gérer la Banque", action: "OPEN_MODAL", modal: "BANK" }, { label: "Vérifier l'Identité (KYC)", action: "OPEN_MODAL", modal: "KYC" }],
             navigationAction: { type: "OPEN_MODAL", target: "BANK" }
           } : {
-            spokenText: "Your Treasury balance records your deposits and payouts. Payments are processed by Stripe, and withdrawals go to the bank account you verified. MutualPool is a technology platform, not a bank.",
-            displayText: "🏦 Your Treasury balance\n\n• Records your weekly deposits and rotation payouts.\n• Payments are processed by Stripe.\n• Withdrawals go to the bank account you verified with Stripe.\n• MutualPool is a technology platform, not a bank.",
+            spokenText: "Your MutualPool account records your deposits and payouts. Deposits and payouts move between MutualPool accounts, and withdrawals go to your linked bank account. MutualPool is a technology platform, not a bank.",
+            displayText: "🏦 Your MutualPool account\n\n• Records your weekly deposits and rotation payouts.\n• Deposits and payouts move between MutualPool accounts.\n• Withdrawals go to your linked bank account.\n• MutualPool is a technology platform, not a bank.",
             suggestedActions: [{ label: "Manage Bank", action: "OPEN_MODAL", modal: "BANK" }, { label: "Verify Identity (KYC)", action: "OPEN_MODAL", modal: "KYC" }],
             navigationAction: { type: "OPEN_MODAL", target: "BANK" }
           };
@@ -9251,8 +9251,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isEs) {
           return {
-            spokenText: "Tu cuenta de MutualPool Treasury es una cuenta dedicada con seguro indirecto FDIC de hasta $250,000 mediante bancos asociados a Stripe Treasury.",
-            displayText: "🏦 Stripe Treasury y Seguro FDIC\n\n• Cuenta de custodia dedicada para tus ahorros semanales.\n• Elegible para seguro indirecto FDIC hasta $250,000.\n• Transferencias directas a tu cuenta bancaria vinculada.",
+            spokenText: "Tu cuenta MutualPool es una cuenta bancaria a tu nombre en nuestro banco asociado, con seguro FDIC de hasta $250,000.",
+            displayText: "🏦 Tu cuenta MutualPool y el seguro FDIC\n\n• Cuenta de custodia dedicada para tus ahorros semanales.\n• Elegible para seguro indirecto FDIC hasta $250,000.\n• Transferencias directas a tu cuenta bancaria vinculada.",
             suggestedActions: [
               { label: "Administrar Banco y Treasury", action: "OPEN_MODAL", modal: "BANK" },
               { label: "Verificar Identidad (KYC)", action: "OPEN_MODAL", modal: "KYC" }
@@ -9262,8 +9262,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Votre compte MutualPool Treasury est un compte dédié éligible à la garantie indirecte FDIC jusqu'à 250 000 $ via les banques partenaires de Stripe Treasury.",
-            displayText: "🏦 Stripe Treasury & Garantie FDIC\n\n• Compte sécurisé dédié pour vos dépôts d'épargne hebdomadaires.\n• Éligibilité à la protection FDIC jusqu'à 250 000 $.\n• Versements rapides vers votre compte bancaire lié.",
+            spokenText: "Votre compte MutualPool est un compte bancaire à votre nom auprès de notre banque partenaire, assuré FDIC jusqu'à 250 000 $.",
+            displayText: "🏦 Votre compte MutualPool & la garantie FDIC\n\n• Compte sécurisé dédié pour vos dépôts d'épargne hebdomadaires.\n• Éligibilité à la protection FDIC jusqu'à 250 000 $.\n• Versements rapides vers votre compte bancaire lié.",
             suggestedActions: [
               { label: "Gérer la Banque & Treasury", action: "OPEN_MODAL", modal: "BANK" },
               { label: "Vérifier l'Identité (KYC)", action: "OPEN_MODAL", modal: "KYC" }
@@ -9272,8 +9272,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "Your MutualPool Treasury is a dedicated account eligible for FDIC pass-through insurance up to $250,000 via Stripe Treasury partner banks. Your weekly pool payouts deposit automatically here.",
-          displayText: "🏦 Stripe Treasury & FDIC Pass-Through\n\n• Dedicated holding account for weekly pool deposits.\n• Pass-through FDIC insurance eligibility up to $250,000.\n• Instant payouts to your linked external checking account or debit card.",
+          spokenText: "Your MutualPool account is a bank account in your own name at our partner bank, FDIC insured up to $250,000. Your weekly pool payouts land here automatically.",
+          displayText: "🏦 Your MutualPool account & FDIC insurance\n\n• Dedicated holding account for weekly pool deposits.\n• Pass-through FDIC insurance eligibility up to $250,000.\n• Instant payouts to your linked external checking account or debit card.",
           suggestedActions: [
             { label: "Manage Bank & Treasury", action: "OPEN_MODAL", modal: "BANK" },
             { label: "Verify Identity (KYC)", action: "OPEN_MODAL", modal: "KYC" }
@@ -9317,8 +9317,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       // Default contextual greeting & helper
       if (isEs) {
         return {
-          spokenText: `¡Hola ${userName}! Soy Lainie, tu Guía de IA de MutualPool. Pregúntame sobre cómo funcionan los grupos de ahorro, recompensas del 3% para creadores, custodia autónoma, seguro FDIC o consulta la FAQ.`,
-          displayText: `🎙️ Asistente de Voz Lainie AI (Base de Conocimiento FAQ)\n\nPuedo orientarte en todas las funciones:\n• Grupos de Ahorro Rotativo (Tandas / Susu / ROSCA) (0% interés, sin deudas)\n• Recompensas del Creador (3%) y Compromiso Real (Skin-in-the-Game)\n• Custodia Autónoma por IA y Depósitos en Custodia del Sistema\n• Cuentas Stripe Treasury y Seguro FDIC ($250,000)\n• Mercado de Ventajas y Campañas de Embajadores`,
+          spokenText: `¡Hola ${userName}! Soy Lainie, tu Guía de IA de MutualPool. Pregúntame sobre cómo funcionan los grupos de ahorro, recompensas del 3% para creadores, custodia autónoma, tu cuenta MutualPool o consulta la FAQ.`,
+          displayText: `🎙️ Asistente de Voz Lainie AI (Base de Conocimiento FAQ)\n\nPuedo orientarte en todas las funciones:\n• Grupos de Ahorro Rotativo (Tandas / Susu / ROSCA) (0% interés, sin deudas)\n• Recompensas del Creador (3%) y Compromiso Real (Skin-in-the-Game)\n• Custodia Autónoma por IA y Depósitos en Custodia del Sistema\n• Tu cuenta MutualPool, depósitos y cobros\n• Mercado de Ventajas y Campañas de Embajadores`,
           suggestedActions: [
             { label: "¿Qué es MutualPool y ROSCA?", action: "SPEAK_EXPLANATION", prompt: "¿Qué es MutualPool y cómo funciona un Grupo de Ahorro?" },
             { label: "¿Es MutualPool un préstamo?", action: "SPEAK_EXPLANATION", prompt: "¿Es MutualPool un préstamo o tarjeta de crédito?" },
@@ -9331,8 +9331,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
 
       if (isFr) {
         return {
-          spokenText: `Bonjour ${userName} ! Je suis Lainie, votre Guide IA MutualPool. Posez-moi des questions sur les groupes d'épargne, la prime créateur de 3%, la gardienne IA, la protection FDIC ou consultez la FAQ.`,
-          displayText: `🎙️ Assistant Vocal Lainie AI (Base de Connaissances FAQ)\n\nJe peux vous guider sur l'ensemble des fonctionnalités :\n• Groupes d'Épargne Rotative (Tontines / Susu / ROSCA) (0% intérêt, sans dette)\n• Primes d'Hôte Créateur (3%) & Engagement Garanti (Skin-in-the-Game)\n• Gardienne IA Autonome (Lainie) & Entiercement du Système\n• Comptes Stripe Treasury & Garantie FDIC (250 000 $)\n• Espace Avantages & Campagnes Ambassadeurs`,
+          spokenText: `Bonjour ${userName} ! Je suis Lainie, votre Guide IA MutualPool. Posez-moi des questions sur les groupes d'épargne, la prime créateur de 3%, la gardienne IA, votre compte MutualPool ou consultez la FAQ.`,
+          displayText: `🎙️ Assistant Vocal Lainie AI (Base de Connaissances FAQ)\n\nJe peux vous guider sur l'ensemble des fonctionnalités :\n• Groupes d'Épargne Rotative (Tontines / Susu / ROSCA) (0% intérêt, sans dette)\n• Primes d'Hôte Créateur (3%) & Engagement Garanti (Skin-in-the-Game)\n• Gardienne IA Autonome (Lainie) & Entiercement du Système\n• Votre compte MutualPool, cotisations et versements\n• Espace Avantages & Campagnes Ambassadeurs`,
           suggestedActions: [
             { label: "Qu'est-ce que ROSCA / Tontine ?", action: "SPEAK_EXPLANATION", prompt: "Qu'est-ce que MutualPool et comment fonctionne un groupe d'épargne ?" },
             { label: "Est-ce un prêt bancaire ?", action: "SPEAK_EXPLANATION", prompt: "MutualPool est-il un prêt bancaire ou une dette ?" },
@@ -9344,8 +9344,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       }
 
       return {
-        spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about how savings pods work, the 3% Creator Host Reward, our Autonomous AI Custodian, FDIC insurance, or explore our FAQ!`,
-        displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Stripe Treasury & FDIC Pass-Through Insurance ($250,000)\n• Transparent Fees (5% per deposit / 10% on payouts)\n• Brand Ambassador Earnings & Vision Verification`,
+        spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about how savings pods work, the 3% Creator Host Reward, our Autonomous AI Custodian, your MutualPool account, or explore our FAQ!`,
+        displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Your MutualPool account, deposits and payouts\n• Transparent Fees (5% per deposit / 10% on payouts)\n• Brand Ambassador Earnings & Vision Verification`,
         suggestedActions: [
           { label: "What is a ROSCA / Pod?", action: "SPEAK_EXPLANATION", prompt: "What is MutualPool and how does a Mutual Savings Pod work?" },
           { label: "Is MutualPool a loan?", action: "SPEAK_EXPLANATION", prompt: "Is MutualPool a loan, credit card, or debt?" },
@@ -9379,7 +9379,7 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - How Pods Work: Members contribute a fixed weekly deposit (e.g. $20/wk). Each week, one member receives the full collective lump-sum pot (e.g., $400 gross / $360 net for 20 members). Over 20 weeks, all 20 members receive one full lump sum.
 - 0% Interest, 0 Debt, No Credit Checks: MutualPool is NOT a loan, credit card, or bank. There is zero compounding interest, no predatory APR, and no credit score checks. Balances do not earn interest.
 - Who can join: 18+, lives in the United States, works (or is eligible to work) with a delivery or rideshare platform. One account per person. Non-US markets are not available yet.
-- Before creating or joining ANY pod a member must (a) verify identity through Stripe and (b) authorize bank debits (link a bank account through Stripe). Both are mandatory.
+- Before creating or joining ANY pod a member must (a) verify identity (Stripe Identity) and (b) authorize bank debits by linking a bank account. Both are mandatory.
 - Trusted Circles vs Open Pods:
   * Trusted Circles (Private): Invite-only for friends, family, or close delivery hub crews via private invite link/code.
   * Open Pods (Public): Open to all verified members. To CREATE an Open Pod you need at least one completed pod OR 90+ days on MutualPool.
@@ -9400,7 +9400,7 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - Settlement week: deposits are taken THURSDAY 12:00 AM Eastern; the week's payout is credited FRIDAY 12:00 AM Eastern.
 - Deposit Collection: each Thursday the weekly deposit plus the 5% deposit fee is taken from the member's MutualPool balance automatically. Members must keep enough balance. Fund the balance by card top-up through Stripe (no MutualPool fee on top-ups), by bank transfer from the linked account, or with payouts and brand campaign earnings, which land in the same balance.
 - Bank debit authorization: used ONLY for (1) a weekly deposit the balance could not cover, (2) anything MutualPool advanced on the member's behalf (e.g. a hardship advance), (3) the remaining deposits owed if the member leaves or is removed after receiving a payout. The member is told in the app before each debit. It can be revoked via support, but that does not cancel what is owed, and no pods can be created or joined without it.
-- Payout Execution: the net payout (90% of the pot) is credited to the recipient's MutualPool balance on Friday. Withdrawals go to the Stripe-verified bank account, no withdrawal fee, bank posts in 1-3 business days. Later rotation weeks never wait for a pending withdrawal. Recently deposited card funds may be held while contestable; chargebacks or fraud reviews can hold or reverse funds.
+- Payout Execution: the net payout (90% of the pot) is credited to the recipient's MutualPool balance on Friday. Withdrawals go to the member's linked bank account, no withdrawal fee; banks on instant rails (RTP/FedNow) receive them in seconds, others in 1-3 business days. Later rotation weeks never wait for a pending withdrawal. Recently deposited card funds may be held while contestable; chargebacks or fraud reviews can hold or reverse funds.
 - Fee Structure (the ONLY fees):
   * 5% Deposit Fee: charged on EVERY weekly deposit when it is taken (a $20 deposit costs $21 from the balance). It is NOT a one-time setup fee.
   * 10% Payout Fee: deducted from each payout (e.g. $40 on a $400 pot = $360 net). 3% of the pot goes to the final-slot holder as Host Reward; 7% goes to MutualPool.
@@ -9416,7 +9416,7 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - Hardship Advance: an approved request means MutualPool makes ONE weekly deposit on the member's behalf (an advance against their own future payouts, not a loan). Eligible after 90 days of pod membership; reviewed by MutualPool and may be declined; one approved advance per pod per cycle, at most two outstanding per pod; must be repaid plus the 7% hardship repayment fee before joining or creating another pod.
 
 5. CATEGORY: SECURITY${TREASURY_PROGRAM_ENABLED ? ', FDIC INSURANCE' : ''} & KYC VERIFICATION
-${TREASURY_PROGRAM_ENABLED ? '- FDIC Pass-Through Insurance: Dedicated Stripe Treasury accounts held at FDIC-insured partner institutions (such as Evolve Bank & Trust or Fifth Third Bank) with pass-through insurance up to $250,000 per member.' : '- Custody: Deposits and payouts are processed by Stripe. MutualPool is a technology platform, not a bank; member balances are NOT FDIC insured. Never claim FDIC or deposit insurance, and do not call the balance a "Stripe Treasury" account; call it the MutualPool balance.'}
+${TREASURY_PROGRAM_ENABLED ? '- FDIC Pass-Through Insurance: each member has an account in their own name at our partner bank, Column N.A. (Member FDIC), insured up to $250,000 per member.' : '- Custody: Deposits and payouts move between MutualPool accounts; card payments are processed by Stripe. MutualPool is a technology platform, not a bank; member balances are NOT FDIC insured. Never claim FDIC or deposit insurance, and never say payouts are "processed by Stripe"; call it the MutualPool account or balance.'}
 - Stripe Identity KYC: Required to prevent duplicate accounts and fraud. One account per person.
 - Peer Rotation Slot Swaps: (a) Spot swap: proposal to one other member, both must consent in the app, positions trade. (b) Reprioritization vote: if more than half of the pod votes yes, the requester moves into the next payout slot and the displaced member takes the requester's old slot. Members who already received their payout cannot swap. In the early half of the rotation no swap or vote may put a newer member ahead of a more established one, and in pots over $1,000 every early slot must stay with a completed-pod or 90+ day member. The 3% Host Reward always follows the final slot.
 
@@ -9486,7 +9486,7 @@ Output MUST be strictly valid JSON matching this schema:
     const lang = req.body?.currentContext?.language || 'en';
     const fallback = (lang === 'es') ? {
       spokenText: "MutualPool es una Asociación de Ahorro y Crédito Rotativo (ROSCA / Tanda) modernizada para repartidores independientes, con 0% de interés y seguro FDIC.",
-      displayText: "🎙️ Guía de IA de MutualPool (Lainie)\n\nEstoy aquí para responder cualquier pregunta sobre:\n• Grupos de Ahorro Rotativo (Tandas / ROSCA)\n• Recompensas de Creador del 3% y Compromiso Real\n• Custodia Autónoma por IA y Depósitos de Escrow\n• Cuentas Stripe Treasury y Seguro FDIC ($250,000)",
+      displayText: "🎙️ Guía de IA de MutualPool (Lainie)\n\nEstoy aquí para responder cualquier pregunta sobre:\n• Grupos de Ahorro Rotativo (Tandas / ROSCA)\n• Recompensas de Creador del 3% y Compromiso Real\n• Custodia Autónoma por IA y Depósitos de Escrow\n• Tu cuenta MutualPool, depósitos y cobros",
       suggestedActions: [
         { label: "¿Qué es ROSCA / Tanda?", action: "SPEAK_EXPLANATION", prompt: "¿Qué es MutualPool y cómo funciona un Grupo de Ahorro?" },
         { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
@@ -9495,7 +9495,7 @@ Output MUST be strictly valid JSON matching this schema:
       navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
     } : (lang === 'fr') ? {
       spokenText: "MutualPool est une Association d'Épargne et de Crédit Rotatif (ROSCA / Tontine) modernisée pour les livreurs, avec 0% d'intérêt et garantie FDIC.",
-      displayText: "🎙️ Guide IA MutualPool (Lainie)\n\nJe suis là pour répondre à toutes vos questions sur :\n• Groupes d'Épargne Rotative (Tontines / ROSCA)\n• Primes d'Hôte Créateur (3%)\n• Gardienne IA Autonome & Entiercement du Système\n• Comptes Stripe Treasury & Garantie FDIC (250 000 $)",
+      displayText: "🎙️ Guide IA MutualPool (Lainie)\n\nJe suis là pour répondre à toutes vos questions sur :\n• Groupes d'Épargne Rotative (Tontines / ROSCA)\n• Primes d'Hôte Créateur (3%)\n• Gardienne IA Autonome & Entiercement du Système\n• Votre compte MutualPool, cotisations et versements",
       suggestedActions: [
         { label: "Qu'est-ce que ROSCA / Tontine ?", action: "SPEAK_EXPLANATION", prompt: "Qu'est-ce que MutualPool et comment fonctionne un groupe d'épargne ?" },
         { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
@@ -9504,7 +9504,7 @@ Output MUST be strictly valid JSON matching this schema:
       navigationAction: { type: "OPEN_MODAL", target: "FAQ" }
     } : {
       spokenText: "MutualPool is a modernized peer-to-peer Rotating Savings and Credit Association (ROSCA) for gig workers with 0% interest and FDIC protection.",
-      displayText: "🎙️ MutualPool Voice Assistant (Lainie AI)\n\nI can answer any question about our platform:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas)\n• 3% Creator Host Rewards & Skin-in-the-Game\n• Autonomous AI Custodian Protocol & System Escrow\n• Stripe Treasury & FDIC Pass-Through Insurance ($250,000)",
+      displayText: "🎙️ MutualPool Voice Assistant (Lainie AI)\n\nI can answer any question about our platform:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas)\n• 3% Creator Host Rewards & Skin-in-the-Game\n• Autonomous AI Custodian Protocol & System Escrow\n• Your MutualPool account, deposits and payouts",
       suggestedActions: [
         { label: "What is a ROSCA / Pod?", action: "SPEAK_EXPLANATION", prompt: "What is MutualPool and how does a Mutual Savings Pod work?" },
         { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },

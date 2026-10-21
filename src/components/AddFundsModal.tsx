@@ -378,7 +378,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
             <Lock className="w-4 h-4" />
             {loading ? 'Opening secure checkout…' : 'Continue to secure checkout'}
           </button>
-          <p className="mt-3 text-[11px] text-slate-500 text-center">Payments are processed by Stripe. Your balance updates once the payment is confirmed.</p>
+          <p className="mt-3 text-[11px] text-slate-500 text-center">Card payments are processed by Stripe. Your balance updates once the payment is confirmed.</p>
         </div>
       </div>
     );

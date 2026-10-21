@@ -724,7 +724,7 @@ export const WeeklySavingsChart: React.FC<WeeklySavingsChartProps> = ({
           <span>
             {chartMode === 'monthly_forecast'
               ? 'Modeled on active pod escrow commitments'
-              : 'Stripe Treasury Auto-Debited Weekly'}
+              : 'Auto-Debited Weekly from your MutualPool account'}
           </span>
         </div>
       </div>

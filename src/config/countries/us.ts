@@ -26,7 +26,7 @@ export const US_CONFIG: CountryConfig = {
   
   payment: {
     provider: 'stripe_treasury',
-    providerDisplayName: 'Stripe Treasury & Card Rails',
+    providerDisplayName: 'our partner bank & Card Rails',
     currency: 'USD',
     supportedMethods: ['card', 'ach', 'bank_transfer'],
     minDepositMinorUnits: 500, // $5.00
@@ -46,10 +46,10 @@ export const US_CONFIG: CountryConfig = {
   },
   
   regulations: {
-    regulatoryBody: TREASURY_PROGRAM_ENABLED ? 'Payments processed by Stripe / FDIC pass-through via Stripe Treasury' : 'Payments processed by Stripe / Identity verified by Stripe',
+    regulatoryBody: TREASURY_PROGRAM_ENABLED ? 'Payments processed by Stripe / FDIC pass-through via our partner bank' : 'Payments processed by Stripe / Identity verified by Stripe',
     regulatoryNotice: TREASURY_PROGRAM_ENABLED
       ? 'MutualPool deposits are held in dedicated custodial accounts with FDIC pass-through insurance up to $250,000 via our banking partner.'
-      : 'Deposits and payouts are processed by Stripe. MutualPool is a financial technology platform, not a bank; member balances are not FDIC insured.',
+      : 'Member balances are held with our payments and banking partners. MutualPool is a financial technology platform, not a bank; member balances are not FDIC insured.',
     cookieConsentType: 'notice',
     taxIdRequired: true,
     taxIdLabel: 'SSN or ITIN (Last 4)',
@@ -62,7 +62,7 @@ export const US_CONFIG: CountryConfig = {
   pwa: {
     name: 'MutualPool USA',
     shortName: 'MutualPool US',
-    description: 'Mutual savings pods and driver perks for couriers in the United States with Stripe Treasury.',
+    description: 'Mutual savings pods and driver perks for couriers in the United States with our partner bank.',
     themeColor: '#005FB8',
     backgroundColor: '#F8FAFC',
   },

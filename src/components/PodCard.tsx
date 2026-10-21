@@ -274,7 +274,7 @@ export const PodCard: React.FC<PodCardProps> = ({
 
                 <div className="p-2 rounded-lg bg-white/90 border border-red-200 text-xs mb-2 space-y-1">
                   <div className="flex items-center justify-between font-mono text-[11px]">
-                    <span className="text-slate-600">Your Stripe Treasury Balance:</span>
+                    <span className="text-slate-600">Your MutualPool Balance:</span>
                     <span className={`font-bold ${isTreasurySufficient ? 'text-emerald-700' : 'text-red-600'}`}>
                       ${treasuryBalance.toFixed(2)}
                     </span>
@@ -288,12 +288,12 @@ export const PodCard: React.FC<PodCardProps> = ({
                 {isTreasurySufficient ? (
                   <p className="text-[11px] text-emerald-800 font-medium mb-2.5 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Reminder: Ensure your Stripe Treasury balance stays sufficient until weekly cycle settlement completes.</span>
+                    <span>Reminder: Ensure your MutualPool balance stays sufficient until weekly cycle settlement completes.</span>
                   </p>
                 ) : (
                   <p className="text-[11px] text-red-700 font-semibold mb-2.5 flex items-center gap-1 bg-red-100/80 p-1.5 rounded border border-red-200">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                    <span>CRITICAL: Shortfall of ${(requiredWeeklyDeposit - treasuryBalance).toFixed(2)}! Fund your Stripe Treasury wallet immediately to prevent cycle hold or member default.</span>
+                    <span>CRITICAL: Shortfall of ${(requiredWeeklyDeposit - treasuryBalance).toFixed(2)}! Fund your MutualPool account immediately to prevent cycle hold or member default.</span>
                   </p>
                 )}
 
@@ -304,7 +304,7 @@ export const PodCard: React.FC<PodCardProps> = ({
                   }}
                   className="w-full py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                 >
-                  <span>Verify Stripe Treasury & Pod Ledger</span>
+                  <span>Verify Balance & Pod Ledger</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>

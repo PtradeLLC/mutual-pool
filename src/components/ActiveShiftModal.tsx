@@ -1069,7 +1069,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                 <Award className={`w-4 h-4 shrink-0 ${visionResult?.matched ? 'text-emerald-600' : 'text-slate-400'}`} />
                 <div>
                   <span className={`font-bold block ${visionResult?.matched ? 'text-emerald-950' : 'text-slate-700'}`}>
-                    Instant Stripe Treasury Disbursement:
+                    Instant Disbursement:
                   </span>
                   <span className={`text-[11px] ${visionResult?.matched ? 'text-emerald-800' : 'text-slate-500'}`}>
                     {visionResult?.matched 
@@ -1114,7 +1114,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
                 {isCompleting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Disbursing ${campaign.dailyPayout}.00 to Stripe Treasury...</span>
+                    <span>Crediting ${campaign.dailyPayout}.00 to your MutualPool account...</span>
                   </>
                 ) : isAnalyzingVision ? (
                   <>

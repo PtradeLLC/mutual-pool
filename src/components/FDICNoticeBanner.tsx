@@ -7,7 +7,7 @@ export const FDICNoticeBanner: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation();
 
-  // No insurance disclosure until member funds are held in Stripe Treasury accounts.
+  // No insurance disclosure until member funds are held in our partner bank accounts.
   // (Hooks above must run unconditionally on every render.)
   if (!TREASURY_PROGRAM_ENABLED) return null;
 

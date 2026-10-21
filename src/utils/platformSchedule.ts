@@ -100,7 +100,7 @@ export function getPlatformScheduleStatus(now: Date = new Date()): PlatformSched
   } else if (dayOfWeek === 5 && now.getHours() < 3) { // Friday early morning
     currentPhase = 'PAYOUT_DISBURSING';
     phaseLabel = 'Friday Payout Settlement Window';
-    phaseDescription = 'Rotating lump-sum disbursements actively transferring to rotation recipients\' Stripe Treasury accounts.';
+    phaseDescription = 'Rotating lump-sum disbursements actively transferring to rotation recipients\' MutualPool accounts.';
   }
 
   return {

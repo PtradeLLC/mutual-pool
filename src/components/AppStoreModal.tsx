@@ -275,7 +275,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
         {/* FDIC Footer */}
         <div className="mt-4 pt-3 border-t border-gray-100 text-center flex items-center justify-center gap-1.5 text-[10px] text-gray-400">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>{TREASURY_PROGRAM_ENABLED ? 'Pass-Through FDIC Insured up to $250,000 per user via Stripe Treasury' : 'Payments processed by Stripe. MutualPool is not a bank.'}</span>
+          <span>{TREASURY_PROGRAM_ENABLED ? 'FDIC insured up to $250,000 per member at our partner bank' : 'Deposits and payouts in your own MutualPool account. MutualPool is not a bank.'}</span>
         </div>
 
       </div>
