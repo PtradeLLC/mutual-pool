@@ -8181,11 +8181,13 @@ MutualPool`,
   // Column webhooks: ACH settlement and returns, book transfers, identity.
   app.post('/api/webhooks/column', async (req: Request, res: Response) => {
     const rawBody: Buffer | undefined = (req as any).rawBody;
-    const secret = process.env.COLUMN_WEBHOOK_SECRET || '';
+    // Column issues one signing secret per endpoint. With an endpoint per domain
+    // (mutual-pool.fly.dev and themutualpool.com) list both, comma-separated.
+    const secrets = String(process.env.COLUMN_WEBHOOK_SECRET || '').split(',').map(s => s.trim()).filter(Boolean);
     const signature = getHeaderValue(req, 'column-signature');
-    if (!rawBody || !secret) return res.status(503).json({ error: 'WEBHOOK_NOT_CONFIGURED' });
-    if (!verifyColumnSignature(rawBody, signature, secret)) {
-      reportIncident('error', 'column_webhook_bad_signature', 'Column webhook signature did not verify');
+    if (!rawBody || secrets.length === 0) return res.status(503).json({ error: 'WEBHOOK_NOT_CONFIGURED' });
+    if (!secrets.some(secret => verifyColumnSignature(rawBody, signature, secret))) {
+      reportIncident('error', 'column_webhook_bad_signature', `Column webhook signature did not verify (endpoint ${getHeaderValue(req, 'webhook-endpoint-id') || 'unknown'})`);
       return res.status(400).json({ error: 'BAD_SIGNATURE' });
     }
     let event: any;
@@ -8196,6 +8198,7 @@ MutualPool`,
       const outcome = await handleColumnEvent(event);
       savePodsToDisk();
       saveUsersToDisk();
+      console.log(`[column webhook] ${event.type} ${event.id} -> ${outcome}`);
       res.json({ received: true, outcome });
     } catch (err) {
       console.error('[column webhook] handler failed:', err);
