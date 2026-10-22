@@ -8771,10 +8771,10 @@ app.get(['/api/fourthwall/health', '/fourthwall/health'], (req: Request, res: Re
 // --- VOICE AI & NATURAL AUDIO AGENT API ---
 app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
   try {
+    // Lainie answers product questions for visitors too (the AI rate limiter
+    // applies per IP); account facts come only from a signed-in session.
     const sessionUser = getCurrentUser(req);
-    if (!sessionUser) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
-    }
+    const isGuest = !sessionUser;
     const { query, currentContext } = req.body || {};
     if (!query || typeof query !== 'string' || query.length > 1000) {
       return res.status(400).json({ error: 'Query string is required (max 1000 characters)' });
@@ -8783,10 +8783,10 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
     const client = getGeminiClient();
     // Account facts come from the server-side session, never from the request body.
     const activeTab = typeof currentContext?.activeTab === 'string' && /^[a-z-]{1,40}$/.test(currentContext.activeTab) ? currentContext.activeTab : 'my-pods';
-    const userName = sessionUser.displayName || 'Member';
-    const platform = sessionUser.platform || 'Gig Courier';
-    const treasuryBalance = Number(sessionUser.treasury?.balanceUsd) || 0;
-    const activePodsCount = pods.filter(p => p && p.status === 'ACTIVE' && isPodMember(p, sessionUser)).length;
+    const userName = sessionUser?.displayName || 'Guest';
+    const platform = sessionUser?.platform || 'Gig Courier';
+    const treasuryBalance = Number(sessionUser?.treasury?.balanceUsd) || 0;
+    const activePodsCount = sessionUser ? pods.filter(p => p && p.status === 'ACTIVE' && isPodMember(p, sessionUser)).length : 0;
     const lang = ['en', 'es', 'fr'].includes(currentContext?.language) ? currentContext.language : 'en';
 
     const fallbackKnowledge = (userQuery: string, language: string = 'en') => {
@@ -8986,7 +8986,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       }
 
       // 4. System Deposits Escrow Account & Missed Payment Safety Net
-      if (q.includes('escrow') || q.includes('system deposit') || q.includes('missed') || q.includes('default') || q.includes('shortfall') || q.includes('garantía') || q.includes('falta') || q.includes('impago') || q.includes('entiercement') || q.includes('retard')) {
+      if (q.includes('escrow') || q.includes('system deposit') || (q.includes('miss') && !q.includes('hardship')) || q.includes('default') || q.includes('shortfall') || q.includes('garantía') || q.includes('falta') || q.includes('impago') || q.includes('entiercement') || q.includes('retard')) {
         if (isEs) {
           return {
             spokenText: "Si tu saldo no cubre el depósito del jueves, tú y todos los demás miembros del grupo reciben aviso de inmediato y tienes 24 horas para pagar. Después, se te retira del grupo, tu cuenta queda restringida hasta que pagues todo, y el monto se cobra de tu banco. Si dos miembros del mismo grupo están en mora, los demás votan si pausar el grupo o cubrir los depósitos faltantes.",
@@ -9234,7 +9234,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       }
 
       // 10. Create a Pod
-      if (q.includes('create') || q.includes('new pod') || q.includes('start pod') || q.includes('crear') || q.includes('nuevo grupo') || q.includes('iniciar') || q.includes('créer') || q.includes('nouveau groupe')) {
+      if (q.includes('create') || q.includes('new pod') || q.includes('start pod') || q.includes('join') || q.includes('unirme') || q.includes('unirse') || q.includes('rejoindre') || q.includes('crear') || q.includes('nuevo grupo') || q.includes('iniciar') || q.includes('créer') || q.includes('nouveau groupe')) {
         if (isEs) {
           return {
             spokenText: "Para iniciar un nuevo grupo, pulsa Crear Grupo arriba. Puedes elegir un Círculo de Confianza para tus compañeros o un Grupo Abierto con verificación automática de identidad.",
@@ -9432,15 +9432,13 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       };
     };
 
-    if (client) {
-      try {
-        const languageInstruction = lang === 'es' 
-          ? 'MANDATORY LANGUAGE: The user\'s interface language is Spanish (Español). You MUST generate "spokenText", "displayText", and "suggestedActions[].label" completely in Spanish.'
-          : lang === 'fr'
-          ? 'MANDATORY LANGUAGE: The user\'s interface language is French (Français). You MUST generate "spokenText", "displayText", and "suggestedActions[].label" completely in French.'
-          : 'MANDATORY LANGUAGE: The user\'s interface language is English. Respond in English.';
+    const languageInstruction = lang === 'es' 
+      ? 'MANDATORY LANGUAGE: The user\'s interface language is Spanish (Español). You MUST generate "spokenText", "displayText", and "suggestedActions[].label" completely in Spanish.'
+      : lang === 'fr'
+      ? 'MANDATORY LANGUAGE: The user\'s interface language is French (Français). You MUST generate "spokenText", "displayText", and "suggestedActions[].label" completely in French.'
+      : 'MANDATORY LANGUAGE: The user\'s interface language is English. Respond in English.';
 
-        const systemInstruction = `You are "Lainie", the intelligent, friendly, and highly knowledgeable on-screen Voice AI Guide for MutualPool (mutualpool.org).
+    const systemInstruction = `You are "Lainie", the intelligent, friendly, and highly knowledgeable on-screen Voice AI Guide for MutualPool (mutualpool.org).
 MutualPool is a collaborative savings and gig economy perks platform built for 1099 couriers, rideshare drivers, and independent gig workers.
 You are directly wired to the comprehensive MutualPool FAQ Knowledge Base.
 
@@ -9518,6 +9516,7 @@ RESPONSE GUIDELINES:
 
 Current user context:
 - User Name: ${userName}
+- Signed in: ${isGuest ? 'no (a visitor; invite them to sign in for anything about their own account)' : 'yes'}
 - Platform: ${platform}
 - Active Tab: ${activeTab}
 - Treasury Balance: $${treasuryBalance.toFixed(2)}
@@ -9532,6 +9531,8 @@ Output MUST be strictly valid JSON matching this schema:
   "navigationAction": {"type": "NAVIGATE_TAB"|"OPEN_MODAL"|"OPEN_ADVERTISER", "target"?: "string"} | null
 }`;
 
+    if (client) {
+      try {
         const response = await client.models.generateContent({
           model: 'gemini-3.7-flash',
           contents: [{ role: 'user', parts: [{ text: query }] }],
@@ -9551,6 +9552,40 @@ Output MUST be strictly valid JSON matching this schema:
         }
       } catch (geminiError) {
         console.warn('Gemini API call warning in voice guide, using rich local fallback knowledge:', geminiError);
+      }
+    }
+
+    // Gemini unavailable (timeouts, high demand, no key): try Groq with the same
+    // knowledge base before dropping to the keyword fallback.
+    const groq = getGroqClient();
+    if (groq) {
+      try {
+        const groqModel = process.env.GROQ_TEXT_MODEL || 'qwen/qwen3.6-27b';
+        const groqMessages = [
+          { role: 'system' as const, content: systemInstruction },
+          { role: 'user' as const, content: query },
+        ];
+        // Strict JSON mode first; if the model trips over it, ask again in plain
+        // text and lift the first JSON object out of the reply.
+        let text = '';
+        try {
+          const strict = await groq.chat.completions.create({ model: groqModel, messages: groqMessages, response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 900 });
+          text = strict.choices?.[0]?.message?.content || '';
+        } catch (strictErr: any) {
+          if (strictErr?.status !== 400) throw strictErr;
+          const loose = await groq.chat.completions.create({ model: groqModel, messages: [...groqMessages, { role: 'user' as const, content: 'Reply with only the JSON object described above, no prose.' }], temperature: 0.2, max_tokens: 900 });
+          const raw = loose.choices?.[0]?.message?.content || '';
+          const m = raw.match(/\{[\s\S]*\}/);
+          text = m ? m[0] : '';
+        }
+        if (text) {
+          const parsed = JSON.parse(text);
+          if (parsed && (parsed.spokenText || parsed.displayText)) {
+            return res.json(sanitizeVoiceGuidePayload(parsed));
+          }
+        }
+      } catch (groqError) {
+        console.warn('Groq fallback warning in voice guide, using local fallback knowledge:', groqError);
       }
     }
 

@@ -135,9 +135,15 @@ test('private data and paid AI endpoints require sign-in', async () => {
   for (const path of ['/api/audit-logs', '/api/pods', '/api/fourthwall/designs', '/api/perks/my-offers', '/api/platform/schedule', '/api/chats/messages?threadId=thread_pod_x']) {
     assert.equal((await call(path, { headers: spoofHeaders })).status, 401, `${path} should require sign-in`);
   }
-  for (const path of ['/api/ai/voice-guide', '/api/ai/tts', '/api/campaigns/gear-verify', '/api/chats/send']) {
+  for (const path of ['/api/ai/tts', '/api/campaigns/gear-verify', '/api/chats/send']) {
     assert.equal((await call(path, { method: 'POST', headers: spoofHeaders, body: JSON.stringify({ query: 'hi', text: 'hi', threadId: 'x', content: 'x' }) })).status, 401, `${path} should require sign-in`);
   }
+});
+
+test('the voice guide answers visitors without a session (public product knowledge only)', async () => {
+  const res = await call('/api/ai/voice-guide', { method: 'POST', headers: spoofHeaders, body: JSON.stringify({ query: 'What is MutualPool?', currentContext: { language: 'en' } }) });
+  assert.equal(res.status, 200, JSON.stringify(res.body).slice(0, 200));
+  assert.ok(String(res.body.spokenText || res.body.displayText || '').length > 20);
 });
 
 test('terms acceptance needs a signed-in member', async () => {
