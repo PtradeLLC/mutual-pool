@@ -9630,9 +9630,9 @@ Output MUST be strictly valid JSON matching this schema:
 // --- NATURAL GEMINI TTS (SPEECH GENERATION) API ---
 app.post('/api/ai/tts', async (req: Request, res: Response) => {
   try {
-    if (!getCurrentUser(req)) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
-    }
+    // Visitors hear the same voice as members (the AI rate limiter and daily
+    // budget cap the cost per IP); their clips are just kept shorter.
+    const isGuest = !getCurrentUser(req);
     const { text, voiceName } = req.body || {};
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Text is required for TTS' });
@@ -9647,7 +9647,7 @@ app.post('/api/ai/tts', async (req: Request, res: Response) => {
     const selectedVoice = allowedVoices.includes(voiceName) ? voiceName : 'Zephyr';
     
     // Clean text of markdown or special characters before speaking
-    const cleanText = text.replace(/[*_#`~\[\]]/g, '').trim().substring(0, 500);
+    const cleanText = text.replace(/[*_#`~\[\]]/g, '').trim().substring(0, isGuest ? 320 : 500);
 
     const response = await client.models.generateContent({
       model: 'gemini-3.1-flash-tts-preview',

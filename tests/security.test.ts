@@ -135,7 +135,7 @@ test('private data and paid AI endpoints require sign-in', async () => {
   for (const path of ['/api/audit-logs', '/api/pods', '/api/fourthwall/designs', '/api/perks/my-offers', '/api/platform/schedule', '/api/chats/messages?threadId=thread_pod_x']) {
     assert.equal((await call(path, { headers: spoofHeaders })).status, 401, `${path} should require sign-in`);
   }
-  for (const path of ['/api/ai/tts', '/api/campaigns/gear-verify', '/api/chats/send']) {
+  for (const path of ['/api/campaigns/gear-verify', '/api/chats/send']) {
     assert.equal((await call(path, { method: 'POST', headers: spoofHeaders, body: JSON.stringify({ query: 'hi', text: 'hi', threadId: 'x', content: 'x' }) })).status, 401, `${path} should require sign-in`);
   }
 });
