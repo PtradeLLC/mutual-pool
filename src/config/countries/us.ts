@@ -60,8 +60,8 @@ export const US_CONFIG: CountryConfig = {
   },
   
   pwa: {
-    name: 'MutualPool USA',
-    shortName: 'MutualPool US',
+    name: 'MutualPool',
+    shortName: 'MutualPool',
     description: 'Mutual savings pods and driver perks for couriers in the United States with our partner bank.',
     themeColor: '#005FB8',
     backgroundColor: '#F8FAFC',
