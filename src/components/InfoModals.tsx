@@ -500,6 +500,8 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
               <li>{t('howItWorksModal.missedPaymentBullet2')}</li>
               <li>{t('howItWorksModal.missedPaymentBullet3')}</li>
               <li>{t('howItWorksModal.missedPaymentBullet4')}</li>
+              <li>{t('howItWorksModal.missedPaymentBullet5')}</li>
+              <li>{t('howItWorksModal.missedPaymentBullet6')}</li>
             </ul>
           </div>
 

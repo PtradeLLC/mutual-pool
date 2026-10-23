@@ -1317,7 +1317,7 @@ export const en = {
   "howItWorksModal.badge": "Official Platform Governance",
   "howItWorksModal.title": "How It Works & Rules",
   "howItWorksModal.subtitle":
-    "Everything you need to know about how pools work, how payouts are decided, and how your money is protected.",
+    "Everything you need to know about how pods work, how the payout order is set, what the fees are, and what happens when someone misses a deposit.",
   "howItWorksModal.welcomeMatchBannerTitle":
     "Founding Member Welcome Match & First-Cycle Contingency Buffer",
   "howItWorksModal.welcomeMatchBannerBadge": "100% Platform Funded",
@@ -1325,16 +1325,16 @@ export const en = {
     "To build immediate platform trust and de-risk early savings cycles, Mutual Pool puts its own treasury funds behind your pod creation.",
   "howItWorksModal.welcomeMatchCard1Title": "🎁 100% First Deposit Match",
   "howItWorksModal.welcomeMatchCard1Desc":
-    "When a verified KYC member creates their first pod, Mutual Pool matches 100% of their selected deposit tier.",
+    "When a verified member creates their first pod, MutualPool matches one full weekly deposit and places it in that pod's buffer.",
   "howItWorksModal.welcomeMatchCard2Title": "🛡️ Pod Contingency Buffer",
   "howItWorksModal.welcomeMatchCard2Desc":
-    "The match goes directly into your pod's non-withdrawable First-Cycle Contingency Buffer to cover any missed member deposits.",
+    "The match sits in the pod's non-withdrawable contingency buffer. If a member misses a week, the buffer covers that deposit so Friday's payout still goes out.",
   "howItWorksModal.welcomeMatchCard3Title": "🔒 Fair & Secure Rules",
   "howItWorksModal.welcomeMatchCard3Desc":
-    "Gated behind verified KYC identity. Limited to 1 lifetime match per account to prevent gaming or pod farming.",
-  "howItWorksModal.welcomeMatchCard4Title": "🏦 Direct Treasury Backing",
+    "Gated behind verified identity. One lifetime match per person, never paid out as cash, and returned to MutualPool if the pod never needs it.",
+  "howItWorksModal.welcomeMatchCard4Title": "🏦 Platform Funded",
   "howItWorksModal.welcomeMatchCard4Desc":
-    "Funded entirely from Mutual Pool marketing/treasury budget — never from other members' deposits.",
+    "Funded entirely by MutualPool, never from other members' deposits.",
 
   "howItWorksModal.twoKindsTitle": "The Two Kinds of Pods",
   "howItWorksModal.twoKindsSubtitle":
@@ -1359,22 +1359,22 @@ export const en = {
   "howItWorksModal.openPodBullet2":
     "Every member you're matched with has completed identity verification, and you can see their track record before the pod locks.",
   "howItWorksModal.openPodBullet3":
-    "Requires having completed at least one full Trusted Circle cycle first with no missed payments.",
+    "Creating an Open Pod requires at least one completed pod, or 90 days on MutualPool.",
   "howItWorksModal.openPodBullet4":
     "Members who don't have 20+ people in their network yet, or who want a pod to fill faster.",
 
   "howItWorksModal.howPodsWorkTitle": "How Pods Work",
   "howItWorksModal.poolCreationLabel": "Pool Creation:",
-  "howItWorksModal.poolCreationDesc": "Any member can create a pod.",
-  "howItWorksModal.startingSizeLabel": "Starting size:",
+  "howItWorksModal.poolCreationDesc": "Any verified member with a bank debit authorization can create a pod, up to three forming or active at once.",
+  "howItWorksModal.startingSizeLabel": "Pod size:",
   "howItWorksModal.startingSizeDesc":
-    "New accounts can create pods at the 20-member or 50-member size to start.",
-  "howItWorksModal.startingTiersLabel": "Starting deposit tiers:",
+    "From 20 members up to 10,000. A pod can lock and start with as few as 2 members if the creator chooses flexible early launch.",
+  "howItWorksModal.startingTiersLabel": "Deposit tiers:",
   "howItWorksModal.startingTiersDesc":
-    "New pods can be created at the $5, $10, or $20 deposit tier to start.",
+    "$5, $10, $20, $50 or $100 per week. The pot is the deposit multiplied by the number of members.",
   "howItWorksModal.growingLimitsLabel": "Growing your limits:",
   "howItWorksModal.growingLimitsDesc":
-    "Larger pod sizes (100, 500, 1,000, 5,000, 10,000 members) and higher deposit tiers ($50, $100) unlock after you've completed a full pod cycle successfully, with no missed payments, over at least 3 months.",
+    "The largest pot you can join grows with your track record: up to $1,000 before your first completed pod, $2,500 after one, $5,000 after two, and no limit after three. Pots over $1,000 also need experienced members in every early payout slot before they can lock.",
   "howItWorksModal.oneTierLabel": "One tier per pod:",
   "howItWorksModal.oneTierDesc":
     "Every member in a pod deposits the same amount, on the same schedule. You can't mix deposit tiers within a single pod.",
@@ -1385,86 +1385,86 @@ export const en = {
   "howItWorksModal.moneyHeldTitle": "How Your Money is Held",
   "howItWorksModal.individuallyHeldTitle": "Individually Held Accounts",
   "howItWorksModal.individuallyHeldDesc":
-    "Your deposits sit in your own individually held account, not in one shared pot controlled by another person. No single member ever holds or controls anyone else's money.",
+    "Your balance is yours. It is held in your own MutualPool account, not in a pot controlled by another person, and you can withdraw to your bank whenever you choose. No member ever holds or controls anyone else's money.",
   "howItWorksModal.fdicTitle": "FDIC Pass-Through Insurance",
   "howItWorksModal.fdicDesc":
     "Funds held in your MutualPool account are eligible for FDIC pass-through insurance up to $250,000 per member through our partner bank.",
   "howItWorksModal.lockedOnceTitle": "Locked Once Deposited",
   "howItWorksModal.lockedOnceDesc":
-    "Once you deposit into a cycle, that deposit can't be withdrawn or canceled. It's released automatically to that week's recipient.",
-  "howItWorksModal.noInterestTitle": "No Interest (0% Fee)",
+    "Once your weekly deposit is taken on Thursday it belongs to that week's pot and goes to that week's recipient on Friday. It cannot be pulled back.",
+  "howItWorksModal.noInterestTitle": "No Interest, Simple Fees",
   "howItWorksModal.noInterestDesc":
-    "Deposits don't earn interest. Every dollar you put in comes back to you as your full payout when it's your turn — no more, no less.",
+    "Balances earn no interest and there is nothing to borrow. MutualPool charges three fees and no others: 5% on each weekly deposit, 10% on each payout (3% of which goes to the member hosting the pod), and 7% on a hardship advance when it is repaid. Card top-ups and withdrawals are free.",
 
   "howItWorksModal.payoutOrderTitle": "How Payout Order Works",
   "howItWorksModal.payoutOrderSubtitle":
-    'We know "who gets picked" is the most important part of this — here\'s exactly how it works, with no randomness involved once your pod is locked in.',
+    'We know "who gets paid when" is the most important part of this, so here is exactly how the order is set and why it stays fixed once your pod locks.',
   "howItWorksModal.payoutOrderItem1Prefix":
-    "Order is set once, when your pod locks",
+    "Order is set once, when the creator locks the pod.",
   "howItWorksModal.payoutOrderItem1":
-    "(i.e., when it reaches full membership). We randomize the order one time, and that becomes the fixed schedule for the entire cycle.",
+    "The first half of the slots go to the members with the strongest track record: completed pods first, then 90+ days on MutualPool, then newer members. Within each group the order is random. The creator always takes the final slot, which is why they earn the 3% host reward. That schedule is fixed for the whole cycle.",
   "howItWorksModal.payoutOrderItem2Prefix":
-    "Automated Thursday Collections & Friday Payouts",
+    "Thursday deposits, Friday payouts.",
   "howItWorksModal.payoutOrderItem2":
-    "Deposits are automatically swept on Thursdays at 12:00 AM (Midnight). Outbound lump-sum payouts are disbursed on Fridays at 12:00 AM (Midnight) to whoever is scheduled for that week in the fixed rotation order.",
+    "Deposits are taken from each member's balance on Thursday at 12:00 AM Eastern. On Friday at 12:00 AM Eastern the week's pot goes, in full, to the member scheduled for that week.",
   "howItWorksModal.payoutOrderItem3Prefix":
     "Once you've received your payout, you're not eligible again",
   "howItWorksModal.payoutOrderItem3":
-    "until every other member of your pod has had their turn.",
+    "until every other member of your pod has had their turn. You keep depositing every week until the cycle ends, and you can only leave once everyone has been paid.",
   "howItWorksModal.payoutOrderItem4Prefix": "Need your turn moved up?",
   "howItWorksModal.payoutOrderItem4":
-    "You can request early payout for a documented emergency. Requests go through a review process — either a pod-wide vote or an admin review — and every decision is logged and visible to the pod.",
+    "Ask your pod for a reprioritization vote. If more than half of the members vote yes, you move into the next payout slot and the member you displaced takes your old one. Members decide this themselves; every vote is logged for the pod to see.",
   "howItWorksModal.payoutOrderItem5Prefix": "Want to trade spots?",
   "howItWorksModal.payoutOrderItem5":
-    "Two members can agree to swap their positions in the order at any time, no review needed — just mutual consent.",
+    "Two members can swap positions with mutual consent in the app. Members who have already been paid cannot swap, and no swap or vote can move a newer member ahead of a more established one in the early half of the rotation.",
   "howItWorksModal.scheduleCardTitle":
     "Platform-Wide Weekly Settlement Timeline",
   "howItWorksModal.scheduleCardSubtitle":
-    "A single, synchronized cadence across all active pods ensures predictable budgeting, automated clearing, and guaranteed on-time lump-sum delivery.",
+    "One synchronized weekly cadence across every active pod: predictable budgeting, automated collection, and a lump-sum payout to one member every Friday.",
   "howItWorksModal.scheduleStep1Badge": "Sweep 1",
   "howItWorksModal.scheduleStep1Time": "Thursday 12:00 AM Midnight",
   "howItWorksModal.scheduleStep1Title": "Automated Member Deposits",
   "howItWorksModal.scheduleStep1Desc":
-    "All active pod members have their weekly contribution automatically collected from their linked payment method or account balance.",
-  "howItWorksModal.scheduleStep2Badge": "24-Hour Buffer",
+    "Each active member's weekly deposit, plus the 5% deposit fee, is taken from their MutualPool balance. Fund your balance before Thursday from your bank, by card, or with earnings paid straight in.",
+  "howItWorksModal.scheduleStep2Badge": "24-Hour Window",
   "howItWorksModal.scheduleStep2Time": "Thursday All Day",
-  "howItWorksModal.scheduleStep2Title": "Settlement & Contingency Verification",
+  "howItWorksModal.scheduleStep2Title": "Missed Deposits Handled",
   "howItWorksModal.scheduleStep2Desc":
-    "Banking settlement completes. If any member payment encounters a bank delay, the First-Cycle Contingency Reserve bridges the gap so the pool is 100% whole.",
+    "If a balance could not cover a deposit, the member and the whole pod are told at once and the member has 24 hours to pay. The pod's buffer, or MutualPool's escrow, may bridge that week so Friday's payout still goes out.",
   "howItWorksModal.scheduleStep3Badge": "Disbursement",
   "howItWorksModal.scheduleStep3Time": "Friday 12:00 AM Midnight",
-  "howItWorksModal.scheduleStep3Title": "Guaranteed Lump-Sum Payout",
+  "howItWorksModal.scheduleStep3Title": "Lump-Sum Payout, On Time",
   "howItWorksModal.scheduleStep3Desc":
-    "The complete pooled fund is disbursed into the designated member’s wallet or bank account for that cycle week.",
+    "The week's pot, in full, lands in the scheduled member's MutualPool account. From there it can be withdrawn to their bank or left to cover future deposits.",
   "howItWorksModal.scheduleProTip":
-    "Pro-Tip: Ensure your linked bank account or debit card has sufficient funds before Wednesday night (prior to Thursday 12:00 AM) to maintain a flawless pod standing.",
+    "Pro-Tip: Make sure your MutualPool balance covers your deposit plus the 5% fee before Wednesday night. Bank transfers take 1 to 2 business days; card top-ups are immediate.",
 
   "howItWorksModal.missedPaymentTitle": "If a Payment is Missed",
   "howItWorksModal.missedPaymentBullet1":
-    "A missed weekly deposit is flagged immediately and the member is marked delinquent with a 24-hour grace window.",
+    "The Thursday sweep records the missed deposit. The member gets an email and in-app notice, and so does every other member of the pod. The member has 24 hours to pay.",
   "howItWorksModal.missedPaymentBullet2":
-    "Upon wage earnings or recovery, the full deposit amount is deducted directly from the member's account balance.",
+    "Meanwhile the pod's contingency buffer or MutualPool's escrow may cover that week, so the payout still happens. Anything covered becomes money the member owes.",
   "howItWorksModal.missedPaymentBullet3":
-    "If the balance is insufficient to cover the full deposit, the Welcome Match Credited / First-Cycle Contingency Reserve covers the remainder.",
+    "24 hours later, still unpaid: the member is removed from the pod, their account is restricted (no new pods, swaps, votes or hardship requests), and collection starts from their linked bank account under the authorization they gave when joining.",
   "howItWorksModal.missedPaymentBullet4":
-    "Once the Welcome Match kicks in due to insufficient user balance, the member is removed from the Pod due to missed payment default, and the Pod is publicly listed as an Open Pod for a replacement driver.",
+    "The remaining members vote on whether to list the pod publicly to fill the open slot or keep it private. Paying everything owed restores the removed member's account automatically.",
 
   "howItWorksModal.agreementTitle": "The Pod Agreement",
   "howItWorksModal.agreementDesc":
     "Before any pod locks and its first cycle begins, every member reviews and signs a plain-language agreement covering:",
   "howItWorksModal.agreementBullet1":
-    "The fixed payout order and how it was set",
+    "The payout order, how it was set, and that it is fixed for the cycle",
   "howItWorksModal.agreementBulletAutoDebit":
     "Automatic withdrawal of weekly member deposits (Thursdays 12:00 AM) and automated lump-sum rotation payouts (Fridays 12:00 AM) when it is their turn",
-  "howItWorksModal.agreementBullet2": "No guaranteed return and no interest",
+  "howItWorksModal.agreementBullet2": "No interest, no guaranteed return, and the three fees",
   "howItWorksModal.agreementBullet3":
-    "Welcome Match rules and First-Cycle Contingency Buffer governance",
+    "The welcome match and how the pod buffer and escrow are used",
   "howItWorksModal.agreementBullet4":
     "How reprioritization requests and slot swaps work",
   "howItWorksModal.agreementBullet5":
-    "What happens if someone misses a payment",
+    "What happens when a deposit is missed, including the 24-hour window, removal and collection",
   "howItWorksModal.agreementBullet6":
-    "A link to the current insurance disclosure",
+    "Your bank debit authorization and the Terms of Service",
 
   "howItWorksModal.perksTitle": "Perks & Benefits",
   "howItWorksModal.perksSubtitle":
@@ -2200,6 +2200,8 @@ export const en = {
   "complete.closeBtn": 'Close this pod',
   "complete.renewedNote": 'A new round has been started.',
   "complete.closedNote": 'The creator closed this pod.',
+  "howItWorksModal.missedPaymentBullet5": 'If two members of the same pod are in default, the others vote to pause the pod or to keep going and split the missing deposits between them each Thursday. An undecided vote pauses the pod.',
+  "howItWorksModal.missedPaymentBullet6": 'A member who takes a payout and then stops depositing still owes every remaining deposit of the cycle, and an unresolved default drops them back to the $1,000 pod size limit.',
 };
 
 export type TranslationKey = keyof typeof en;
