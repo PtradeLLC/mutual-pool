@@ -1468,7 +1468,7 @@ export const en = {
 
   "howItWorksModal.perksTitle": "Perks & Benefits",
   "howItWorksModal.perksSubtitle":
-    "Being a member gets you more than access to your pod — it also unlocks a marketplace of real-world benefits built for delivery riders and drivers.",
+    "Being a member gets you more than access to your pod — it also unlocks a marketplace of real-world benefits built for essential workers, gig workers, hospitality, warehouse operators. Unique benefits that are not provided by your current employers.",
   "howItWorksModal.categoriesHeader": "Browse & Search Categories:",
   "howItWorksModal.perksSourceLabel": "Where they come from:",
   "howItWorksModal.perksSourceDesc":

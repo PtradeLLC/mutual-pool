@@ -1235,7 +1235,7 @@ export const es: Record<TranslationKey, string> = {
   'howItWorksModal.agreementBullet6': 'Tu autorización de débito bancario y los Términos de Servicio',
 
   'howItWorksModal.perksTitle': 'Beneficios y Recompensas',
-  'howItWorksModal.perksSubtitle': 'Ser miembro te brinda mucho más que acceso a tu grupo: desbloquea un mercado exclusivo de beneficios reales para conductores y repartidores.',
+  'howItWorksModal.perksSubtitle': 'Ser miembro te brinda mucho más que acceso a tu grupo: desbloquea un mercado de beneficios reales creado para trabajadores esenciales, trabajadores gig, hostelería y operadores de almacén. Beneficios únicos que tus empleadores actuales no ofrecen.',
   'howItWorksModal.categoriesHeader': 'Explorar y Buscar Categorías:',
   'howItWorksModal.perksSourceLabel': 'Origen de los beneficios:',
   'howItWorksModal.perksSourceDesc': 'Algunos beneficios son negociados directamente por nuestro equipo; otros provienen de socios externos y son auditados rigurosamente antes de su publicación.',

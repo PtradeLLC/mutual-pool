@@ -1235,7 +1235,7 @@ export const fr: Record<TranslationKey, string> = {
   'howItWorksModal.agreementBullet6': 'Votre autorisation de prélèvement bancaire et les Conditions d\'utilisation',
 
   'howItWorksModal.perksTitle': 'Avantages & Récompenses',
-  'howItWorksModal.perksSubtitle': 'Être membre vous offre bien plus que l\'accès à votre groupe d\'épargne : cela débloque un catalogue complet d\'avantages conçus pour les coursiers et chauffeurs.',
+  'howItWorksModal.perksSubtitle': 'Être membre vous offre bien plus que l\'accès à votre groupe d\'épargne : cela débloque un catalogue d\'avantages concrets conçus pour les travailleurs essentiels, les travailleurs gig, l\'hôtellerie-restauration et les opérateurs d\'entrepôt. Des avantages uniques que vos employeurs actuels ne proposent pas.',
   'howItWorksModal.categoriesHeader': 'Parcourir les Catégories :',
   'howItWorksModal.perksSourceLabel': 'Origine des avantages :',
   'howItWorksModal.perksSourceDesc': 'Certains avantages sont négociés par notre équipe, d\'autres sont proposés par nos partenaires après validation rigoureuse.',
