@@ -1,19 +1,25 @@
 /**
- * Build the MutualPool ad video with Runway + ffmpeg.
+ * Build the MutualPool ad video with Runway + ffmpeg, in any supported language.
  *
- *   npm run video:ad                 full build -> public/videos/mutualpool-ad.{mp4,jpg,vtt,chapters.json}
- *   npm run video:ad -- --smoke      cheap end-to-end check of every primitive (a few credits)
- *   npm run video:ad -- --only s03   regenerate selected scenes (comma separated), then re-assemble
- *   npm run video:ad -- --assemble   skip generation, just re-stitch what is cached
- *   npm run video:ad -- --voice Noah pick another narrator preset (default Kendrick)
+ *   npm run video:ad                     English -> public/videos/mutualpool-ad.{mp4,jpg,vtt,chapters.json}
+ *   npm run video:ad -- --lang es        Spanish -> public/videos/mutualpool-ad.es.*   (same for fr)
+ *   npm run video:ad -- --smoke          cheap end-to-end check of every primitive (a few credits)
+ *   npm run video:ad -- --only s03       regenerate the visuals of selected scenes, then re-assemble
+ *   npm run video:ad -- --assemble       skip generation, just re-stitch what is cached
+ *   npm run video:ad -- --voice Noah     pick another narrator preset (default Kendrick)
  *
  * Needs RUNWAY_API_KEY in .env. Everything generated is cached in assets/ad/.cache so a re-run
- * only pays for what is missing. Delete a scene's folder there to force it to regenerate.
+ * only pays for what is missing:
+ *   .cache/<scene>/clip-N.mp4          b-roll parts, shared by every language (no speech, no text)
+ *   .cache/<scene>/<lang>/narration.mp3  spoken line in that language
+ *   .cache/<scene>/<lang>/avatar.mp4     spokesperson lip-synced to that narration
+ *   .cache/<scene>/<lang>/segment.mp4    normalised segment ready to concatenate
+ * A new language therefore only pays for narration and the avatar scenes.
  *
  * Pipeline per scene
  *   narration : Runway text-to-speech (eleven_v3) with one fixed voice so every scene matches
  *   avatar    : Runway avatar video lip-synced to that narration (custom avatar from the hero photo)
- *   i2v/t2v   : Runway b-roll clip (gen4.5 from the hero photo, or seedance2_fast with photo references)
+ *   i2v/t2v   : Runway b-roll clip (gen4.5 from the hero photo, or hailuo3 with photo references)
  *   assemble  : ffmpeg normalises every clip to 1280x720/30fps, muxes narration, adds the end card
  */
 import 'dotenv/config';
@@ -23,7 +29,7 @@ import { execFileSync } from 'node:child_process';
 import RunwayML from '@runwayml/sdk';
 import ffmpegStatic from 'ffmpeg-static';
 import ffprobeStatic from 'ffprobe-static';
-import { SCENES, CHAPTERS, AVATAR_PERSONALITY, type Scene } from './ad-storyboard';
+import { SCENES, CHAPTERS, AVATAR_PERSONALITY, AD_LANGUAGES, type Scene, type AdLanguage } from './ad-storyboard';
 
 // ---------- config ----------
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -49,6 +55,10 @@ const SMOKE = flag('smoke');
 const ASSEMBLE_ONLY = flag('assemble');
 const ONLY = (opt('only') || '').split(',').map(s => s.trim()).filter(Boolean);
 const VOICE = (opt('voice') || process.env.AD_VOICE_PRESET || 'Kendrick') as any;
+const LANG = (opt('lang') || 'en') as AdLanguage;
+if (!AD_LANGUAGES.includes(LANG)) throw new Error(`--lang must be one of ${AD_LANGUAGES.join(', ')}`);
+/** English keeps the unsuffixed file names the modal has always used. */
+const OUT_NAME = LANG === 'en' ? OUT_BASE : `${OUT_BASE}.${LANG}`;
 
 const ffmpeg = ffmpegStatic as string;
 const ffprobe = ffprobeStatic.path;
@@ -63,6 +73,15 @@ const ensureDir = (p: string) => fs.mkdirSync(p, { recursive: true });
 const exists = (p: string) => fs.existsSync(p) && fs.statSync(p).size > 0;
 const readJson = <T,>(p: string, fallback: T): T => (exists(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : fallback);
 const writeJson = (p: string, v: unknown) => fs.writeFileSync(p, JSON.stringify(v, null, 2));
+
+const sceneDir = (scene: Scene) => path.join(CACHE, scene.id);
+const langDir = (scene: Scene) => path.join(CACHE, scene.id, LANG);
+const narrationFile = (scene: Scene) => path.join(langDir(scene), 'narration.mp3');
+const avatarFile = (scene: Scene) => path.join(langDir(scene), 'avatar.mp4');
+const segmentFile = (scene: Scene) => path.join(langDir(scene), 'segment.mp4');
+const brollFiles = (scene: Scene) => fs.existsSync(sceneDir(scene))
+  ? fs.readdirSync(sceneDir(scene)).filter(f => /^clip-\d+\.mp4$/.test(f)).sort().map(f => path.join(sceneDir(scene), f))
+  : [];
 
 function dataUri(file: string): string {
   const ext = path.extname(file).slice(1).toLowerCase();
@@ -114,11 +133,13 @@ async function waitTask(p: Promise<unknown> & { waitForTaskOutput: (o?: any) => 
 // ---------- Runway primitives ----------
 async function narrate(text: string, file: string): Promise<string> {
   if (exists(file)) return file;
-  log(`tts: ${text.slice(0, 48)}…`);
+  ensureDir(path.dirname(file));
+  log(`tts [${LANG}]: ${text.slice(0, 48)}…`);
   const task = client.textToSpeech.create({
     model: 'eleven_v3',
     promptText: text,
     voice: { type: 'runway-preset', presetId: VOICE },
+    languageCode: LANG,
     stability: 0.5,
     similarityBoost: 0.8,
     style: 0.3,
@@ -176,13 +197,13 @@ async function uploadAudio(file: string, fallbackUrl?: string): Promise<string> 
 async function avatarClip(avatarId: string, audioFile: string, outFile: string): Promise<string> {
   if (exists(outFile)) return outFile;
   const audio = await uploadAudio(audioFile, narrationUrl(audioFile));
-  log(`avatar clip: ${path.basename(outFile)}`);
+  log(`avatar clip [${LANG}]: ${path.relative(CACHE, outFile)}`);
   const task = client.avatarVideos.create({
     model: 'gwm1_avatars',
     avatar: { type: 'custom', avatarId },
     speech: { type: 'audio', audio },
   });
-  const url = await waitTask(task, `avatar ${path.basename(outFile)}`);
+  const url = await waitTask(task, `avatar ${path.relative(CACHE, outFile)}`);
   return download(url, outFile);
 }
 
@@ -226,11 +247,16 @@ async function brollPart(scene: Scene, duration: number, outFile: string, seed: 
   return download(url, outFile);
 }
 
-/** Enough clips to cover the narration (each between BROLL_MIN and BROLL_MAX seconds). */
-async function brollClips(scene: Scene, seconds: number, dir: string): Promise<string[]> {
-  const parts = Math.max(1, Math.ceil(seconds / BROLL_MAX));
+/**
+ * Enough clips to cover the narration (each between BROLL_MIN and BROLL_MAX seconds).
+ * Parts are shared across languages, so a longer translation may add a part; the shorter
+ * languages simply trim the surplus at assembly time.
+ */
+async function brollClips(scene: Scene, seconds: number): Promise<string[]> {
+  const have = brollFiles(scene);
+  const parts = Math.max(have.length, 1, Math.ceil(seconds / BROLL_MAX));
   const each = Math.max(BROLL_MIN, Math.min(BROLL_MAX, Math.ceil(seconds / parts)));
-  const files = Array.from({ length: parts }, (_, i) => path.join(dir, `clip-${i + 1}.mp4`));
+  const files = Array.from({ length: parts }, (_, i) => path.join(sceneDir(scene), `clip-${i + 1}.mp4`));
   await Promise.all(files.map((f, i) => brollPart(scene, each, f, 1000 + i)));
   return files;
 }
@@ -267,6 +293,7 @@ function segmentFromBroll(clips: string[], audio: string, out: string): number {
 
 /** Logo on the brand background, silent. */
 function segmentEndCard(out: string): number {
+  if (exists(out)) return END_CARD_SEC;
   run(ffmpeg, ['-y', '-loop', '1', '-framerate', String(FPS), '-i', LOGO,
     '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
     '-filter_complex', `[0:v]scale=-2:300,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=${BG},fps=${FPS},format=yuv420p,setsar=1,fade=t=in:st=0:d=0.6[v]`,
@@ -275,7 +302,7 @@ function segmentEndCard(out: string): number {
 }
 
 function concat(segments: string[], out: string) {
-  const list = path.join(CACHE, 'concat.txt');
+  const list = path.join(CACHE, `concat-${LANG}.txt`);
   fs.writeFileSync(list, segments.map(s => `file '${s.replace(/'/g, "'\\''")}'`).join('\n'));
   run(ffmpeg, ['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', out]);
 }
@@ -293,7 +320,8 @@ const vttTime = (s: number) => {
 function writeCaptions(timeline: Array<{ scene: Scene; start: number; speech: number }>, out: string) {
   const lines = ['WEBVTT', ''];
   for (const { scene, start, speech } of timeline) {
-    const sentences = scene.narration.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [scene.narration];
+    const text = scene.narration[LANG];
+    const sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [text];
     const chars = sentences.reduce((n, s) => n + s.length, 0);
     let t = start;
     for (const s of sentences) {
@@ -305,28 +333,25 @@ function writeCaptions(timeline: Array<{ scene: Scene; start: number; speech: nu
   fs.writeFileSync(out, lines.join('\n'));
 }
 
-// ---------- manifest ----------
-interface Manifest { avatarId?: string; voice?: string; scenes: Record<string, { narration?: string; clip?: string; clips?: string[]; segment?: string; speechSec?: number; segSec?: number }> }
+// ---------- manifest (only what cannot be derived from the files on disk) ----------
+interface Manifest { avatarId?: string; voice?: string }
 const MANIFEST = path.join(CACHE, 'manifest.json');
-const loadManifest = (): Manifest => readJson<Manifest>(MANIFEST, { scenes: {} });
+const loadManifest = (): Manifest => readJson<Manifest>(MANIFEST, {});
 const saveManifest = (m: Manifest) => writeJson(MANIFEST, m);
 
 // ---------- modes ----------
 async function smoke() {
-  const dir = path.join(CACHE, 'smoke'); ensureDir(dir);
+  const dir = path.join(CACHE, 'smoke', LANG); ensureDir(dir);
   const manifest = loadManifest();
   log('smoke: narration + avatar in parallel');
-  const [audio, avatarId] = await Promise.all([
-    narrate("I know how it is. You work all week, and somehow there's nothing left. MutualPool changes that.", path.join(dir, 'line.mp3')),
-    getAvatarId(manifest),
-  ]);
+  const line = SCENES.find(s => s.id === 's02')!.narration[LANG];
+  const [audio, avatarId] = await Promise.all([narrate(line, path.join(dir, 'line.mp3')), getAvatarId(manifest)]);
   log('smoke: narration', probe(audio));
-  const scene: Scene = { id: 'smoke-t2v', type: 't2v', chapter: 1, narration: '', references: ['main', 'crew'],
-    prompt: SCENES.find(s => s.id === 's03')!.prompt };
+  const t2v: Scene = { ...SCENES.find(s => s.id === 's03')!, id: 'smoke-t2v' };
   const i2v: Scene = { ...SCENES.find(s => s.id === 's01')!, id: 'smoke-i2v' };
   const results = await Promise.allSettled([
     avatarClip(avatarId, audio, path.join(dir, 'avatar.mp4')),
-    brollPart(scene, 5, path.join(dir, 't2v.mp4'), 1),
+    brollPart(t2v, 5, path.join(dir, 't2v.mp4'), 1),
     brollPart(i2v, 5, path.join(dir, 'i2v.mp4'), 1),
   ]);
   for (const r of results) {
@@ -352,38 +377,32 @@ async function build() {
   const manifest = loadManifest();
   if (manifest.voice && manifest.voice !== VOICE) log(`note: cached narration used voice ${manifest.voice}; delete assets/ad/.cache to switch to ${VOICE}`);
   manifest.voice = manifest.voice || VOICE;
+  saveManifest(manifest);
 
   const scenes = SCENES;
   const selected = ONLY.length ? scenes.filter(s => ONLY.includes(s.id)) : scenes;
   for (const s of selected) {
-    if (ONLY.length) fs.rmSync(path.join(CACHE, s.id), { recursive: true, force: true });
-    ensureDir(path.join(CACHE, s.id));
+    if (ONLY.length) {
+      // Regenerate visuals only; narration is kept. Avatar clips depend on language, b-roll is shared.
+      for (const f of brollFiles(s)) fs.rmSync(f, { force: true });
+      fs.rmSync(avatarFile(s), { force: true });
+      fs.rmSync(segmentFile(s), { force: true });
+    }
+    ensureDir(langDir(s));
   }
 
   if (!ASSEMBLE_ONLY) {
     // 1. narration for every scene (cheap, parallel)
-    await pool(selected, CONCURRENCY, async s => {
-      const file = path.join(CACHE, s.id, 'narration.mp3');
-      await narrate(s.narration, file);
-      manifest.scenes[s.id] = { ...(manifest.scenes[s.id] || {}), narration: file, speechSec: probe(file).duration };
-      saveManifest(manifest);
-    });
+    await pool(selected, CONCURRENCY, s => narrate(s.narration[LANG], narrationFile(s)));
 
     // 2. visuals
-    const needAvatar = selected.some(s => s.type === 'avatar');
+    const needAvatar = selected.some(s => s.type === 'avatar' && !exists(avatarFile(s)));
     const avatarId = needAvatar ? await getAvatarId(manifest) : '';
     const failures: string[] = [];
     await pool(selected, CONCURRENCY, async s => {
-      const entry = manifest.scenes[s.id]!;
       try {
-        if (s.type === 'avatar') {
-          const clip = path.join(CACHE, s.id, 'clip.mp4');
-          await avatarClip(avatarId, entry.narration!, clip);
-          entry.clip = clip;
-        } else {
-          entry.clips = await brollClips(s, entry.speechSec! + SCENE_PAD_SEC, path.join(CACHE, s.id));
-        }
-        saveManifest(manifest);
+        if (s.type === 'avatar') await avatarClip(avatarId, narrationFile(s), avatarFile(s));
+        else await brollClips(s, probe(narrationFile(s)).duration + SCENE_PAD_SEC);
       } catch (e: any) {
         failures.push(`${s.id}: ${e?.message || e}`);
         log(`FAILED ${s.id}:`, e?.message || e, e?.taskDetails ? JSON.stringify(e.taskDetails) : '');
@@ -401,35 +420,33 @@ async function build() {
   const segments: string[] = [];
   let t = 0;
   for (const s of scenes) {
-    const entry = manifest.scenes[s.id];
-    const ready = s.type === 'avatar' ? Boolean(entry?.clip && exists(entry.clip)) : Boolean(entry?.clips?.length && entry.clips.every(exists));
-    if (!ready) throw new Error(`${s.id} has no clip yet; run without --assemble`);
-    const seg = path.join(CACHE, s.id, 'segment.mp4');
-    const segSec = s.type === 'avatar' ? segmentFromAvatar(entry!.clip!, seg) : segmentFromBroll(entry!.clips!, entry!.narration!, seg);
-    entry.segment = seg; entry.segSec = segSec;
-    timeline.push({ scene: s, start: t, speech: s.type === 'avatar' ? segSec - SCENE_PAD_SEC : entry.speechSec! });
+    const narration = narrationFile(s);
+    const ready = exists(narration) && (s.type === 'avatar' ? exists(avatarFile(s)) : brollFiles(s).length > 0);
+    if (!ready) throw new Error(`${s.id} [${LANG}] has no clip yet; run without --assemble`);
+    const seg = segmentFile(s);
+    const segSec = s.type === 'avatar' ? segmentFromAvatar(avatarFile(s), seg) : segmentFromBroll(brollFiles(s), narration, seg);
+    timeline.push({ scene: s, start: t, speech: s.type === 'avatar' ? segSec - SCENE_PAD_SEC : probe(narration).duration });
     segments.push(seg);
     t += segSec;
   }
   const endSeg = path.join(CACHE, 'end-card.mp4');
   segmentEndCard(endSeg); segments.push(endSeg);
-  saveManifest(manifest);
 
-  const mp4 = path.join(OUT_DIR, `${OUT_BASE}.mp4`);
+  const mp4 = path.join(OUT_DIR, `${OUT_NAME}.mp4`);
   concat(segments, mp4);
-  poster(mp4, path.join(OUT_DIR, `${OUT_BASE}.jpg`));
-  writeCaptions(timeline, path.join(OUT_DIR, `${OUT_BASE}.vtt`));
+  poster(mp4, path.join(OUT_DIR, `${OUT_NAME}.jpg`));
+  writeCaptions(timeline, path.join(OUT_DIR, `${OUT_NAME}.vtt`));
 
   const chapters = CHAPTERS.map(c => {
     const first = timeline.find(x => x.scene.chapter === c.id);
-    return { ...c, start: Math.round((first?.start ?? 0) * 10) / 10 };
+    return { id: c.id, start: Math.round((first?.start ?? 0) * 10) / 10 };
   });
   const total = Math.round((t + END_CARD_SEC) * 10) / 10;
-  writeJson(path.join(OUT_DIR, `${OUT_BASE}.chapters.json`), { duration: total, chapters, generatedAt: new Date().toISOString() });
+  writeJson(path.join(OUT_DIR, `${OUT_NAME}.chapters.json`), { language: LANG, duration: total, chapters, generatedAt: new Date().toISOString() });
 
   const sizeMb = (fs.statSync(mp4).size / 1024 / 1024).toFixed(1);
-  log(`\nDone -> public/videos/${OUT_BASE}.mp4  (${total}s, ${sizeMb} MB)`);
-  for (const c of chapters) log(`  chapter ${c.id} "${c.title}" @ ${c.start}s`);
+  log(`\nDone [${LANG}] -> public/videos/${OUT_NAME}.mp4  (${total}s, ${sizeMb} MB)`);
+  for (const c of chapters) log(`  chapter ${c.id} "${CHAPTERS[c.id - 1].title}" @ ${c.start}s`);
 }
 
 (SMOKE ? smoke() : build()).catch(e => {

@@ -3,6 +3,7 @@ import {
   X, Play, Pause, Volume2, VolumeX, RotateCcw, ShieldCheck, Zap, Gift, Users, ArrowRight, Maximize2,
 } from 'lucide-react';
 import { Logo } from './Logo';
+import { useTranslation, type TranslationKey, type SupportedLanguage } from '../i18n';
 
 interface WatchVideoModalProps {
   isOpen: boolean;
@@ -25,21 +26,11 @@ const CHAPTER_META = [
   { id: 4, icon: Gift, color: 'text-purple-600', bgColor: 'bg-purple-50' },
 ];
 
-interface Chapter {
-  id: number;
-  title: string;
-  description: string;
-  highlight: string;
-  start: number;
-}
+/** Chapter start times, in seconds. Used until the language's chapters.json loads. */
+const FALLBACK_STARTS = [0, 24, 65, 101];
 
-/** Fallback used until chapters.json loads (or if it is missing). Titles mirror scripts/ad-storyboard.ts. */
-const FALLBACK_CHAPTERS: Chapter[] = [
-  { id: 1, title: 'The Problem & The Idea', description: 'Money disappears before you can save it. MutualPool puts a tradition communities have trusted for generations to work for gig and trade workers.', highlight: 'Tanda • Susu • Chama • Chit fund', start: 0 },
-  { id: 2, title: 'How a Pod Works', description: 'Everyone puts in the same amount each week. One member receives the whole pot. The order is set when the pod locks.', highlight: 'No interest • No credit check • No loan', start: 30 },
-  { id: 3, title: 'Money, Fees & Rules', description: 'Deposits every Thursday, payouts every Friday, simple fees, and rules that protect the members who keep paying.', highlight: '5% per deposit • 10% per payout, 3% to the host', start: 70 },
-  { id: 4, title: 'Perks & Paid Campaigns', description: 'Road perks from partners who get gig life, brand campaigns that pay you by the day, and Lainie to answer questions any time.', highlight: 'Meals • Repairs • Phone plans • Sponsored hoodies', start: 110 },
-];
+/** English is the unsuffixed file set; every other language is a separate dub (see scripts/make-ad-video.ts). */
+const filesFor = (lang: SupportedLanguage) => (lang === 'en' ? VIDEO_BASE : `${VIDEO_BASE}.${lang}`);
 
 const formatTime = (secs: number) => {
   const s = Math.max(0, Math.floor(secs));
@@ -54,8 +45,12 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
   onOpenRegister,
   onOpenHowItWorks,
 }) => {
+  const { t, language } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [chapters, setChapters] = useState<Chapter[]>(FALLBACK_CHAPTERS);
+  // Which file set is playing. Falls back to English if this language has no dub yet.
+  const [videoLang, setVideoLang] = useState(language);
+  const [starts, setStarts] = useState<number[]>(FALLBACK_STARTS);
+  const base = filesFor(videoLang);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -63,25 +58,36 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
   const [showCaptions, setShowCaptions] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  // Chapter timings generated alongside the video.
+  // Chapter timings are generated alongside each dub. A missing file means the dub does not exist,
+  // so we drop back to the English video (its chapter copy still shows in the user's language).
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
-    fetch(`${VIDEO_BASE}.chapters.json`, { cache: 'no-cache' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (cancelled || !data?.chapters?.length) return;
-        setChapters(data.chapters);
+    const load = async (lang: SupportedLanguage): Promise<boolean> => {
+      try {
+        const r = await fetch(`${filesFor(lang)}.chapters.json`, { cache: 'no-cache' });
+        // The SPA fallback answers unknown paths with index.html, so check the type as well as the status.
+        if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return false;
+        const data = await r.json();
+        if (cancelled || !data?.chapters?.length) return false;
+        setVideoLang(lang);
+        setStarts(data.chapters.map((c: { start: number }) => c.start));
         if (typeof data.duration === 'number') setDuration(prev => prev || data.duration);
-      })
-      .catch(() => {/* keep fallback */});
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    setVideoLang(language);
+    load(language).then(ok => { if (!ok && language !== 'en' && !cancelled) load('en'); });
     return () => { cancelled = true; };
-  }, [isOpen]);
+  }, [isOpen, language]);
 
   // Autoplay on open, reset on close.
   useEffect(() => {
     const v = videoRef.current;
     if (!isOpen || !v) return;
+    setLoadError(false);
     v.currentTime = 0;
     const attempt = v.play();
     if (attempt && typeof attempt.catch === 'function') attempt.catch(() => setIsPlaying(false));
@@ -90,7 +96,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
       setIsPlaying(false);
       setCurrentTime(0);
     };
-  }, [isOpen]);
+  }, [isOpen, base]);
 
   // Keep the caption track in sync with the CC toggle.
   useEffect(() => {
@@ -142,6 +148,13 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
 
   if (!isOpen) return null;
 
+  const chapters = CHAPTER_META.map((meta, i) => ({
+    ...meta,
+    start: starts[i] ?? FALLBACK_STARTS[i],
+    title: t(`watchVideo.chapter${meta.id}.title` as TranslationKey),
+    description: t(`watchVideo.chapter${meta.id}.desc` as TranslationKey),
+    highlight: t(`watchVideo.chapter${meta.id}.highlight` as TranslationKey),
+  }));
   const activeChapterIndex = Math.max(0, chapters.reduce((acc, c, i) => (currentTime >= c.start ? i : acc), 0));
   const totalDuration = duration || chapters[chapters.length - 1]?.start || 0;
   const minutes = Math.max(1, Math.round(totalDuration / 60));
@@ -158,12 +171,12 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono font-bold text-[#005FB8] uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200">
-                  Watch
+                  {t('watchVideo.badge')}
                 </span>
-                <span className="text-xs text-[#6B7280]">{minutes} Min Story</span>
+                <span className="text-xs text-[#6B7280]">{t('watchVideo.minStory', { minutes })}</span>
               </div>
               <h3 className="text-base sm:text-lg font-extrabold text-[#111827] leading-tight">
-                How MutualPool Works
+                {t('watchVideo.title')}
               </h3>
             </div>
           </div>
@@ -171,7 +184,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors"
-            title="Close video"
+            title={t('watchVideo.close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -182,10 +195,11 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
         <div className="bg-slate-950 text-white relative flex flex-col select-none shrink-0">
           <div className="relative w-full aspect-video bg-black shrink-0">
             <video
+              key={base}
               ref={videoRef}
               className="absolute inset-0 w-full h-full"
-              src={`${VIDEO_BASE}.mp4`}
-              poster={`${VIDEO_BASE}.jpg`}
+              src={`${base}.mp4`}
+              poster={`${base}.jpg`}
               playsInline
               preload="metadata"
               crossOrigin="anonymous"
@@ -198,14 +212,14 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
               onError={() => setLoadError(true)}
               onClick={togglePlay}
             >
-              <track kind="captions" srcLang="en" label="English" src={`${VIDEO_BASE}.vtt`} default />
+              <track kind="captions" srcLang={videoLang} label={t('watchVideo.captionsLabel')} src={`${base}.vtt`} default />
             </video>
 
             {loadError && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-center p-6">
                 <div className="space-y-2">
-                  <p className="font-bold">The video is not available right now.</p>
-                  <p className="text-sm text-slate-300">Read the full rules below, or come back in a moment.</p>
+                  <p className="font-bold">{t('watchVideo.unavailableTitle')}</p>
+                  <p className="text-sm text-slate-300">{t('watchVideo.unavailableBody')}</p>
                 </div>
               </div>
             )}
@@ -214,7 +228,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
               <button
                 onClick={togglePlay}
                 className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 hover:bg-black/20 transition-colors"
-                aria-label="Play video"
+                aria-label={t('watchVideo.play')}
               >
                 <div className="w-16 h-16 rounded-full bg-[#005FB8] text-white flex items-center justify-center shadow-2xl hover:scale-105 transition-transform">
                   <Play className="w-8 h-8 fill-current ml-1" />
@@ -249,7 +263,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                 <button
                   onClick={togglePlay}
                   className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-                  title={isPlaying ? 'Pause' : 'Play'}
+                  title={isPlaying ? t('watchVideo.pause') : t('watchVideo.play')}
                 >
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
                 </button>
@@ -257,7 +271,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                 <button
                   onClick={() => seekTo(0)}
                   className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 transition-colors"
-                  title="Replay video"
+                  title={t('watchVideo.replay')}
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -265,7 +279,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                 <button
                   onClick={toggleMute}
                   className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 transition-colors"
-                  title={isMuted ? 'Unmute' : 'Mute'}
+                  title={isMuted ? t('watchVideo.unmute') : t('watchVideo.mute')}
                 >
                   {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
                 </button>
@@ -275,7 +289,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                   className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${
                     showCaptions ? 'bg-blue-600 text-white border-blue-500' : 'bg-white/10 text-slate-400 border-white/10'
                   }`}
-                  title={showCaptions ? 'Hide captions' : 'Show captions'}
+                  title={showCaptions ? t('watchVideo.hideCaptions') : t('watchVideo.showCaptions')}
                 >
                   CC
                 </button>
@@ -283,7 +297,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                 <button
                   onClick={goFullscreen}
                   className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 transition-colors"
-                  title="Full screen"
+                  title={t('watchVideo.fullscreen')}
                 >
                   <Maximize2 className="w-4 h-4" />
                 </button>
@@ -336,7 +350,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                   </div>
 
                   <div>
-                    <h5 className="font-bold text-[#111827] line-clamp-1">{chap.title}</h5>
+                    <h5 className="font-bold text-[#111827] text-sm leading-tight line-clamp-2">{chap.title}</h5>
                     <p className="text-[10px] text-[#6B7280] line-clamp-2 leading-relaxed mt-0.5 [@media(max-height:1000px)]:hidden">
                       {chap.description}
                     </p>
@@ -354,7 +368,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 pt-2 border-t border-[#E2E8F0]">
             <div className="flex items-center gap-2 text-xs text-[#4B5563]">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Free to join • Zero interest • Withdraw to your bank any time</span>
+              <span>{t('watchVideo.footer')}</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -366,7 +380,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                   }}
                   className="px-4 py-2.5 rounded-xl border border-[#DDE1E6] bg-white hover:bg-gray-50 text-[#111827] font-semibold text-xs transition-colors"
                 >
-                  Read Full Rules & FAQ
+                  {t('watchVideo.readRules')}
                 </button>
               )}
 
@@ -377,7 +391,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                 }}
                 className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs flex items-center gap-1.5"
               >
-                <span>Join a Pod Free</span>
+                <span>{t('watchVideo.join')}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

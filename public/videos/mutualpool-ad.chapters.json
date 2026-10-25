@@ -1,34 +1,23 @@
 {
+  "language": "en",
   "duration": 145.2,
   "chapters": [
     {
       "id": 1,
-      "title": "The Problem & The Idea",
-      "description": "Money disappears before you can save it. MutualPool puts a tradition communities have trusted for generations to work for gig and trade workers.",
-      "highlight": "Tanda • Susu • Chama • Chit fund",
       "start": 0
     },
     {
       "id": 2,
-      "title": "How a Pod Works",
-      "description": "Everyone puts in the same amount each week. One member receives the whole pot. The order is set when the pod locks.",
-      "highlight": "No interest • No credit check • No loan",
       "start": 23.6
     },
     {
       "id": 3,
-      "title": "Money, Fees & Rules",
-      "description": "Deposits every Thursday, payouts every Friday, simple fees, and rules that protect the members who keep paying.",
-      "highlight": "5% per deposit • 10% per payout, 3% to the host",
       "start": 64.9
     },
     {
       "id": 4,
-      "title": "Perks & Paid Campaigns",
-      "description": "Road perks from partners who get gig life, brand campaigns that pay you by the day, and Lainie to answer questions any time.",
-      "highlight": "Meals • Repairs • Phone plans • Sponsored hoodies",
       "start": 101.4
     }
   ],
-  "generatedAt": "2026-10-25T16:45:14.273Z"
+  "generatedAt": "2026-10-25T17:32:40.779Z"
 }

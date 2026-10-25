@@ -159,15 +159,20 @@ opened and are never stored by MutualPool.
 The video behind the landing page "Watch Video" button is generated, not hand-edited.
 
     npm run video:ad -- --smoke     # a few credits: checks narration, avatar and b-roll end to end
-    npm run video:ad                # full build (roughly 3,000-4,000 Runway credits)
-    npm run video:ad -- --only s03  # regenerate one scene, then re-stitch
+    npm run video:ad                # English build (about 1,400 Runway credits the first time)
+    npm run video:ad -- --lang es   # Spanish dub (about 60 credits: narration + lip-synced avatar scenes)
+    npm run video:ad -- --lang fr   # French dub
+    npm run video:ad -- --only s03  # regenerate one scene's visuals, then re-stitch
     npm run video:ad -- --assemble  # re-stitch cached clips only
 
-Needs `RUNWAY_API_KEY` in `.env`. Script, character photos and chapter copy live in
-`scripts/ad-storyboard.ts` and `assets/ad/`. Output goes to `public/videos/mutualpool-ad.*`
-(mp4, poster, captions, chapter timings) and ships with the normal deploy. Generated
-intermediates are cached in `assets/ad/.cache/` (ignored by git) so re-runs only pay for
-what is missing.
+Needs `RUNWAY_API_KEY` in `.env`. Script (narration in en/es/fr) and character photos live in
+`scripts/ad-storyboard.ts` and `assets/ad/`; the modal's chapter copy is in the i18n files under
+`watchVideo.*`. Output goes to `public/videos/mutualpool-ad.*` for English and
+`public/videos/mutualpool-ad.<lang>.*` for dubs (mp4, poster, captions, chapter timings) and ships
+with the normal deploy. The modal plays the dub for the active language and falls back to English
+when none exists. Generated intermediates are cached in `assets/ad/.cache/` (ignored by git); b-roll
+is shared across languages, so a new language only pays for narration and the avatar scenes.
+Spanish and French narration were drafted in-house: have a native speaker review them before launch.
 
 ## Before launch: move to Managed Postgres
 

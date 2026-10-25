@@ -1,0 +1,23 @@
+{
+  "language": "fr",
+  "duration": 156,
+  "chapters": [
+    {
+      "id": 1,
+      "start": 0
+    },
+    {
+      "id": 2,
+      "start": 26.5
+    },
+    {
+      "id": 3,
+      "start": 72.2
+    },
+    {
+      "id": 4,
+      "start": 108.4
+    }
+  ],
+  "generatedAt": "2026-10-25T17:45:49.085Z"
+}
