@@ -9,3 +9,7 @@ coverage/
 
 # Firebase service account keys (never commit)
 *firebase-adminsdk*.json
+
+# Generated ad video intermediates
+assets/ad/.cache/
+scripts/.tmp/

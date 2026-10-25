@@ -51,8 +51,8 @@ self.addEventListener('fetch', (event) => {
   }
   if (requestOrigin !== self.location.origin) return;
 
-  // Skip backend API calls, dev modules, vite assets, and websockets
-  if (reqUrl.includes('/api/') || reqUrl.includes('/@vite/') || reqUrl.includes('/src/') || reqUrl.includes('node_modules')) return;
+  // Skip backend API calls, dev modules, vite assets, websockets, and streamed video (range requests must hit the network)
+  if (reqUrl.includes('/api/') || reqUrl.includes('/@vite/') || reqUrl.includes('/src/') || reqUrl.includes('node_modules') || reqUrl.includes('/videos/')) return;
 
   // Safe helper to cache a response without throwing unhandled promise rejections
   const safeCachePut = (request, response) => {

@@ -154,6 +154,21 @@ https://docs.column.com/guides/going-live. Members' identity details (name,
 date of birth, SSN, address) are sent straight to Column when their account is
 opened and are never stored by MutualPool.
 
+## Ad video (Watch Video modal)
+
+The video behind the landing page "Watch Video" button is generated, not hand-edited.
+
+    npm run video:ad -- --smoke     # a few credits: checks narration, avatar and b-roll end to end
+    npm run video:ad                # full build (roughly 3,000-4,000 Runway credits)
+    npm run video:ad -- --only s03  # regenerate one scene, then re-stitch
+    npm run video:ad -- --assemble  # re-stitch cached clips only
+
+Needs `RUNWAY_API_KEY` in `.env`. Script, character photos and chapter copy live in
+`scripts/ad-storyboard.ts` and `assets/ad/`. Output goes to `public/videos/mutualpool-ad.*`
+(mp4, poster, captions, chapter timings) and ships with the normal deploy. Generated
+intermediates are cached in `assets/ad/.cache/` (ignored by git) so re-runs only pay for
+what is missing.
+
 ## Before launch: move to Managed Postgres
 
 Do this before real members deposit money. Managed Postgres (`fly mpg`) gives
