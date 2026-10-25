@@ -565,7 +565,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <section className="bg-white border-b border-[#DDE1E6] pt-8 sm:pt-10 pb-14 sm:pb-16 px-4 sm:px-6 relative overflow-hidden">
             <div className="max-w-7xl mx-auto relative z-10">
               
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center lg:items-start">
                 
                 {/* LEFT COLUMN: HERO IMAGE & OVERLAY BADGES (Desktop only: lg+) */}
                 <div className="hidden lg:block lg:col-span-5 relative">
@@ -662,8 +662,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
               </div>
 
+
+            </div>
+
+          </div>
+
               {/* Trust Highlights Strip */}
-              <div className="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+              <div className="mt-8 lg:mt-10 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-left">
                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0] space-y-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <span className="text-xs sm:text-sm font-bold text-[#111827] block">{t('hero.featurePodInviteTitle')}</span>
@@ -688,10 +693,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span className="text-xs text-[#6B7280]">{t('hero.featureEmergencySwapDesc')}</span>
                 </div>
               </div>
-
-            </div>
-
-          </div>
 
         </div>
       </section>
