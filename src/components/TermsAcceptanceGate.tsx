@@ -54,7 +54,7 @@ export const TermsAcceptanceGate: React.FC<TermsAcceptanceGateProps> = ({ user, 
         </div>
 
         <p className="text-xs text-[#374151] leading-relaxed">
-          The terms explain your commitment to each pod you join, the fees ({'5% per deposit, 10% per payout'}), what happens if a member stops paying,
+          The terms explain your commitment to each pod you join, the fees ({'10% per payout'}) and the refundable 5% pod buffer, what happens if a member stops paying,
           and how brand-campaign shifts are verified and paid.
         </p>
 

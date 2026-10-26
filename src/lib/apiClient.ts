@@ -5,13 +5,39 @@ export function getActiveUserId(): string | null {
   return auth.currentUser?.uid || null;
 }
 
+/**
+ * Fired once when a signed-in session can no longer produce a valid ID token (refresh
+ * blocked or revoked, or the server rejects the token). The app signs the member out and
+ * asks them to sign in again instead of leaving a dashboard whose API calls all fail.
+ */
+export const SESSION_LOST_EVENT = 'mutualpool_session_lost';
+let sessionLostReported = false;
+function reportSessionLost(reason: string): void {
+  if (sessionLostReported || typeof window === 'undefined') return;
+  sessionLostReported = true;
+  console.warn('[apiClient] session lost:', reason);
+  window.dispatchEvent(new CustomEvent(SESSION_LOST_EVENT, { detail: { reason } }));
+}
+export function resetSessionLostFlag(): void { sessionLostReported = false; }
+
 // Wait for Firebase to restore a persisted session so early requests carry a token.
-async function getIdTokenWhenReady(): Promise<string | null> {
+// A cached user whose token cannot be refreshed is treated as signed out.
+async function getIdTokenWhenReady(forceRefresh = false): Promise<string | null> {
   try {
     await auth.authStateReady();
-    return auth.currentUser ? await auth.currentUser.getIdToken() : null;
   } catch (err) {
-    console.warn('[apiClient] Failed to obtain Firebase ID token:', err);
+    console.warn('[apiClient] auth state not ready:', err);
+    return null;
+  }
+  const user = auth.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken(forceRefresh);
+  } catch (err) {
+    if (!forceRefresh) {
+      try { return await user.getIdToken(true); } catch { /* fall through */ }
+    }
+    reportSessionLost(`token refresh failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
@@ -122,10 +148,23 @@ export function installFetchInterceptor(): void {
           currentHeaders.set('Idempotency-Key', `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
         }
 
-        return nativeFetch(input, {
-          ...init,
-          headers: currentHeaders,
-        });
+        const response = await nativeFetch(input, { ...init, headers: currentHeaders });
+
+        // A 401 while Firebase still has a user means the token was stale or rejected:
+        // retry once with a freshly minted token, then give up on the session.
+        if (response.status === 401 && auth.currentUser && !(init as any)?.__mutualpoolRetried) {
+          const fresh = await getIdTokenWhenReady(true);
+          if (fresh) {
+            const retryHeaders = new Headers(currentHeaders);
+            retryHeaders.set('Authorization', `Bearer ${fresh}`);
+            const retried = await nativeFetch(input, { ...init, headers: retryHeaders, __mutualpoolRetried: true } as RequestInit);
+            if (retried.status !== 401) return retried;
+            reportSessionLost(`server rejected a fresh token for ${url}`);
+            return retried;
+          }
+          reportSessionLost(`no token available for ${url}`);
+        }
+        return response;
       }
 
       return nativeFetch(input, init);

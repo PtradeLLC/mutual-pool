@@ -38,6 +38,7 @@ const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate'
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { SESSION_LOST_EVENT, resetSessionLostFlag } from './lib/apiClient';
 import { auth } from './lib/firebase';
 import { 
   seedInitialFirestoreData, 
@@ -774,6 +775,23 @@ export default function App() {
     syncUserWithBackend(user).catch(console.error);
     fetchAppData(user.id);
   };
+
+  // The API client could not get a usable token for a cached Firebase user (see apiClient).
+  // Clear the stale session so the member sees a sign-in prompt, not a dashboard full of 401s.
+  useEffect(() => {
+    const onSessionLost = async () => {
+      try { await signOut(auth); } catch { /* already gone */ }
+      setCurrentUser(null);
+      setViewMode('LANDING');
+      resetSessionLostFlag();
+      toast.error('Your session has expired. Please sign in again.', { title: 'Signed out' });
+      setAuthInitialMode('LOGIN');
+      setShowAuthModal(true);
+    };
+    window.addEventListener(SESSION_LOST_EVENT, onSessionLost);
+    return () => window.removeEventListener(SESSION_LOST_EVENT, onSessionLost);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = async () => {
     try {

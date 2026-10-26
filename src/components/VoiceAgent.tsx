@@ -540,7 +540,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
           navigationAction: null
         } : {
           spokenText: `Welcome ${userName}! I'm Lainie, your MutualPool Voice AI Guide. Ask me anything about how savings pods work, the 3% Creator Host Reward, our Autonomous AI Custodian, your MutualPool account, or explore our FAQ!`,
-          displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Your MutualPool account, deposits and payouts\n• Transparent Fees (5% per deposit / 10% on payouts)\n• Brand Ambassador Earnings & Vision Verification`,
+          displayText: `🎙️ MutualPool Voice Assistant (FAQ Knowledge Base)\n\nI am trained on the complete MutualPool Knowledge Base:\n• Rotating Savings Pods (ROSCAs / Susu / Tandas) (0% interest, no loan debt)\n• Creator Host Rewards (3%) & Skin-in-the-Game Guarantee\n• Autonomous AI Custodian Protocol (Lainie) & System Escrow\n• Your MutualPool account, deposits and payouts\n• Transparent Fees (10% on payouts, refundable 5% pod buffer)\n• Brand Ambassador Earnings & Vision Verification`,
           suggestedActions: [
             { label: "What is a ROSCA / Pod?", action: "SPEAK_EXPLANATION", prompt: "What is MutualPool and how does a Mutual Savings Pod work?" },
             { label: "Is MutualPool a loan?", action: "SPEAK_EXPLANATION", prompt: "Is MutualPool a loan, credit card, or debt?" },

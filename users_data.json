@@ -37,7 +37,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-09-02T16:35:53.122Z",
-    "accountAgeDays": 35,
+    "accountAgeDays": 54,
     "kycStatus": "PENDING",
     "treasury": {
       "stripeAccountId": "acct_1xCustom_1788366961537",
@@ -95,7 +95,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:17:24.579Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -211,7 +211,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:00.327Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -239,7 +239,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:00.388Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -267,7 +267,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:00.459Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -295,7 +295,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:00.483Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -323,7 +323,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:00.555Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -441,7 +441,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:34.483Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -469,7 +469,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:34.526Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -497,7 +497,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:34.617Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -525,7 +525,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:34.647Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -553,7 +553,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:19:34.724Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -671,7 +671,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:20:01.720Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -699,7 +699,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:20:01.780Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -727,7 +727,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:20:01.874Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -755,7 +755,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:20:01.897Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -783,7 +783,7 @@
     "platform": "DoorDash",
     "role": "RIDER",
     "createdAt": "2026-10-02T23:20:01.965Z",
-    "accountAgeDays": 5,
+    "accountAgeDays": 23,
     "kycStatus": "VERIFIED",
     "treasury": {
       "stripeAccountId": "",
@@ -4789,9 +4789,9 @@
     "displayName": "Chris Bitoye",
     "avatarUrl": "https://ui-avatars.com/api/?name=Chris%20Bitoye&background=005FB8&color=fff&size=200",
     "platform": "DoorDash",
-    "role": "RIDER",
+    "role": "Admin",
     "createdAt": "2026-10-17T17:12:11.004Z",
-    "accountAgeDays": 1,
+    "accountAgeDays": 8,
     "kycStatus": "UNVERIFIED",
     "treasury": {
       "stripeAccountId": "acct_1URdPUJhS68oFICh",
@@ -4813,7 +4813,8 @@
     "emailVerified": false,
     "browserLanguage": "en-us",
     "preferredLanguage": "en",
-    "termsAcceptedVersion": "2026-10-14",
-    "termsAcceptedAt": "2026-10-17T17:12:14.144Z"
+    "termsAcceptedVersion": "2026-10-21",
+    "termsAcceptedAt": "2026-10-26T17:11:27.966Z",
+    "isAdmin": true
   }
 ]
