@@ -46,13 +46,13 @@ export const en = {
   "hero.savingsCircleSub": "Couriers, Trades, Freelancers & Contractors",
   "hero.interestFree": "0% Interest",
   "hero.featurePodInviteTitle": "Invite Crew|Friends",
-  "hero.featurePodInviteDesc": "Create or join trusted pods",
+  "hero.featurePodInviteDesc": "Create or join trusted pods with friends, family, and co-workers",
   "hero.featureSafeDepositsTitle": "FDIC Pass-Through",
   "hero.featureSafeDepositsDesc": "Insured deposits up to $250k",
   "hero.featurePerksBenefitsTitle": "Gig & Trade Perks",
-  "hero.featurePerksBenefitsDesc": "Member perks & sponsor gear",
-  "hero.featureEmergencySwapTitle": "Emergency Voting",
-  "hero.featureEmergencySwapDesc": "Peer payout rotation swaps",
+  "hero.featurePerksBenefitsDesc": "Members gets unique benefits and perks that are not provided by their current employer.",
+  "hero.featureEmergencySwapTitle": "Earn from Brand Campaigns",
+  "hero.featureEmergencySwapDesc": "Members earn money everyday by wearing partner sponsored clothing on their routes.",
 
   // Interactive ROSCA Calculator Simulator
   // Gig platform strip (landing page)
@@ -318,7 +318,7 @@ export const en = {
   "hero.fdicBadgeTitle.noTreasury": "Secure Payments",
   "hero.fdicBadgeSub.noTreasury": "Bank-grade security",
   "hero.featureSafeDepositsTitle.noTreasury": "Secure Payments",
-  "hero.featureSafeDepositsDesc.noTreasury": "Your own account; withdraw to your bank any time",
+  "hero.featureSafeDepositsDesc.noTreasury": "Get payments in and out of your own money account; withdraw to your bank any time",
   "calculator.fdicStatusLabel.noTreasury": "Payment Processing:",
   "calculator.fdicEligible.noTreasury": "Identity-verified members",
   "bottomCta.subtitle.noTreasury": "Join gig workers saving together. Payouts land in your own MutualPool account, ready to withdraw to your bank whenever you choose.",
