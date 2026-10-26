@@ -2279,7 +2279,7 @@ export const en = {
   'partners.fleet.ask': 'A 60 to 90 day pilot at one station, and the option to split pay to MutualPool during onboarding.',
   'partners.fleet.get': 'Fewer no-shows, a retention story to tell drivers, and a monthly report on participation and completion.',
   'partners.warehouse.title': 'Warehouses & staffing agencies',
-  'partners.warehouse.problem': 'Hourly workers paid weekly, high turnover, and emergency pay advances that cost you money.',
+  'partners.warehouse.problem': 'Hourly workers paid weekly, high turnover, and emergency pay advances that cost money.',
   'partners.warehouse.proposal': 'Pods as a line in your benefits sheet: a zero-interest emergency fund your workers build themselves, with Spanish and French onboarding for your floor.',
   'partners.warehouse.ask': 'A payroll split option so part of a check can go to MutualPool, and a shift lead as host.',
   'partners.warehouse.get': 'A benefit that costs nothing to run, fewer advance requests, and a reason for workers to stay through a full cycle.',
@@ -2344,7 +2344,7 @@ export const en = {
   'partners.faq3A': 'No. A payroll split is optional and set up by the worker. We only ever see what arrives in their MutualPool account.',
   'partners.faq4Q': 'Is this a loan product?',
   'partners.faq4A': 'No. There is no interest, no credit check and nothing to repay. Members pool their own money and take turns receiving it.',
-  'partners.backToSite': 'Back to MutualPool',
+  'partners.backToSite': 'Back Home',
 };
 
 export type TranslationKey = keyof typeof en;
