@@ -1050,7 +1050,7 @@ export const en = {
   "createPod.platformFeeLabel": 'Refundable Pod Buffer (5%)',
   "createPod.platformFeeDesc": 'Goes into your pod\'s own safety buffer, not to MutualPool. Returned to members if unused.',
   "createPod.totalInitialPaymentLabel":
-    "Total Initial Payment Required to Create Pool",
+    "Total Initial Deposit Required to Create Pool",
   "createPod.totalInitialPaymentDesc": 'Includes base deposit + 5% refundable pod buffer (returned if unused)',
   "createPod.fullCapacityTargetLabel": "Full Capacity Payout Target",
   "createPod.fullCapacityCalculation": "{size} members × ${deposit}/wk",
