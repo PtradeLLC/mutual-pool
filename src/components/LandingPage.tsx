@@ -51,6 +51,7 @@ interface LandingPageProps {
   onOpenContact?: () => void;
   onOpenSubmitPerk?: () => void;
   onOpenAdvertiser?: () => void;
+  onOpenPartners?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
@@ -66,6 +67,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenContact,
   onOpenSubmitPerk,
   onOpenAdvertiser,
+  onOpenPartners,
 }) => {
   const isAuthUser = Boolean(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
   const { t, formatCurrency } = useTranslation();
@@ -284,6 +286,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
               {t('nav.contact')}
             </button>
+            {onOpenPartners && (
+              <button
+                onClick={onOpenPartners}
+                className="hover:text-[#005FB8] transition-colors py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+              >
+                {t('nav.partners')}
+              </button>
+            )}
             {onOpenAdvertiser && (
               <button
                 type="button"
@@ -1202,6 +1212,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <button onClick={onOpenContact} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('nav.contact')}
             </button>
+            {onOpenPartners && (
+              <>
+                <span>•</span>
+                <button onClick={onOpenPartners} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+                  {t('nav.partners')}
+                </button>
+              </>
+            )}
             <span>•</span>
             <a href="/privacy" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors">
               {t('footer.privacy')}

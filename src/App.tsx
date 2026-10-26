@@ -36,6 +36,7 @@ const PrivacyPolicyModal = lazy(() => import('./components/PrivacyPolicyModal').
 const TermsOfServiceModal = lazy(() => import('./components/TermsOfServiceModal').then((module) => ({ default: module.TermsOfServiceModal })));
 const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate').then((module) => ({ default: module.TermsAcceptanceGate })));
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
+const PartnersPage = lazy(() => import('./components/PartnersPage').then((module) => ({ default: module.PartnersPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { SESSION_LOST_EVENT, resetSessionLostFlag } from './lib/apiClient';
@@ -75,8 +76,10 @@ export default function App() {
       return null;
     }
   });
-  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD' | 'ADVERTISER'>(() => {
+  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD' | 'ADVERTISER' | 'PARTNERS'>(() => {
     try {
+      // Deep link for the public Partners page (pods as a worker benefit).
+      if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/partners') return 'PARTNERS';
       return localStorage.getItem('mutualpool_active_user') ? 'DASHBOARD' : 'LANDING';
     } catch {
       return 'LANDING';
@@ -211,6 +214,17 @@ export default function App() {
   const [repayingHardship, setRepayingHardship] = useState(false);
   const [openSubmitPerkDirectly, setOpenSubmitPerkDirectly] = useState(false);
   const [advertiserInitialTab, setAdvertiserInitialTab] = useState<'metrics' | 'media-kit'>('media-kit');
+
+  const handleOpenPartners = () => {
+    setViewMode('PARTNERS');
+    try { window.history.pushState({}, '', '/partners'); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const handleClosePartners = () => {
+    setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
+    try { if (window.location.pathname.replace(/\/+$/, '') === '/partners') window.history.replaceState({}, '', '/'); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleOpenAdvertiser = (tab: 'metrics' | 'media-kit' = 'media-kit') => {
     setAdvertiserInitialTab(tab);
@@ -1064,6 +1078,7 @@ export default function App() {
       {viewMode === 'LANDING' ? (
         <>
           <LandingPage
+            onOpenPartners={handleOpenPartners}
             allPods={allPods}
             currentUser={currentUser}
             onOpenAuth={handleOpenAuth}
@@ -1168,6 +1183,21 @@ export default function App() {
             onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
           />
         </>
+      ) : viewMode === 'PARTNERS' ? (
+        <Suspense fallback={
+          <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">
+            <div className="flex items-center gap-3 text-[#005FB8] font-semibold text-sm">
+              <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
+              <span>Loading Partners…</span>
+            </div>
+          </div>
+        }>
+          <PartnersPage
+            onBack={handleClosePartners}
+            onOpenAuth={handleOpenAuth}
+            onWatchVideo={() => { handleClosePartners(); setViewMode('LANDING'); }}
+          />
+        </Suspense>
       ) : viewMode === 'ADVERTISER' ? (
         <Suspense fallback={
           <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">

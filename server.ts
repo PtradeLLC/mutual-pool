@@ -8488,6 +8488,63 @@ app.post('/api/campaigns/advertiser-inquiry', async (req: Request, res: Response
   }
 });
 
+// --- PARTNERS PAGE: pilot requests from employers, fleets, unions and platforms ---
+let partnerInquiries: any[] = [];
+const PARTNER_TYPES = new Set(['fleet', 'warehouse', 'union', 'platform', 'other']);
+const PARTNER_INTERESTS = new Set(['pods', 'payroll', 'apparel', 'cobrand']);
+
+app.post('/api/partners/inquiry', publicFormRateLimiter, (req: Request, res: Response) => {
+  try {
+    const b = req.body || {};
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const orgName = str(b.orgName, 120);
+    const contactName = str(b.contactName, 120);
+    const contactEmail = str(b.contactEmail, 200);
+    if (!orgName || !contactName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      return res.status(400).json({ error: 'VALIDATION', message: 'Organization, contact name and a valid work email are required.' });
+    }
+    const orgType = PARTNER_TYPES.has(String(b.orgType)) ? String(b.orgType) : 'other';
+    const interests = Array.isArray(b.interests) ? b.interests.map(String).filter(i => PARTNER_INTERESTS.has(i)).slice(0, 4) : [];
+    const workforceSize = Number(b.workforceSize);
+    const inquiry = {
+      id: `pin_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      orgName,
+      orgType,
+      contactName,
+      contactEmail,
+      contactPhone: str(b.contactPhone, 40),
+      workforceSize: Number.isFinite(workforceSize) && workforceSize > 0 ? Math.min(Math.round(workforceSize), 1_000_000) : undefined,
+      metro: str(b.metro, 120),
+      payCadence: ['weekly', 'biweekly', 'daily', 'other'].includes(String(b.payCadence)) ? String(b.payCadence) : 'other',
+      interests,
+      notes: str(b.notes, 3000),
+      language: getHeaderValue(req, 'x-app-language') || 'en',
+      submittedAt: new Date().toISOString(),
+      status: 'NEW',
+    };
+    partnerInquiries.unshift(inquiry);
+    requestFlush();
+    notifyAdmins({
+      type: 'STATUS_CHANGE',
+      title: '🤝 New partner pilot request',
+      message: `${inquiry.orgName} (${inquiry.orgType}) asked for a pilot. Contact ${inquiry.contactName}, ${inquiry.contactEmail}${inquiry.metro ? `, ${inquiry.metro}` : ''}.`,
+      metadata: { partnerInquiryId: inquiry.id },
+    });
+    console.log(`[Partner Inquiry] ${inquiry.id} ${inquiry.orgName} (${inquiry.orgType})`);
+    res.json({ success: true, inquiry: { id: inquiry.id, submittedAt: inquiry.submittedAt } });
+  } catch (err: any) {
+    console.error('Error submitting partner inquiry:', err);
+    res.status(500).json({ error: 'FAILED_TO_SUBMIT' });
+  }
+});
+
+app.get('/api/admin/partner-inquiries', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  }
+  res.json({ inquiries: partnerInquiries });
+});
+
 app.get('/api/campaigns/advertiser-inquiries', (req: Request, res: Response) => {
   if (!checkIsAdmin(req)) {
     return res.status(403).json({ error: 'Access denied. Administrator role required.' });
@@ -9899,6 +9956,7 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'outboundEmails', get: getOutboundEmails, set: setOutboundEmails });
   registerCollection({ collection: 'shifts', get: () => shifts, set: docs => { shifts = docs; } });
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
+  registerCollection({ collection: 'partnerInquiries', get: () => partnerInquiries, set: docs => { partnerInquiries = docs; } });
   registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });
   registerCollection({ collection: 'chatThreads', get: getChatThreads, set: setChatThreads });
   registerCollection({ collection: 'chatMessages', get: getChatMessages, set: docs => {
