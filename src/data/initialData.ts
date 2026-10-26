@@ -68,6 +68,7 @@ export const INITIAL_PERKS: Perk[] = [
   },
   {
     id: 'perk_mobile_mechanic',
+    tier: 'PREMIUM',
     title: 'Mobile Mechanic Comes to You – 20% Off Labor',
     category: 'Tires & Roadside Repair',
     provider: 'RoadReady Mobile Mechanics',
@@ -106,6 +107,7 @@ export const INITIAL_PERKS: Perk[] = [
   },
   {
     id: 'perk_fuel_delivery',
+    tier: 'PREMIUM',
     title: 'Fuel Delivered to Your Car, No Delivery Fee',
     category: 'Fuel Delivery & EV Charging',
     provider: 'TankUp Mobile Fuel',
@@ -144,6 +146,7 @@ export const INITIAL_PERKS: Perk[] = [
   },
   {
     id: 'perk_phone_data',
+    tier: 'PREMIUM',
     title: 'Unlimited Data Plan $25/mo + Free Car Mount',
     category: 'Phone & Data Deals',
     provider: 'DriveLine Mobile',
@@ -182,6 +185,7 @@ export const INITIAL_PERKS: Perk[] = [
   },
   {
     id: 'perk_chair_massage',
+    tier: 'PREMIUM',
     title: '15-Minute Chair Massage for $12',
     category: 'Massage & Body Care',
     provider: 'Knead Break Massage',

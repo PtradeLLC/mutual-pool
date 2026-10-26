@@ -126,6 +126,11 @@ export interface User {
   accountRestriction?: AccountRestriction;
   // Bank account in the member's name at Column (see src/server/custody.ts).
   custody?: MemberCustody;
+  // Earnings routed into the MutualPool account from outside (employer or gig platform direct
+  // deposit). Keeps premium perks unlocked while deposits keep arriving.
+  earningsDeposit?: EarningsDepositRecord;
+  // Derived by the API from earningsDeposit; never stored.
+  premium?: PremiumStatus;
   completedPodsCount: number;
   welcomeMatchReceived?: boolean;
   welcomeMatchAmountUsd?: number;
@@ -342,6 +347,22 @@ export interface DepositDefault {
 // ---------------------------------------------------------------------------
 export type CustodyProviderName = 'ledger' | 'column';
 export type MemberCustodyStatus = 'PENDING' | 'VERIFIED' | 'MANUAL_REVIEW' | 'DENIED' | 'FROZEN';
+export interface EarningsDepositRecord {
+  lastAt: string;
+  lastAmountUsd: number;
+  count: number;
+  /** Who sent the last deposit, when the bank told us (company name or ACH description). */
+  lastSource?: string;
+}
+
+export interface PremiumStatus {
+  active: boolean;
+  /** Premium stays active until this time unless another earnings deposit arrives first. */
+  until?: string;
+  lastEarningsDepositAt?: string;
+  windowDays: number;
+}
+
 export interface MemberCustody {
   provider: 'column';
   entityId: string;
@@ -755,10 +776,16 @@ export type PerkRedemptionType = 'CODE' | 'LINK' | 'VOUCHER' | 'PARTNER_API';
 
 export type PerkStatus = 'APPROVED' | 'PENDING' | 'REJECTED' | 'SUSPENDED';
 
+export type PerkTier = 'STANDARD' | 'PREMIUM';
+
 export interface Perk {
   id: string;
   title: string;
   category: PerkCategory;
+  /** PREMIUM perks unlock for members who route earnings into their MutualPool account (see premium status). */
+  tier?: PerkTier;
+  /** Set by the API for the requesting member: true when a PREMIUM perk is not unlocked for them. */
+  locked?: boolean;
   provider: string;
   description: string;
   valueBadge: string;

@@ -1729,7 +1729,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <span>${pod.depositTier}.00</span>
                 </div>
                 <div className="flex justify-between text-[#005FB8]">
-                  <span>5% Platform Service Fee:</span>
+                  <span>Refundable pod buffer (5%):</span>
                   <span>+${(pod.depositTier * FEES.depositFeeRate).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-[#111827] pt-1 border-t border-gray-100">

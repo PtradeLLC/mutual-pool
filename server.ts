@@ -16,7 +16,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { 
+import { PremiumStatus, PerkTier, 
   User, Pod, PodMembership, Perk, PerkStatus, AuditLogEntry, 
   ReprioritizationRequest, Deposit, WeeklyCycle, Redemption, InvitedContact,
   HardshipFundRequest, AppNotification, NotificationType, SwapRequest,
@@ -2557,7 +2557,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
     }
     user.accountAgeDays = calculateAccountAgeDays(user.createdAt, user.accountAgeDays);
-    res.json(user);
+    res.json(withPremium(user));
   });
 
   // Members may only edit plain profile fields on their own record. Balances,
@@ -6945,7 +6945,22 @@ Return ONLY a valid JSON object in this exact schema:
   });
 
   // 13. Perks Marketplace
+  // ---------- Premium perks: unlocked by routing earnings into the MutualPool account ----------
+  // A member whose employer or gig platform has deposited earnings into their MutualPool
+  // account within the window keeps premium perks unlocked. Any single deposit counts.
+  const PREMIUM_WINDOW_DAYS = Math.max(1, Number(process.env.PREMIUM_EARNINGS_WINDOW_DAYS) || 35);
+  const premiumStatus = (user: User | null | undefined): PremiumStatus => {
+    const lastAt = user?.earningsDeposit?.lastAt;
+    if (!lastAt) return { active: false, windowDays: PREMIUM_WINDOW_DAYS };
+    const until = new Date(new Date(lastAt).getTime() + PREMIUM_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    return { active: until.getTime() > Date.now(), until: until.toISOString(), lastEarningsDepositAt: lastAt, windowDays: PREMIUM_WINDOW_DAYS };
+  };
+  const withPremium = (user: User) => ({ ...user, premium: premiumStatus(user) });
+  const perkTier = (perk: Perk): PerkTier => perk.tier || 'STANDARD';
+
   app.get('/api/perks', (req: Request, res: Response) => {
+    const viewer = getCurrentUser(req);
+    const premium = premiumStatus(viewer);
     const { category, search } = req.query;
     let filtered = perks.filter(p => p.status === 'APPROVED');
 
@@ -6963,7 +6978,11 @@ Return ONLY a valid JSON object in this exact schema:
     }
 
     // Redemption codes/links are a member benefit, revealed through /api/perks/redeem.
-    res.json(filtered.map(({ redemptionData: _code, partnerEmail: _email, partnerNotes: _notes, ...publicPerk }) => publicPerk));
+    res.json(filtered.map(({ redemptionData: _code, partnerEmail: _email, partnerNotes: _notes, ...publicPerk }) => ({
+      ...publicPerk,
+      tier: perkTier(publicPerk as Perk),
+      locked: perkTier(publicPerk as Perk) === 'PREMIUM' && !premium.active,
+    })));
   });
 
   app.post('/api/perks/redeem', (req: Request, res: Response) => {
@@ -6975,6 +6994,14 @@ Return ONLY a valid JSON object in this exact schema:
 
     const perk = perks.find(p => p.id === perkId);
     if (!perk || perk.status !== 'APPROVED') return res.status(404).json({ error: 'Perk not found' });
+
+    if (perkTier(perk) === 'PREMIUM' && !premiumStatus(users.find(u => u && u.id === user.id) || user).active) {
+      return res.status(403).json({
+        error: 'PREMIUM_REQUIRED',
+        message: `This is a premium perk. It unlocks when earnings are deposited into your MutualPool account (one deposit every ${PREMIUM_WINDOW_DAYS} days keeps it active).`,
+        premium: premiumStatus(user),
+      });
+    }
 
     const existingRedemption = redemptions.find(r => r.userId === user.id && r.perkId === perk.id);
     if (existingRedemption) {
@@ -6999,6 +7026,27 @@ Return ONLY a valid JSON object in this exact schema:
       redemption,
       perk,
     });
+  });
+
+  // Demo/test only: simulate an employer or gig-platform deposit landing in the member's
+  // MutualPool account. In production this happens through the Column webhook.
+  app.post('/api/platform/demo/earnings-deposit', (req: Request, res: Response) => {
+    if (!DEMO_MODE) return res.status(404).json({ error: 'NOT_FOUND' });
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    const amount = Math.round((Number(req.body?.amount) || 0) * 100) / 100;
+    if (!(amount > 0) || amount > 10000) return res.status(400).json({ error: 'INVALID_AMOUNT' });
+    let target = users.find(u => u && u.id === user.id);
+    if (!target) { target = user; users.push(target); }
+    creditLedger(target, amount);
+    target.earningsDeposit = {
+      lastAt: new Date().toISOString(),
+      lastAmountUsd: amount,
+      count: (target.earningsDeposit?.count || 0) + 1,
+      lastSource: String(req.body?.source || 'Demo employer').slice(0, 60),
+    };
+    saveUsersToDisk();
+    res.json({ success: true, user: withPremium(target) });
   });
 
   // Partners may submit offers with or without an account. Submissions are always
@@ -9055,12 +9103,12 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         };
       }
 
-      // 5. Fees (5% per deposit, 10% on payouts, 7% hardship repayment)
+      // 5. Fees (10% on payouts, 7% hardship repayment) and the refundable 5% pod buffer
       if (q.includes('fee') || q.includes('cost') || q.includes('charge') || q.includes('5%') || q.includes('10%') || q.includes('comisi') || q.includes('tarifa') || q.includes('cuota') || q.includes('frais') || q.includes('coût')) {
         if (isEs) {
           return {
-            spokenText: "Cobramos una tarifa del 5% sobre cada depósito semanal y una tarifa del 10% sobre cada cobro. De ese 10%, el 3% va a quien ocupa el último turno, normalmente el Creador, y el 7% a MutualPool. No hay comisiones por retiros ni por recargas con tarjeta.",
-            displayText: "💳 Estructura Transparente de Tarifas\n\n• Tarifa de Depósito (5%): sobre cada depósito semanal, al momento del cobro del depósito (un depósito de $20 descuenta $21 de tu saldo).\n• Tarifa de Cobro (10%): se deduce de cada cobro (ej. $40 en un pozo de $400 → $360 netos):\n  - 3% del pozo para quien ocupa el último turno (normalmente el Creador) como Recompensa de Anfitrión.\n  - 7% para MutualPool.\n• Tarifa de Reembolso por Dificultad (7%): solo si usaste un adelanto por dificultad, al reembolsarlo.\n• Sin comisión por retiros, sin comisión por recargas con tarjeta y 0% de interés.",
+            spokenText: "MutualPool cobra una tarifa del 10% sobre cada cobro: el 3% va a quien organiza el grupo y el 7% a MutualPool. El 5% que se aparta con cada depósito semanal no es una tarifa: es el fondo de reserva de tu propio grupo, cubre una semana fallida y se te devuelve si no se usa. No hay comisiones por retiros ni por recargas con tarjeta.",
+            displayText: "💳 Tarifas Claras y el Fondo de Reserva\n\n• Tarifa de Cobro (10%): se deduce de cada cobro (ej. $40 en un pozo de $400 → $360 netos):\n  - 3% del pozo para quien ocupa el último turno (normalmente el Creador) como Recompensa de Anfitrión.\n  - 7% para MutualPool.\n• Fondo de Reserva (5%, reembolsable): se aparta con cada depósito semanal (un depósito de $20 mueve $21 de tu saldo). No es una tarifa: pertenece a tu grupo, cubre una semana fallida para que los cobros lleguen a tiempo y se devuelve a los miembros si no se usa.\n• Tarifa de Reembolso por Dificultad (7%): solo si usaste un adelanto por dificultad, al reembolsarlo.\n• Sin comisión por retiros, sin comisión por recargas con tarjeta y cero intereses.",
             suggestedActions: [
               { label: "Ver FAQ de Tarifas", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Ver Mis Grupos", action: "NAVIGATE_TAB", tab: "my-pods" }
@@ -9070,8 +9118,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         if (isFr) {
           return {
-            spokenText: "Nous prélevons 5 % sur chaque cotisation hebdomadaire et 10 % sur chaque versement. Sur ces 10 %, 3 % reviennent au titulaire du dernier créneau, normalement le Créateur, et 7 % à MutualPool. Aucun frais de retrait ni de recharge par carte.",
-            displayText: "💳 Structure Claire des Frais\n\n• Frais de Dépôt (5 %) : sur chaque cotisation hebdomadaire, au moment du prélèvement (une cotisation de 20 $ coûte 21 $ sur votre solde).\n• Frais de Versement (10 %) : déduits de chaque versement (ex. 40 $ sur une cagnotte de 400 $ → 360 $ nets) :\n  - 3 % de la cagnotte au titulaire du dernier créneau (normalement le Créateur), Prime d'Hôte.\n  - 7 % pour MutualPool.\n• Frais de Remboursement d'Aide (7 %) : uniquement si vous avez utilisé une avance pour coup dur, lors du remboursement.\n• Aucun frais de retrait, aucun frais de recharge par carte, 0 % d'intérêt.",
+            spokenText: "MutualPool prélève 10 % sur chaque versement : 3 % reviennent à celui qui anime le groupe et 7 % à MutualPool. Les 5 % mis de côté avec chaque cotisation hebdomadaire ne sont pas des frais : c'est la réserve de votre propre groupe, elle couvre une semaine manquée et vous est restituée si elle n'est pas utilisée. Aucun frais de retrait ni de recharge par carte.",
+            displayText: "💳 Frais Clairs et Réserve de Groupe\n\n• Frais de Versement (10 %) : déduits de chaque versement (ex. 40 $ sur une cagnotte de 400 $ → 360 $ nets) :\n  - 3 % de la cagnotte au titulaire du dernier créneau (normalement le Créateur), Prime d'Hôte.\n  - 7 % pour MutualPool.\n• Réserve de Groupe (5 %, remboursable) : mise de côté avec chaque cotisation hebdomadaire (une cotisation de 20 $ mobilise 21 $ de votre solde). Ce ne sont pas des frais : elle appartient à votre groupe, couvre une semaine manquée pour que les versements restent à l'heure, et est restituée aux membres si elle n'est pas utilisée.\n• Frais de Remboursement d'Aide (7 %) : uniquement si vous avez utilisé une avance pour coup dur, lors du remboursement.\n• Aucun frais de retrait, aucun frais de recharge par carte et zéro intérêt.",
             suggestedActions: [
               { label: "Voir la FAQ Frais", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Explorer les Groupes", action: "NAVIGATE_TAB", tab: "explore-pods" }
@@ -9080,8 +9128,8 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
           };
         }
         return {
-          spokenText: "MutualPool charges 5% on each weekly deposit and 10% on each payout. Of that 10%, 3% goes to whoever holds the final slot, normally the Creator, and 7% goes to MutualPool. There is no withdrawal fee and no fee on card top-ups.",
-          displayText: "💳 Transparent Platform Fee Structure\n\n• Deposit Fee (5%): on every weekly deposit, charged when the deposit is taken (a $20 deposit takes $21 from your balance).\n• Payout Fee (10%): deducted from each payout (e.g. $40 on a $400 pot → $360.00 net):\n  - 3% of the pot to the final-slot holder (normally the Creator) as the Host Reward.\n  - 7% to MutualPool.\n• Hardship Repayment Fee (7%): only if you used a hardship advance, added when you repay it.\n• No withdrawal fee, no card top-up fee, and zero interest.",
+          spokenText: "MutualPool charges 10% on each payout: 3% goes to the member hosting the pod and 7% to MutualPool. The 5% set aside with each weekly deposit is not a fee: it is your pod's own buffer, it covers a missed week, and it comes back to you if it is never used. There is no withdrawal fee and no fee on card top-ups.",
+          displayText: "💳 Clear Fees and the Pod Buffer\n\n• Payout Fee (10%): deducted from each payout (e.g. $40 on a $400 pot → $360.00 net):\n  - 3% of the pot to the final-slot holder (normally the Creator) as the Host Reward.\n  - 7% to MutualPool.\n• Pod Buffer (5%, refundable): set aside with every weekly deposit (a $20 deposit moves $21 from your balance). It is not a fee: it belongs to your pod, covers a missed week so payouts stay on time, and is returned to members if unused.\n• Hardship Repayment Fee (7%): only if you used a hardship advance, added when you repay it.\n• No withdrawal fee, no card top-up fee, and zero interest.",
           suggestedActions: [
             { label: "Read Fees FAQ", action: "OPEN_MODAL", modal: "FAQ" },
             { label: "Explore Savings Pods", action: "NAVIGATE_TAB", tab: "explore-pods" }
@@ -9472,14 +9520,15 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 
 3. CATEGORY: DEPOSITS, PAYOUTS & TRANSPARENT FEES
 - Settlement week: deposits are taken THURSDAY 12:00 AM Eastern; the week's payout is credited FRIDAY 12:00 AM Eastern.
-- Deposit Collection: each Thursday the weekly deposit plus the 5% deposit fee is taken from the member's MutualPool balance automatically. Members must keep enough balance. Fund the balance by card top-up through Stripe (no MutualPool fee on top-ups), by bank transfer from the linked account, or with payouts and brand campaign earnings, which land in the same balance.
+- Deposit Collection: each Thursday the weekly deposit plus the 5% refundable pod buffer is taken from the member's MutualPool balance automatically. Members must keep enough balance. Fund the balance by card top-up through Stripe (no MutualPool fee on top-ups), by bank transfer from the linked account, or with payouts and brand campaign earnings, which land in the same balance.
 - Bank debit authorization: used ONLY for (1) a weekly deposit the balance could not cover, (2) anything MutualPool advanced on the member's behalf (e.g. a hardship advance), (3) the remaining deposits owed if the member leaves or is removed after receiving a payout. The member is told in the app before each debit. It can be revoked via support, but that does not cancel what is owed, and no pods can be created or joined without it.
 - Payout Execution: the net payout (90% of the pot) is credited to the recipient's MutualPool balance on Friday. Withdrawals go to the member's linked bank account, no withdrawal fee; banks on instant rails (RTP/FedNow) receive them in seconds, others in 1-3 business days. Later rotation weeks never wait for a pending withdrawal. Recently deposited card funds may be held while contestable; chargebacks or fraud reviews can hold or reverse funds.
-- Fee Structure (the ONLY fees):
-  * 5% Deposit Fee: charged on EVERY weekly deposit when it is taken (a $20 deposit costs $21 from the balance). It is NOT a one-time setup fee.
+- Fee Structure (the ONLY fees are the 10% payout fee and the 7% hardship repayment fee):
+  * 5% Pod Buffer (NOT a fee): set aside with EVERY weekly deposit when it is taken (a $20 deposit moves $21 from the balance). It goes into the pod's own contingency buffer, covers a member's missed week so Friday's payout stays on time, and whatever is unused is refunded to the members when the pod completes. Never call it a platform fee or MutualPool revenue.
   * 10% Payout Fee: deducted from each payout (e.g. $40 on a $400 pot = $360 net). 3% of the pot goes to the final-slot holder as Host Reward; 7% goes to MutualPool.
   * 7% Hardship Repayment Fee: added to a hardship advance when it is repaid.
   * No withdrawal fee, no card top-up fee, no interest. Fee changes get 30 days' notice in the app and apply only to pods that start afterwards.
+- Premium Perks: some partner perks are PREMIUM. They unlock for members whose employer or gig platform deposits earnings directly into their MutualPool account; one such deposit every 35 days keeps them unlocked. Direct deposit is optional. Members set it up from Add Funds (their MutualPool account and routing numbers). Standard perks stay open to every verified member.
 
 4. CATEGORY: MISSED DEPOSITS, AUTONOMOUS AI CUSTODIAN, ESCROW & HARDSHIP
 - Missed deposit sequence (DEFAULT CONTROLS): (1) The Thursday sweep finds the balance short and records a missed deposit. The member is told in-app and by email, AND SO IS EVERY OTHER MEMBER OF THE POD (full transparency: pods hold each other accountable). The member has 24 HOURS to pay; a late deposit repays what was bridged rather than inflating the pot. (2) Meanwhile the pod's contingency buffer may bridge the week (a first pod can carry a Welcome Match equal to one deposit, granted once per person, never paid as cash, returned if unused), or MutualPool's System Deposits Escrow may bridge it. Anything bridged is money the member OWES. (3) 24 hours after the notice, still unpaid: the member is REMOVED from the pod (the remaining members then vote on whether to list the pod publicly to fill the slot or keep it private; ties keep it private), their ACCOUNT IS RESTRICTED (cannot create or join pods, swap, vote, or request hardship help; they can still add funds and pay), and ACH COLLECTION STARTS AUTOMATICALLY under their bank debit authorization for everything owed. Recovered money repays escrow, restores the buffer, then bridges the pod's later weeks. (4) Paying everything owed in full RESTORES the account automatically; nothing else is needed. (5) If a SECOND member of the same pod is in unsettled default, that member gets a second-default warning and a POD PAUSE VOTE opens for the members not in default: PAUSE (no deposits or payouts until the defaults are settled and an admin resumes) or COVER (keep going; the remaining members split the missing deposits equally each Thursday from their balances). A majority decides at once; the vote closes after 48 hours; undecided or tied votes pause the pod. Admins can also grant a grace period, cover the gap, or remove a member by hand. A member removed AFTER receiving their payout still owes the remaining deposits.

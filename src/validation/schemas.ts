@@ -101,6 +101,7 @@ export const submitPerkSchema = z.object({
   description: z.string().min(10).max(1000),
   valueBadge: z.string().min(2).max(50),
   redemptionType: z.enum(['CODE', 'LINK', 'VOUCHER', 'PARTNER_API'] as [PerkRedemptionType, ...PerkRedemptionType[]]),
+  tier: z.enum(['STANDARD', 'PREMIUM']).optional(),
   redemptionData: z.string().min(1).max(500),
   eligibility: z.string().max(200).optional(),
 });

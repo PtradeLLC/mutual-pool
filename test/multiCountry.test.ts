@@ -91,7 +91,7 @@ console.log('✅ Payment provider factory passed successfully!');
 console.log('[Test 4] Regulatory & PWA Manifest Configurations');
 
 const usConfig = getCountryByCode('US');
-assert(usConfig.pwa.name === 'MutualPool USA', 'US PWA name is MutualPool USA');
+assert(usConfig.pwa.name === 'MutualPool', 'US PWA name is MutualPool (renamed from MutualPool USA)');
 assert(usConfig.regulations.taxIdLabel.includes('SSN'), 'US tax ID label contains SSN');
 
 const gbConfig = getCountryByCode('GB');

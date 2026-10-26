@@ -5,12 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { savePerkToFirestore, deletePerkFromFirestore, subscribeToPerks } from '../lib/firestoreService';
 import { INITIAL_PERKS } from '../data/initialData';
 import { PerkImageUploadControl } from './PerkImageUploadControl';
-import { 
-  Gift, Search, Filter, ExternalLink, Copy, Check, PlusCircle, 
-  ShieldCheck, HeartPulse, ShieldAlert, Car, Calculator, Smile, Zap, Sparkles, X,
-  Pencil, Trash2, CheckCircle2, XCircle, Building2, UserCheck, AlertCircle, FileText,
-  PauseCircle, PlayCircle, EyeOff, Image as ImageIcon
-} from 'lucide-react';
+import { Gift, Search, Filter, ExternalLink, Copy, Check, PlusCircle, ShieldCheck, HeartPulse, ShieldAlert, Car, Calculator, Smile, Zap, Sparkles, X, Pencil, Trash2, CheckCircle2, XCircle, Building2, UserCheck, AlertCircle, FileText, PauseCircle, PlayCircle, EyeOff, Image as ImageIcon, Lock, Landmark } from 'lucide-react';
 
 interface PerksMarketplaceProps {
   currentUser: User;
@@ -18,6 +13,8 @@ interface PerksMarketplaceProps {
   onClearInitialSubmitModal?: () => void;
   onSelectUser?: (user: User) => void;
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE') => void;
+  /** Opens Add Funds, where the member finds the account and routing numbers for an earnings deposit. */
+  onOpenAddFunds?: () => void;
 }
 
 const CATEGORIES: (PerkCategory | 'All')[] = [
@@ -38,7 +35,7 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
   'Childcare & Pet Care',
 ];
 
-export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onClearInitialSubmitModal, onSelectUser, onOpenAuth }) => {
+export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onClearInitialSubmitModal, onSelectUser, onOpenAuth, onOpenAddFunds }) => {
   const { t } = useTranslation();
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
@@ -100,6 +97,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     };
   };
 
+  const isSignedIn = Boolean(currentUser && currentUser.id !== 'usr_guest');
+  const premiumActive = Boolean(currentUser?.premium?.active);
+  const premiumWindowDays = currentUser?.premium?.windowDays || 35;
+  const premiumUntilLabel = currentUser?.premium?.until ? new Date(currentUser.premium.until).toLocaleDateString() : '';
   const isAdmin = currentUser.role === 'Admin' ||
     currentUser.role === 'SUPER_ADMIN' ||
     currentUser.role === 'POD_ADMIN' ||
@@ -216,7 +217,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
     });
 
     return () => unsubscribe();
-  }, [currentUser?.id, currentUser?.email, currentUser?.displayName, isAdmin, selectedCategory, searchQuery]);
+  }, [currentUser?.id, currentUser?.email, currentUser?.displayName, currentUser?.premium?.active, isAdmin, selectedCategory, searchQuery]);
 
 
   useEffect(() => {
@@ -1075,6 +1076,31 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
         </div>
       </div>
 
+      {/* Premium status: earnings deposits unlock the premium tier */}
+      {isSignedIn && (
+        premiumActive ? (
+          <div className="mb-5 flex items-start gap-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950">
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>{t('perks.premium.activeBanner', { until: premiumUntilLabel })}</span>
+          </div>
+        ) : (
+          <div className="mb-5 flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-xl bg-slate-50 border border-[#DDE1E6] text-xs text-slate-700">
+            <Lock className="w-4 h-4 text-slate-500 shrink-0" />
+            <span className="flex-1">{t('perks.premium.inactiveBanner', { days: premiumWindowDays })}</span>
+            {onOpenAddFunds && (
+              <button
+                type="button"
+                onClick={onOpenAddFunds}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-[11px] transition-colors shrink-0"
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                {t('perks.premium.cta')}
+              </button>
+            )}
+          </div>
+        )
+      )}
+
       {/* Perk Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {perks.map((perk) => (
@@ -1105,10 +1131,26 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   {getCategoryLabel(perk.category)}
                 </span>
 
-                <span className="px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
-                  {getPerkBadge(perk)}
+                <span className="flex items-center gap-1.5">
+                  {perk.tier === 'PREMIUM' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-400 text-amber-950 text-[10px] font-bold shadow-xs">
+                      <Sparkles className="w-3 h-3" />
+                      {t('perks.premium.badge')}
+                    </span>
+                  )}
+                  <span className="px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
+                    {getPerkBadge(perk)}
+                  </span>
                 </span>
               </div>
+
+              {perk.locked && (
+                <div className="absolute inset-0 z-10 bg-slate-900/55 backdrop-blur-[1px] flex flex-col items-center justify-center text-center text-white px-4">
+                  <Lock className="w-6 h-6 mb-1.5" />
+                  <span className="text-xs font-bold">{t('perks.premium.lockedTitle')}</span>
+                  <span className="text-[10px] text-slate-200 leading-snug mt-0.5">{t('perks.premium.lockedBody', { days: premiumWindowDays })}</span>
+                </div>
+              )}
             </div>
 
             {/* Card Content */}
@@ -1147,12 +1189,26 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                   {perk.redeemedCount || 0} {t('perks.redeemed')}
                 </span>
 
-                <button
-                  onClick={() => handleRedeem(perk)}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer"
-                >
-                  {t('perks.redeem')}
-                </button>
+                {perk.locked ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isSignedIn) { onOpenAuth?.('LOGIN'); return; }
+                      onOpenAddFunds?.();
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold text-xs transition-colors shadow-xs cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    {t('perks.premium.cta')}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleRedeem(perk)}
+                    className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer"
+                  >
+                    {t('perks.redeem')}
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -129,9 +129,9 @@ export const SCENES: Scene[] = [
     type: 'avatar',
     chapter: 3,
     narration: {
-      en: "The fees are simple and there are no surprises. Five percent on each weekly deposit. Ten percent on each payout, and three of that goes to the member hosting the pod. That's it.",
-      es: 'Las comisiones son simples y sin sorpresas. Cinco por ciento por cada depósito semanal. Diez por ciento por cada pago, y tres de esos van al miembro que organiza el grupo. Eso es todo.',
-      fr: 'Les frais sont simples et sans surprise. Cinq pour cent sur chaque dépôt hebdomadaire. Dix pour cent sur chaque versement, dont trois reviennent au membre qui anime le pod. C\'est tout.',
+      en: "The fees are simple and there are no surprises. Ten percent on each payout, and three of that goes to the member hosting the pod. Five percent of each deposit goes into your pod's own safety buffer, and if it's never needed, it comes back to you. That's it.",
+      es: 'Las comisiones son simples y sin sorpresas. Diez por ciento por cada pago, y tres de esos van al miembro que organiza el grupo. El cinco por ciento de cada depósito va al fondo de reserva de tu propio grupo, y si nunca se necesita, vuelve a ti. Eso es todo.',
+      fr: 'Les frais sont simples et sans surprise. Dix pour cent sur chaque versement, dont trois reviennent au membre qui anime le pod. Cinq pour cent de chaque dépôt vont dans la réserve de ton propre pod, et s\'ils ne servent jamais, ils te reviennent. C\'est tout.',
     },
   },
   {

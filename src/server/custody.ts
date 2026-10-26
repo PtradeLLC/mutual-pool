@@ -770,6 +770,14 @@ export async function handleColumnEvent(
         ) {
           const amount = column.fromCents(data.amount || 0);
           d.creditLedger(user, amount);
+          // An inbound credit the member did not initiate here is earnings routed to
+          // MutualPool (payroll or gig-platform direct deposit). It keeps premium perks unlocked.
+          user.earningsDeposit = {
+            lastAt: nowIso,
+            lastAmountUsd: amount,
+            count: (user.earningsDeposit?.count || 0) + 1,
+            lastSource: String(data.company_name || data.description || "").slice(0, 60) || undefined,
+          };
           const rec: CustodyMovement = {
             id: newId("mv"),
             from: { kind: "external", label: "incoming ACH" },

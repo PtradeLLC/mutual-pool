@@ -378,7 +378,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Cada <strong>jueves a las 12:00 AM (hora del Este)</strong>, MutualPool toma el depósito de esa semana, más la tarifa de depósito del 5%, <strong>de tu saldo de MutualPool</strong> por cada grupo activo en el que participas. Mantén saldo suficiente para cubrirlo.
+              Cada <strong>jueves a las 12:00 AM (hora del Este)</strong>, MutualPool toma el depósito de esa semana, más el 5% de fondo de reserva reembolsable, <strong>de tu saldo de MutualPool</strong> por cada grupo activo en el que participas. Mantén saldo suficiente para cubrirlo.
             </p>
             <p>Puedes fondear tu saldo de tres formas:</p>
             <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
@@ -422,11 +422,11 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              MutualPool cobra tres tarifas, y nada más. No hay intereses, no hay tarifa de retiro y no hay tarifa por recargas con tarjeta.
+              MutualPool cobra dos tarifas, y nada más. No hay intereses, no hay tarifa de retiro y no hay tarifa por recargas con tarjeta. El 5% que se aparta con cada depósito es el fondo de reserva reembolsable de tu propio grupo, no una tarifa.
             </p>
             <ul className="space-y-2 text-[11px]">
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Tarifa de Depósito (5%):</strong> se cobra en <strong>cada depósito semanal</strong> al momento de tomarlo. En un depósito de $20, salen $21 de tu saldo.
+                <strong>Fondo de Reserva (5%, reembolsable):</strong> se aparta con <strong>cada depósito semanal</strong> al momento de tomarlo. En un depósito de $20, se mueven $21 de tu saldo y ese $1 va al fondo de reserva de tu propio grupo. Cubre la semana fallida de un miembro para que el cobro del viernes llegue a tiempo, y lo que no se use se devuelve a los miembros cuando el grupo termina.
               </li>
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                 <strong>Tarifa de Cobro (10%):</strong> se deduce de cada cobro de la rotación antes de acreditarlo (ej. $40 en un fondo de $400, así que el beneficiario recibe $360).
@@ -621,6 +621,24 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             <p className="text-[11px] text-slate-600">
               El resultado de cada intercambio y votación queda registrado en el historial de auditoría del grupo y es vinculante para todos los miembros.
             </p>
+          </div>
+        )
+      },
+      {
+        id: 'faq_premium_perks',
+        category: 'AD_CAMPAIGNS',
+        question: '¿Qué beneficios son premium y cómo los desbloqueo?',
+        tags: ['premium', 'beneficios', 'deposito directo', 'ganancias', 'nomina', 'desbloquear'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              La mayoría de los beneficios de socios están abiertos a todos los miembros verificados. Algunas de las mejores ofertas están marcadas como <strong>Premium</strong>. Se desbloquean cuando tus ganancias llegan a tu cuenta de MutualPool: pide a tu empleador o plataforma que envíe tu pago al número de cuenta y de ruta que aparecen en <strong>Agregar Fondos</strong>.
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li>Un depósito de ganancias en los últimos 35 días mantiene los beneficios premium activos. Cualquier monto cuenta.</li>
+              <li>El depósito de ganancias es opcional. Los beneficios estándar y los grupos funcionan igual sin él.</li>
+              <li>El dinero depositado así es tuyo: está en tu propia cuenta de MutualPool y puedes retirarlo a tu banco cuando quieras.</li>
+            </ul>
           </div>
         )
       },
@@ -906,7 +924,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              Chaque <strong>jeudi à 00 h 00 (heure de l'Est)</strong>, MutualPool prélève la cotisation de la semaine, plus les frais de dépôt de 5 %, <strong>sur votre solde MutualPool</strong> pour chaque groupe actif dont vous faites partie. Gardez un solde suffisant pour la couvrir.
+              Chaque <strong>jeudi à 00 h 00 (heure de l'Est)</strong>, MutualPool prélève la cotisation de la semaine, plus les 5 % de réserve de groupe remboursable, <strong>sur votre solde MutualPool</strong> pour chaque groupe actif dont vous faites partie. Gardez un solde suffisant pour la couvrir.
             </p>
             <p>Vous pouvez approvisionner votre solde de trois façons :</p>
             <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
@@ -950,11 +968,11 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
         answer: (
           <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
             <p>
-              MutualPool applique trois frais, et rien d'autre. Il n'y a aucun intérêt, aucun frais de retrait et aucun frais sur les recharges par carte.
+              MutualPool applique deux frais, et rien d'autre. Il n'y a aucun intérêt, aucun frais de retrait et aucun frais sur les recharges par carte. Les 5 % mis de côté avec chaque cotisation constituent la réserve remboursable de votre propre groupe, pas des frais.
             </p>
             <ul className="space-y-2 text-[11px]">
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                <strong>Frais de Dépôt (5 %) :</strong> appliqués sur <strong>chaque cotisation hebdomadaire</strong> au moment du prélèvement. Pour une cotisation de 20 $, 21 $ sont débités de votre solde.
+                <strong>Réserve de Groupe (5 %, remboursable) :</strong> mise de côté avec <strong>chaque cotisation hebdomadaire</strong> au moment du prélèvement. Pour une cotisation de 20 $, 21 $ sont mobilisés sur votre solde et ce 1 $ va dans la réserve de votre propre groupe. Elle couvre la semaine manquée d'un membre pour que le versement du vendredi reste à l'heure, et ce qui n'est pas utilisé est restitué aux membres à la fin du groupe.
               </li>
               <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                 <strong>Frais de Versement (10 %) :</strong> déduits de chaque versement de la rotation avant qu'il ne soit crédité (ex. 40 $ sur une cagnotte de 400 $, le bénéficiaire reçoit donc 360 $).
@@ -1149,6 +1167,24 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
             <p className="text-[11px] text-slate-600">
               Le résultat de chaque échange et de chaque vote est consigné dans le journal d'audit du groupe et engage tous les membres.
             </p>
+          </div>
+        )
+      },
+      {
+        id: 'faq_premium_perks',
+        category: 'AD_CAMPAIGNS',
+        question: 'Quels avantages sont premium et comment les débloquer ?',
+        tags: ['premium', 'avantages', 'virement direct', 'gains', 'salaire', 'debloquer'],
+        answer: (
+          <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+            <p>
+              La plupart des avantages partenaires sont ouverts à tous les membres vérifiés. Quelques-unes des meilleures offres sont marquées <strong>Premium</strong>. Elles se débloquent lorsque vos gains arrivent sur votre compte MutualPool : demandez à votre employeur ou à votre plateforme d'envoyer votre paie aux numéros de compte et d'acheminement affichés sous <strong>Ajouter des Fonds</strong>.
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+              <li>Un versement de gains au cours des 35 derniers jours garde les avantages premium actifs. Tout montant compte.</li>
+              <li>Le versement des gains est facultatif. Les avantages standard et les groupes fonctionnent exactement pareil sans lui.</li>
+              <li>L'argent versé ainsi vous appartient : il reste sur votre propre compte MutualPool et vous pouvez le retirer vers votre banque à tout moment.</li>
+            </ul>
           </div>
         )
       },
@@ -1434,7 +1470,7 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            Every <strong>Thursday at 12:00 AM Eastern</strong>, MutualPool takes that week's deposit, plus the 5% deposit fee, <strong>from your MutualPool balance</strong> for each active pod you are in. Keep enough balance to cover it.
+            Every <strong>Thursday at 12:00 AM Eastern</strong>, MutualPool takes that week's deposit, plus the 5% refundable pod buffer, <strong>from your MutualPool balance</strong> for each active pod you are in. Keep enough balance to cover it.
           </p>
           <p>You can fund your balance in three ways:</p>
           <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 pl-1">
@@ -1478,11 +1514,11 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
       answer: (
         <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
           <p>
-            MutualPool charges three fees, and nothing else. There is no interest, no withdrawal fee, and no fee on card top-ups.
+            MutualPool charges two fees, and nothing else. There is no interest, no withdrawal fee, and no fee on card top-ups. The 5% set aside with each deposit is your pod's own refundable buffer, not a fee.
           </p>
           <ul className="space-y-2 text-[11px]">
             <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-              <strong>Deposit Fee (5%):</strong> charged on <strong>each weekly deposit</strong> when it is taken. On a $20 deposit, $21 leaves your balance.
+              <strong>Pod Buffer (5%, refundable):</strong> set aside with <strong>each weekly deposit</strong> when it is taken. On a $20 deposit, $21 moves from your balance, and the $1 goes into your pod's own buffer. It covers a member's missed week so Friday's payout stays on time, and whatever is unused is returned to the members when the pod completes.
             </li>
             <li className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
               <strong>Payout Fee (10%):</strong> deducted from each rotation payout before it is credited (e.g., $40 on a $400 pot, so the recipient receives $360).
@@ -1677,6 +1713,24 @@ const getFaqItemsRaw = (lang: SupportedLanguage): LocalizedFaqItem[] => {
           <p className="text-[11px] text-slate-600">
             Every swap and vote outcome is recorded in the pod's audit log and is binding on all members.
           </p>
+        </div>
+      )
+    },
+    {
+      id: 'faq_premium_perks',
+      category: 'AD_CAMPAIGNS',
+      question: 'Which perks are premium, and how do I unlock them?',
+      tags: ['premium', 'perks', 'direct deposit', 'earnings', 'payroll', 'unlock', 'benefits'],
+      answer: (
+        <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+          <p>
+            Most partner perks are open to every verified member. A few of the best offers are marked <strong>Premium</strong>. They unlock when your earnings land in your MutualPool account: have your employer or gig platform send your pay to the account and routing numbers shown under <strong>Add Funds</strong>.
+          </p>
+          <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 pl-1">
+            <li>One earnings deposit in the last 35 days keeps premium perks unlocked. Any amount counts.</li>
+            <li>Earnings deposit is optional. Standard perks and pods work exactly the same without it.</li>
+            <li>Money deposited this way is yours: it sits in your own MutualPool account and you can withdraw it to your bank any time.</li>
+          </ul>
         </div>
       )
     },

@@ -69,11 +69,11 @@ export const en = {
   "calculator.weeklyDepositTierLabel": "Weekly Deposit Tier:",
   "calculator.weekAbbr": "wk",
   "calculator.disclaimer":
-    "You contribute ${deposit}/wk base deposit (+5% buffer contribution = ${totalDeposit} total, refunded if unused) for {weeks} weeks. When your rotation turn arrives, you receive a net payout of ${netPayout} after 10% platform fee deduction.",
+    'You contribute ${deposit}/wk base deposit (+5% refundable pod buffer = ${totalDeposit} total; the buffer comes back to you if the pod never needs it) for {weeks} weeks. When your rotation turn arrives, you receive a net payout of ${netPayout} after the 10% payout fee.',
   "calculator.netPayoutTitle": "Net Single Rotation Payout (After 10% Fee)",
   "calculator.usdNet": "USD Net",
   "calculator.baseWeeklyLabel": "Base Weekly Contribution:",
-  "calculator.depositFeeLabel": "Deposit Fee (5% per deposit):",
+  "calculator.depositFeeLabel": 'Refundable pod buffer (5%, returned if unused):',
   "calculator.grossPoolLabel": "Gross Collective Pool ({members} Members):",
   "calculator.payoutFeeLabel": "Payout Service Fee (10%):",
   "calculator.payoutFeeSplitActive":
@@ -1047,11 +1047,11 @@ export const en = {
   "createPod.initialDepositLabel": "Initial Pool Deposit ({name})",
   "createPod.initialDepositDesc":
     "Your base weekly deposit allocated to the pool",
-  "createPod.platformFeeLabel": "Platform Service & Treasury Fee (5%)",
-  "createPod.platformFeeDesc": "Applied to all deposits before creating pool",
+  "createPod.platformFeeLabel": 'Refundable Pod Buffer (5%)',
+  "createPod.platformFeeDesc": 'Goes into your pod\'s own safety buffer, not to MutualPool. Returned to members if unused.',
   "createPod.totalInitialPaymentLabel":
     "Total Initial Payment Required to Create Pool",
-  "createPod.totalInitialPaymentDesc": "Includes base deposit + 5% contingency buffer contribution (refunded if unused)",
+  "createPod.totalInitialPaymentDesc": 'Includes base deposit + 5% refundable pod buffer (returned if unused)',
   "createPod.fullCapacityTargetLabel": "Full Capacity Payout Target",
   "createPod.fullCapacityCalculation": "{size} members × ${deposit}/wk",
   "createPod.dynamicPayoutNote":
@@ -1080,7 +1080,7 @@ export const en = {
   "createPod.ref": "Ref:",
   "createPod.initialWeeklyDepositSummary":
     "Initial Weekly Deposit ({size} Members @ ${deposit}/wk)",
-  "createPod.stripeFeeSummary": "Platform Deposit Fee (5%)",
+  "createPod.stripeFeeSummary": 'Refundable Pod Buffer (5%)',
   "createPod.totalDueNow": "Total Due Now",
   "createPod.welcomeMatchBanner":
     "🎁 +${amount}.00 Welcome Match (100% deposit tier match) will be funded automatically by Mutual Pool directly into your Pod First-Cycle Contingency Reserve!",
@@ -1256,7 +1256,7 @@ export const en = {
   "voiceAgent.q10Label": "System Deposits Escrow",
   "voiceAgent.q10Query":
     "What is the System Deposits Escrow Account and how does it advance missed deposits?",
-  "voiceAgent.q11Label": "Platform Fees (5% & 10%)",
+  "voiceAgent.q11Label": 'Fees & the 5% pod buffer',
   "voiceAgent.q11Query":
     "What are the platform fees and how does the 10% payout fee work?",
   "voiceAgent.q12Label": "Hardship Protection Fund",
@@ -1394,7 +1394,7 @@ export const en = {
     "Once your weekly deposit is taken on Thursday it belongs to that week's pot and goes to that week's recipient on Friday. It cannot be pulled back.",
   "howItWorksModal.noInterestTitle": "No Interest, Simple Fees",
   "howItWorksModal.noInterestDesc":
-    "Balances earn no interest and there is nothing to borrow. MutualPool charges three fees and no others: 5% on each weekly deposit, 10% on each payout (3% of which goes to the member hosting the pod), and 7% on a hardship advance when it is repaid. Card top-ups and withdrawals are free.",
+    'Balances earn no interest and there is nothing to borrow. MutualPool charges two fees and no others: 10% on each payout (3% of which goes to the member hosting the pod) and 7% on a hardship advance when it is repaid. The 5% set aside with each weekly deposit is not a fee: it goes into your pod\'s own buffer, covers a missed week so payouts stay on time, and is returned to members if the pod never needs it. Card top-ups and withdrawals are free.',
 
   "howItWorksModal.payoutOrderTitle": "How Payout Order Works",
   "howItWorksModal.payoutOrderSubtitle":
@@ -1425,7 +1425,7 @@ export const en = {
   "howItWorksModal.scheduleStep1Time": "Thursday 12:00 AM Midnight",
   "howItWorksModal.scheduleStep1Title": "Automated Member Deposits",
   "howItWorksModal.scheduleStep1Desc":
-    "Each active member's weekly deposit, plus the 5% deposit fee, is taken from their MutualPool balance. Fund your balance before Thursday from your bank, by card, or with earnings paid straight in.",
+    'Each active member\'s weekly deposit, plus the 5% refundable pod buffer, is taken from their MutualPool balance. Fund your balance before Thursday from your bank, by card, or with earnings paid straight in.',
   "howItWorksModal.scheduleStep2Badge": "24-Hour Window",
   "howItWorksModal.scheduleStep2Time": "Thursday All Day",
   "howItWorksModal.scheduleStep2Title": "Missed Deposits Handled",
@@ -1437,7 +1437,7 @@ export const en = {
   "howItWorksModal.scheduleStep3Desc":
     "The week's pot, in full, lands in the scheduled member's MutualPool account. From there it can be withdrawn to their bank or left to cover future deposits.",
   "howItWorksModal.scheduleProTip":
-    "Pro-Tip: Make sure your MutualPool balance covers your deposit plus the 5% fee before Wednesday night. Bank transfers take 1 to 2 business days; card top-ups are immediate.",
+    'Pro-Tip: Make sure your MutualPool balance covers your deposit plus the 5% buffer before Wednesday night. Bank transfers take 1 to 2 business days; card top-ups are immediate.',
 
   "howItWorksModal.missedPaymentTitle": "If a Payment is Missed",
   "howItWorksModal.missedPaymentBullet1":
@@ -2043,15 +2043,15 @@ export const en = {
   "treasuryModal.useTestCardBtn":
     "⚡ Use Official Stripe Test Card (4242 4242 4242 4242)",
   "treasuryModal.baseDepositLabel": "Base Treasury Deposit:",
-  "treasuryModal.feeLabel": "Deposit Fee (5% per weekly deposit):",
+  "treasuryModal.feeLabel": 'Pod buffer (5% per weekly deposit, refundable):',
   "treasuryModal.totalPaymentLabel": "Total Payment Processed:",
   "treasuryModal.feeBreakdownNote":
-    "✓ Net ${amount}.00 is credited directly to your MutualPool balance. No fee on top-ups: the 5% deposit fee is charged when money goes into a pod.",
+    '✓ Net ${amount}.00 is credited directly to your MutualPool balance. No fee on top-ups: the 5% refundable pod buffer is only set aside when money goes into a pod.',
   "treasuryModal.processingDeposit":
     "Processing your deposit...",
   "treasuryModal.processDepositBtn": "Process +${amount}.00 Treasury Deposit",
   "treasuryModal.successTopupMsg":
-    "Successfully processed +${deposit} Treasury Deposit! Total charged: ${total} (${deposit} deposit + ${fee} 5% platform fee). Updated Treasury Balance: ${newBalance} USD.",
+    'Successfully processed +${deposit} Treasury Deposit! Total charged: ${total} (${deposit} deposit + ${fee} refundable pod buffer). Updated Treasury Balance: ${newBalance} USD.',
   "treasuryModal.selectBankLabel": "Select Financial Institution",
   "treasuryModal.supportsBanksNote":
     "Supports most US banks & credit unions",
@@ -2093,7 +2093,7 @@ export const en = {
   "addFundsModal.customAmount": "Custom Amount",
   "addFundsModal.depositBreakdown": "Deposit Breakdown",
   "addFundsModal.baseDeposit": "Base Treasury Credit:",
-  "addFundsModal.processingFee": "Initial Platform Fee (5%):",
+  "addFundsModal.processingFee": 'Refundable pod buffer (5%):',
   "addFundsModal.totalCharged": "Total Amount Charged:",
   "addFundsModal.fdicCoverageNote":
     "Protected by FDIC pass-through coverage up to $250,000 via Evolve Bank & Trust / Fifth Third Bank, N.A.",
@@ -2140,7 +2140,7 @@ export const en = {
   "shiftModal.btnReleasePayout.noTreasury": "Authorize ${rate} Daily Payout",
   "createPod.modalSubtitle.noTreasury": "Fixed-Rotation Pod with your own MutualPool account",
   "createPod.kycRequiredDesc.noTreasury": "Identity verification through Stripe is required before creating or managing mutual savings pools.",
-  "createPod.stripeFeeSummary.noTreasury": "Platform Deposit Fee (5%)",
+  "createPod.stripeFeeSummary.noTreasury": 'Refundable Pod Buffer (5%)',
   "createPod.stripeTreasuryVisa.noTreasury": "Visa via Stripe",
   "voiceAgent.welcomeDisplay.noTreasury": "👋 Hi, I'm Lainie — your MutualPool Voice AI Guide!\n\nI can guide you step-by-step through using MutualPool:\n• Saving in Pods (Weekly rotations & Susu/Tanda rules)\n• Spot Swaps (Trading payout turns safely)\n• Everyday Perks (food trucks, tire patches, phone repair, massage, parking)\n• Brand Ambassador Sponsorships (Apparel sent to verified gig workers)\n• Your MutualPool account, deposits and payouts",
   "contactModal.topicPayoutTreasury.noTreasury": "Payments & Payouts",
@@ -2152,7 +2152,7 @@ export const en = {
   "treasuryModal.headerTitle.noTreasury": "Balance & Bank Accounts",
   "treasuryModal.commercialBalanceTitle.noTreasury": "Available Balance",
   "treasuryModal.depositFormTitle.noTreasury": "Add Funds",
-  "treasuryModal.feeBreakdownNote.noTreasury": "✓ Net ${amount}.00 is credited directly to your balance. No fee on top-ups: the 5% deposit fee is charged when money goes into a pod.",
+  "treasuryModal.feeBreakdownNote.noTreasury": '✓ Net ${amount}.00 is credited directly to your balance. No fee on top-ups: the 5% refundable pod buffer is only set aside when money goes into a pod.',
   "treasuryModal.processingDeposit.noTreasury": "Processing your deposit...",
   "addFundsModal.title.noTreasury": "Add Funds",
   "addFundsModal.successMessage.noTreasury": "${amount} was credited to your balance. Your active balance is now ${newBalance}.",
@@ -2161,7 +2161,7 @@ export const en = {
   // Create Pod: review step (first deposit charged from the member's balance)
   "createPod.reviewTitle": "Review & confirm",
   "createPod.reviewSubtitle": "Your first deposit is taken from your MutualPool balance.",
-  "createPod.treasurySummary": "First deposit ${deposit} + 5% buffer contribution = ${total} will be taken from your balance (current balance ${balance}). The contribution builds your pod's contingency buffer and is refunded if unused.",
+  "createPod.treasurySummary": 'First deposit ${deposit} + 5% pod buffer = ${total} will be taken from your balance (current balance ${balance}). The buffer belongs to your pod, covers a missed week so payouts stay on time, and is returned if unused.',
   "createPod.insufficientTitle": "Add funds to continue",
   "createPod.insufficientDesc": "You need ${total} available but your balance is ${balance}. Add at least ${shortfall} to create this pod.",
   "createPod.addFundsBtn": "Add funds",
@@ -2230,10 +2230,19 @@ export const en = {
   'watchVideo.chapter2.highlight': 'No interest • No credit check • No loan',
   'watchVideo.chapter3.title': 'Money, Fees & Rules',
   'watchVideo.chapter3.desc': 'Deposits every Thursday, payouts every Friday, simple fees, and rules that protect the members who keep paying.',
-  'watchVideo.chapter3.highlight': '5% per deposit • 10% per payout, 3% to the host',
+  'watchVideo.chapter3.highlight': '10% per payout, 3% to the host • 5% refundable pod buffer',
   'watchVideo.chapter4.title': 'Perks & Paid Campaigns',
   'watchVideo.chapter4.desc': 'Road perks from partners who get gig life, brand campaigns that pay you by the day, and Lainie to answer questions any time.',
   'watchVideo.chapter4.highlight': 'Meals • Repairs • Phone plans • Sponsored hoodies',
+
+  // Premium perks (unlocked by earnings deposits)
+  'perks.premium.badge': 'Premium',
+  'perks.premium.lockedTitle': 'Premium perk',
+  'perks.premium.lockedBody': 'Unlocks when your earnings are deposited into your MutualPool account. One deposit in the last {days} days keeps it active.',
+  'perks.premium.cta': 'Set up earnings deposit',
+  'perks.premium.activeBanner': 'Premium perks active. Keep earnings landing in your MutualPool account to stay unlocked (through {until}).',
+  'perks.premium.inactiveBanner': 'Unlock premium perks: have your employer or gig platform deposit earnings into your MutualPool account. One deposit every {days} days keeps them unlocked.',
+  'perks.premium.redeemError': 'This is a premium perk. Set up an earnings deposit into your MutualPool account to unlock it.',
 };
 
 export type TranslationKey = keyof typeof en;

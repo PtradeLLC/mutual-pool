@@ -5,6 +5,7 @@
  *   npm run video:ad -- --lang es        Spanish -> public/videos/mutualpool-ad.es.*   (same for fr)
  *   npm run video:ad -- --smoke          cheap end-to-end check of every primitive (a few credits)
  *   npm run video:ad -- --only s03       regenerate the visuals of selected scenes, then re-assemble
+ *   npm run video:ad -- --only s08 --renarrate   the spoken line changed: new narration + avatar clip, b-roll kept
  *   npm run video:ad -- --assemble       skip generation, just re-stitch what is cached
  *   npm run video:ad -- --voice Noah     pick another narrator preset (default Kendrick)
  *
@@ -54,6 +55,7 @@ const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >=
 const SMOKE = flag('smoke');
 const ASSEMBLE_ONLY = flag('assemble');
 const ONLY = (opt('only') || '').split(',').map(s => s.trim()).filter(Boolean);
+const RENARRATE = flag('renarrate');   // with --only: the line changed, regenerate narration (and avatar) too
 const VOICE = (opt('voice') || process.env.AD_VOICE_PRESET || 'Kendrick') as any;
 const LANG = (opt('lang') || 'en') as AdLanguage;
 if (!AD_LANGUAGES.includes(LANG)) throw new Error(`--lang must be one of ${AD_LANGUAGES.join(', ')}`);
@@ -71,6 +73,8 @@ const client = new RunwayML({ apiKey: process.env.RUNWAY_API_KEY, timeout: 120_0
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const ensureDir = (p: string) => fs.mkdirSync(p, { recursive: true });
 const exists = (p: string) => fs.existsSync(p) && fs.statSync(p).size > 0;
+/** True when `out` exists and is newer than every input, so the encode can be skipped. */
+const upToDate = (out: string, inputs: string[]) => exists(out) && inputs.every(i => exists(i) && fs.statSync(i).mtimeMs <= fs.statSync(out).mtimeMs);
 const readJson = <T,>(p: string, fallback: T): T => (exists(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : fallback);
 const writeJson = (p: string, v: unknown) => fs.writeFileSync(p, JSON.stringify(v, null, 2));
 
@@ -383,9 +387,16 @@ async function build() {
   const selected = ONLY.length ? scenes.filter(s => ONLY.includes(s.id)) : scenes;
   for (const s of selected) {
     if (ONLY.length) {
-      // Regenerate visuals only; narration is kept. Avatar clips depend on language, b-roll is shared.
-      for (const f of brollFiles(s)) fs.rmSync(f, { force: true });
-      fs.rmSync(avatarFile(s), { force: true });
+      if (RENARRATE) {
+        // The line changed: new narration and a new lip-synced avatar clip; shared b-roll stays.
+        fs.rmSync(narrationFile(s), { force: true });
+        fs.rmSync(`${narrationFile(s)}.url`, { force: true });
+        fs.rmSync(avatarFile(s), { force: true });
+      } else {
+        // Regenerate visuals only; narration is kept. Avatar clips depend on language, b-roll is shared.
+        for (const f of brollFiles(s)) fs.rmSync(f, { force: true });
+        fs.rmSync(avatarFile(s), { force: true });
+      }
       fs.rmSync(segmentFile(s), { force: true });
     }
     ensureDir(langDir(s));
@@ -424,7 +435,10 @@ async function build() {
     const ready = exists(narration) && (s.type === 'avatar' ? exists(avatarFile(s)) : brollFiles(s).length > 0);
     if (!ready) throw new Error(`${s.id} [${LANG}] has no clip yet; run without --assemble`);
     const seg = segmentFile(s);
-    const segSec = s.type === 'avatar' ? segmentFromAvatar(avatarFile(s), seg) : segmentFromBroll(brollFiles(s), narration, seg);
+    const inputs = s.type === 'avatar' ? [avatarFile(s)] : [...brollFiles(s), narration];
+    const segSec = upToDate(seg, inputs)
+      ? probe(seg).duration
+      : s.type === 'avatar' ? segmentFromAvatar(avatarFile(s), seg) : segmentFromBroll(brollFiles(s), narration, seg);
     timeline.push({ scene: s, start: t, speech: s.type === 'avatar' ? segSec - SCENE_PAD_SEC : probe(narration).duration });
     segments.push(seg);
     t += segSec;

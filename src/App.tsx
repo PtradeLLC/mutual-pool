@@ -1770,6 +1770,7 @@ export default function App() {
           {!isAdvertiser && activeTab === 'perks' && (
             <div id="section-perks" data-section="perks" className="scroll-mt-24 sm:scroll-mt-28 min-h-[500px]">
               <PerksMarketplace
+                onOpenAddFunds={() => setShowAddFundsModal(true)}
                 currentUser={currentUser || {
                   id: 'usr_guest',
                   email: '',
