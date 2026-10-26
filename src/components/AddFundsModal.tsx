@@ -312,7 +312,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
         className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827] my-6">
+        <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827] max-h-[92vh] overflow-y-auto my-auto">
           <button
             type="button"
             onClick={onClose}
