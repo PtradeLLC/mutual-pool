@@ -104,7 +104,9 @@ export const CustodyAccountPanel: React.FC<Props> = ({ user, onUpdated }) => {
   if (loading && !status) {
     return <div className="p-4 text-xs text-slate-500 flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" /> Loading your bank account…</div>;
   }
-  if (!status || status.mode !== 'column') return null;
+  // Ledger mode (bank-held member accounts not live yet): show the bank links that do
+  // exist today so the member is never left with an empty panel.
+  if (!status || status.mode !== 'column') return <LedgerBankLinks user={user} />;
 
   const acct = status.account;
 
@@ -221,6 +223,86 @@ export const CustodyAccountPanel: React.FC<Props> = ({ user, onUpdated }) => {
           )}
         </>
       )}
+    </div>
+  );
+};
+
+
+/**
+ * Shown while custody runs in ledger mode. The member can still link a bank for
+ * authorized weekly debits and set up the payout bank; direct-deposit numbers arrive
+ * with the bank-held MutualPool account.
+ */
+const LedgerBankLinks: React.FC<{ user: User }> = ({ user }) => {
+  const [busy, setBusy] = useState<'MANDATE' | 'PAYOUT' | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const mandate = user.debitMandate;
+  const payoutBank = user.externalBank;
+
+  const open = async (kind: 'MANDATE' | 'PAYOUT') => {
+    setBusy(kind); setErr(null);
+    try {
+      const path = kind === 'MANDATE' ? '/api/users/debit-mandate/checkout-session' : '/api/users/connect/onboarding-link';
+      const res = await fetch(path, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.message || 'Could not open the bank setup page.');
+      window.location.assign(data.url);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Could not open the bank setup page.');
+      setBusy(null);
+    }
+  };
+
+  const mandateLabel = mandate?.status === 'ACTIVE'
+    ? `${mandate.bankName || 'Bank'} ••••${mandate.last4 || ''} authorized for weekly debits`
+    : mandate?.status === 'PENDING' ? 'Verification pending (micro-deposits)'
+    : mandate?.status === 'FAILED' ? 'Authorization failed, please try again'
+    : 'Not linked yet';
+  const payoutLabel = payoutBank?.status === 'LINKED'
+    ? `${payoutBank.bankName || 'Bank'} ••••${payoutBank.last4 || ''}`
+    : payoutBank?.status === 'PENDING_VERIFICATION' ? 'Pending verification'
+    : 'Not set up yet';
+
+  return (
+    <div className="space-y-3 text-xs text-slate-700">
+      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Your bank</div>
+
+      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 font-bold text-slate-900"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Bank for weekly deposits</div>
+            <div className="text-[11px] text-slate-600 mt-0.5">{mandateLabel}</div>
+          </div>
+          <button type="button" disabled={busy !== null} onClick={() => open('MANDATE')}
+            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-[11px]">
+            {busy === 'MANDATE' ? 'Opening…' : mandate?.status === 'ACTIVE' ? 'Change bank' : 'Link bank'}
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-500">You authorize MutualPool to debit a missed weekly deposit from this account. Required to create or join a pod.</p>
+      </div>
+
+      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 font-bold text-slate-900"><ArrowDownToLine className="w-4 h-4 text-[#005FB8]" /> Payout bank</div>
+            <div className="text-[11px] text-slate-600 mt-0.5">{payoutLabel}</div>
+          </div>
+          <button type="button" disabled={busy !== null} onClick={() => open('PAYOUT')}
+            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 text-slate-800 font-bold text-[11px]">
+            {busy === 'PAYOUT' ? 'Opening…' : payoutBank?.status === 'LINKED' ? 'Manage' : 'Set up'}
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-500">Where withdrawals from your MutualPool balance are sent.</p>
+      </div>
+
+      <div className="p-3 rounded-xl border border-dashed border-slate-300 flex items-start gap-2">
+        <Landmark className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-slate-600">
+          <span className="font-bold text-slate-800">Direct deposit is coming.</span> Your own MutualPool account and routing numbers, so an employer or gig platform can pay you straight into your balance, arrive with the bank-held account. Until then, fund your balance by card below.
+        </p>
+      </div>
+
+      {err && <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> {err}</div>}
     </div>
   );
 };

@@ -361,7 +361,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
             <div className="flex justify-between"><span>Top-up amount</span><span>${effectiveDepositAmount.toFixed(2)}</span></div>
             <div className="flex justify-between font-bold text-[#111827]"><span>Total charged</span><span>${effectiveDepositAmount.toFixed(2)}</span></div>
             <div className="flex justify-between"><span>Balance after top-up</span><span>${projectedBalance.toFixed(2)}</span></div>
-            <p className="pt-1 text-[11px] text-slate-500">No fee on top-ups; 5% is charged on each weekly pod deposit.</p>
+            <p className="pt-1 text-[11px] text-slate-500">No fee on top-ups. The refundable 5% pod buffer is set aside with each weekly pod deposit.</p>
           </div>
           {error && (
             <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
@@ -878,7 +878,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
                 <span>{t('addFundsModal.totalCharged')}</span>
                 <span className="text-slate-950">${effectiveDepositAmount.toFixed(2)}</span>
               </div>
-              <div className="text-[10px] text-slate-500 font-sans pt-1">No fee on top-ups; 5% is charged on each weekly pod deposit.</div>
+              <div className="text-[10px] text-slate-500 font-sans pt-1">No fee on top-ups. The refundable 5% pod buffer is set aside with each weekly pod deposit.</div>
               <div className="text-[10px] text-emerald-800 font-sans pt-1 flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>{t('addFundsModal.fdicCoverageNote')}</span>
