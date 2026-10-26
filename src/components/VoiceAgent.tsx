@@ -58,7 +58,7 @@ const VOICE_OPTIONS = [
   { id: 'Charon', name: 'Charon', description: 'Clear & professional' },
 ];
 
-// Helper to remove markdown syntax marks (###, **, *, __, _) and format as clean plain text
+// Helper to remove markdown syntax marks (###, **, *, __, _) and format as cleanplaintext
 const cleanVoiceAgentText = (rawText: string): string => {
   if (!TREASURY_PROGRAM_ENABLED) rawText = stripTreasuryClaims(rawText || '');
   if (!rawText) return '';
