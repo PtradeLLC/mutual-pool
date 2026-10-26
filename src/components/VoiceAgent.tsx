@@ -114,7 +114,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
     },
   ]);
 
-  // Update initial welcome message when language changes if no interaction has occurred
+  // Update initial welcome message when language changes ifno interaction hasoccurred.
   useEffect(() => {
     setMessages(prev => {
       if (prev.length === 1 && prev[0].id === 'welcome_1') {
