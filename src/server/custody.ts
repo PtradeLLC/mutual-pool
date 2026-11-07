@@ -28,6 +28,7 @@ import type {
   User,
 } from "../types";
 import * as column from "../services/column";
+import { classifyIncomingCredit } from "./earnings";
 
 export type CustodyMode = "ledger" | "column";
 
@@ -770,17 +771,36 @@ export async function handleColumnEvent(
         ) {
           const amount = column.fromCents(data.amount || 0);
           d.creditLedger(user, amount);
-          // An inbound credit the member did not initiate here is earnings routed to
-          // MutualPool (payroll or gig-platform direct deposit). It keeps premium perks unlocked.
-          user.earningsDeposit = {
-            lastAt: nowIso,
-            lastAmountUsd: amount,
-            count: (user.earningsDeposit?.count || 0) + 1,
-            lastSource: String(data.company_name || data.description || "").slice(0, 60) || undefined,
-          };
+          // Gig-platform payouts and paychecks routed to MutualPool keep premium
+          // perks unlocked; the member's own transfers only add balance.
+          const credit = classifyIncomingCredit({
+            companyName: data.company_name,
+            companyEntryDescription: data.company_entry_description,
+            description: data.description,
+          });
+          const firstEarnings = credit.isEarnings && !user.earningsDeposit;
+          const newPlatform =
+            credit.platform &&
+            !(user.earningsDeposit?.platforms || []).includes(credit.platform);
+          if (credit.isEarnings) {
+            const prev = user.earningsDeposit;
+            user.earningsDeposit = {
+              lastAt: nowIso,
+              lastAmountUsd: amount,
+              count: (prev?.count || 0) + 1,
+              lastSource: credit.source,
+              lastPlatform: credit.platform,
+              platforms: credit.platform
+                ? Array.from(new Set([...(prev?.platforms || []), credit.platform]))
+                : prev?.platforms,
+            };
+          }
           const rec: CustodyMovement = {
             id: newId("mv"),
-            from: { kind: "external", label: "incoming ACH" },
+            from: {
+              kind: "external",
+              label: credit.platform || credit.source || "incoming ACH",
+            },
             to: { kind: "member", userId: user.id },
             amountUsd: amount,
             purpose: "TOPUP",
@@ -798,14 +818,24 @@ export async function handleColumnEvent(
             settledAt: nowIso,
           };
           d.getMovements().unshift(rec);
-          d.notify(
-            user.id,
-            "💵 Deposit received",
-            `$${amount.toFixed(2)} arrived in your MutualPool account.`,
-            { transferId },
-          );
+          if (firstEarnings || newPlatform) {
+            const from = credit.platform ? `${credit.platform} payout` : "Paycheck";
+            d.notify(
+              user.id,
+              "✅ Direct deposit is working",
+              `${from} of $${amount.toFixed(2)} arrived in your MutualPool account.${firstEarnings ? " Premium perks are now unlocked." : ""}`,
+              { transferId },
+            );
+          } else {
+            d.notify(
+              user.id,
+              "💵 Deposit received",
+              `$${amount.toFixed(2)} arrived in your MutualPool account.`,
+              { transferId },
+            );
+          }
           d.onChange();
-          return "incoming credit applied";
+          return `incoming credit applied (${credit.kind.toLowerCase()})`;
         }
       }
       return "ach: no movement";

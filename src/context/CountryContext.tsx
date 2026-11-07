@@ -60,7 +60,7 @@ function getInitialCountryConfig(): CountryConfig {
       }
     }
 
-    // 3. Resolve from actual domain/hostname (e.g. myapp.ng, myapp.uk, myapp.nl, myapp.com)
+    // 3. Resolve from actual domain/hostname (e.g. myapp.ng, myapp.uk, myapp.mx, myapp.com)
     return resolveCountryFromHostname(window.location.hostname);
   } catch (err) {
     console.warn('[CountryContext] Falling back to default US config', err);

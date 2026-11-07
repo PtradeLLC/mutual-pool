@@ -2,28 +2,31 @@ import { CountryConfig, SupportedCountryCode } from './types';
 import { US_CONFIG } from './us';
 import { GB_CONFIG } from './gb';
 import { NG_CONFIG } from './ng';
-import { NL_CONFIG } from './nl';
+import { MX_CONFIG } from './mx';
+import { KE_CONFIG } from './ke';
 
 export const COUNTRY_REGISTRY: Record<SupportedCountryCode, CountryConfig> = {
   US: US_CONFIG,
   GB: GB_CONFIG,
   NG: NG_CONFIG,
-  NL: NL_CONFIG,
+  MX: MX_CONFIG,
+  KE: KE_CONFIG,
 };
 
 export const SUPPORTED_COUNTRIES: CountryConfig[] = [
   US_CONFIG,
   GB_CONFIG,
   NG_CONFIG,
-  NL_CONFIG,
+  MX_CONFIG,
+  KE_CONFIG,
 ];
 
 /**
  * Resolves country configuration from hostname or domain.
  * Supports:
- * - Production domains: myapp.com, myapp.uk, myapp.ng, myapp.nl
- * - Subdomains: www.*, us.*, uk.*, ng.*, nl.*
- * - ccTLDs: *.uk, *.ng, *.nl
+ * - Production domains: myapp.com, myapp.uk, myapp.ng, myapp.mx, myapp.co.ke
+ * - Subdomains: www.*, us.*, uk.*, ng.*, mx.*, ke.*
+ * - ccTLDs: *.uk, *.ng, *.mx, *.ke
  * - Localhost / dev previews / fallback to US
  */
 export function resolveCountryFromHostname(
@@ -55,13 +58,15 @@ export function resolveCountryFromHostname(
   // 2. Subdomain prefix check (e.g. uk.myapp.com, ng.myapp.org)
   if (normalizedHost.startsWith('uk.') || normalizedHost.startsWith('gb.')) return GB_CONFIG;
   if (normalizedHost.startsWith('ng.')) return NG_CONFIG;
-  if (normalizedHost.startsWith('nl.')) return NL_CONFIG;
+  if (normalizedHost.startsWith('mx.')) return MX_CONFIG;
+  if (normalizedHost.startsWith('ke.')) return KE_CONFIG;
   if (normalizedHost.startsWith('us.')) return US_CONFIG;
 
   // 3. Top-level domain (TLD) suffix checks
   if (normalizedHost.endsWith('.uk') || normalizedHost.endsWith('.co.uk')) return GB_CONFIG;
   if (normalizedHost.endsWith('.ng') || normalizedHost.endsWith('.com.ng')) return NG_CONFIG;
-  if (normalizedHost.endsWith('.nl')) return NL_CONFIG;
+  if (normalizedHost.endsWith('.mx')) return MX_CONFIG;
+  if (normalizedHost.endsWith('.ke')) return KE_CONFIG;
   if (normalizedHost.endsWith('.com') || normalizedHost.endsWith('.us')) return US_CONFIG;
 
   // 4. Default fallback

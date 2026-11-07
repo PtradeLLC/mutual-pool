@@ -353,6 +353,10 @@ export interface EarningsDepositRecord {
   count: number;
   /** Who sent the last deposit, when the bank told us (company name or ACH description). */
   lastSource?: string;
+  /** Gig platform recognised on the last deposit (see src/server/earnings.ts). */
+  lastPlatform?: string;
+  /** Every gig platform whose payouts have arrived, so the member can see which are switched over. */
+  platforms?: string[];
 }
 
 export interface PremiumStatus {

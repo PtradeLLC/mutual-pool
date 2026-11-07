@@ -21,6 +21,7 @@ const PodDetailModal = lazy(() => import('./components/PodDetailModal').then((mo
 const CreatePodModal = lazy(() => import('./components/CreatePodModal').then((module) => ({ default: module.CreatePodModal })));
 const StripeBankModal = lazy(() => import('./components/StripeBankModal').then((module) => ({ default: module.StripeBankModal })));
 const AddFundsModal = lazy(() => import('./components/AddFundsModal').then((module) => ({ default: module.AddFundsModal })));
+const DirectDepositModal = lazy(() => import('./components/DirectDepositModal').then((module) => ({ default: module.DirectDepositModal })));
 const KycVerificationModal = lazy(() => import('./components/KycVerificationModal').then((module) => ({ default: module.KycVerificationModal })));
 const PodAgreementModal = lazy(() => import('./components/PodAgreementModal').then((module) => ({ default: module.PodAgreementModal })));
 import { PerksMarketplace } from './components/PerksMarketplace';
@@ -205,6 +206,7 @@ export default function App() {
   const [showKycModal, setShowKycModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  const [showDirectDepositModal, setShowDirectDepositModal] = useState(false);
   const [showHardshipModal, setShowHardshipModal] = useState(false);
   const [hardshipModalTab, setHardshipModalTab] = useState<'hardship' | 'trade'>('hardship');
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -1818,7 +1820,7 @@ export default function App() {
           {!isAdvertiser && activeTab === 'perks' && (
             <div id="section-perks" data-section="perks" className="scroll-mt-24 sm:scroll-mt-28 min-h-[500px]">
               <PerksMarketplace
-                onOpenAddFunds={() => setShowAddFundsModal(true)}
+                onOpenDirectDeposit={() => setShowDirectDepositModal(true)}
                 currentUser={currentUser || {
                   id: 'usr_guest',
                   email: '',
@@ -1984,6 +1986,17 @@ export default function App() {
               setShowBankModal(false);
               fetchAppData(updatedUser?.id);
             }}
+          />
+        </Suspense>
+      )}
+
+      {showDirectDepositModal && currentUser && (
+        <Suspense fallback={null}>
+          <DirectDepositModal
+            isOpen={showDirectDepositModal}
+            user={currentUser}
+            onClose={() => setShowDirectDepositModal(false)}
+            onOpenAccount={() => setShowAddFundsModal(true)}
           />
         </Suspense>
       )}

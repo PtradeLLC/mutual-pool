@@ -31,14 +31,26 @@ assert(resolveCountryFromHostname('www.myapp.ng').countryCode === 'NG', 'www.mya
 assert(resolveCountryFromHostname('ng.myapp.com').countryCode === 'NG', 'ng.myapp.com resolves to NG');
 assert(resolveCountryFromHostname('portal.com.ng').countryCode === 'NG', '*.com.ng resolves to NG');
 
-// Netherlands Domains
-assert(resolveCountryFromHostname('myapp.nl').countryCode === 'NL', 'myapp.nl resolves to NL');
-assert(resolveCountryFromHostname('www.myapp.nl').countryCode === 'NL', 'www.myapp.nl resolves to NL');
-assert(resolveCountryFromHostname('nl.myapp.com').countryCode === 'NL', 'nl.myapp.com resolves to NL');
-
 // Override header / query test
+// Mexico Domains
+assert(resolveCountryFromHostname('myapp.mx').countryCode === 'MX', 'myapp.mx resolves to MX');
+assert(resolveCountryFromHostname('www.myapp.com.mx').countryCode === 'MX', 'www.myapp.com.mx resolves to MX');
+assert(resolveCountryFromHostname('mx.myapp.com').countryCode === 'MX', 'mx.myapp.com resolves to MX');
+
+// Kenya Domains
+assert(resolveCountryFromHostname('myapp.co.ke').countryCode === 'KE', 'myapp.co.ke resolves to KE');
+assert(resolveCountryFromHostname('www.myapp.ke').countryCode === 'KE', 'www.myapp.ke resolves to KE');
+assert(resolveCountryFromHostname('ke.myapp.com').countryCode === 'KE', 'ke.myapp.com resolves to KE');
+
+// The Netherlands is no longer a market
+assert(resolveCountryFromHostname('myapp.nl').countryCode === 'US', 'myapp.nl falls back to US');
+assert(resolveCountryFromHostname('myapp.com', 'NL').countryCode === 'US', 'Override code NL is ignored');
+assert(!('NL' in COUNTRY_REGISTRY), 'NL is not registered');
+assert(SUPPORTED_COUNTRIES.map(c => c.countryCode).join(',') === 'US,GB,NG,MX,KE', 'Supported markets are US, GB, NG, MX, KE');
+
 assert(resolveCountryFromHostname('myapp.com', 'NG').countryCode === 'NG', 'Override code NG takes precedence');
-assert(resolveCountryFromHostname('myapp.com', 'NL').countryCode === 'NL', 'Override code NL takes precedence');
+assert(resolveCountryFromHostname('myapp.com', 'MX').countryCode === 'MX', 'Override code MX takes precedence');
+assert(resolveCountryFromHostname('myapp.com', 'ke').countryCode === 'KE', 'Override code ke takes precedence');
 
 console.log('✅ Domain-based resolution passed successfully!');
 
@@ -58,8 +70,11 @@ assert(gbFormatted.includes('£') || gbFormatted.includes('GBP'), 'UK currency c
 const ngFormatted = formatCurrency(50000, 'NG');
 assert(ngFormatted.includes('₦') || ngFormatted.includes('NGN'), 'Nigeria currency contains ₦ or NGN');
 
-const nlFormatted = formatCurrency(500, 'NL');
-assert(nlFormatted.includes('€') || nlFormatted.includes('EUR'), 'Netherlands currency contains € or EUR');
+const mxFormatted = formatCurrency(500, 'MX');
+assert(mxFormatted.includes('$') || mxFormatted.includes('MXN'), 'Mexico currency contains $ or MXN');
+
+const keFormatted = formatCurrency(500, 'KE');
+assert(keFormatted.includes('Ksh') || keFormatted.includes('KSh') || keFormatted.includes('KES'), 'Kenya currency contains Ksh or KES');
 
 const minorFormatted = formatMinorUnits(5000, 'US');
 assert(minorFormatted.includes('$50') || minorFormatted.includes('50'), 'formatMinorUnits 5000 cents -> $50.00');
@@ -81,9 +96,13 @@ const ngProvider = PaymentProviderFactory.getProvider('NG');
 assert(ngProvider.providerId === 'paystack', 'NG uses paystack');
 assert(ngProvider.supportedCurrency === 'NGN', 'NG currency is NGN');
 
-const nlProvider = PaymentProviderFactory.getProvider('NL');
-assert(nlProvider.providerId === 'stripe_ideal', 'NL uses stripe_ideal');
-assert(nlProvider.supportedCurrency === 'EUR', 'NL currency is EUR');
+const mxProvider = PaymentProviderFactory.getProvider('MX');
+assert(mxProvider.providerId === 'stripe_mx', 'MX uses stripe_mx');
+assert(mxProvider.supportedCurrency === 'MXN', 'MX currency is MXN');
+
+const keProvider = PaymentProviderFactory.getProvider('KE');
+assert(keProvider.providerId === 'paystack_ke', 'KE uses paystack_ke');
+assert(keProvider.supportedCurrency === 'KES', 'KE currency is KES');
 
 console.log('✅ Payment provider factory passed successfully!');
 
@@ -102,9 +121,14 @@ const ngConfig = getCountryByCode('NG');
 assert(ngConfig.pwa.name === 'MutualPool Nigeria', 'NG PWA name is MutualPool Nigeria');
 assert(ngConfig.regulations.taxIdLabel.includes('BVN'), 'NG tax ID label contains BVN');
 
-const nlConfig = getCountryByCode('NL');
-assert(nlConfig.pwa.name === 'MutualPool Nederland', 'NL PWA name is MutualPool Nederland');
-assert(nlConfig.regulations.taxIdLabel.includes('BSN'), 'NL tax ID label contains BSN');
+const mxConfig = getCountryByCode('MX');
+assert(mxConfig.pwa.name === 'MutualPool México', 'MX PWA name is MutualPool México');
+assert(mxConfig.defaultLanguage === 'es', 'MX defaults to Spanish');
+assert(mxConfig.regulations.taxIdLabel.includes('CURP'), 'MX tax ID label contains CURP');
+
+const keConfig = getCountryByCode('KE');
+assert(keConfig.pwa.name === 'MutualPool Kenya', 'KE PWA name is MutualPool Kenya');
+assert(keConfig.regulations.taxIdLabel.includes('KRA PIN'), 'KE tax ID label contains KRA PIN');
 
 console.log('✅ Regulatory & PWA Manifest checks passed successfully!');
 console.log('🎉 ALL MULTI-COUNTRY ARCHITECTURE TESTS PASSED!');

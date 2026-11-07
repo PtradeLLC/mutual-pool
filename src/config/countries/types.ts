@@ -1,8 +1,8 @@
-export type SupportedCountryCode = 'US' | 'GB' | 'NG' | 'NL';
+export type SupportedCountryCode = 'US' | 'GB' | 'NG' | 'MX' | 'KE';
 
 export interface CurrencyConfig {
-  code: string;               // e.g. 'USD', 'GBP', 'NGN', 'EUR'
-  symbol: string;             // e.g. '$', '£', '₦', '€'
+  code: string;               // e.g. 'USD', 'GBP', 'NGN', 'MXN', 'KES'
+  symbol: string;             // e.g. '$', '£', '₦', 'KSh'
   minorUnitExponent: number;  // 2 for standard fiat (cents, pence, kobo, cents)
   symbolPosition: 'prefix' | 'suffix';
   thousandSeparator: string;
@@ -10,10 +10,10 @@ export interface CurrencyConfig {
 }
 
 export interface PaymentConfig {
-  provider: 'stripe_treasury' | 'stripe_uk' | 'paystack' | 'stripe_ideal' | string;
+  provider: 'stripe_treasury' | 'stripe_uk' | 'stripe_mx' | 'paystack' | 'paystack_ke' | string;
   providerDisplayName: string;
   currency: string;
-  supportedMethods: ('card' | 'bank_transfer' | 'ach' | 'bacs' | 'ussd' | 'ideal' | 'sepa')[];
+  supportedMethods: ('card' | 'bank_transfer' | 'ach' | 'bacs' | 'ussd' | 'oxxo' | 'spei' | 'mpesa')[];
   minDepositMinorUnits: number;
   payoutFeePercentage: number;
   instantPayoutAvailable: boolean;
@@ -31,11 +31,11 @@ export interface FeaturesConfig {
 }
 
 export interface RegulationsConfig {
-  regulatoryBody: string;       // e.g. 'FinCEN / FDIC Pass-Through', 'FCA (UK)', 'CBN (Nigeria)', 'DNB / AFM (Netherlands)'
+  regulatoryBody: string;       // e.g. 'FinCEN / FDIC Pass-Through', 'FCA (UK)', 'CBN (Nigeria)', 'CNBV (Mexico)', 'CBK (Kenya)'
   regulatoryNotice: string;
   cookieConsentType: 'opt-in' | 'opt-out' | 'notice';
   taxIdRequired: boolean;
-  taxIdLabel: string;           // e.g. 'SSN / ITIN', 'National Insurance (NI)', 'BVN / NIN', 'BSN'
+  taxIdLabel: string;           // e.g. 'SSN / ITIN', 'National Insurance (NI)', 'BVN / NIN', 'CURP / RFC', 'KRA PIN'
   privacyPolicyUrl: string;
   termsOfServiceUrl: string;
   dataRetentionDays: number;
@@ -49,8 +49,8 @@ export interface CountryConfig {
   primaryDomain: string;
   domains: string[];
   
-  defaultLanguage: string;      // 'en', 'nl', etc.
-  defaultLocale: string;        // 'en-US', 'en-GB', 'en-NG', 'nl-NL'
+  defaultLanguage: string;      // 'en', 'es', etc.
+  defaultLocale: string;        // 'en-US', 'en-GB', 'en-NG', 'es-MX', 'en-KE'
   supportedLocales: string[];
   
   currency: CurrencyConfig;

@@ -225,6 +225,22 @@ test('ACH funding credits the ledger on settlement and reverses on a late return
   await custody.handleColumnEvent(evt('ach.incoming_transfer.completed', incoming));
   await custody.handleColumnEvent(evt('ach.incoming_transfer.completed', incoming));
   assert.equal(alice.treasury.balanceUsd, 165.5);
+  // A gig-platform payout counts as earnings and unlocks premium perks.
+  assert.equal(alice.earningsDeposit?.count, 1);
+  assert.equal(alice.earningsDeposit?.lastPlatform, 'DoorDash');
+  assert.deepEqual(alice.earningsDeposit?.platforms, ['DoorDash']);
+  assert.ok(notices.some(n => n.userId === 'alice' && /direct deposit is working/i.test(n.title)));
+
+  // The member moving their own money in adds balance but is not earnings.
+  await custody.handleColumnEvent(evt('ach.incoming_transfer.completed', { id: 'acht_incoming_2', is_incoming: true, type: 'CREDIT', amount: 2000, bank_account_id: alice.custody!.bankAccountId, company_name: 'CHASE', company_entry_description: 'TRANSFER' }));
+  assert.equal(alice.treasury.balanceUsd, 185.5);
+  assert.equal(alice.earningsDeposit?.count, 1);
+
+  // A paycheck from an employer counts.
+  await custody.handleColumnEvent(evt('ach.incoming_transfer.completed', { id: 'acht_incoming_3', is_incoming: true, type: 'CREDIT', amount: 40000, bank_account_id: alice.custody!.bankAccountId, company_name: 'ACME PLUMBING', company_entry_description: 'PAYROLL' }));
+  assert.equal(alice.earningsDeposit?.count, 2);
+  assert.equal(alice.earningsDeposit?.lastPlatform, undefined);
+  assert.deepEqual(alice.earningsDeposit?.platforms, ['DoorDash']);
 
   // Identity webhook updates the member's account status.
   const bob = users.find(u => u.id === 'bob')!;

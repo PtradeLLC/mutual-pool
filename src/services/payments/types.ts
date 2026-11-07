@@ -25,10 +25,17 @@ export interface PaymentIntentResult {
 export interface PayoutDisbursementParams {
   amountMinorUnits: number;
   currency: string;
+  // Stripe: the member's Connect account (acct_...). Paystack: the bank account
+  // number, or the M-Pesa phone number in Kenya.
   destinationAccountId: string;
+  // Paystack bank code (e.g. "058" in Nigeria, "MPESA" in Kenya).
   destinationBankRouting?: string;
+  // Name on the destination account (Paystack requires it).
+  accountName?: string;
   userId: string;
   narration: string;
+  // Stable id for this payout (e.g. the withdrawal id), so a retry never pays twice.
+  reference?: string;
 }
 
 export interface PayoutDisbursementResult {

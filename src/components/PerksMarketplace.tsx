@@ -13,8 +13,8 @@ interface PerksMarketplaceProps {
   onClearInitialSubmitModal?: () => void;
   onSelectUser?: (user: User) => void;
   onOpenAuth?: (mode?: 'LOGIN' | 'REGISTER' | 'PHONE' | 'GOOGLE') => void;
-  /** Opens Add Funds, where the member finds the account and routing numbers for an earnings deposit. */
-  onOpenAddFunds?: () => void;
+  /** Opens the direct deposit setup, where the member gets the numbers for an earnings deposit. */
+  onOpenDirectDeposit?: () => void;
 }
 
 const CATEGORIES: (PerkCategory | 'All')[] = [
@@ -35,7 +35,7 @@ const CATEGORIES: (PerkCategory | 'All')[] = [
   'Childcare & Pet Care',
 ];
 
-export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onClearInitialSubmitModal, onSelectUser, onOpenAuth, onOpenAddFunds }) => {
+export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser, initialOpenSubmitModal, onClearInitialSubmitModal, onSelectUser, onOpenAuth, onOpenDirectDeposit }) => {
   const { t } = useTranslation();
   const [perks, setPerks] = useState<Perk[]>([]);
   const [allAdminPerks, setAllAdminPerks] = useState<Perk[]>([]);
@@ -1087,10 +1087,10 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
           <div className="mb-5 flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-xl bg-slate-50 border border-[#DDE1E6] text-xs text-slate-700">
             <Lock className="w-4 h-4 text-slate-500 shrink-0" />
             <span className="flex-1">{t('perks.premium.inactiveBanner', { days: premiumWindowDays })}</span>
-            {onOpenAddFunds && (
+            {onOpenDirectDeposit && (
               <button
                 type="button"
-                onClick={onOpenAddFunds}
+                onClick={onOpenDirectDeposit}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-[11px] transition-colors shrink-0"
               >
                 <Landmark className="w-3.5 h-3.5" />
@@ -1194,7 +1194,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                     type="button"
                     onClick={() => {
                       if (!isSignedIn) { onOpenAuth?.('LOGIN'); return; }
-                      onOpenAddFunds?.();
+                      onOpenDirectDeposit?.();
                     }}
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold text-xs transition-colors shadow-xs cursor-pointer"
                   >

@@ -2994,7 +2994,9 @@ app.get(['/api/health', '/health'], (req, res) => {
       const platformFee = 0;
       const totalCharged = depositAmount;
 
-      // Non-US markets are not live: their payment providers are stubs.
+      // Non-US markets are not live: pods and balances are kept in USD, so a
+      // deposit in local currency has nowhere to land yet. Outside production the
+      // market's provider runs against its test keys.
       if (country.countryCode !== 'US' && IS_PRODUCTION) {
         return res.status(503).json({ error: 'MARKET_NOT_AVAILABLE', message: `${country.countryName} is not open yet.` });
       }
@@ -3008,6 +3010,9 @@ app.get(['/api/health', '/health'], (req, res) => {
           podId,
           description: description || `${country.countryName} Pod Deposit for ${user.displayName || user.email}`,
         });
+        if (!providerIntent.success) {
+          return res.status(502).json({ error: 'PAYMENT_PROVIDER_ERROR', provider: provider.providerId, message: providerIntent.error || 'The payment provider could not start the deposit.' });
+        }
 
         return res.json({
           success: true,
