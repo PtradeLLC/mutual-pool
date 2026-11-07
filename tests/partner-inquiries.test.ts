@@ -35,3 +35,28 @@ test('a partner can request a pilot without an account and admins can read it', 
   assert.equal(mine.workforceSize, 120);
   assert.equal(mine.status, 'NEW');
 });
+
+test('a new notification pushes a refresh to the member\'s open app over the chat socket', async () => {
+  const { default: WebSocket } = await import('ws');
+  // Make sure the admin exists before the notification is created.
+  assert.equal((await api('/api/admin/partner-inquiries', { headers: admin })).status, 200);
+
+  const ws = new WebSocket(`${BASE_URL.replace(/^http/, 'ws')}/ws`);
+  const received: any[] = [];
+  ws.on('message', (m) => received.push(JSON.parse(String(m))));
+  await new Promise<void>((resolve, reject) => {
+    ws.once('open', () => ws.send(JSON.stringify({ type: 'AUTH', token: `demo_token_${admin['x-user-id']}` })));
+    ws.once('error', reject);
+    const t = setInterval(() => { if (received.some(m => m.type === 'AUTH_SUCCESS')) { clearInterval(t); resolve(); } }, 20);
+  });
+
+  const ok = await api('/api/partners/inquiry', { method: 'POST', headers: json, body: JSON.stringify({
+    orgName: `Refresh Check ${Date.now().toString(36)}`, orgType: 'fleet', contactName: 'Pat', contactEmail: 'pat@example.test',
+  }) });
+  assert.equal(ok.status, 200);
+
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline && !received.some(m => m.type === 'REFRESH')) await new Promise(r => setTimeout(r, 20));
+  ws.close();
+  assert.deepEqual(received.find(m => m.type === 'REFRESH'), { type: 'REFRESH', scope: 'notifications' });
+});

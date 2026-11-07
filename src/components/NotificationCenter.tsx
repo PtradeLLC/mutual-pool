@@ -6,6 +6,7 @@ import {
 import { User, Pod, AppNotification } from '../types';
 import { useToast } from '../context/ToastContext';
 import { fetchWithExponentialBackoff } from '../utils/apiRetry';
+import { pollWhileVisible } from '../utils/visiblePoll';
 
 interface NotificationCenterProps {
   currentUser: User;
@@ -70,8 +71,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   };
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 10000); // poll every 10 sec
+    // Every 30 s while visible; the server also pushes a refresh over the chat
+    // socket the moment a notification is created.
+    const stopPolling = pollWhileVisible(() => void fetchNotifications(), () => 30_000, { refreshOn: 'notifications' });
 
     const handleSync = (e: any) => {
       if (e?.detail) {
@@ -82,7 +84,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     window.addEventListener('mutualpool_notifications_synced', handleSync);
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
       window.removeEventListener('mutualpool_notifications_synced', handleSync);
     };
   }, [currentUser.id, currentUser.email, currentUser.displayName]);

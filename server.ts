@@ -82,6 +82,7 @@ import {
   setChatThreads,
   getChatMessages,
   setChatMessages,
+  pushToUser,
 } from './src/server/chatManager';
 import { FOURTHWALL_GEAR_CATALOG, INITIAL_GEAR_DESIGNS, dispatchOrderToFourthwall } from './src/services/fourthwall';
 import { GearDesignOrder, PhotoSpotCheck, CampaignShiftLog } from './src/types';
@@ -434,6 +435,8 @@ function createNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'i
   };
   notifications.unshift(newNotif);
   saveNotificationsToDisk();
+  // The app polls notifications (and the member's balance) slowly; tell it now.
+  pushToUser(newNotif.userId, { type: 'REFRESH', scope: 'notifications' });
   return newNotif;
 }
 

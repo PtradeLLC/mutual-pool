@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ChatMessage, ChatThread, ChatMessageType, User, Pod } from '../types';
 import { auth } from '../lib/firebase';
+import { pollWhileVisible, dispatchRefresh } from '../utils/visiblePoll';
 
 interface ChatContextType {
   threads: ChatThread[];
@@ -41,6 +42,9 @@ export const ChatProvider: React.FC<{
   const [isConnected, setIsConnected] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
+  // True while the socket is open and authenticated: the server then pushes
+  // messages, read receipts and presence, so REST polling can slow right down.
+  const wsLiveRef = useRef(false);
   const activeThreadRef = useRef<ChatThread | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
@@ -155,11 +159,6 @@ export const ChatProvider: React.FC<{
         return;
       }
 
-      // If hosting environment does not support persistent WebSockets (e.g. serverless proxy), stop aggressive retries
-      if (retryCountRef.current > 3) {
-        return;
-      }
-
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -185,11 +184,18 @@ export const ChatProvider: React.FC<{
 
             switch (data.type) {
               case 'AUTH_SUCCESS':
+                wsLiveRef.current = true;
                 setIsConnected(true);
                 if (Array.isArray(data.onlineUsers)) {
                   setOnlineUsers(data.onlineUsers);
                 }
                 refreshThreads();
+                break;
+
+              // The server changed something this member sees (e.g. created a
+              // notification); pollers listening for the scope refetch now.
+              case 'REFRESH':
+                if (data.scope === 'notifications') dispatchRefresh('notifications');
                 break;
 
               case 'PRESENCE_UPDATE':
@@ -264,11 +270,12 @@ export const ChatProvider: React.FC<{
         ws.onclose = () => {
           if (!isMounted) return;
           wsRef.current = null;
+          wsLiveRef.current = false;
+          // Keep trying (backing off to once a minute): while the socket is down
+          // the app falls back to fast polling, which costs the server far more.
           retryCountRef.current += 1;
-          if (retryCountRef.current <= 4) {
-            const delay = Math.min(20000, 2000 * Math.pow(2, retryCountRef.current));
-            reconnectTimeoutRef.current = window.setTimeout(connectWebSocket, delay);
-          }
+          const delay = Math.min(60000, 2000 * Math.pow(2, retryCountRef.current));
+          reconnectTimeoutRef.current = window.setTimeout(connectWebSocket, delay);
         };
 
         ws.onerror = () => {
@@ -282,19 +289,20 @@ export const ChatProvider: React.FC<{
     };
 
     connectWebSocket();
-    refreshThreads();
 
-    // Periodic sync fallback (every 8s, or 3s when chat is open)
-    const interval = setInterval(() => {
+    // REST sync: a once-a-minute safety net while the socket is live; the
+    // fallback while it is down (every 4 s with a conversation open, else 10 s).
+    const stopPolling = pollWhileVisible(() => {
       refreshThreads();
       if (activeThreadRef.current) {
         fetchMessagesForThread(activeThreadRef.current.id);
       }
-    }, 4000);
+    }, () => (wsLiveRef.current ? 60000 : activeThreadRef.current ? 4000 : 10000));
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      wsLiveRef.current = false;
+      stopPolling();
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (wsRef.current) {
         wsRef.current.close();

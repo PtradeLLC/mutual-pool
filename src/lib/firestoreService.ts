@@ -1,4 +1,5 @@
 import { User, Pod, Perk, AuditLogEntry, Redemption, isDemoPod, calculateAccountAgeDays } from '../types';
+import { pollWhileVisible, RefreshScope } from '../utils/visiblePoll';
 
 // Client data access. Despite the file name (kept so existing imports work),
 // nothing here talks to Firestore any more: the server is the only writer and
@@ -6,10 +7,13 @@ import { User, Pod, Perk, AuditLogEntry, Redemption, isDemoPod, calculateAccount
 // /api endpoints and polls for live updates. The save*/add* helpers are no-ops
 // kept for existing call sites: changes must go through the API routes.
 
-const POLL_INTERVAL_MS = 15_000;
+// Polling is most of the server's load, so intervals are as long as the
+// screen can tolerate; polling pauses while the page is hidden, and the server
+// pushes a refresh over the chat socket when something the member sees changes.
+const POLL_INTERVAL_MS = 30_000;
 
 // Poll an API endpoint and hand each successful result to the callback.
-function pollApi<T>(url: string, parse: (data: any) => T, callback: (value: T) => void, onError?: (err: Error) => void, intervalMs = POLL_INTERVAL_MS) {
+function pollApi<T>(url: string, parse: (data: any) => T, callback: (value: T) => void, onError?: (err: Error) => void, intervalMs = POLL_INTERVAL_MS, refreshOn?: RefreshScope) {
   let stopped = false;
   const tick = async () => {
     try {
@@ -21,11 +25,10 @@ function pollApi<T>(url: string, parse: (data: any) => T, callback: (value: T) =
       if (!stopped) onError?.(err instanceof Error ? err : new Error(String(err)));
     }
   };
-  void tick();
-  const timer = setInterval(tick, intervalMs);
+  const stop = pollWhileVisible(() => void tick(), () => intervalMs, { refreshOn });
   return () => {
     stopped = true;
-    clearInterval(timer);
+    stop();
   };
 }
 
@@ -67,7 +70,8 @@ export function subscribeToUser(
     callback(null);
     return () => {};
   }
-  return pollApi('/api/users/current', parseUser, callback, onError, 10_000);
+  // Balance and status changes arrive with a notification, which refreshes this at once.
+  return pollApi('/api/users/current', parseUser, callback, onError, 30_000, 'notifications');
 }
 
 // --- PODS ---
@@ -101,7 +105,7 @@ export function subscribeToPerks(
   callback: (perks: Perk[]) => void,
   onError?: (err: Error) => void
 ) {
-  return pollApi('/api/perks', (data) => (Array.isArray(data) ? data as Perk[] : []), callback, onError);
+  return pollApi('/api/perks', (data) => (Array.isArray(data) ? data as Perk[] : []), callback, onError, 60_000);
 }
 
 // No-op: perks are submitted/managed through /api/perks/* and /api/admin/perks/*.

@@ -111,6 +111,12 @@ function broadcastToUsers(targetUserIds: string[], payload: any) {
   }
 }
 
+// Send a small event to every open socket of one member, e.g. a REFRESH so the
+// app refetches at once instead of waiting for its next (slow) poll.
+export function pushToUser(userId: string, payload: { type: string; [key: string]: unknown }): void {
+  if (userId) broadcastToUsers([userId], payload);
+}
+
 // Users who share at least one thread with userId (presence is only visible to them).
 function getContactsOf(userId: string): string[] {
   const contacts = new Set<string>();
