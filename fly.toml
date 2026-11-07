@@ -42,10 +42,13 @@ primary_region = "iad"
   min_machines_running = 1
   processes = ["app"]
 
+  # Every member with the app open holds a chat WebSocket, and each one counts
+  # as a request here, so these limits are roughly "members online at once".
+  # Load-tested: one dedicated core served ~1,500 at once (Nov 2026).
   [http_service.concurrency]
     type = "requests"
-    soft_limit = 200
-    hard_limit = 400
+    soft_limit = 1500
+    hard_limit = 2500
 
   [[http_service.checks]]
     method = "GET"
@@ -54,6 +57,8 @@ primary_region = "iad"
     timeout = "5s"
     grace_period = "20s"
 
+# Dedicated CPU: shared-cpu sizes run on burst credit and are throttled to
+# 1/16 of a core once it runs out, which froze the server in load tests.
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "1gb"
+  size = "performance-2x"
+  memory = "4gb"
