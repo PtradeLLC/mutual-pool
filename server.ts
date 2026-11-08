@@ -85,7 +85,7 @@ import {
   pushToUser,
 } from './src/server/chatManager';
 import { FOURTHWALL_GEAR_CATALOG, INITIAL_GEAR_DESIGNS, dispatchOrderToFourthwall } from './src/services/fourthwall';
-import { GearDesignOrder, PhotoSpotCheck, CampaignShiftLog } from './src/types';
+import { GearDesignOrder, PhotoSpotCheck, CampaignShiftLog, POD_SIZE_OPTIONS, MAX_POD_SIZE, isPodSizeOption, capFormingPodSize } from './src/types';
 
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -244,7 +244,7 @@ function loadPodsFromDisk(): Pod[] {
   } catch (err) {
     console.error('Error loading pods_data.json:', err);
   }
-  return Array.from(map.values());
+  return Array.from(map.values()).map(capFormingPodSize);
 }
 
 function savePodsToDisk() {
@@ -3304,10 +3304,9 @@ app.get(['/api/health', '/health'], (req, res) => {
     if (category !== undefined && (typeof category !== 'string' || category.length > 80)) {
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'category must be at most 80 characters.' });
     }
-    const validSizeTiers = [20, 50, 100, 500, 1000, 5000, 10000];
     const validDepositTiers = [5, 10, 20, 50, 100];
-    if (!validSizeTiers.includes(Number(sizeTier))) {
-      return res.status(400).json({ error: 'INVALID_INPUT', message: 'sizeTier must be one of ' + validSizeTiers.join(', ') });
+    if (!isPodSizeOption(Number(sizeTier))) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: `A pod can have ${POD_SIZE_OPTIONS.join(' or ')} members.` });
     }
     if (!validDepositTiers.includes(Number(depositTier))) {
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'depositTier must be one of ' + validDepositTiers.join(', ') });
@@ -3343,19 +3342,11 @@ app.get(['/api/health', '/health'], (req, res) => {
 
     // Tenure Rule Enforcement:
     const isSeasoned = user.accountAgeDays >= 90 || user.completedPodsCount >= 1;
-    if (!isSeasoned) {
-      if (sizeTier > 50) {
-        return res.status(400).json({
-          error: 'TENURE_RESTRICTION',
-          message: 'New accounts (< 90 days tenure) can only create 20 or 50 member pods. Higher member tiers unlock after 3 months of successful operation.'
-        });
-      }
-      if (depositTier > 20) {
-        return res.status(400).json({
-          error: 'DEPOSIT_TIER_RESTRICTION',
-          message: 'New accounts can start at $5, $10, or $20 deposit tiers. $50 and $100 tiers unlock after completing 1 full pod cycle.'
-        });
-      }
+    if (!isSeasoned && depositTier > 20) {
+      return res.status(400).json({
+        error: 'DEPOSIT_TIER_RESTRICTION',
+        message: 'New accounts can start at $5, $10, or $20 a week. $50 and $100 unlock after 90 days on MutualPool or one completed pod.'
+      });
     }
 
     // Open Pod Rule: Requires at least 1 completed cycle or seasoned status
@@ -3678,7 +3669,8 @@ app.get(['/api/health', '/health'], (req, res) => {
         if (capProblem) return res.status(403).json(capProblem);
       }
 
-      const sizeTier = pod.sizeTier || 20;
+      // Pods created before the size cap may be larger; none fills past MAX_POD_SIZE.
+      const sizeTier = Math.min(pod.sizeTier || MAX_POD_SIZE, MAX_POD_SIZE);
 
       if (pod.members.length >= sizeTier) {
         return res.status(400).json({ error: 'Pod has reached its maximum size tier capacity.' });
@@ -9138,7 +9130,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isEs) {
           return {
             spokenText: "Antes de crear o unirte a un grupo debes verificar tu identidad y autorizar débitos bancarios. El tamaño del pozo que puedes unirte crece con tu historial: hasta $1,000 antes de tu primer grupo completado, $2,500 después de uno, $5,000 después de dos y sin límite a partir del tercero.",
-            displayText: "📏 Reglas de los Grupos\n\n• Requisitos: identidad verificada y autorización de débito bancario. Se usa solo si tu saldo no cubre un depósito, para adelantos a tu favor o para los depósitos pendientes si sales tras cobrar.\n• Tamaño del pozo según tu historial: hasta $1,000 sin grupos completados; $2,500 tras 1; $5,000 tras 2; sin límite tras 3. Un depósito faltante sin resolver te devuelve al primer nivel.\n• Turnos tempranos: la primera mitad de la rotación va a quienes completaron un grupo, luego a quienes llevan 90+ días, luego a los nuevos. Aleatorio dentro de cada nivel; el Creador siempre al final. Pozos mayores a $1,000 no se bloquean hasta que todos los turnos tempranos estén cubiertos por miembros experimentados.\n• Compromiso: depositas cada semana durante todo el ciclo, incluso después de cobrar. Solo puedes salir cuando todos hayan cobrado.\n• Máximo 3 grupos creados activos a la vez; mínimo 2 miembros para iniciar.",
+            displayText: "📏 Reglas de los Grupos\n\n• Requisitos: identidad verificada y autorización de débito bancario. Se usa solo si tu saldo no cubre un depósito, para adelantos a tu favor o para los depósitos pendientes si sales tras cobrar.\n• Tamaño del pozo según tu historial: hasta $1,000 sin grupos completados; $2,500 tras 1; $5,000 tras 2; sin límite tras 3. Un depósito faltante sin resolver te devuelve al primer nivel.\n• Turnos tempranos: la primera mitad de la rotación va a quienes completaron un grupo, luego a quienes llevan 90+ días, luego a los nuevos. Aleatorio dentro de cada nivel; el Creador siempre al final. Pozos mayores a $1,000 no se bloquean hasta que todos los turnos tempranos estén cubiertos por miembros experimentados.\n• Compromiso: depositas cada semana durante todo el ciclo, incluso después de cobrar. Solo puedes salir cuando todos hayan cobrado.\n• Máximo 3 grupos creados activos a la vez; mínimo 2 miembros para iniciar.\n• Cada grupo tiene 10 o 20 miembros (un ciclo de 10 o 20 semanas).",
             suggestedActions: [
               { label: "Ver FAQ Completo", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Vincular Banco", action: "OPEN_MODAL", modal: "BANK" }
@@ -9149,7 +9141,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         if (isFr) {
           return {
             spokenText: "Avant de créer ou rejoindre un groupe, vous devez vérifier votre identité et autoriser les prélèvements bancaires. La taille de cagnotte accessible grandit avec votre historique : jusqu'à 1 000 $ avant votre premier groupe terminé, 2 500 $ après un, 5 000 $ après deux, sans limite à partir du troisième.",
-            displayText: "📏 Règles des Groupes\n\n• Prérequis : identité vérifiée et autorisation de prélèvement bancaire. Utilisée seulement si votre solde ne couvre pas une cotisation, pour une avance consentie, ou pour les cotisations restantes si vous partez après avoir été payé.\n• Taille de cagnotte selon l'historique : jusqu'à 1 000 $ sans groupe terminé ; 2 500 $ après 1 ; 5 000 $ après 2 ; sans limite après 3. Une cotisation manquée non réglée vous ramène au premier palier.\n• Créneaux précoces : la première moitié de la rotation revient aux membres ayant terminé un groupe, puis à ceux ayant 90+ jours d'ancienneté, puis aux nouveaux. Ordre aléatoire dans chaque palier ; le Créateur toujours en dernier. Les cagnottes de plus de 1 000 $ ne se verrouillent que si tous les créneaux précoces sont tenus par des membres expérimentés.\n• Engagement : vous cotisez chaque semaine pendant tout le cycle, même après votre versement. Vous ne pouvez partir qu'une fois tout le monde payé.\n• Maximum 3 groupes créés actifs à la fois ; minimum 2 membres pour démarrer.",
+            displayText: "📏 Règles des Groupes\n\n• Prérequis : identité vérifiée et autorisation de prélèvement bancaire. Utilisée seulement si votre solde ne couvre pas une cotisation, pour une avance consentie, ou pour les cotisations restantes si vous partez après avoir été payé.\n• Taille de cagnotte selon l'historique : jusqu'à 1 000 $ sans groupe terminé ; 2 500 $ après 1 ; 5 000 $ après 2 ; sans limite après 3. Une cotisation manquée non réglée vous ramène au premier palier.\n• Créneaux précoces : la première moitié de la rotation revient aux membres ayant terminé un groupe, puis à ceux ayant 90+ jours d'ancienneté, puis aux nouveaux. Ordre aléatoire dans chaque palier ; le Créateur toujours en dernier. Les cagnottes de plus de 1 000 $ ne se verrouillent que si tous les créneaux précoces sont tenus par des membres expérimentés.\n• Engagement : vous cotisez chaque semaine pendant tout le cycle, même après votre versement. Vous ne pouvez partir qu'une fois tout le monde payé.\n• Maximum 3 groupes créés actifs à la fois ; minimum 2 membres pour démarrer.\n• Chaque groupe compte 10 ou 20 membres (un cycle de 10 ou 20 semaines).",
             suggestedActions: [
               { label: "Consulter la FAQ", action: "OPEN_MODAL", modal: "FAQ" },
               { label: "Lier ma Banque", action: "OPEN_MODAL", modal: "BANK" }
@@ -9159,7 +9151,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
         }
         return {
           spokenText: "Before you create or join a pod you verify your identity and authorize bank debits. The pot size you can join grows with your track record: up to $1,000 before your first completed pod, $2,500 after one, $5,000 after two, and no limit from the third.",
-          displayText: "📏 Pod Rules\n\n• Requirements: verified identity and a bank debit authorization. It is used only if your balance can't cover a deposit, for anything advanced on your behalf, or for the remaining deposits if you leave after your payout.\n• Pod size ladder: pots up to $1,000 with no completed pods; $2,500 after 1; $5,000 after 2; no limit after 3. An unresolved missed deposit drops you back to the first tier.\n• Early slots: the first half of the rotation goes to members who completed a pod, then members with 90+ days on MutualPool, then newer members. Random within each tier; the Creator is always last. Pots over $1,000 can't lock until every early slot is held by an experienced member.\n• Commitment: you deposit every week for the full cycle, including after your own payout. You can only leave once everyone has been paid.\n• At most 3 pods you created can be forming or active at once; a pod needs 2 members to start.",
+          displayText: "📏 Pod Rules\n\n• Requirements: verified identity and a bank debit authorization. It is used only if your balance can't cover a deposit, for anything advanced on your behalf, or for the remaining deposits if you leave after your payout.\n• Pod size ladder: pots up to $1,000 with no completed pods; $2,500 after 1; $5,000 after 2; no limit after 3. An unresolved missed deposit drops you back to the first tier.\n• Early slots: the first half of the rotation goes to members who completed a pod, then members with 90+ days on MutualPool, then newer members. Random within each tier; the Creator is always last. Pots over $1,000 can't lock until every early slot is held by an experienced member.\n• Commitment: you deposit every week for the full cycle, including after your own payout. You can only leave once everyone has been paid.\n• At most 3 pods you created can be forming or active at once; a pod needs 2 members to start.\n• A pod has 10 or 20 members (a 10- or 20-week cycle).",
           suggestedActions: [
             { label: "Browse Full FAQ", action: "OPEN_MODAL", modal: "FAQ" },
             { label: "Link Bank Account", action: "OPEN_MODAL", modal: "BANK" }
@@ -9571,6 +9563,7 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
   * Trusted Circles (Private): Invite-only for friends, family, or close delivery hub crews via private invite link/code.
   * Open Pods (Public): Open to all verified members. To CREATE an Open Pod you need at least one completed pod OR 90+ days on MutualPool.
 - A member can have at most 3 pods they created forming or active at the same time. A pod needs at least 2 members to lock and start.
+- A pod has 10 or 20 members, so a full cycle is 10 or 20 weeks. Larger pods aren't offered: the last members would wait too long.
 - POD SIZE LADDER (how big a pot you may join; pot = weekly deposit x members): up to $1,000 before your first completed pod; up to $2,500 after 1 completed pod; up to $5,000 after 2; no limit after 3. Only pods completed with no missed deposit count. An unresolved missed deposit drops you back to the $1,000 tier until it is settled.
 - EARLY SLOTS BY TRUST: when the creator locks the pod, the first half of the rotation goes to the most established members: completed-pod members first, then members with 90+ days on MutualPool, then newer members. Random order within each group; the creator always takes the final slot. For pots over $1,000 every early slot must be held by a completed-pod or 90+ day member, otherwise the pod cannot lock. Pots of $1,000 or less always lock.
 - COMMITMENT: joining means depositing every week for the full cycle (one week per member), INCLUDING after you have received your own payout. You can leave only once every member has received a payout. If you leave or are removed after your payout, the remaining deposits are still owed.
@@ -9908,7 +9901,7 @@ function registerPersistentState(): void {
     pods = docs
       .map(d => (d && d.pod && typeof d.pod === 'object' ? { ...d.pod, id: d.pod.id || d.id } : d))
       .filter(p => p && p.id && !isDemoPodServer(p))
-      .map(p => ({ ...p, members: Array.isArray(p.members) ? p.members : [], invitedContacts: Array.isArray(p.invitedContacts) ? p.invitedContacts : [], status: p.status || 'FORMING' }));
+      .map(p => capFormingPodSize({ ...p, members: Array.isArray(p.members) ? p.members : [], invitedContacts: Array.isArray(p.invitedContacts) ? p.invitedContacts : [], status: p.status || 'FORMING' }));
   } });
   registerCollection({ collection: 'notifications', get: () => notifications, set: docs => {
     notifications = docs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());

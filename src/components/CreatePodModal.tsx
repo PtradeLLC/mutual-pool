@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { FEES } from '../lib/legal';
-import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy } from '../types';
+import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy, POD_SIZE_OPTIONS, DEFAULT_POD_SIZE } from '../types';
 import { useTranslation } from '../i18n/LanguageContext';
 import { savePodToFirestore } from '../lib/firestoreService';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
@@ -79,7 +79,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const [inviteWindowDays, setInviteWindowDays] = useState<number>(prefill?.inviteWindowDays ?? 7);
   const [autoOpenOnExpire, setAutoOpenOnExpire] = useState<boolean>(prefill?.autoOpenOnExpire ?? true);
   const [invitedContacts, setInvitedContacts] = useState<InvitedContact[]>([]);
-  const [sizeTier, setSizeTier] = useState<PodSizeTier>(prefill?.sizeTier ?? 20);
+  const [sizeTier, setSizeTier] = useState<PodSizeTier>(prefill?.sizeTier ?? DEFAULT_POD_SIZE);
   const [depositTier, setDepositTier] = useState<DepositTier>(prefill?.depositTier ?? 20);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -708,28 +708,22 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <label className="block text-xs font-semibold text-[#111827] mb-1.5">
                   {t('createPod.memberCapacityLabel')}
                 </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {([20, 50, 100, 500] as PodSizeTier[]).map((tier) => {
-                    const disabled = !isSeasoned && tier > 50;
-                    return (
-                      <button
-                        key={tier}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setSizeTier(tier)}
-                        className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
-                          sizeTier === tier
-                            ? 'bg-[#005FB8] border-[#005FB8] text-white shadow-xs'
-                            : disabled
-                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <span>{t('createPod.membersCount', { count: tier })}</span>
-                        {disabled && <span className="text-[9px] text-amber-700 font-mono">{t('createPod.threeMonthReq')}</span>}
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-2 gap-2">
+                  {POD_SIZE_OPTIONS.map((tier) => (
+                    <button
+                      key={tier}
+                      type="button"
+                      onClick={() => setSizeTier(tier)}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
+                        sizeTier === tier
+                          ? 'bg-[#005FB8] border-[#005FB8] text-white shadow-xs'
+                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span>{t('createPod.membersCount', { count: tier })}</span>
+                      <span className="text-[9px] font-mono opacity-80">{t('createPod.cycleWeeks', { count: tier })}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

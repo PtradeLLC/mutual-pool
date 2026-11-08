@@ -87,11 +87,9 @@ test('join cap ladder: pot size a member may join grows with completed pods', as
   // One completed pod unlocks $2,500.
   assert.equal((await join(big, oneDone)).status, 200);
 
-  // 100 × $50 = $5,000: beyond one completed pod.
-  const bigger = await createPod(creator, 100, 50);
-  const r = await join(bigger, oneDone);
-  assert.equal(r.status, 403);
-  assert.equal(r.body.capUsd, 2500);
+  // Pods are capped at 20 members, so the largest pot is 20 × $100 = $2,000: one
+  // completed pod (cap $2,500) is enough to join any pod.
+  assert.equal(big.weeklyPoolTarget, 2000);
 
   // 20 × $50 = $1,000 is exactly the first cap: fine for a brand-new member.
   const small = await createPod(creator, 20, 50);

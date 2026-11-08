@@ -152,7 +152,22 @@ export function calculateAccountAgeDays(createdAt?: string, fallbackDays: number
   return Math.max(fallback, days, 1);
 }
 
-export type PodSizeTier = 20 | 50 | 100 | 500 | 1000 | 5000 | 10000;
+// Pod sizes a member can choose. A cycle lasts one week per member, so size is
+// capped: 20 members is 20 weeks (about 5 months), and a larger pod would make
+// its last members wait years. Shared by the create form and the server check.
+export const POD_SIZE_OPTIONS = [10, 20] as const;
+export type PodSizeTier = typeof POD_SIZE_OPTIONS[number];
+export const MAX_POD_SIZE = 20;
+export const DEFAULT_POD_SIZE: PodSizeTier = 10;
+export const isPodSizeOption = (n: unknown): n is PodSizeTier => (POD_SIZE_OPTIONS as readonly unknown[]).includes(n);
+
+// Pods created before the cap could be larger (50 to 10,000). Active ones keep
+// their size; one still forming is capped at MAX_POD_SIZE so it can't fill past
+// it, unless it already has more members (it can still lock early).
+export function capFormingPodSize<T extends { status?: string; sizeTier: number; depositTier: number; members?: unknown[]; totalCycles?: number; weeklyPoolTarget?: number }>(pod: T): T {
+  if (pod.status !== 'FORMING' || !(pod.sizeTier > MAX_POD_SIZE) || (pod.members?.length || 0) > MAX_POD_SIZE) return pod;
+  return { ...pod, sizeTier: MAX_POD_SIZE, totalCycles: MAX_POD_SIZE, weeklyPoolTarget: MAX_POD_SIZE * pod.depositTier };
+}
 export type DepositTier = 5 | 10 | 20 | 50 | 100;
 export type PodStatus = 'FORMING' | 'LOCKED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 export type DelinquencyStatus = 'CLEAN' | 'GRACE_PERIOD' | 'DELINQUENT';
@@ -228,7 +243,8 @@ export interface Pod {
   autoOpenOnExpire: boolean;
   inviteCode: string;
   invitedContacts: InvitedContact[];
-  sizeTier: PodSizeTier;
+  // One of POD_SIZE_OPTIONS for new pods; pods created before the cap may be larger.
+  sizeTier: number;
   depositTier: DepositTier;
   status: PodStatus;
   cycleStartDate?: string;

@@ -986,9 +986,9 @@ export const en = {
   "createPod.tenureUnlockedTitle": "Tenure Unlocked: Seasoned Account",
   "createPod.tenurePolicyTitle": "3-Month Tenure Tier Policy",
   "createPod.tenureUnlockedDesc":
-    "Account tenure of {days} days unlocks all large pod member tiers (up to 10,000) and $50/$100 deposit tiers.",
+    "Account tenure of {days} days unlocks the $50 and $100 weekly deposit tiers.",
   "createPod.tenurePolicyDesc":
-    "New accounts (<90 days tenure) can create 20 or 50 member pods at $5, $10, or $20 weekly tiers. Larger tiers unlock after 3 months of successful operation.",
+    "New accounts (<90 days tenure) can create pods at $5, $10, or $20 a week. The $50 and $100 tiers unlock after 90 days or one completed pod.",
   "createPod.verifyIdentityBtn": "Verify Identity (KYC)",
   "createPod.selectTypeLabel": "Select Pod Type & Access Rules",
   "createPod.trustedCircleTitle": "🔒 Trusted Circle",
@@ -1041,7 +1041,7 @@ export const en = {
     "Describe purpose (e.g., tax reserves, vehicle maintenance, emergency gear)...",
   "createPod.memberCapacityLabel": "Member Capacity Tier",
   "createPod.membersCount": "{count} Members",
-  "createPod.threeMonthReq": "3-Mo Req",
+  "createPod.cycleWeeks": "{count}-week cycle",
   "createPod.weeklyDepositLabel": "Weekly Deposit Tier",
   "createPod.lockedTier": "Locked",
   "createPod.initialDepositLabel": "Initial Pool Deposit ({name})",
@@ -1368,7 +1368,7 @@ export const en = {
   "howItWorksModal.poolCreationDesc": "Any verified member with a bank debit authorization can create a pod, up to three forming or active at once.",
   "howItWorksModal.startingSizeLabel": "Pod size:",
   "howItWorksModal.startingSizeDesc":
-    "From 20 members up to 10,000. A pod can lock and start with as few as 2 members if the creator chooses flexible early launch.",
+    "10 or 20 members, so a full cycle takes 10 or 20 weeks. A pod can lock and start with as few as 2 members if the creator chooses flexible early launch.",
   "howItWorksModal.startingTiersLabel": "Deposit tiers:",
   "howItWorksModal.startingTiersDesc":
     "$5, $10, $20, $50 or $100 per week. The pot is the deposit multiplied by the number of members.",

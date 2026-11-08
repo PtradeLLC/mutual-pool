@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { User, Pod, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin, PodDetailTab } from './types';
+import { User, Pod, isPodSizeOption, MAX_POD_SIZE, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin, PodDetailTab } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
 import { FDICNoticeBanner } from './components/FDICNoticeBanner';
@@ -2085,7 +2085,8 @@ export default function App() {
                 activationPolicy: p.activationPolicy,
                 inviteWindowDays: p.inviteWindowDays,
                 autoOpenOnExpire: p.autoOpenOnExpire,
-                sizeTier: p.sizeTier,
+                // A pod from before the size cap may be larger; round 2 uses the largest size allowed.
+                sizeTier: isPodSizeOption(p.sizeTier) ? p.sizeTier : MAX_POD_SIZE,
                 depositTier: p.depositTier,
                 renewedFromPodId: p.id,
               });
