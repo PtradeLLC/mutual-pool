@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FEES } from '../lib/legal';
 import { Pod, User, Perk, isDemoPod, POD_SIZE_OPTIONS, MAX_POD_SIZE } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
-import heroImg from '../assets/images/gig_driver_hero_1784926420728.jpg';
+import { HeroCarousel } from './HeroCarousel';
 import bikerAdImg from '../assets/images/bikerad.png';
 import { Logo } from './Logo';
 import { WatchVideoModal } from './WatchVideoModal';
@@ -533,44 +533,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* 2. HERO SECTION */}
       {(() => {
         const heroImageElement = (
-          <div className="relative rounded-2xl overflow-hidden border border-[#DDE1E6] shadow-xl bg-[#F8FAFC]">
-            <img
-              src={heroImg}
-              alt="Gig delivery driver using mutual savings app"
-              referrerPolicy="no-referrer"
-              className="w-full h-auto max-h-[480px] object-cover object-center"
-            />
-            
-            {/* Gradient overlay at bottom for text readability if needed */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-
-            {/* Floating Badge Top Right */}
-            <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-3 shadow-lg flex items-center gap-2.5 text-xs">
-              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="font-bold text-[#111827] block text-[11px]">{t('hero.fdicBadgeTitle')}</span>
-                <span className="text-[10px] text-[#6B7280]">{t('hero.fdicBadgeSub')}</span>
-              </div>
-            </div>
-
-            {/* Floating Badge Bottom Left */}
-            <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-3 shadow-lg flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-blue-50 text-[#005FB8] shrink-0">
-                  <Users className="w-4 h-4" />
+          <HeroCarousel
+            renderOverlay={(slide) => (
+              <>
+                {/* Floating Badge Top Right */}
+                <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-2 sm:p-3 shadow-lg flex items-center gap-2 sm:gap-2.5 text-xs">
+                  <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-[#111827] block text-[11px]">{t('hero.fdicBadgeTitle')}</span>
+                    <span className="hidden sm:inline text-[10px] text-[#6B7280]">{t('hero.fdicBadgeSub')}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-[#111827] block text-[11px]">{t('hero.savingsCircleTitle')}</span>
-                  <span className="text-[10px] text-[#6B7280]">DoorDash, Uber Eats, Lyft, Instacart</span>
+
+                {/* Floating Badge Bottom: who is saving in this photo */}
+                <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md border border-[#DDE1E6] rounded-xl p-3 shadow-lg flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-2 rounded-lg bg-blue-50 text-[#005FB8] shrink-0">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-[#111827] block text-[11px]">{t('hero.savingsCircleTitle')}</span>
+                      <span className="text-[10px] text-[#6B7280] block leading-tight">{t(`hero.slide.${slide.id}.caption` as any)}</span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-mono font-bold text-emerald-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                    {t('hero.interestFree')}
+                  </span>
                 </div>
-              </div>
-              <span className="text-[10px] font-mono font-bold text-emerald-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
-                {t('hero.interestFree')}
-              </span>
-            </div>
-          </div>
+              </>
+            )}
+          />
         );
 
         return (

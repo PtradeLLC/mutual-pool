@@ -26,8 +26,7 @@ export const en = {
   "nav.scrollRight": "Scroll right",
 
   // Hero Section
-  "hero.badge":
-    "Built for Gig Workers, Hospitality, Couriers, Trade Specialists & Independent Contractors",
+  "hero.badge": "For anyone saving with people they trust",
   "hero.title": "Build savings, access cash pools, and unlock benefits through the power of community.",
   "hero.subtitle":
     "Pool weekly cash deposits with your friends, crew and other members — one member gets the full pot each week, on a fair, fixed rotation.",
@@ -45,6 +44,22 @@ export const en = {
   "hero.savingsCircleTitle": "Peer Savings Circles",
   "hero.savingsCircleSub": "Couriers, Trades, Freelancers & Contractors",
   "hero.interestFree": "0% Interest",
+  "hero.carouselLabel": "People saving together with MutualPool",
+  "hero.carouselPrev": "Previous photo",
+  "hero.carouselNext": "Next photo",
+  "hero.carouselShow": "Show photo",
+  "hero.slide.family.alt": "Parents and their daughter checking their savings on a phone at the kitchen table",
+  "hero.slide.family.caption": "Families saving for what's next",
+  "hero.slide.nurse.alt": "A nurse on her break checking her savings on her phone",
+  "hero.slide.nurse.caption": "Nurses and healthcare workers",
+  "hero.slide.shopOwner.alt": "A bakery owner smiling behind her counter",
+  "hero.slide.shopOwner.caption": "Small business owners",
+  "hero.slide.friends.alt": "Friends around a patio table looking at a phone together",
+  "hero.slide.friends.caption": "Friends, neighbors and coworkers",
+  "hero.slide.teacher.alt": "A teacher in an empty classroom smiling at his phone",
+  "hero.slide.teacher.caption": "Teachers and school staff",
+  "hero.slide.gig.alt": "A delivery rider holding up her phone with her savings on screen",
+  "hero.slide.gig.caption": "Drivers and delivery workers",
   "hero.featurePodInviteTitle": "Invite Crew|Friends",
   "hero.featurePodInviteDesc": "Create or join trusted pods with friends, family, and co-workers",
   "hero.featureSafeDepositsTitle": "FDIC Pass-Through",
