@@ -34,6 +34,7 @@ export const fr: Record<TranslationKey, string> = {
   'hero.startPodFree': 'Créer un Pod Gratuitement',
   'hero.goToDashboard': 'Tableau de bord',
   'hero.watchVideo': 'Voir la vidéo',
+  'hero.forCreators': 'Pour les créateurs de contenu',
   'hero.downloadOn': 'Télécharger dans',
   'hero.downloadOnThe': 'Télécharger sur',
   'hero.downloadLabel': 'Télécharger l’application',

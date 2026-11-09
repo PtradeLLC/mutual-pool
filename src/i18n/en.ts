@@ -33,6 +33,7 @@ export const en = {
   "hero.startPodFree": "Start a Pod Free",
   "hero.goToDashboard": "Go to Dashboard",
   "hero.watchVideo": "Watch Video",
+  "hero.forCreators": "For Content Creators",
   "hero.downloadOn": "Download on the",
   "hero.downloadOnThe": "Download on the",
   "hero.downloadLabel": "Download App",

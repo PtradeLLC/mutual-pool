@@ -628,6 +628,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                   <span>{t('hero.watchVideo')}</span>
                 </button>
+
+                {onOpenCreators && (
+                  <button
+                    onClick={() => onOpenCreators()}
+                    className="px-6 py-3.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 font-semibold text-sm transition-all shadow-xs flex items-center gap-2 group cursor-pointer"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-white text-purple-700 flex items-center justify-center group-hover:bg-purple-700 group-hover:text-white transition-colors">
+                      <Clapperboard className="w-3.5 h-3.5" />
+                    </div>
+                    <span>{t('hero.forCreators' as any)}</span>
+                  </button>
+                )}
               </div>
 
               {/* App Store Download Badges in Hero */}
