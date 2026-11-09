@@ -32,7 +32,7 @@ export const en = {
     "Pool weekly cash deposits with your friends, crew and other members — one member gets the full pot each week, on a fair, fixed rotation.",
   "hero.startPodFree": "Start a Pod Free",
   "hero.goToDashboard": "Go to Dashboard",
-  "hero.watchVideo": "Watch Video",
+  "hero.watchVideo": "For Gig Workers",
   "hero.forCreators": "For Content Creators",
   "hero.downloadOn": "Download on the",
   "hero.downloadOnThe": "Download on the",

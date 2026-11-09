@@ -253,3 +253,21 @@ test('withdrawal bank checks: same account, no recent bank change, owner name or
   assert.equal(withdrawalBankProblem({ mandate: other, legalName: 'Maria Lopez', nameReviewedFor: bankAccountKey('021000021', '4242'), now }), null, 'admin confirmed this account');
   assert.equal(withdrawalBankProblem({ mandate: { ...other, last4: '5555' }, legalName: 'Maria Lopez', nameReviewedFor: bankAccountKey('021000021', '4242'), now })?.code, 'NAME_REVIEW', 'approval does not carry to another account');
 });
+
+test('Lainie recognizes Creator Pools questions without taking over ordinary pod-creator questions', async () => {
+  const { isCreatorPoolsQuestion, creatorPoolsAnswer, CREATOR_POOLS_BRIEF } = await import('../src/lib/creatorPoolsKnowledge');
+  for (const q of ['What is a creator pool?', 'Can my TikTok followers join?', "I'm an influencer", 'How do I open the creator dashboard', '¿Pueden unirse mis seguidores?', 'Je suis créateur de contenu']) {
+    assert.equal(isCreatorPoolsQuestion(q), true, q);
+  }
+  for (const q of ['How does the creator 3% host reward work?', 'Can the pod creator swap spots?', 'What is a ROSCA?']) {
+    assert.equal(isCreatorPoolsQuestion(q), false, q);
+  }
+  for (const lang of ['en', 'es', 'fr']) {
+    const a = creatorPoolsAnswer(lang);
+    assert.equal(a.navigationAction?.target, 'CREATORS');
+    assert.match(a.displayText, /3 ?%/);
+    assert.match(a.displayText, /5[,  ]000/);
+  }
+  assert.match(CREATOR_POOLS_BRIEF, /1,000 followers/);
+  assert.match(CREATOR_POOLS_BRIEF, /W-9/);
+});

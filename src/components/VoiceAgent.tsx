@@ -15,6 +15,7 @@ import { User } from '../types';
 import { useTranslation } from '../i18n';
 import { useToast } from '../context/ToastContext';
 import { TREASURY_PROGRAM_ENABLED, stripTreasuryClaims } from '../lib/treasuryClaims';
+import { isCreatorPoolsQuestion, creatorPoolsAnswer } from '../lib/creatorPoolsKnowledge';
 
 export interface VoiceAgentProps {
   currentUser: User | null;
@@ -29,6 +30,8 @@ export interface VoiceAgentProps {
   onOpenContact: () => void;
   onOpenAdvertiser: () => void;
   onOpenFaq?: (category?: string) => void;
+  onOpenCreators?: () => void;
+  onOpenCreatorDashboard?: () => void;
 }
 
 interface Message {
@@ -86,6 +89,8 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
   onOpenContact,
   onOpenAdvertiser,
   onOpenFaq,
+  onOpenCreators,
+  onOpenCreatorDashboard,
 }) => {
   const { t, language } = useTranslation();
   const toast = useToast();
@@ -276,10 +281,12 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       else if (action.target === 'HOW_IT_WORKS') onOpenHowItWorks();
       else if (action.target === 'CONTACT') onOpenContact();
       else if (action.target === 'FAQ') onOpenFaq?.();
+      else if (action.target === 'CREATORS') onOpenCreators?.();
+      else if (action.target === 'CREATOR_DASHBOARD') onOpenCreatorDashboard?.();
     } else if (action.type === 'OPEN_ADVERTISER') {
       onOpenAdvertiser();
     }
-  }, [onNavigateTab, onOpenCreatePod, onOpenKyc, onOpenBank, onOpenHardship, onOpenAbout, onOpenHowItWorks, onOpenContact, onOpenAdvertiser, onOpenFaq]);
+  }, [onNavigateTab, onOpenCreatePod, onOpenKyc, onOpenBank, onOpenHardship, onOpenAbout, onOpenHowItWorks, onOpenContact, onOpenAdvertiser, onOpenFaq, onOpenCreators, onOpenCreatorDashboard]);
 
   // Natural TTS audio playback
   const playResponseAudio = useCallback(async (spokenText: string) => {
@@ -375,7 +382,9 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
       const isFr = language === 'fr';
       const userName = currentUser?.displayName || 'Member';
 
-      if (
+      if (isCreatorPoolsQuestion(q)) {
+        data = creatorPoolsAnswer(language);
+      } else if (
         q.includes('rosca') || q.includes('tanda') || q.includes('susu') || q.includes('pardna') || 
         q.includes('arisan') || q.includes('chit fund') || q.includes('mutualpool') || 
         q.includes('what is') || q.includes('how does a pod work') || q.includes('how do pods work') ||

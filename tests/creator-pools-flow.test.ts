@@ -353,7 +353,9 @@ test('a member removed after being paid: their slot stays empty and the buffer c
 });
 
 test('withdrawals wait for an admin when the bank account holder name does not match the verified name', async () => {
-  const m = followers[5];
+  // Any follower who still has money (earlier tests emptied one or two at random).
+  let m = followers[0];
+  for (const f of followers) { if (await balance(f) >= 5) { m = f; break; } }
   assert.equal((await post(m, '/api/users/debit-mandate/accept', { last4: '4242', bankName: 'Test Bank', routingNumber: '021000021', accountHolderName: 'John Doe', legalName: m.name })).status, 200);
   const w = await post(m, '/api/treasury/payouts/withdraw', { amount: 1 });
   assert.equal(w.status, 403);
@@ -377,4 +379,16 @@ test('an admin removing an unpaid member holds the slot for the next follower an
   assert.ok(detail.body.openSlots.some((o: any) => o.slot === 15), 'slot 15 held');
   const listed = await get(makeUser('browser'), '/api/pods');
   assert.ok(!listed.body.some((p: any) => p.id === pod1), 'never listed publicly');
+});
+
+test('Lainie answers Creator Pools questions (quick answers when the AI is unavailable)', async () => {
+  const ask = (query: string, language = 'en') => api('/api/ai/voice-guide', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query, currentContext: { language } }) });
+  const en = await ask('What is a creator pool?');
+  assert.equal(en.status, 200, JSON.stringify(en.body));
+  assert.match(en.body.displayText, /Creator Pools/);
+  assert.equal(en.body.navigationAction?.target, 'CREATORS');
+  const es = await ask('¿Mis seguidores pueden ahorrar conmigo?', 'es');
+  assert.match(es.body.displayText, /Creator Pools/);
+  const ordinary = await ask('How does the creator 3% host reward work?');
+  assert.doesNotMatch(ordinary.body.displayText || '', /Creator Pools/, 'ordinary pod-creator answer unchanged');
 });

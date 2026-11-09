@@ -33,7 +33,7 @@ export const fr: Record<TranslationKey, string> = {
   'hero.subtitle': 'Mettez en commun des dépôts hebdomadaires avec votre groupe : chaque semaine, un membre reçoit l’intégralité de la cagnotte selon une rotation équitable et planifiée.',
   'hero.startPodFree': 'Créer un Pod Gratuitement',
   'hero.goToDashboard': 'Tableau de bord',
-  'hero.watchVideo': 'Voir la vidéo',
+  'hero.watchVideo': 'Pour les travailleurs gig',
   'hero.forCreators': 'Pour les créateurs de contenu',
   'hero.downloadOn': 'Télécharger dans',
   'hero.downloadOnThe': 'Télécharger sur',

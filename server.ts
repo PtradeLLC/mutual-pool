@@ -98,6 +98,7 @@ import {
   creatorEarnsCommission, JoinQueue, creatorPoolAgreementText, withdrawalBankProblem, bankAccountKey,
 } from './src/server/creatorPools';
 import { taxIdKey, encryptTaxId, decryptTaxId, normalizeTaxId, csvCell } from './src/server/taxIdCrypto';
+import { isCreatorPoolsQuestion, creatorPoolsAnswer, CREATOR_POOLS_BRIEF } from './src/lib/creatorPoolsKnowledge';
 import { platformConfigured, signState, verifyState, authorizeUrl, exchangeAndReadProfile } from './src/server/creatorSocial';
 
 let geminiClient: GoogleGenAI | null = null;
@@ -10556,6 +10557,10 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       const isEs = language === 'es';
       const isFr = language === 'fr';
 
+      // Creator Pools (content creators and their followers) come first, so
+      // "what is a creator pool" doesn't get the generic answer.
+      if (isCreatorPoolsQuestion(q)) return creatorPoolsAnswer(language);
+
       // 0. What is ROSCA / What is MutualPool / Savings Pod / Tandas / Susu / How does it work?
       if (
         q.includes('rosca') || q.includes('tanda') || q.includes('susu') || q.includes('pardna') || 
@@ -11201,7 +11206,7 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
       : 'MANDATORY LANGUAGE: The user\'s interface language is English. Respond in English.';
 
     const systemInstruction = `You are "Lainie", the intelligent, friendly, and highly knowledgeable on-screen Voice AI Guide for MutualPool (mutualpool.org).
-MutualPool is a collaborative savings and gig economy perks platform built for 1099 couriers, rideshare drivers, and independent gig workers.
+MutualPool is a collaborative savings platform for anyone saving with people they trust: families, friends, coworkers, gig and trade workers, and content creators with their followers (Creator Pools). Gig workers also get perks and brand campaigns.
 You are directly wired to the comprehensive MutualPool FAQ Knowledge Base.
 
 ${languageInstruction}
@@ -11211,10 +11216,10 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 ====================================================
 
 1. CATEGORY: BASICS & ROSCAs (TANDAS / SUSU / PARDNA / ARISAN)
-- What is MutualPool? A modernized peer-to-peer Rotating Savings and Credit Association (ROSCA) for gig workers.
+- What is MutualPool? A modernized peer-to-peer Rotating Savings and Credit Association (ROSCA) for anyone saving with people they trust.
 - How Pods Work: Members contribute a fixed weekly deposit (e.g. $20/wk). Each week, one member receives the full collective lump-sum pot (e.g., $400 gross / $360 net for 20 members). Over 20 weeks, all 20 members receive one full lump sum.
 - 0% Interest, 0 Debt, No Credit Checks: MutualPool is NOT a loan, credit card, or bank. There is zero compounding interest, no predatory APR, and no credit score checks. Balances do not earn interest.
-- Who can join: 18+, lives in the United States, works (or is eligible to work) with a delivery or rideshare platform. One account per person. Non-US markets are not available yet.
+- Who can join: 18+ and lives in the United States. One account per person. Non-US markets are not available yet. Gig work is not required (perks and brand campaigns are for gig workers).
 - Before creating or joining ANY pod a member must (a) verify identity (Stripe Identity) and (b) authorize bank debits by linking a bank account. Both are mandatory.
 - Trusted Circles vs Open Pods:
   * Trusted Circles (Private): Invite-only for friends, family, or close delivery hub crews via private invite link/code.
@@ -11225,7 +11230,8 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - EARLY SLOTS BY TRUST: when the creator locks the pod, the first half of the rotation goes to the most established members: completed-pod members first, then members with 90+ days on MutualPool, then newer members. Random order within each group; the creator always takes the final slot. For pots over $1,000 every early slot must be held by a completed-pod or 90+ day member, otherwise the pod cannot lock. Pots of $1,000 or less always lock.
 - COMMITMENT: joining means depositing every week for the full cycle (one week per member), INCLUDING after you have received your own payout. You can leave only once every member has received a payout. If you leave or are removed after your payout, the remaining deposits are still owed.
 
-2. CATEGORY: CREATOR HOST REWARDS & SKIN-IN-THE-GAME
+2. CATEGORY: CREATOR HOST REWARDS & SKIN-IN-THE-GAME (ORDINARY PODS)
+- "Pod Creator" here means the member who creates an ordinary pod. Content creators hosting pools for their followers are covered in category 8 (Creator Pools).
 - Skin-in-the-Game: The Pod Creator takes the FINAL rotation slot. This prevents early cash-out fraud and aligns incentives.
 - 3% Host Reward: 3% of each pot goes to whoever holds the final slot (normally the Creator) on every teammate payout (e.g., $12/payout on a $400 pot = $228 over a 20-member pod), credited to their MutualPool balance. It is paid out of the 10% payout fee.
 - Creator Swaps: the Creator can swap like any other member, but the 3% Host Reward goes WITH the final slot: whoever ends up holding the final slot receives the 3% on all later payouts.
@@ -11267,6 +11273,8 @@ ${TREASURY_PROGRAM_ENABLED ? '- FDIC Pass-Through Insurance: each member has an 
 7. CATEGORY: GIG PERKS MARKETPLACE
 - Everyday perks (not offered by the delivery platforms): discounted quick meals at food trucks, coffee refills with restroom access, flat-tire patches and mobile mechanics, car washes, fuel delivery and EV charging, phone data plans and screen repair, chair massages, gym day passes, laundry, downtown parking, e-bike tune-ups, rain gear, haircuts, drop-in childcare and dog walking.
 
+${CREATOR_POOLS_BRIEF}
+
 ====================================================
 RESPONSE GUIDELINES:
 ====================================================
@@ -11274,7 +11282,7 @@ RESPONSE GUIDELINES:
 - "displayText": Clear, clean plain text with bullet points (•) and natural line breaks. DO NOT use markdown characters like ### or **.
 - If the user's intent is to view or do something in the app, specify "navigationAction":
   - {"type": "NAVIGATE_TAB", "target": "my-pods" | "explore-pods" | "perks" | "campaigns" | "audit-log" | "admin-ops"}
-  - {"type": "OPEN_MODAL", "target": "FAQ" | "CREATE_POD" | "KYC" | "BANK" | "HARDSHIP" | "ABOUT" | "HOW_IT_WORKS" | "CONTACT"}
+  - {"type": "OPEN_MODAL", "target": "FAQ" | "CREATE_POD" | "KYC" | "BANK" | "HARDSHIP" | "ABOUT" | "HOW_IT_WORKS" | "CONTACT" | "CREATORS" | "CREATOR_DASHBOARD"}
   - {"type": "OPEN_ADVERTISER"}
 - Provide 2-3 helpful "suggestedActions" pills for one-tap follow-ups in the user's language (${lang}).
 

@@ -33,7 +33,7 @@ export const es: Record<TranslationKey, string> = {
   'hero.subtitle': 'Reúne depósitos semanales en efectivo con tu equipo y otros miembros: un miembro recibe el pozo completo cada semana, en una rotación justa y fija.',
   'hero.startPodFree': 'Iniciar un Grupo Gratis',
   'hero.goToDashboard': 'Ir al Panel',
-  'hero.watchVideo': 'Ver Video',
+  'hero.watchVideo': 'Para trabajadores gig',
   'hero.forCreators': 'Para creadores de contenido',
   'hero.downloadOn': 'Descargar en',
   'hero.downloadOnThe': 'Descargar en el',

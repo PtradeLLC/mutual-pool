@@ -1262,6 +1262,8 @@ export default function App() {
           />
 
           <VoiceAgent
+            onOpenCreators={handleOpenCreators}
+            onOpenCreatorDashboard={handleOpenCreatorHub}
             currentUser={currentUser}
             activeTab={activeTab}
             onNavigateTab={(tab) => {
@@ -1388,6 +1390,8 @@ export default function App() {
           />
 
           <VoiceAgent
+            onOpenCreators={handleOpenCreators}
+            onOpenCreatorDashboard={handleOpenCreatorHub}
             currentUser={currentUser}
             activeTab={activeTab}
             onNavigateTab={(tab) => {
@@ -2442,6 +2446,8 @@ export default function App() {
 
       {/* Voice AI Real-Time Assistant Agent */}
       <VoiceAgent
+        onOpenCreators={handleOpenCreators}
+        onOpenCreatorDashboard={handleOpenCreatorHub}
         currentUser={currentUser}
         activeTab={activeTab}
         onNavigateTab={(tab) => {
