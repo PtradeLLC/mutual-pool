@@ -78,8 +78,10 @@ export const en = {
   "calculator.title": "Calculate Your Mutual Pool Payout",
   "calculator.subtitle":
     "See how a small weekly commitment turns into lump-sum emergency fund for impromptu financial hardships.",
-  "calculator.podCapacityLabel": "Pod Capacity (Gig workers):",
-  "calculator.gigWorkersUnit": "Gig Workers",
+  "calculator.podCapacityLabel": "Pod size (people you trust):",
+  "calculator.gigWorkersUnit": "Members",
+  "calculator.sizeSummary": "{members} members · {weeks}-week cycle",
+  "calculator.youPutInLabel": "You put in over {weeks} weeks:",
   "calculator.membersUnit": "Members",
   "calculator.weeklyDepositTierLabel": "Weekly Deposit Tier:",
   "calculator.weekAbbr": "wk",
@@ -96,7 +98,7 @@ export const en = {
   "calculator.payoutFeeSplitAutonomous":
     "• 100% to Platform System Escrow if Autonomous AI Custodian (Lainie) is active",
   "calculator.creatorIncentivePerk":
-    "🌟 Host Incentive: As Pod Creator, you earn 3% weekly ($+{reward}/wk) on all teammate payouts for taking the final rotation slot!",
+    "🌟 If you create the pod: you take the last turn and earn 3% of every weekly pot, +${reward} a week, ${total} over the {weeks}-week cycle, on top of your own payout.",
   "calculator.fdicStatusLabel": "FDIC Pass-Through Status:",
   "calculator.fdicEligible": "Eligible ($250k Limit)",
   "calculator.goToDashboardCircle": "Go to Dashboard ({members}-Member Pod)",
@@ -1325,6 +1327,8 @@ export const en = {
   "createPod.memberCapacityLabel": "Member Capacity Tier",
   "createPod.membersCount": "{count} Members",
   "createPod.cycleWeeks": "{count}-week cycle",
+  "createPod.customSizeLabel": "Or any size from {min} to {max}:",
+  "createPod.customSizeSummary": "{count} members · {count} weeks · ${pot} weekly pot",
   "createPod.weeklyDepositLabel": "Weekly Deposit Tier",
   "createPod.lockedTier": "Locked",
   "createPod.initialDepositLabel": "Initial Pool Deposit ({name})",
@@ -1651,7 +1655,7 @@ export const en = {
   "howItWorksModal.poolCreationDesc": "Any verified member with a bank debit authorization can create a pod, up to three forming or active at once.",
   "howItWorksModal.startingSizeLabel": "Pod size:",
   "howItWorksModal.startingSizeDesc":
-    "10 or 20 members, so a full cycle takes 10 or 20 weeks. A pod can lock and start with as few as 2 members if the creator chooses flexible early launch.",
+    "Any size from 2 to 20 members, chosen by the creator, so a full cycle takes one week per member. A pod can also lock and start before it is full, with at least 2 members, if the creator chooses flexible early launch.",
   "howItWorksModal.startingTiersLabel": "Deposit tiers:",
   "howItWorksModal.startingTiersDesc":
     "$5, $10, $20, $50 or $100 per week. The pot is the deposit multiplied by the number of members.",

@@ -161,14 +161,19 @@ export function calculateAccountAgeDays(createdAt?: string, fallbackDays: number
   return Math.max(fallback, days, 1);
 }
 
-// Pod sizes a member can choose. A cycle lasts one week per member, so size is
-// capped: 20 members is 20 weeks (about 5 months), and a larger pod would make
-// its last members wait years. Shared by the create form and the server check.
-export const POD_SIZE_OPTIONS = [10, 20] as const;
-export type PodSizeTier = typeof POD_SIZE_OPTIONS[number];
+// Pod sizes a creator can choose: any whole number from 2 to 20, because not
+// everyone knows many people they trust. A cycle lasts one week per member, so
+// size is capped: 20 members is 20 weeks (about 5 months), and a larger pod
+// would make its last members wait years. 2 is the fewest a pod can start with.
+// Shared by the create form and the server check. Creator pools are always 20.
+export const MIN_POD_SIZE = 2;
 export const MAX_POD_SIZE = 20;
+export type PodSizeTier = number;
 export const DEFAULT_POD_SIZE: PodSizeTier = 10;
-export const isPodSizeOption = (n: unknown): n is PodSizeTier => (POD_SIZE_OPTIONS as readonly unknown[]).includes(n);
+// Quick picks shown in the create form and the landing calculator.
+export const POD_SIZE_SUGGESTIONS = [5, 10, 15, 20] as const;
+export const isValidPodSize = (n: unknown): n is PodSizeTier =>
+  typeof n === 'number' && Number.isInteger(n) && n >= MIN_POD_SIZE && n <= MAX_POD_SIZE;
 
 // Pods created before the cap could be larger (50 to 10,000). Active ones keep
 // their size; one still forming is capped at MAX_POD_SIZE so it can't fill past
@@ -277,7 +282,7 @@ export interface Pod {
   autoOpenOnExpire: boolean;
   inviteCode: string;
   invitedContacts: InvitedContact[];
-  // One of POD_SIZE_OPTIONS for new pods; pods created before the cap may be larger.
+  // MIN_POD_SIZE to MAX_POD_SIZE for new pods; pods created before the cap may be larger.
   sizeTier: number;
   depositTier: DepositTier;
   status: PodStatus;

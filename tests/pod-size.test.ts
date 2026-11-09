@@ -1,14 +1,15 @@
 // Pod size cap: which sizes are allowed, and how pods created before the cap are treated.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { POD_SIZE_OPTIONS, MAX_POD_SIZE, DEFAULT_POD_SIZE, isPodSizeOption, capFormingPodSize } from '../src/types';
+import { POD_SIZE_SUGGESTIONS, MIN_POD_SIZE, MAX_POD_SIZE, DEFAULT_POD_SIZE, isValidPodSize, capFormingPodSize } from '../src/types';
 
-test('pods can have 10 or 20 members, 10 by default', () => {
-  assert.deepEqual([...POD_SIZE_OPTIONS], [10, 20]);
+test('pods can have any whole number of members from 2 to 20, 10 by default', () => {
+  assert.equal(MIN_POD_SIZE, 2);
   assert.equal(MAX_POD_SIZE, 20);
   assert.equal(DEFAULT_POD_SIZE, 10);
-  for (const n of [10, 20]) assert.equal(isPodSizeOption(n), true);
-  for (const n of [0, 5, 15, 50, 100, 500, 1000, 5000, 10000, '20', null]) assert.equal(isPodSizeOption(n), false, String(n));
+  assert.deepEqual([...POD_SIZE_SUGGESTIONS], [5, 10, 15, 20]);
+  for (let n = 2; n <= 20; n++) assert.equal(isValidPodSize(n), true, String(n));
+  for (const n of [0, 1, 21, 50, 100, 500, 10000, 2.5, -3, NaN, '20', null, undefined]) assert.equal(isValidPodSize(n), false, String(n));
 });
 
 const pod = (over: Partial<{ status: string; sizeTier: number; depositTier: number; members: unknown[]; totalCycles: number; weeklyPoolTarget: number }>) => ({

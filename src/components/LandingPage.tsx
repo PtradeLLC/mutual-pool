@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FEES } from '../lib/legal';
-import { Pod, User, Perk, isDemoPod, POD_SIZE_OPTIONS, MAX_POD_SIZE } from '../types';
+import { Pod, User, Perk, isDemoPod, POD_SIZE_SUGGESTIONS, MIN_POD_SIZE, MAX_POD_SIZE } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
 import { HeroCarousel } from './HeroCarousel';
 import bikerAdImg from '../assets/images/bikerad.png';
@@ -87,7 +87,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   // Simulator state
-  const [calcMembers, setCalcMembers] = useState<number>(MAX_POD_SIZE);
+  const [calcMembers, setCalcMembers] = useState<number>(10);
   const [calcDeposit, setCalcDeposit] = useState<number>(20);
 
   // Video Walkthrough Modal State
@@ -730,10 +730,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div>
                 <div className="flex justify-between text-xs font-bold text-[#111827] mb-2">
                   <span>{t('calculator.podCapacityLabel')}</span>
-                  <span className="text-[#005FB8] font-mono">{calcMembers} {t('calculator.gigWorkersUnit')}</span>
+                  <span className="text-[#005FB8] font-mono">{t('calculator.sizeSummary' as any, { members: calcMembers, weeks: calcMembers })}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {POD_SIZE_OPTIONS.map(num => (
+                <input
+                  type="range"
+                  min={MIN_POD_SIZE}
+                  max={MAX_POD_SIZE}
+                  step={1}
+                  value={calcMembers}
+                  onChange={(e) => setCalcMembers(Number(e.target.value))}
+                  aria-label={t('calculator.podCapacityLabel')}
+                  className="w-full mb-3 accent-[#005FB8] cursor-pointer"
+                />
+                <div className="grid grid-cols-4 gap-2">
+                  {POD_SIZE_SUGGESTIONS.map(num => (
                     <button
                       key={num}
                       type="button"
@@ -744,7 +754,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      {num} {t('calculator.membersUnit')}
+                      {num}<span className="hidden sm:inline"> {t('calculator.membersUnit')}</span>
                     </button>
                   ))}
                 </div>
@@ -756,8 +766,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span>{t('calculator.weeklyDepositTierLabel')}</span>
                   <span className="text-emerald-700 font-mono">${calcDeposit}/{t('calculator.weekAbbr')}</span>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {[10, 20, 50, 100].map(amt => (
+                <div className="grid grid-cols-5 gap-2">
+                  {[5, 10, 20, 50, 100].map(amt => (
                     <button
                       key={amt}
                       type="button"
@@ -768,7 +778,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      ${amt}/{t('calculator.weekAbbr')}
+                      ${amt}<span className="hidden sm:inline">/{t('calculator.weekAbbr')}</span>
                     </button>
                   ))}
                 </div>
@@ -808,6 +818,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
 
                 <div className="flex justify-between text-blue-100">
+                  <span className="font-sans">{t('calculator.youPutInLabel' as any, { weeks: calcMembers })}</span>
+                  <span className="font-bold">${(calcDeposit * calcMembers).toLocaleString('en-US')}.00</span>
+                </div>
+
+                <div className="flex justify-between text-blue-100">
                   <span className="font-sans">{t('calculator.grossPoolLabel', { members: calcMembers.toString() })}</span>
                   <span className="font-bold">${totalPoolPayout}.00</span>
                 </div>
@@ -829,7 +844,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                 {/* Host Incentive Highlight Badge */}
                 <div className="p-2.5 rounded-lg bg-blue-900/60 border border-blue-400/40 text-[11px] font-sans text-blue-100 leading-relaxed">
-                  {t('calculator.creatorIncentivePerk', { reward: (totalPoolPayout * FEES.hostRewardRate).toFixed(2) })}
+                  {t('calculator.creatorIncentivePerk', {
+                    reward: (totalPoolPayout * FEES.hostRewardRate).toFixed(2),
+                    total: (totalPoolPayout * FEES.hostRewardRate * calcMembers).toFixed(2),
+                    weeks: calcMembers,
+                  })}
                 </div>
 
                 <div className="flex justify-between border-t border-blue-400/40 pt-2">

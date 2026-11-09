@@ -107,7 +107,7 @@ test('1. Pod Creation Flow: POST /api/pods creates a new savings pod as expected
   assert.equal(createdPod.members[0].userId, creator.id);
 });
 
-test('1b. Pods can only have 10 or 20 members', async () => {
+test('1b. Pods can have 2 to 20 members, chosen by the creator', async () => {
   const creator = makeTestUser('size_t1b');
   await fund(creator);
   const create = (sizeTier: number) => fetch(`${BASE_URL}/api/pods`, {
@@ -116,8 +116,8 @@ test('1b. Pods can only have 10 or 20 members', async () => {
     body: JSON.stringify({ name: `Size Pod ${sizeTier} ${Date.now()}`, sizeTier, depositTier: 20, activationPolicy: 'FLEXIBLE_EARLY' }),
   });
 
-  // The old sizes (and anything else) are refused, so a pod's last member never waits years.
-  for (const sizeTier of [50, 100, 500, 1000, 5000, 10000, 15, 0]) {
+  // Larger pods (and fractions or fewer than 2) are refused, so a pod's last member never waits years.
+  for (const sizeTier of [50, 100, 500, 1000, 5000, 10000, 21, 1, 0, 2.5]) {
     const res = await create(sizeTier);
     assert.equal(res.status, 400, `size ${sizeTier} should be refused`);
     assert.equal((await res.json()).error, 'INVALID_INPUT');
@@ -130,6 +130,15 @@ test('1b. Pods can only have 10 or 20 members', async () => {
   assert.equal(pod.totalCycles, 10, 'a 10-member pod runs for 10 weeks');
   assert.equal(pod.weeklyPoolTarget, 200);
   assert.equal(pod.members[0].rotationIndex, 9, 'the creator takes the last of the 10 slots');
+
+  // A small circle: 4 people who trust each other.
+  const small = await create(4);
+  assert.equal(small.status, 200);
+  const four = await small.json();
+  assert.equal(four.sizeTier, 4);
+  assert.equal(four.totalCycles, 4, 'a 4-member pod runs for 4 weeks');
+  assert.equal(four.weeklyPoolTarget, 80);
+  assert.equal(four.members[0].rotationIndex, 3, 'the creator takes the last of the 4 slots');
 });
 
 test('2. Member Join, Pod Agreement Signing & Pod Activation', async () => {

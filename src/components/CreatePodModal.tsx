@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FEES } from '../lib/legal';
-import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy, POD_SIZE_OPTIONS, DEFAULT_POD_SIZE } from '../types';
+import { User, Pod, PodSizeTier, DepositTier, PodType, InvitedContact, ActivationPolicy, POD_SIZE_SUGGESTIONS, DEFAULT_POD_SIZE, MIN_POD_SIZE, MAX_POD_SIZE, isValidPodSize } from '../types';
 import { useTranslation } from '../i18n/LanguageContext';
 import { savePodToFirestore } from '../lib/firestoreService';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
@@ -79,7 +79,10 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const [inviteWindowDays, setInviteWindowDays] = useState<number>(prefill?.inviteWindowDays ?? 7);
   const [autoOpenOnExpire, setAutoOpenOnExpire] = useState<boolean>(prefill?.autoOpenOnExpire ?? true);
   const [invitedContacts, setInvitedContacts] = useState<InvitedContact[]>([]);
-  const [sizeTier, setSizeTier] = useState<PodSizeTier>(prefill?.sizeTier ?? DEFAULT_POD_SIZE);
+  const [sizeTier, setSizeTier] = useState<PodSizeTier>(isValidPodSize(prefill?.sizeTier) ? prefill!.sizeTier : DEFAULT_POD_SIZE);
+  // Text in the custom size field (may be mid-edit, e.g. empty); sizeTier holds the last valid value.
+  const [sizeInput, setSizeInput] = useState(String(isValidPodSize(prefill?.sizeTier) ? prefill!.sizeTier : DEFAULT_POD_SIZE));
+  useEffect(() => { setSizeInput(String(sizeTier)); }, [sizeTier]);
   const [depositTier, setDepositTier] = useState<DepositTier>(prefill?.depositTier ?? 20);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -708,8 +711,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 <label className="block text-xs font-semibold text-[#111827] mb-1.5">
                   {t('createPod.memberCapacityLabel')}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {POD_SIZE_OPTIONS.map((tier) => (
+                <div className="grid grid-cols-4 gap-2">
+                  {POD_SIZE_SUGGESTIONS.map((tier) => (
                     <button
                       key={tier}
                       type="button"
@@ -724,6 +727,35 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       <span className="text-[9px] font-mono opacity-80">{t('createPod.cycleWeeks', { count: tier })}</span>
                     </button>
                   ))}
+                </div>
+                {/* Any size from 2 to 20: not everyone knows 10 people they trust. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <label htmlFor="pod-size-custom" className="text-[#4B5563]">{t('createPod.customSizeLabel' as any, { min: MIN_POD_SIZE, max: MAX_POD_SIZE })}</label>
+                  <div className="inline-flex items-center rounded-lg border border-gray-300 bg-white overflow-hidden">
+                    <button type="button" aria-label="−" disabled={sizeTier <= MIN_POD_SIZE}
+                      onClick={() => setSizeTier(s => Math.max(MIN_POD_SIZE, s - 1))}
+                      className="px-2.5 py-1.5 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 cursor-pointer">−</button>
+                    <input
+                      id="pod-size-custom"
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_POD_SIZE}
+                      max={MAX_POD_SIZE}
+                      step={1}
+                      value={sizeInput}
+                      onChange={(e) => {
+                        setSizeInput(e.target.value);
+                        const n = Number(e.target.value);
+                        if (isValidPodSize(n)) setSizeTier(n);
+                      }}
+                      onBlur={() => setSizeInput(String(sizeTier))}
+                      className="w-14 text-center py-1.5 font-bold text-[#111827] focus:outline-none border-x border-gray-300"
+                    />
+                    <button type="button" aria-label="+" disabled={sizeTier >= MAX_POD_SIZE}
+                      onClick={() => setSizeTier(s => Math.min(MAX_POD_SIZE, s + 1))}
+                      className="px-2.5 py-1.5 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 cursor-pointer">+</button>
+                  </div>
+                  <span className="text-[#6B7280]">{t('createPod.customSizeSummary' as any, { count: sizeTier, pot: sizeTier * depositTier })}</span>
                 </div>
               </div>
 
