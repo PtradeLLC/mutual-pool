@@ -38,6 +38,7 @@ const TermsOfServiceModal = lazy(() => import('./components/TermsOfServiceModal'
 const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate').then((module) => ({ default: module.TermsAcceptanceGate })));
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const PartnersPage = lazy(() => import('./components/PartnersPage').then((module) => ({ default: module.PartnersPage })));
+const CreatorsPage = lazy(() => import('./components/CreatorsPage').then((module) => ({ default: module.CreatorsPage })));
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { SESSION_LOST_EVENT, resetSessionLostFlag } from './lib/apiClient';
@@ -77,10 +78,12 @@ export default function App() {
       return null;
     }
   });
-  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD' | 'ADVERTISER' | 'PARTNERS'>(() => {
+  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD' | 'ADVERTISER' | 'PARTNERS' | 'CREATORS'>(() => {
     try {
       // Deep link for the public Partners page (pods as a worker benefit).
       if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/partners') return 'PARTNERS';
+      // Deep link for the public Creators page (Creator Pools early access).
+      if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/creators') return 'CREATORS';
       return localStorage.getItem('mutualpool_active_user') ? 'DASHBOARD' : 'LANDING';
     } catch {
       return 'LANDING';
@@ -225,6 +228,17 @@ export default function App() {
   const handleClosePartners = () => {
     setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
     try { if (window.location.pathname.replace(/\/+$/, '') === '/partners') window.history.replaceState({}, '', '/'); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenCreators = () => {
+    setViewMode('CREATORS');
+    try { window.history.pushState({}, '', '/creators'); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const handleCloseCreators = () => {
+    setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
+    try { if (window.location.pathname.replace(/\/+$/, '') === '/creators') window.history.replaceState({}, '', '/'); } catch { /* ignore */ }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -621,9 +635,10 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
       setAuthLoading(false);
       if (fbUser) {
-        // Immediately show dashboard and close auth modal
+        // Immediately show dashboard and close auth modal (a public page the
+        // visitor opened by link, like /creators or /partners, stays open).
         setShowAuthModal(false);
-        setViewMode('DASHBOARD');
+        setViewMode(v => (v === 'PARTNERS' || v === 'CREATORS' ? v : 'DASHBOARD'));
 
         // Non-blocking async background profile sync
         (async () => {
@@ -1081,6 +1096,7 @@ export default function App() {
         <>
           <LandingPage
             onOpenPartners={handleOpenPartners}
+            onOpenCreators={handleOpenCreators}
             allPods={allPods}
             currentUser={currentUser}
             onOpenAuth={handleOpenAuth}
@@ -1185,6 +1201,17 @@ export default function App() {
             onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
           />
         </>
+      ) : viewMode === 'CREATORS' ? (
+        <Suspense fallback={
+          <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">
+            <div className="flex items-center gap-3 text-[#005FB8] font-semibold text-sm">
+              <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
+              <span>Loading Creators…</span>
+            </div>
+          </div>
+        }>
+          <CreatorsPage onBack={handleCloseCreators} />
+        </Suspense>
       ) : viewMode === 'PARTNERS' ? (
         <Suspense fallback={
           <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">

@@ -36,6 +36,31 @@ test('a partner can request a pilot without an account and admins can read it', 
   assert.equal(mine.status, 'NEW');
 });
 
+test('a creator can apply for early access without an account and admins can read it', async () => {
+  const handle = `@creator_${Date.now().toString(36)}`;
+  const ok = await api('/api/creators/interest', { method: 'POST', headers: json, body: JSON.stringify({
+    name: 'Rae Maker', email: 'rae@creator.test', handle, platforms: ['tiktok', 'youtube', 'myspace', 'tiktok'],
+    followers: 48000, niche: 'Personal finance', inUS: true, notes: 'Mostly gig workers in my audience.',
+  }) });
+  assert.equal(ok.status, 200);
+  assert.ok(ok.body.interest?.id);
+
+  const bad = await api('/api/creators/interest', { method: 'POST', headers: json, body: JSON.stringify({ name: 'No Handle', email: 'x@creator.test' }) });
+  assert.equal(bad.status, 400);
+
+  const denied = await api('/api/admin/creator-interests', { headers: member });
+  assert.equal(denied.status, 403);
+
+  const list = await api('/api/admin/creator-interests', { headers: admin });
+  assert.equal(list.status, 200);
+  const mine = list.body.interests.find((q: any) => q.handle === handle);
+  assert.ok(mine, 'application is listed for admins');
+  assert.deepEqual(mine.platforms, ['tiktok', 'youtube'], 'unknown and repeated platforms are dropped');
+  assert.equal(mine.followers, 48000);
+  assert.equal(mine.inUS, true);
+  assert.equal(mine.status, 'NEW');
+});
+
 test('a new notification pushes a refresh to the member\'s open app over the chat socket', async () => {
   const { default: WebSocket } = await import('ws');
   // Make sure the admin exists before the notification is created.

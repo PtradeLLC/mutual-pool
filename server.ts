@@ -8545,6 +8545,61 @@ app.get('/api/admin/partner-inquiries', (req: Request, res: Response) => {
   res.json({ inquiries: partnerInquiries });
 });
 
+// --- CREATORS PAGE: early-access requests from content creators (Creator Pools pilot) ---
+let creatorInterests: any[] = [];
+const CREATOR_PLATFORMS = new Set(['instagram', 'tiktok', 'youtube', 'other']);
+
+app.post('/api/creators/interest', publicFormRateLimiter, (req: Request, res: Response) => {
+  try {
+    const b = req.body || {};
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const name = str(b.name, 120);
+    const email = str(b.email, 200);
+    const handle = str(b.handle, 120);
+    if (!name || !handle || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'VALIDATION', message: 'Name, a valid email and your main handle are required.' });
+    }
+    const platforms = Array.isArray(b.platforms)
+      ? Array.from(new Set(b.platforms.map(String).filter((p: string) => CREATOR_PLATFORMS.has(p)))).slice(0, 4)
+      : [];
+    const followers = Number(b.followers);
+    const interest = {
+      id: `cin_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      name,
+      email,
+      handle,
+      platforms,
+      followers: Number.isFinite(followers) && followers > 0 ? Math.min(Math.round(followers), 1_000_000_000) : undefined,
+      niche: str(b.niche, 120),
+      inUS: b.inUS === true,
+      notes: str(b.notes, 3000),
+      language: getHeaderValue(req, 'x-app-language') || 'en',
+      submittedAt: new Date().toISOString(),
+      status: 'NEW',
+    };
+    creatorInterests.unshift(interest);
+    requestFlush();
+    notifyAdmins({
+      type: 'STATUS_CHANGE',
+      title: '🎥 New creator early-access request',
+      message: `${interest.name} (${interest.handle}${interest.platforms.length ? ` on ${interest.platforms.join(', ')}` : ''}${interest.followers ? `, ${interest.followers.toLocaleString()} followers` : ''}) asked to host a Creator Pool. Contact ${interest.email}.`,
+      metadata: { creatorInterestId: interest.id },
+    });
+    console.log(`[Creator Interest] ${interest.id} ${interest.handle}`);
+    res.json({ success: true, interest: { id: interest.id, submittedAt: interest.submittedAt } });
+  } catch (err: any) {
+    console.error('Error submitting creator interest:', err);
+    res.status(500).json({ error: 'FAILED_TO_SUBMIT' });
+  }
+});
+
+app.get('/api/admin/creator-interests', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  }
+  res.json({ interests: creatorInterests });
+});
+
 app.get('/api/campaigns/advertiser-inquiries', (req: Request, res: Response) => {
   if (!checkIsAdmin(req)) {
     return res.status(403).json({ error: 'Access denied. Administrator role required.' });
@@ -9958,6 +10013,7 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'shifts', get: () => shifts, set: docs => { shifts = docs; } });
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
   registerCollection({ collection: 'partnerInquiries', get: () => partnerInquiries, set: docs => { partnerInquiries = docs; } });
+  registerCollection({ collection: 'creatorInterests', get: () => creatorInterests, set: docs => { creatorInterests = docs; } });
   registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });
   registerCollection({ collection: 'chatThreads', get: getChatThreads, set: setChatThreads });
   registerCollection({ collection: 'chatMessages', get: getChatMessages, set: docs => {
