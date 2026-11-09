@@ -102,7 +102,9 @@ function shuffle<T>(items: T[], randomInt: (n: number) => number): T[] {
 // the whole rotation; `potUsd` is the pot at lock (members × deposit).
 export function planRotation(
   candidates: RotationCandidate[],
-  opts: { totalMembers: number; potUsd: number; randomInt: (n: number) => number },
+  // requireSeasonedEarly: false for creator-pool pods, which are ordered by trust
+  // but never refuse to start (CREATOR_POOLS_SPEC.md section 6).
+  opts: { totalMembers: number; potUsd: number; randomInt: (n: number) => number; requireSeasonedEarly?: boolean },
 ): RotationPlan | RotationShortage {
   const earlyCount = earlySlotCount(opts.totalMembers);
   const tiers = Array.from(new Set(candidates.map(c => c.trust))).sort((a, b) => b - a);
@@ -112,7 +114,7 @@ export function planRotation(
   }
 
   const seasonedCount = candidates.filter(c => isSeasonedTier(c.trust)).length;
-  if (earlySlotsNeedSeasoned(opts.potUsd) && seasonedCount < earlyCount) {
+  if (opts.requireSeasonedEarly !== false && earlySlotsNeedSeasoned(opts.potUsd) && seasonedCount < earlyCount) {
     return { error: 'TENURE_SLOTS_UNFILLED', earlyCount, seasonedCount, shortfall: earlyCount - seasonedCount };
   }
 
@@ -149,4 +151,27 @@ export function findEarlySlotViolation(members: SlotHolder[], potUsd: number): E
     if (behind) return { member: m, earlyCount, reason: 'LESS_TRUSTED_AHEAD', behind };
   }
   return null;
+}
+
+// Creator-pool pods rank one more signal between a completed pod and tenure:
+// gig earnings arriving by direct deposit. Ranks are only compared with each
+// other (never with TRUST), so they live on their own scale.
+export const CREATOR_TRUST = {
+  COMPLETED_POD: 4,
+  EARNINGS_DEPOSIT: 3,
+  TENURED: 2,
+  NEW_WITH_MANDATE: 1,
+  NEW: 0,
+} as const;
+export type CreatorTrustLabel = keyof typeof CREATOR_TRUST;
+
+export function creatorTrustRank(input: TrustInput & { hasEarningsDeposit: boolean }, tenureDays: number): number {
+  if (input.cleanCompletedPods >= 1) return CREATOR_TRUST.COMPLETED_POD;
+  if (input.hasEarningsDeposit) return CREATOR_TRUST.EARNINGS_DEPOSIT;
+  if (input.accountAgeDays >= tenureDays) return CREATOR_TRUST.TENURED;
+  return input.hasDebitMandate ? CREATOR_TRUST.NEW_WITH_MANDATE : CREATOR_TRUST.NEW;
+}
+
+export function creatorTrustLabel(rank: number): CreatorTrustLabel {
+  return (Object.keys(CREATOR_TRUST) as CreatorTrustLabel[]).find(k => CREATOR_TRUST[k] === rank) || 'NEW';
 }

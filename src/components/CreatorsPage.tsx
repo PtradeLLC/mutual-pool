@@ -10,6 +10,7 @@ import { FEES } from '../lib/legal';
 
 interface CreatorsPageProps {
   onBack: () => void;
+  onStartCreator?: () => void;
 }
 
 // Creator Pools (see CREATOR_POOLS_SPEC.md): pods of 20, $10–$60 a week in a
@@ -21,7 +22,7 @@ const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'other'] as const;
 const usd = (n: number, cents = false) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: cents ? 2 : 0, minimumFractionDigits: cents ? 2 : 0 }).format(n);
 
-export const CreatorsPage: React.FC<CreatorsPageProps> = ({ onBack }) => {
+export const CreatorsPage: React.FC<CreatorsPageProps> = ({ onBack, onStartCreator }) => {
   const { t } = useTranslation();
   const k = (key: string, params?: Record<string, string | number>) => t(key as TranslationKey, params);
 
@@ -109,9 +110,15 @@ export const CreatorsPage: React.FC<CreatorsPageProps> = ({ onBack }) => {
           <h1 className="mt-5 text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight max-w-3xl mx-auto">{k('creators.heroTitle')}</h1>
           <p className="mt-5 text-base sm:text-lg text-[#4B5563] max-w-2xl mx-auto leading-relaxed">{k('creators.heroSubtitle')}</p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a href="#creator-form" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm shadow-sm">
-              {k('creators.applyCta')} <ArrowRight className="w-4 h-4" />
-            </a>
+            {onStartCreator ? (
+              <button type="button" onClick={onStartCreator} className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm shadow-sm">
+                {k('creators.startCta')} <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <a href="#creator-form" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm shadow-sm">
+                {k('creators.applyCta')} <ArrowRight className="w-4 h-4" />
+              </a>
+            )}
             <a href="#creator-earnings" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[#DDE1E6] bg-white hover:bg-gray-50 font-semibold text-sm">
               <Calculator className="w-4 h-4 text-[#005FB8]" /> {k('creators.heroSecondary')}
             </a>

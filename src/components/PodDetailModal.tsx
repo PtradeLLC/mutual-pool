@@ -776,7 +776,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       : 'bg-gray-100 text-gray-700 border-gray-200'
                   }`}>
                     {pod.podType === 'TRUSTED_CIRCLE' ? <Lock className="w-3 h-3" /> : <Users className="w-3 h-3 text-[#005FB8]" />}
-                    <span>{pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
+                    <span>{pod.creatorPoolId ? t('podCreator.hostedBy' as any, { name: pod.creatorName }) : pod.podType === 'TRUSTED_CIRCLE' ? 'Trusted Circle' : 'Open Pod'}</span>
                   </span>
 
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
@@ -809,6 +809,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                {!pod.creatorPoolId && (
                 <button
                   type="button"
                   onClick={() => setShowShareModal(true)}
@@ -818,6 +819,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <Share2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Share Pod Invite</span>
                 </button>
+                )}
 
                 <button
                   type="button"
@@ -834,7 +836,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                 >
                   <FileText className="w-3.5 h-3.5 text-[#005FB8]" />
-                  <span>Pod Agreement v2.0</span>
+                  <span>{pod.creatorPoolId ? t('podCreator.agreementButton' as any) : 'Pod Agreement v2.0'}</span>
                 </button>
 
                 {pod.status === 'FORMING' && memberCount >= 2 && (
@@ -869,7 +871,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             <span>Fixed Rotation ({memberCount}/{pod.sizeTier})</span>
           </button>
 
-          {pod.podType === 'TRUSTED_CIRCLE' && (
+          {pod.podType === 'TRUSTED_CIRCLE' && !pod.creatorPoolId && (
             <button
               onClick={() => setActiveTab('circle')}
               className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
@@ -1008,7 +1010,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
           <PodMilestoneProgress pod={pod} currentUser={currentUser} />
 
           {/* Trusted Circle Creator Banner & Conversion Controls */}
-          {pod.podType === 'TRUSTED_CIRCLE' && (
+          {pod.podType === 'TRUSTED_CIRCLE' && !pod.creatorPoolId && (
             <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-[#005FB8] shrink-0" />
@@ -1364,7 +1366,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               <div>
                 <span className="text-[#111827]">
                   <strong>Permanent Fixed Order:</strong> Set once at pod lock via cryptographic shuffle. Re-randomization is strictly forbidden.
-                  {' '}The first {pod.earlySlotCount ?? Math.floor(pod.members.length / 2)} slot{(pod.earlySlotCount ?? Math.floor(pod.members.length / 2)) === 1 ? '' : 's'} go to the members with the longest track record (completed pods, then 90+ days on MutualPool); newer members take later slots.
+                  {' '}{pod.creatorPoolId ? t('podCreator.orderRule' as any) : <>The first {pod.earlySlotCount ?? Math.floor(pod.members.length / 2)} slot{(pod.earlySlotCount ?? Math.floor(pod.members.length / 2)) === 1 ? '' : 's'} go to the members with the longest track record (completed pods, then 90+ days on MutualPool); newer members take later slots.</>}
                 </span>
                 <div className="text-[10px] text-[#005FB8] font-medium mt-1 flex items-center gap-1.5">
                   <Users className="w-3 h-3 text-[#005FB8]" />
@@ -1421,6 +1423,12 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-[#111827] text-sm">{member.displayName}</span>
+                        {pod.creatorPoolId && member.userId === pod.creatorId && (
+                          <span title={t('podCreator.lastBadgeHelp' as any, { name: pod.creatorName })} className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-purple-700" />
+                            {t('podCreator.lastBadge' as any)}
+                          </span>
+                        )}
                         {isPodCreator && (
                           <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200 flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-purple-700" />
@@ -1526,6 +1534,33 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 </div>
               );
             })}
+
+            {pod.creatorPoolId && (pod.heldSlots || []).map(slot => (
+              <div key={`open_${slot.rotationIndex}`} className="p-3 rounded-lg border border-dashed border-blue-300 bg-blue-50/40 flex items-center gap-3 text-xs">
+                <span className="w-7 h-7 rounded font-mono font-bold text-xs flex items-center justify-center shrink-0 bg-blue-100 text-[#005FB8]">#{slot.rotationIndex + 1}</span>
+                <span className="text-[#005FB8] font-semibold">{t('podCreator.openSlot' as any, { week: slot.rotationIndex + 1 })}</span>
+              </div>
+            ))}
+
+            {pod.creatorPoolId && !pod.members.some(m => m.userId === pod.creatorId) && (
+              <div className="p-3 rounded-lg border border-purple-200 bg-purple-50/60 flex items-start gap-3 text-xs">
+                <span className="w-7 h-7 rounded font-mono font-bold text-[10px] flex items-center justify-center shrink-0 bg-purple-100 text-purple-800">21</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-[#111827] text-sm">{pod.creatorName}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold border border-purple-200 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-purple-700" />
+                      {t('podCreator.lastBadge' as any)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-purple-900">{t('podCreator.lastBadgeHelp' as any, { name: pod.creatorName })}</p>
+                </div>
+              </div>
+            )}
+
+            {pod.creatorPoolId && pod.status === 'ACTIVE' && isMember && (
+              <p className="text-[11px] text-[#005FB8] bg-blue-50 border border-blue-200 rounded-lg p-2.5">{t('podCreator.swapPrompt' as any)}</p>
+            )}
           </div>
         )}
 
@@ -1818,7 +1853,12 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <p className="text-[#6B7280]">
                   Swap rotation queue positions with another consenting pod member. Both positions will update instantly and be recorded in the audit log.
                 </p>
-                {pod.createdBy === currentUser.id ? (
+                {pod.creatorPoolId ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-[11px] text-[#005FB8] flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
+                    <span>{t('podCreator.swapPrompt' as any)}</span>
+                  </div>
+                ) : pod.createdBy === currentUser.id ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
                     <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <span>

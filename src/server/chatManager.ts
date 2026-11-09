@@ -152,7 +152,9 @@ export function isThreadParticipant(threadId: string, userId: string): boolean {
 
 function podMemberIds(pod: Pod): string[] {
   const ids = (pod.members || []).map(m => m.userId).filter(Boolean) as string[];
-  if (pod.createdBy && !ids.includes(pod.createdBy)) ids.push(pod.createdBy);
+  // Creator-pool pods: the creator hosts from their announcement channel and
+  // is not in each pod's chat unless they hold a slot.
+  if (!pod.creatorPoolId && pod.createdBy && !ids.includes(pod.createdBy)) ids.push(pod.createdBy);
   return ids;
 }
 
@@ -346,7 +348,8 @@ export function createMessage(payload: {
     recipientId: thread.type === 'DIRECT' ? thread.participantIds.find(id => id !== payload.sender.userId) : undefined,
     podId: thread.podId,
     content,
-    type: payload.type === 'SYSTEM' ? 'TEXT' : (payload.type || 'TEXT'),
+    // Members send text or swap offers; system notices and announcements are server-authored only.
+    type: payload.type === 'SWAP_OFFER' ? 'SWAP_OFFER' : 'TEXT',
     createdAt: new Date().toISOString(),
     readBy: [payload.sender.userId],
     metadata,
@@ -369,6 +372,40 @@ export function createMessage(payload: {
   });
 
   return { ok: true, message: msg };
+}
+
+// Server-authored message in a pod's channel (safety notice, creator
+// announcement). The sender does not have to be a participant.
+export function postPodMessage(pod: Pod, input: {
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  content: string;
+  type: 'SYSTEM' | 'POD_ANNOUNCEMENT';
+  metadata?: Record<string, unknown>;
+}): ChatMessage | null {
+  const content = input.content.trim().slice(0, MAX_MESSAGE_LENGTH);
+  if (!content) return null;
+  const thread = getOrCreatePodThread(pod);
+  const msg: ChatMessage = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+    threadId: thread.id,
+    senderId: input.senderId,
+    senderName: input.senderName,
+    senderAvatar: input.senderAvatar,
+    podId: pod.id,
+    content,
+    type: input.type,
+    createdAt: new Date().toISOString(),
+    readBy: [input.senderId],
+    metadata: input.metadata,
+  };
+  messages.push(msg);
+  thread.lastMessage = { content: msg.content, senderName: msg.senderName, senderId: msg.senderId, createdAt: msg.createdAt };
+  thread.updatedAt = msg.createdAt;
+  saveChatData();
+  broadcastToUsers(thread.participantIds, { type: 'RECEIVE_MESSAGE', message: msg, threadId: msg.threadId });
+  return msg;
 }
 
 // Callers must check isThreadParticipant first.

@@ -365,10 +365,16 @@ export async function linkExternalBank(
     },
     `member_cp_${user.id}_${input.routingNumber.slice(-4)}_${input.accountNumber.slice(-4)}`,
   );
+  const previous = user.custody.counterpartyId;
+  const nowIso = new Date().toISOString();
   user.custody.counterpartyId = cp.id;
   user.custody.counterpartyLast4 = String(
     cp.account_number || input.accountNumber,
   ).slice(-4);
+  user.custody.counterpartyRoutingNumber = input.routingNumber;
+  user.custody.counterpartyLinkedAt = nowIso;
+  // A different bank replacing an earlier one starts the bank-change wait.
+  if (previous && previous !== cp.id) user.custody.counterpartyChangedAt = nowIso;
   user.custody.counterpartyName = input.name || user.displayName;
   try {
     const fi = await column.getFinancialInstitution(input.routingNumber);

@@ -24,6 +24,7 @@ const AddFundsModal = lazy(() => import('./components/AddFundsModal').then((modu
 const DirectDepositModal = lazy(() => import('./components/DirectDepositModal').then((module) => ({ default: module.DirectDepositModal })));
 const KycVerificationModal = lazy(() => import('./components/KycVerificationModal').then((module) => ({ default: module.KycVerificationModal })));
 const PodAgreementModal = lazy(() => import('./components/PodAgreementModal').then((module) => ({ default: module.PodAgreementModal })));
+const CreatorPoolAgreementModal = lazy(() => import('./components/CreatorPoolAgreementModal').then((module) => ({ default: module.CreatorPoolAgreementModal })));
 import { PerksMarketplace } from './components/PerksMarketplace';
 import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
@@ -39,6 +40,15 @@ const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate'
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const PartnersPage = lazy(() => import('./components/PartnersPage').then((module) => ({ default: module.PartnersPage })));
 const CreatorsPage = lazy(() => import('./components/CreatorsPage').then((module) => ({ default: module.CreatorsPage })));
+const CreatorJoinPage = lazy(() => import('./components/CreatorJoinPage').then((module) => ({ default: module.CreatorJoinPage })));
+const CreatorDashboard = lazy(() => import('./components/CreatorDashboard').then((module) => ({ default: module.CreatorDashboard })));
+
+// Creator Pools: /c/<handle> is a creator's permanent link, /creator their dashboard.
+const creatorHandleFromPath = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const m = window.location.pathname.match(/^\/c\/([A-Za-z0-9_]{3,30})\/?$/);
+  return m ? m[1].toLowerCase() : null;
+};
 const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { SESSION_LOST_EVENT, resetSessionLostFlag } from './lib/apiClient';
@@ -78,12 +88,14 @@ export default function App() {
       return null;
     }
   });
-  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD' | 'ADVERTISER' | 'PARTNERS' | 'CREATORS'>(() => {
+  const [viewMode, setViewMode] = useState<'LANDING' | 'DASHBOARD' | 'ADVERTISER' | 'PARTNERS' | 'CREATORS' | 'CREATOR_JOIN' | 'CREATOR_HUB'>(() => {
     try {
       // Deep link for the public Partners page (pods as a worker benefit).
       if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/partners') return 'PARTNERS';
       // Deep link for the public Creators page (Creator Pools early access).
       if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/creators') return 'CREATORS';
+      if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/creator') return 'CREATOR_HUB';
+      if (creatorHandleFromPath()) return 'CREATOR_JOIN';
       return localStorage.getItem('mutualpool_active_user') ? 'DASHBOARD' : 'LANDING';
     } catch {
       return 'LANDING';
@@ -239,6 +251,21 @@ export default function App() {
   const handleCloseCreators = () => {
     setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
     try { if (window.location.pathname.replace(/\/+$/, '') === '/creators') window.history.replaceState({}, '', '/'); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const [creatorHandle, setCreatorHandle] = useState<string | null>(() => creatorHandleFromPath());
+  const handleOpenCreatorHub = () => {
+    setViewMode('CREATOR_HUB');
+    try { window.history.pushState({}, '', '/creator'); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!currentUser) setShowAuthModal(true);
+  };
+  const handleLeaveCreatorView = (tab: 'my-pods' | null = null) => {
+    if (tab) setActiveTab(tab);
+    setViewMode(currentUser ? 'DASHBOARD' : 'LANDING');
+    setCreatorHandle(null);
+    try { window.history.replaceState({}, '', '/'); } catch { /* ignore */ }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -638,7 +665,7 @@ export default function App() {
         // Immediately show dashboard and close auth modal (a public page the
         // visitor opened by link, like /creators or /partners, stays open).
         setShowAuthModal(false);
-        setViewMode(v => (v === 'PARTNERS' || v === 'CREATORS' ? v : 'DASHBOARD'));
+        setViewMode(v => (v === 'PARTNERS' || v === 'CREATORS' || v === 'CREATOR_JOIN' || v === 'CREATOR_HUB' ? v : 'DASHBOARD'));
 
         // Non-blocking async background profile sync
         (async () => {
@@ -795,7 +822,7 @@ export default function App() {
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
-    setViewMode('DASHBOARD');
+    setViewMode(v => (v === 'CREATOR_JOIN' || v === 'CREATOR_HUB' ? v : 'DASHBOARD'));
     if (openSubmitPerkDirectly) {
       setActiveTab('perks');
     }
@@ -1090,6 +1117,69 @@ export default function App() {
     }
   };
 
+  const creatorPageModals = (
+    <>
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={handleCloseAuth}
+        allUsers={allUsers}
+        onSelectUser={handleAuthSuccess}
+        onRegistered={handleAuthSuccess}
+        initialMode={authInitialMode}
+      />
+      {showBankModal && currentUser && (
+        <Suspense fallback={null}>
+          <StripeBankModal
+            user={currentUser}
+            onClose={() => setShowBankModal(false)}
+            onBankLinked={async (updatedUser) => {
+              if (updatedUser) {
+                setCurrentUser(updatedUser);
+                await syncUserWithBackend(updatedUser);
+              }
+              setShowBankModal(false);
+              fetchAppData(updatedUser?.id);
+            }}
+          />
+        </Suspense>
+      )}
+      {showAddFundsModal && currentUser && (
+        <Suspense fallback={null}>
+          <AddFundsModal
+            isOpen={showAddFundsModal}
+            user={currentUser}
+            onClose={() => setShowAddFundsModal(false)}
+            onSuccess={async (updatedUser) => {
+              if (updatedUser) {
+                setCurrentUser(updatedUser);
+                await syncUserWithBackend(updatedUser);
+              }
+              fetchAppData(updatedUser?.id);
+            }}
+          />
+        </Suspense>
+      )}
+      {showKycModal && currentUser && (
+        <Suspense fallback={null}>
+          <KycVerificationModal
+            user={currentUser}
+            onClose={() => setShowKycModal(false)}
+            onSuccess={(updatedUser) => {
+              handleUserUpdated(updatedUser);
+              setShowKycModal(false);
+              fetchAppData();
+            }}
+          />
+        </Suspense>
+      )}
+    </>
+  );
+  const creatorPageFallback = (
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="w-5 h-5 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
   return (
     <ChatProvider currentUser={currentUser} availablePods={myPods}>
       {viewMode === 'LANDING' ? (
@@ -1201,6 +1291,41 @@ export default function App() {
             onOpenAdvertiser={() => handleOpenAdvertiser('media-kit')}
           />
         </>
+      ) : viewMode === 'CREATOR_JOIN' && creatorHandle ? (
+        <Suspense fallback={creatorPageFallback}>
+          <CreatorJoinPage
+            handle={creatorHandle}
+            currentUser={currentUser}
+            onBack={() => handleLeaveCreatorView()}
+            onOpenAuth={(mode) => handleOpenAuth(mode || 'REGISTER')}
+            onOpenKyc={() => setShowKycModal(true)}
+            onOpenBank={() => setShowBankModal(true)}
+            onOpenAddFunds={() => setShowAddFundsModal(true)}
+            onGoToMyPods={() => { handleLeaveCreatorView('my-pods'); fetchAppData(); }}
+            onUserUpdated={(u) => setCurrentUser(u)}
+          />
+          {creatorPageModals}
+        </Suspense>
+      ) : viewMode === 'CREATOR_HUB' ? (
+        <Suspense fallback={creatorPageFallback}>
+          {currentUser ? (
+            <CreatorDashboard
+              currentUser={currentUser}
+              onBack={() => handleLeaveCreatorView()}
+              onOpenKyc={() => setShowKycModal(true)}
+              onOpenBank={() => setShowBankModal(true)}
+              onOpenAddFunds={() => setShowAddFundsModal(true)}
+            />
+          ) : (
+            <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
+              <div className="max-w-sm w-full text-center rounded-2xl border border-[#DDE1E6] bg-white p-6">
+                <p className="text-sm font-semibold text-[#111827]">{t('creatorHub.signInFirst' as any)}</p>
+                <button type="button" onClick={() => handleOpenAuth('LOGIN')} className="mt-4 px-5 py-2.5 rounded-xl bg-[#005FB8] text-white font-bold text-sm">{t('creatorJoin.signIn' as any)}</button>
+              </div>
+            </div>
+          )}
+          {creatorPageModals}
+        </Suspense>
       ) : viewMode === 'CREATORS' ? (
         <Suspense fallback={
           <div className="min-h-screen bg-white text-slate-800 flex items-center justify-center p-4">
@@ -1210,7 +1335,7 @@ export default function App() {
             </div>
           </div>
         }>
-          <CreatorsPage onBack={handleCloseCreators} />
+          <CreatorsPage onBack={handleCloseCreators} onStartCreator={handleOpenCreatorHub} />
         </Suspense>
       ) : viewMode === 'PARTNERS' ? (
         <Suspense fallback={
@@ -1311,6 +1436,7 @@ export default function App() {
       
       {/* App Header */}
       <Header
+        onOpenCreatorHub={handleOpenCreatorHub}
         currentUser={activeUser}
         allUsers={allUsers}
         myPods={myPods}
@@ -2126,7 +2252,12 @@ export default function App() {
         </Suspense>
       )}
 
-      {agreementPod && currentUser && (
+      {agreementPod && currentUser && agreementPod.creatorPoolId && (
+        <Suspense fallback={null}>
+          <CreatorPoolAgreementModal pod={agreementPod} onClose={() => setAgreementPod(null)} />
+        </Suspense>
+      )}
+      {agreementPod && currentUser && !agreementPod.creatorPoolId && (
         <Suspense fallback={null}>
           <PodAgreementModal
             pod={agreementPod}

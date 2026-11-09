@@ -33,7 +33,7 @@ import {
 } from './src/data/initialData';
 import { getAuthAdmin } from './src/config/firebase';
 import { IS_PRODUCTION, DEMO_MODE, DATA_DIR, assertProductionConfig, getAllowedOrigins, parseMoneyAmount, EARLY_SLOT_TENURE_DAYS, DEBIT_MANDATE_REQUIRED } from './src/server/runtime';
-import { planRotation, findEarlySlotViolation, trustTier, trustLabel, potCapUsd, POT_CAP_LADDER_USD, earlySlotsNeedSeasoned } from './src/server/rotation';
+import { planRotation, findEarlySlotViolation, trustTier, trustLabel, potCapUsd, POT_CAP_LADDER_USD, earlySlotsNeedSeasoned, creatorTrustRank, creatorTrustLabel } from './src/server/rotation';
 import { createStorageAdapter, storageConfigProblems } from './src/server/storage';
 import { assessHardshipRisk } from './src/server/hardshipRisk';
 import { generateSpotCheckSchedule, nextCheckAfter, MISSED_GRACE_MS, MAX_CHECKS_PER_SHIFT } from './src/server/shiftSchedule';
@@ -83,9 +83,22 @@ import {
   getChatMessages,
   setChatMessages,
   pushToUser,
+  postPodMessage,
 } from './src/server/chatManager';
 import { FOURTHWALL_GEAR_CATALOG, INITIAL_GEAR_DESIGNS, dispatchOrderToFourthwall } from './src/services/fourthwall';
 import { GearDesignOrder, PhotoSpotCheck, CampaignShiftLog, POD_SIZE_OPTIONS, MAX_POD_SIZE, isPodSizeOption, capFormingPodSize } from './src/types';
+import type { CreatorProfile, CreatorPool, CreatorWaitlistEntry, CreatorTaxForm, CreatorPoolCloseReason, SocialPlatform, TaxClassification, DebitAuthorizationEvidence } from './src/types';
+import { SOCIAL_PLATFORMS } from './src/types';
+import {
+  CREATOR_POD_SIZE, CREATOR_MIN_FOLLOWERS, CREATOR_FIRST_POOL_DEPOSITS, CREATOR_LATER_POOL_DEPOSITS, CREATOR_POOL_FOLLOWER_CAP,
+  CREATOR_TERMS_VERSION, CREATOR_POOL_AGREEMENT_VERSION, CREATOR_ENROLLMENT_DAYS, FIRST_PAYOUT_HOLD_BUSINESS_DAYS,
+  normalizeHandle, handleProblem, totalFollowers, followerCountsFresh, creatorReadiness, isCreatorReady,
+  allowedDeposits, completedMembersOnly, enrollmentEndsAt, poolClosedReason, followerPodLimit, activeCreatorPodCount,
+  chooseSeat, canHoldSlot, heldSlotReleaseDue, collapseSlot, isStalled, addBusinessDays, heldBalanceUsd,
+  creatorEarnsCommission, JoinQueue, creatorPoolAgreementText, withdrawalBankProblem, bankAccountKey,
+} from './src/server/creatorPools';
+import { taxIdKey, encryptTaxId, decryptTaxId, normalizeTaxId, csvCell } from './src/server/taxIdCrypto';
+import { platformConfigured, signState, verifyState, authorizeUrl, exchangeAndReadProfile } from './src/server/creatorSocial';
 
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -585,6 +598,10 @@ function removeMemberFromRotation(pod: Pod, userId: string): void {
       for (const m of pod.members) {
         if (m.rotationIndex > removed.rotationIndex) m.rotationIndex -= 1;
       }
+      // Creator pools: open slots behind the removed one move up too.
+      if (pod.heldSlots?.length) {
+        pod.heldSlots = pod.heldSlots.map(s => (s.rotationIndex > removed.rotationIndex ? { ...s, rotationIndex: s.rotationIndex - 1 } : s));
+      }
       pod.totalCycles = Math.max(0, (pod.totalCycles || pod.members.length + 1) - 1);
     }
     pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
@@ -816,6 +833,9 @@ function slotHolders(pod: Pod) {
 // Why a proposed rotation (members with their would-be indices) breaks the
 // early-slot rule, or null if it doesn't.
 function earlySlotViolationMessage(pod: Pod, holders: ReturnType<typeof slotHolders>): string | null {
+  // Creator-pool pods are ordered by trust when they start, but nobody is
+  // blocked from a slot afterwards (CREATOR_POOLS_SPEC.md section 6).
+  if (pod.creatorPoolId) return null;
   const v = findEarlySlotViolation(holders, pod.potAtLockUsd ?? podPotUsd(pod));
   if (!v) return null;
   const slots = `the first ${v.earlyCount} slot${v.earlyCount === 1 ? '' : 's'}`;
@@ -982,7 +1002,12 @@ ${d.bufferCoveredUsd > 0 ? 'The pod’s contingency buffer covered this week, so
       },
     });
     d.podNotifiedAt = nowIso;
-    checkPodDefaultThreshold(pod, d);
+    // Creator pools: the vote opens only when the buffer can't cover the week.
+    if (pod.creatorPoolId) {
+      if ((input.potShortfallUsd || 0) > 0) noteCreatorShortfall(pod, cycleWeek, input.potShortfallUsd || 0);
+    } else {
+      checkPodDefaultThreshold(pod, d);
+    }
   }
   return d;
 }
@@ -1129,9 +1154,13 @@ Open MutualPool: ${appUrl()}`,
 function applyCoverShare(pod: Pod, cycleWeek: number, details: string[]): void {
   if (!pod.coverShareActive || pod.status !== 'ACTIVE') return;
   const cycleId = `cyc_w${cycleWeek}`;
-  const shortfall = roundCents(depositDefaults
-    .filter(d => d.podId === pod.id && d.cycleWeek === cycleWeek && isUnsettled(d))
-    .reduce((s, d) => s + (Number(d.potShortfallUsd) || 0), 0));
+  const shortfall = pod.creatorPoolId
+    // Creator pools track every uncovered gap by week (missed deposits and the
+    // empty slots of members removed after being paid).
+    ? roundCents(Number(pod.creatorShortfallUsdByWeek?.[String(cycleWeek)]) || 0)
+    : roundCents(depositDefaults
+      .filter(d => d.podId === pod.id && d.cycleWeek === cycleWeek && isUnsettled(d))
+      .reduce((s, d) => s + (Number(d.potShortfallUsd) || 0), 0));
   const alreadyCovered = roundCents(deposits
     .filter(d => d && d.podId === pod.id && d.cycleId === cycleId && d.status === 'COMPLETE' && d.id.startsWith('dep_cover_'))
     .reduce((s, d) => s + d.amount, 0));
@@ -1183,7 +1212,9 @@ function applyPauseVoteOutcome(pod: Pod, outcome: PodPauseVoteChoice, now: Date)
   if (outcome === 'PAUSE') {
     pod.status = 'PAUSED';
     pod.pausedAt = now.toISOString();
-    pod.pauseReason = `Two or more members in unsettled default (vote: ${tallyText}).`;
+    pod.pauseReason = pod.creatorPoolId
+      ? `Missed deposits the buffer could not cover (vote: ${tallyText}).`
+      : `Two or more members in unsettled default (vote: ${tallyText}).`;
     pod.coverShareActive = false;
     addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_PAUSED',
       `Pod paused by member vote (${tallyText}). Weekly deposits and payouts are on hold until the missed deposits are settled and an administrator resumes the pod.`,
@@ -1371,6 +1402,11 @@ function applyReplacementVoteOutcome(pod: Pod, outcome: PodReplacementVoteChoice
 // start a new round (a new pod with the same settings, members invited) or close it.
 function onPodCompleted(pod: Pod): void {
   if (pod.completedAt) return;
+  // Creator-pool pods have no "new round" step: the creator opens new pools.
+  if (pod.creatorPoolId) {
+    completeCreatorPod(pod);
+    return;
+  }
   const nowIso = new Date().toISOString();
   pod.completedAt = nowIso;
   pod.renewalDecision = 'PENDING';
@@ -1462,17 +1498,28 @@ function autoRemoveDefaultedMember(d: DepositDefault, now: Date): void {
     const member = pod.members.find(m => m && m.userId === d.userId);
     if (member) {
       recordRemovalDefault(pod, member, 'AUTO_REMOVE'); // extends this default with the deposits still owed
-      removeMemberFromRotation(pod, d.userId);
+      // Creator pools hold an unpaid member's slot for the next follower and
+      // never vote on listing the pod (CREATOR_POOLS_SPEC.md section 8).
+      const creatorOutcome = pod.creatorPoolId ? removeCreatorPodMember(pod, member) : null;
+      if (!creatorOutcome) removeMemberFromRotation(pod, d.userId);
       // An Open Pod is public already: just flag the vacancy. A Trusted Circle
       // stays private unless the remaining members vote to list it.
-      const alreadyPublic = pod.podType === 'OPEN_POD';
+      const alreadyPublic = !creatorOutcome && pod.podType === 'OPEN_POD';
       if (alreadyPublic) {
         pod.isPrioritizedForReplacement = true;
         pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
       }
-      const slotText = alreadyPublic
-        ? 'The slot is open for a replacement member.'
-        : 'The remaining members will vote on listing the pod publicly to fill the slot.';
+      const slotText = creatorOutcome === 'RETURNED'
+        ? creatorRemovalText('RETURNED')
+        : creatorOutcome === 'HELD'
+        ? 'Their slot is open for the next follower who joins.'
+        : creatorOutcome === 'PAID'
+          ? "They had already been paid, so their slot can't be refilled. The pod's buffer covers their share each week."
+          : creatorOutcome === 'COLLAPSED'
+            ? 'Their payout week was too close to refill, so the slot was removed and everyone after it moves up a week.'
+            : alreadyPublic
+              ? 'The slot is open for a replacement member.'
+              : 'The remaining members will vote on listing the pod publicly to fill the slot.';
       addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'MEMBER_AUTO_REMOVED',
         `${member.displayName} was removed from "${pod.name}": the Week ${d.cycleWeek} missed deposit was not paid within ${hoursText} of notice. Still owed: $${defaultRemainingUsd(d).toFixed(2)}. ${slotText}`,
         { defaultId: d.id, memberUserId: d.userId, remainingMembers: pod.memberCount });
@@ -1490,7 +1537,7 @@ function autoRemoveDefaultedMember(d: DepositDefault, now: Date): void {
 What they owe ($${defaultRemainingUsd(d).toFixed(2)}) is being collected under their bank debit authorization. Money recovered repays whoever fronted the deposit first, then bridges the pod's later weeks. ${slotText}`,
         },
       });
-      if (!alreadyPublic && pod.status === 'ACTIVE') openReplacementVote(pod, member);
+      if (!creatorOutcome && !alreadyPublic && pod.status === 'ACTIVE') openReplacementVote(pod, member);
       savePodsToDisk();
     }
   }
@@ -1509,7 +1556,7 @@ What they owe ($${defaultRemainingUsd(d).toFixed(2)}) is being collected under t
   d.updatedAt = now.toISOString();
 }
 // Runs every minute from the scheduler (and on demand from the tick endpoint).
-async function runDelinquencyTick(now: Date = new Date()): Promise<{ removed: number; collectionsStarted: number; votesResolved: number }> {
+async function runDelinquencyTick(now: Date = new Date()): Promise<{ removed: number; collectionsStarted: number; votesResolved: number; creatorChanges: number }> {
   let removed = 0;
   let collectionsStarted = 0;
   let votesResolved = 0;
@@ -1555,12 +1602,20 @@ async function runDelinquencyTick(now: Date = new Date()): Promise<{ removed: nu
       }
     }
   }
-  if (removed || collectionsStarted || votesResolved) {
+  // Creator pools: close pools after their enrollment period, start or
+  // dissolve pods that stopped filling, remove held slots whose week came.
+  let creatorChanges = 0;
+  try {
+    creatorChanges = runCreatorPoolTick(now);
+  } catch (err) {
+    console.error('[Creator pools] tick failed:', err);
+  }
+  if (removed || collectionsStarted || votesResolved || creatorChanges) {
     savePodsToDisk();
     saveUsersToDisk();
     requestFlush();
   }
-  return { removed, collectionsStarted, votesResolved };
+  return { removed, collectionsStarted, votesResolved, creatorChanges };
 }
 
 // Deposits the member still owes under the Pod Agreement if they drop out now.
@@ -1613,6 +1668,10 @@ function applyDefaultRecovery(d: DepositDefault, amountUsd: number, source: Defa
       // This week's pot is still open: fill the shortfall directly.
       const toPot = roundCents(Math.min(remaining, d.potShortfallUsd));
       pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + toPot);
+      if (pod.creatorPoolId && pod.creatorShortfallUsdByWeek) {
+        const key = String(d.cycleWeek);
+        pod.creatorShortfallUsdByWeek[key] = roundCents(Math.max(0, (pod.creatorShortfallUsdByWeek[key] || 0) - toPot));
+      }
       remaining = roundCents(remaining - toPot);
     }
     if (remaining > 0) d.reserveUsd = roundCents((d.reserveUsd || 0) + remaining);
@@ -1680,6 +1739,8 @@ async function applyDebitMandateSetup(si: any): Promise<User | null> {
     bankName: bank.bank_name || undefined,
     last4: bank.last4 || undefined,
     fingerprint: bank.fingerprint || undefined,
+    routingNumber: bank.routing_number || undefined,
+    accountHolderName: (pm && typeof pm === 'object' && pm.billing_details?.name) || undefined,
     acceptedAt: new Date().toISOString(),
     termsVersion: TERMS_VERSION,
   };
@@ -1962,6 +2023,12 @@ let welcomeMatchGrants: WelcomeMatchGrant[] = [];
 // DepositDefault), plus the admin-initiated ACH debits that recover them.
 let depositDefaults: DepositDefault[] = [];
 let achCollections: AchCollection[] = [];
+// Creator Pools (CREATOR_POOLS_SPEC.md): approved creators, their pools, the
+// "notify me" list for each creator, and W-9s (tax ID encrypted).
+let creatorProfiles: CreatorProfile[] = [];
+let creatorPools: CreatorPool[] = [];
+let creatorWaitlist: CreatorWaitlistEntry[] = [];
+let creatorTaxForms: CreatorTaxForm[] = [];
 // Brand campaigns are a server-side catalog: advertisers submit, MutualPool
 // approves, couriers can only start shifts against approved ones.
 let campaigns: AdCampaign[] = [];
@@ -3169,8 +3236,14 @@ app.get(['/api/health', '/health'], (req, res) => {
       customer: user.stripeCustomerId,
       mandate: `mandate_demo_${user.id}`,
       metadata: { userId: user.id, kind: 'debit_mandate' },
-      payment_method: { id: `pm_demo_${user.id}`, us_bank_account: { bank_name: req.body?.bankName || 'Demo Bank', last4, fingerprint } },
+      payment_method: {
+        id: `pm_demo_${user.id}`,
+        billing_details: { name: typeof req.body?.accountHolderName === 'string' ? req.body.accountHolderName : undefined },
+        us_bank_account: { bank_name: req.body?.bankName || 'Demo Bank', last4, fingerprint, routing_number: typeof req.body?.routingNumber === 'string' ? req.body.routingNumber : undefined },
+      },
     });
+    // DEMO_MODE only: stands in for the legal name from identity verification.
+    if (typeof req.body?.legalName === 'string' && req.body.legalName.trim()) user.legalName = req.body.legalName.trim().slice(0, 120);
     res.json({ success: true, user });
   });
 
@@ -3184,6 +3257,17 @@ app.get(['/api/health', '/health'], (req, res) => {
       const pod = await findPodById(req.params.id, user);
       if (!pod) {
         return res.status(404).json({ error: 'Pod not found' });
+      }
+
+      // Creator pools: a member can leave a pod that hasn't started and get their deposit back.
+      if (pod.creatorPoolId && pod.status === 'FORMING') {
+        const seat = pod.members.find(m => m && m.userId === user.id);
+        if (!seat) return res.status(403).json({ error: 'NOT_A_MEMBER', message: 'You are not a member of this pod.' });
+        returnCreatorSeat(pod, seat, 'left before the pod started');
+        savePodsToDisk();
+        saveUsersToDisk();
+        requestFlush();
+        return res.json({ success: true, pod, refunded: true });
       }
 
       const hasEveryMemberReceivedPayout = pod.members && pod.members.length > 0 && (pod.status === 'COMPLETED' || pod.members.every(m => m.hasReceivedPayout));
@@ -3229,7 +3313,9 @@ app.get(['/api/health', '/health'], (req, res) => {
       console.error('[/api/pods] sync error:', err);
     }
     const isAdmin = checkIsAdmin(req);
-    res.json(pods.filter(p => !isDemoPodServer(p)).map(p => toPodView(p, user, isAdmin)));
+    // Creator-pool pods are joined through the creator's link, not browsed.
+    const visible = (p: Pod) => !p.creatorPoolId || isAdmin || p.creatorId === user.id || isPodMember(p, user);
+    res.json(pods.filter(p => !isDemoPodServer(p) && visible(p)).map(p => toPodView(p, user, isAdmin)));
   });
 
   app.get(['/api/pods/:id', '/pods/:id'], async (req: Request, res: Response) => {
@@ -3642,6 +3728,9 @@ app.get(['/api/health', '/health'], (req, res) => {
         return res.status(404).json({ error: 'Pod not found' });
       }
 
+      if (pod.creatorPoolId) {
+        return res.status(400).json({ error: 'CREATOR_POOL_POD', message: "This pod belongs to a creator's pool. Join through the creator's link." });
+      }
       if (!pod.members) pod.members = [];
       if (!pod.invitedContacts) pod.invitedContacts = [];
 
@@ -3878,6 +3967,9 @@ app.get(['/api/health', '/health'], (req, res) => {
 
     const { forceEarly } = req.body || {};
 
+    if (pod.creatorPoolId) {
+      return res.status(400).json({ error: 'CREATOR_POOL_POD', message: 'Creator-pool pods start on their own when they are full.' });
+    }
     if (pod.createdBy !== user.id && !checkIsAdmin(req)) {
       return res.status(403).json({ error: 'Only the pod creator can lock rotation and activate the pod.' });
     }
@@ -4190,6 +4282,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         return res.status(400).json({ error: 'Pod is not active.' });
       }
 
+      if (pod.creatorPoolId) releaseDueHeldSlots(pod);
       // Find recipient for current week (matching rotationIndex === currentCycleWeek - 1)
       const targetIndex = pod.currentCycleWeek - 1;
       const recipientMember = pod.members.find(m => m.rotationIndex === targetIndex);
@@ -4223,10 +4316,14 @@ app.get(['/api/health', '/health'], (req, res) => {
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
       // Identify active 3% weekly reward beneficiary (defaults to creator; transfers if creator switches spot)
       // 3% host reward: whoever holds the final rotation slot (normally the creator).
-      const activeRewardRecipientUserId = getFinalSlotMember(pod)?.userId || pod.createdBy;
+      // Creator pools: the 3% goes to the creator hosting the pool, while their
+      // creator account is in good standing; otherwise MutualPool keeps it.
+      const activeRewardRecipientUserId = pod.creatorPoolId ? (pod.creatorId || '') : (getFinalSlotMember(pod)?.userId || pod.createdBy);
       const hostRewardUser = users.find(u => u.id === activeRewardRecipientUserId);
-      const isBeneficiaryActiveInPod = pod.members.some(m => m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
-      const isTransferredFromCreator = activeRewardRecipientUserId !== pod.createdBy;
+      const isBeneficiaryActiveInPod = pod.creatorPoolId
+        ? creatorEarnsCommission(creatorProfileOf(activeRewardRecipientUserId), Boolean(hostRewardUser))
+        : pod.members.some(m => m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
+      const isTransferredFromCreator = !pod.creatorPoolId && activeRewardRecipientUserId !== pod.createdBy;
 
       let creatorHostReward = 0;
       let platformFeeRetained = totalPayoutFee;
@@ -4240,12 +4337,15 @@ app.get(['/api/health', '/health'], (req, res) => {
         mv(POD(pod.id), MEMBER(hostRewardUser.id), creatorHostReward, 'HOST_REWARD', `Week ${pod.currentCycleWeek} host reward`, { podId: pod.id, userId: hostRewardUser.id, cycleWeek: pod.currentCycleWeek });
         hostRewardUser.treasury.totalPayoutsReceivedUsd = roundCents((hostRewardUser.treasury.totalPayoutsReceivedUsd || 0) + creatorHostReward);
         pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
+        if (pod.creatorPoolId) recordCreatorCommission(hostRewardUser.id, creatorHostReward);
 
         // Notify Beneficiary of Host Reward disbursement
         const rewardTitle = isTransferredFromCreator
           ? '🎉 3% Weekly Spot Stewardship Reward Disbursed'
           : '🎉 3% Host Stewardship Reward Disbursed';
-        const rewardMsg = isTransferredFromCreator
+        const rewardMsg = pod.creatorPoolId
+            ? `You earned +$${creatorHostReward.toFixed(2)} (3% of the $${grossPayoutAmount.toFixed(2)} pot) hosting "${pod.name}" this week. Added to your MutualPool balance.`
+            : isTransferredFromCreator
           ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" (Week ${pod.currentCycleWeek} payout)! Funds added to your MutualPool balance.`
           : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${pod.currentCycleWeek} payout! Funds added to your MutualPool balance.`;
 
@@ -4284,6 +4384,9 @@ app.get(['/api/health', '/health'], (req, res) => {
       mv(POD(pod.id), PLATFORM('revenue'), platformFeeRetained, 'PAYOUT_FEE', `Week ${pod.currentCycleWeek} payout fee`, { podId: pod.id, cycleWeek: pod.currentCycleWeek });
       recipientUser.treasury.totalPayoutsReceivedUsd = roundCents((recipientUser.treasury.totalPayoutsReceivedUsd || 0) + netPayoutAmount);
 
+      if (pod.creatorPoolId && recipientUser && needsFirstPayoutHold(recipientUser, pod.id)) {
+        addPayoutHold(recipientUser, pod, netPayoutAmount);
+      }
       recipientMember.hasReceivedPayout = true;
       recipientMember.payoutCycleWeek = pod.currentCycleWeek;
       recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
@@ -4366,10 +4469,24 @@ app.get(['/api/health', '/health'], (req, res) => {
     const targetUser = users.find(u => u.id === user.id) || user;
     if (targetUser.riskHold) return riskHoldResponse(res, targetUser);
     const balance = Number(targetUser.treasury?.balanceUsd) || 0;
-    const withdrawAmount = req.body?.amount === undefined ? roundCents(balance) : parseMoneyAmount(req.body.amount);
+    // Creator pools: a first payout on hold, and creator earnings before a W-9
+    // is on file, stay in the balance but can't be withdrawn yet.
+    const onHoldUsd = withdrawalHoldUsd(targetUser);
+    const withdrawable = roundCents(Math.max(0, balance - onHoldUsd));
+    const withdrawAmount = req.body?.amount === undefined ? withdrawable : parseMoneyAmount(req.body.amount);
+    if (onHoldUsd > 0 && (withdrawAmount === null || withdrawAmount > withdrawable || withdrawable <= 0)) {
+      return res.status(403).json({
+        error: 'FUNDS_ON_HOLD',
+        message: withdrawalHoldMessage(targetUser, withdrawable),
+        withdrawableUsd: withdrawable,
+        onHoldUsd,
+      });
+    }
     if (withdrawAmount === null || withdrawAmount <= 0) {
       return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'Enter a valid withdrawal amount.' });
     }
+    const bankProblem = creatorPoolWithdrawalBankProblem(targetUser);
+    if (bankProblem) return res.status(403).json(bankProblem);
 
     const columnWithdrawal = custodyMode() === 'column' && !DEMO_MODE;
     const accountId = columnWithdrawal ? `column_cp_${targetUser.custody?.counterpartyId || ''}` : (targetUser.treasury?.stripeAccountId || '');
@@ -4696,6 +4813,10 @@ app.get(['/api/health', '/health'], (req, res) => {
         }
       }
 
+      // Creator pools: the buffer covers the empty slots of members removed
+      // after being paid; anything it can't cover opens the pause vote.
+      if (pod.creatorPoolId) bridgeCreatorPodVacancies(pod, cycleWeek, baseDepositAmount, details);
+
       // COVER outcome of a pause vote: the members not in default split what is missing.
       if (pod.coverShareActive) applyCoverShare(pod, cycleWeek, details);
 
@@ -4788,6 +4909,9 @@ app.get(['/api/health', '/health'], (req, res) => {
 
     for (const pod of activePods) {
       if (!pod || !Array.isArray(pod.members) || pod.members.length === 0) continue;
+      // An empty creator-pool slot whose week has come is removed first, so
+      // the member behind it is paid instead.
+      if (pod.creatorPoolId) releaseDueHeldSlots(pod);
       const cycleWeek = pod.currentCycleWeek || 1;
       const targetIndex = cycleWeek - 1;
       const recipientMember = pod.members.find(m => m && m.rotationIndex === targetIndex);
@@ -4816,10 +4940,14 @@ app.get(['/api/health', '/health'], (req, res) => {
 
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
       // 3% host reward: whoever holds the final rotation slot (normally the creator).
-      const activeRewardRecipientUserId = getFinalSlotMember(pod)?.userId || pod.createdBy;
+      // Creator pools: the 3% goes to the creator hosting the pool, while their
+      // creator account is in good standing; otherwise MutualPool keeps it.
+      const activeRewardRecipientUserId = pod.creatorPoolId ? (pod.creatorId || '') : (getFinalSlotMember(pod)?.userId || pod.createdBy);
       const hostRewardUser = users.find(u => u && u.id === activeRewardRecipientUserId);
-      const isBeneficiaryActiveInPod = pod.members.some(m => m && m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
-      const isTransferredFromCreator = activeRewardRecipientUserId !== pod.createdBy;
+      const isBeneficiaryActiveInPod = pod.creatorPoolId
+        ? creatorEarnsCommission(creatorProfileOf(activeRewardRecipientUserId), Boolean(hostRewardUser))
+        : pod.members.some(m => m && m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
+      const isTransferredFromCreator = !pod.creatorPoolId && activeRewardRecipientUserId !== pod.createdBy;
 
       let creatorHostReward = 0;
       let platformFeeRetained = totalPayoutFee;
@@ -4843,12 +4971,15 @@ app.get(['/api/health', '/health'], (req, res) => {
         mv(POD(pod.id), MEMBER(hostRewardUser.id), creatorHostReward, 'HOST_REWARD', `Week ${cycleWeek} host reward`, { podId: pod.id, userId: hostRewardUser.id, cycleWeek });
         hostRewardUser.treasury.totalPayoutsReceivedUsd = (hostRewardUser.treasury.totalPayoutsReceivedUsd || 0) + creatorHostReward;
         pod.creatorStewardshipEarningsUsd = (pod.creatorStewardshipEarningsUsd || 0) + creatorHostReward;
+        if (pod.creatorPoolId) recordCreatorCommission(hostRewardUser.id, creatorHostReward);
 
         try {
           const rewardTitle = isTransferredFromCreator
             ? '🎉 Friday 3% Spot Stewardship Reward Disbursed'
             : '🎉 Friday 3% Host Stewardship Reward Disbursed';
-          const rewardMsg = isTransferredFromCreator
+          const rewardMsg = pod.creatorPoolId
+            ? `You earned +$${creatorHostReward.toFixed(2)} (3% of the $${grossPayoutAmount.toFixed(2)} pot) hosting "${pod.name}" this week. Added to your MutualPool balance.`
+            : isTransferredFromCreator
             ? `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for holding the final rotation stewardship spot in "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your MutualPool balance.`
             : `You earned +$${creatorHostReward.toFixed(2)} (3% of $${grossPayoutAmount.toFixed(2)} pool) for hosting "${pod.name}" Week ${cycleWeek} Friday payout! Funds added to your MutualPool balance.`;
 
@@ -4884,6 +5015,9 @@ app.get(['/api/health', '/health'], (req, res) => {
         recipientUser.treasury.totalPayoutsReceivedUsd = (recipientUser.treasury.totalPayoutsReceivedUsd || 0) + netPayoutAmount;
       }
 
+      if (pod.creatorPoolId && recipientUser && needsFirstPayoutHold(recipientUser, pod.id)) {
+        addPayoutHold(recipientUser, pod, netPayoutAmount);
+      }
       recipientMember.hasReceivedPayout = true;
       recipientMember.payoutCycleWeek = cycleWeek;
       recipientMember.payoutClaimStatus = 'EARMARKED_IN_TREASURY';
@@ -7540,13 +7674,18 @@ Return ONLY a valid JSON object in this exact schema:
     } else if (actionChoice === 'REMOVE') {
       // Direct removal. A member leaving after taking the pot owes the rest of their deposits.
       const removalDefault = recordRemovalDefault(pod, member, 'ADMIN_REMOVE');
-      removeMemberFromRotation(pod, memberUserId);
+      // Creator pools: hold the slot for the next follower (or refund a seat in
+      // a pod that hasn't started); the pod is never listed publicly.
+      const creatorOutcome = pod.creatorPoolId ? removeCreatorPodMember(pod, member) : null;
+      if (!creatorOutcome) removeMemberFromRotation(pod, memberUserId);
       if (removalDefault) restrictAccount(memberUser, removalDefault);
-      pod.podType = 'OPEN_POD';
-      pod.isPrioritizedForReplacement = true;
-      pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+      if (!creatorOutcome) {
+        pod.podType = 'OPEN_POD';
+        pod.isPrioritizedForReplacement = true;
+        pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+        podListedPublicly = true;
+      }
       removedFromPod = true;
-      podListedPublicly = true;
       outcome = 'MEMBER_REMOVED';
 
       addAuditLog(
@@ -7554,7 +7693,9 @@ Return ONLY a valid JSON object in this exact schema:
         user.id,
         user.displayName,
         'MEMBER_REMOVED',
-        `Removed member ${member.displayName} from pod "${pod.name}" per mutual agreement. Pod is now publicly listed as Open Pod with replacement priority.`,
+        creatorOutcome
+          ? `Removed member ${member.displayName} from creator pod "${pod.name}". ${creatorRemovalText(creatorOutcome)}`
+          : `Removed member ${member.displayName} from pod "${pod.name}" per mutual agreement. Pod is now publicly listed as Open Pod with replacement priority.`,
         { memberUserId, actionChoice, remainingMembers: pod.memberCount }
       );
     } else if (actionChoice === 'COVER_GAP') {
@@ -7675,12 +7816,15 @@ Return ONLY a valid JSON object in this exact schema:
           remainingObligationUsd: member.hasReceivedPayout ? remainingObligationUsd(pod, memberUserId) : 0,
           memberRemoved: true,
         });
-        removeMemberFromRotation(pod, memberUserId);
-        pod.podType = 'OPEN_POD';
-        pod.isPrioritizedForReplacement = true;
-        pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+        const creatorOutcome = pod.creatorPoolId ? removeCreatorPodMember(pod, member) : null;
+        if (!creatorOutcome) {
+          removeMemberFromRotation(pod, memberUserId);
+          pod.podType = 'OPEN_POD';
+          pod.isPrioritizedForReplacement = true;
+          pod.replacementVacanciesCount = (pod.replacementVacanciesCount || 0) + 1;
+          podListedPublicly = true;
+        }
         removedFromPod = true;
-        podListedPublicly = true;
         outcome = 'WELCOME_MATCH_REMAINDER_APPLIED_MEMBER_REMOVED';
 
         if (isCreatorDefaulting) {
@@ -7717,7 +7861,7 @@ Return ONLY a valid JSON object in this exact schema:
           user.id,
           user.displayName,
           'CONTINGENCY_BUFFER_USED',
-          `🛡️ Missed Deposit Resolution: $${balanceDeducted.toFixed(2)} deducted from ${member.displayName}'s balance; remainder $${welcomeMatchUsed.toFixed(2)} covered by Welcome Match Contingency Reserve ${systemEscrowUsed > 0 ? `+ $${systemEscrowUsed.toFixed(2)} drawn from System Deposits Escrow` : ''} (remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}). Due to insufficient funds default, ${member.displayName} was removed from pod "${pod.name}", and the pod is now publicly listed as an Open Pod with replacement priority.`,
+          `🛡️ Missed Deposit Resolution: $${balanceDeducted.toFixed(2)} deducted from ${member.displayName}'s balance; remainder $${welcomeMatchUsed.toFixed(2)} covered by Welcome Match Contingency Reserve ${systemEscrowUsed > 0 ? `+ $${systemEscrowUsed.toFixed(2)} drawn from System Deposits Escrow` : ''} (remaining buffer: $${pod.contingencyBufferUsd.toFixed(2)}). Due to insufficient funds default, ${member.displayName} was removed from pod "${pod.name}"${pod.creatorPoolId ? '.' : ', and the pod is now publicly listed as an Open Pod with replacement priority.'}`,
           {
             memberUserId,
             balanceDeducted,
@@ -7734,7 +7878,7 @@ Return ONLY a valid JSON object in this exact schema:
           userId: member.userId,
           type: 'STATUS_CHANGE',
           title: 'Removed from Pod - Insufficient Balance',
-          message: `Your account balance ($${balanceDeducted.toFixed(2)}) was insufficient for your $${requiredDeposit.toFixed(2)} deposit in "${pod.name}". The remaining $${welcomeMatchUsed.toFixed(2)} was covered by the Welcome Match Reserve. You have been removed from the rotation and the pod is now publicly listed for a replacement.`,
+          message: `Your account balance ($${balanceDeducted.toFixed(2)}) was insufficient for your $${requiredDeposit.toFixed(2)} deposit in "${pod.name}". The remaining $${welcomeMatchUsed.toFixed(2)} was covered by the Welcome Match Reserve. You have been removed from the rotation${pod.creatorPoolId ? '.' : ' and the pod is now publicly listed for a replacement.'}`,
           podId: pod.id,
         });
       }
@@ -8174,6 +8318,7 @@ MutualPool`,
     if (problems.length) return res.status(400).json({ error: 'INVALID_INPUT', message: `Please provide: ${problems.join(', ')}.` });
     try {
       const c = await provisionMemberAccount(target, { firstName, lastName, dateOfBirth, ssn, phone: phone || undefined, address: { line1, line2: line2 || undefined, city, state, postalCode } });
+      target.legalName = `${firstName} ${lastName}`;
       saveUsersToDisk();
       requestFlush();
       createNotification({ userId: target.id, type: 'STATUS_CHANGE', title: '🏦 MutualPool bank account opened', message: c.status === 'VERIFIED' ? `Your account ending ${c.accountNumberLast4} is ready. Link an external bank to fund it, or use it as a direct-deposit destination.` : 'Your account is being verified by the bank. We will tell you when it is ready.' });
@@ -8197,9 +8342,14 @@ MutualPool`,
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'Enter a valid account number and 9-digit routing number.' });
     }
     try {
-      await linkExternalBank(target, { accountNumber, routingNumber, accountType, name: target.displayName });
+      await linkExternalBank(target, { accountNumber, routingNumber, accountType, name: target.legalName || target.displayName });
       saveUsersToDisk();
       requestFlush();
+      if (target.custody?.counterpartyChangedAt) {
+        const last4 = target.custody.counterpartyLast4 || '';
+        createNotification({ userId: target.id, type: 'STATUS_CHANGE', title: 'Your withdrawal bank was changed', message: `Withdrawals now go to the account ending ${last4}. If you didn't make this change, contact support right away.` });
+        sendEmail({ to: target.email, kind: 'bank_changed', subject: 'Your MutualPool withdrawal bank was changed', text: `Hi ${target.displayName},\n\nThe bank account for your MutualPool withdrawals was changed to the account ending ${last4}.\n\nIf you made this change, you don't need to do anything. If you didn't, contact support right away.\n\n${appUrl()}`, onChange: requestFlush });
+      }
       res.json({ success: true, account: publicCustody(target) });
     } catch (err) {
       return custodyProviderError(res, err);
@@ -8543,6 +8693,1458 @@ app.get('/api/admin/partner-inquiries', (req: Request, res: Response) => {
     return res.status(403).json({ error: 'Access denied. Administrator role required.' });
   }
   res.json({ inquiries: partnerInquiries });
+});
+
+// ===========================================================================
+// CREATOR POOLS (CREATOR_POOLS_SPEC.md)
+//
+// A creator opens a pool with one permanent link (/c/<handle>). Followers who
+// finish every joining step take a seat; pods of 20 are created as they fill
+// and start on their own. Pods are ordinary pods (weekly sweeps, defaults,
+// chat) tagged with creatorPoolId; the creator earns 3% of each weekly pot.
+// Rules live in src/server/creatorPools.ts.
+// ===========================================================================
+const CREATOR_POOL_REF = (poolId: string) => `pool:${poolId}`;
+const creatorSafetyNotice = (creatorName: string) =>
+  `Safety notice: MutualPool and ${creatorName} will never ask you to pay outside the app. Deposits only happen inside MutualPool. If anyone asks you to send money another way, report them.`;
+const CREATOR_JOIN_RATE_PER_MINUTE = Math.max(10, Number(process.env.CREATOR_JOIN_RATE_PER_MINUTE) || 300);
+const creatorJoinQueues = new Map<string, JoinQueue>();
+const creatorLastAnnouncementAt = new Map<string, number>();
+const CREATOR_ANNOUNCEMENT_GAP_MS = 10 * 60 * 1000;
+
+function creatorProfileOf(userId?: string): CreatorProfile | undefined {
+  return userId ? creatorProfiles.find(p => p && p.userId === userId) : undefined;
+}
+function creatorProfileByHandle(handle: string): CreatorProfile | undefined {
+  return creatorProfiles.find(p => p && p.handle === handle);
+}
+function taxFormOf(userId: string): CreatorTaxForm | undefined {
+  return creatorTaxForms.find(f => f && f.userId === userId);
+}
+function userById(id?: string): User | undefined {
+  return id ? users.find(u => u && u.id === id) : undefined;
+}
+function poolPodsOf(pool: CreatorPool): Pod[] {
+  return pool.podIds.map(id => pods.find(p => p && p.id === id)).filter((p): p is Pod => Boolean(p));
+}
+function openPoolOf(creatorId: string): CreatorPool | undefined {
+  return creatorPools.find(p => p && p.creatorId === creatorId && p.status === 'OPEN');
+}
+function creatorLink(handle: string): string {
+  return `${appUrl()}/c/${handle}`;
+}
+function sha256Hex(text: string): string {
+  return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+// --- Commission, holds and withdrawals -------------------------------------
+
+function recordCreatorCommission(userId: string, amountUsd: number): void {
+  const profile = creatorProfileOf(userId);
+  if (!profile) return;
+  profile.earningsUsd = roundCents((profile.earningsUsd || 0) + amountUsd);
+  profile.updatedAt = new Date().toISOString();
+}
+
+// A member's first payout from a creator pool is held for withdrawal when they
+// have no completed pod and no gig earnings arriving by direct deposit.
+function needsFirstPayoutHold(user: User, podId: string): boolean {
+  if (cleanCompletedPods(user) >= 1) return false;
+  if ((user.earningsDeposit?.count || 0) > 0) return false;
+  if ((user.payoutHolds || []).length > 0) return false;
+  return !pods.some(p => p && p.id !== podId && (p.members || []).some(m => m && m.userId === user.id && m.hasReceivedPayout));
+}
+
+function addPayoutHold(user: User, pod: Pod, amountUsd: number): void {
+  const now = new Date();
+  const releaseAt = addBusinessDays(now, FIRST_PAYOUT_HOLD_BUSINESS_DAYS);
+  user.payoutHolds = [...(user.payoutHolds || []), { podId: pod.id, amountUsd: roundCents(amountUsd), releaseAt: releaseAt.toISOString(), createdAt: now.toISOString() }];
+  const when = releaseAt.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric' });
+  createNotification({
+    userId: user.id,
+    type: 'PAYOUT_RECEIVED',
+    title: 'Your first payout has a short hold',
+    message: `Your $${amountUsd.toFixed(2)} payout from "${pod.name}" is in your balance. Because it's your first payout, it can be withdrawn from ${when}.`,
+    podId: pod.id,
+    podName: pod.name,
+    metadata: { releaseAt: releaseAt.toISOString() },
+  });
+}
+
+function withdrawalHoldUsd(user: User): number {
+  const profile = creatorProfileOf(user.id);
+  return heldBalanceUsd({
+    payoutHolds: user.payoutHolds,
+    now: new Date(),
+    creatorEarningsUsd: profile?.earningsUsd,
+    hasTaxForm: Boolean(taxFormOf(user.id)),
+  });
+}
+
+function withdrawalHoldMessage(user: User, withdrawableUsd: number): string {
+  const parts: string[] = [];
+  const now = Date.now();
+  const active = (user.payoutHolds || []).filter(h => new Date(h.releaseAt).getTime() > now);
+  if (active.length) {
+    const last = active.reduce((a, b) => (new Date(a.releaseAt) > new Date(b.releaseAt) ? a : b));
+    parts.push(`Your first creator-pool payout can be withdrawn from ${new Date(last.releaseAt).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })}.`);
+  }
+  const profile = creatorProfileOf(user.id);
+  if (profile && (profile.earningsUsd || 0) > 0 && !taxFormOf(user.id)) {
+    parts.push('Add your tax details (W-9) in your Creator dashboard to withdraw your creator earnings.');
+  }
+  parts.push(`You can withdraw up to $${withdrawableUsd.toFixed(2)} now.`);
+  return parts.join(' ');
+}
+
+// Creator-pool members and creators withdraw only to the bank account they
+// authorized for debits, not to a bank changed in the last few days, and only
+// when the account holder name matches their verified name (or an admin
+// confirmed it). Returns the response body for a refused withdrawal, or null.
+const bankReviewRequested = new Set<string>();
+function involvedInCreatorPools(user: User): boolean {
+  return Boolean(creatorProfileOf(user.id)) || pods.some(p => p && p.creatorPoolId && (p.members || []).some(m => m && m.userId === user.id));
+}
+function creatorPoolWithdrawalBankProblem(user: User): Record<string, unknown> | null {
+  if (!involvedInCreatorPools(user)) return null;
+  const problem = withdrawalBankProblem({
+    mandate: user.debitMandate ? { last4: user.debitMandate.last4, routingNumber: user.debitMandate.routingNumber, accountHolderName: user.debitMandate.accountHolderName } : undefined,
+    bank: user.custody ? { last4: user.custody.counterpartyLast4, routingNumber: user.custody.counterpartyRoutingNumber, changedAt: user.custody.counterpartyChangedAt } : undefined,
+    legalName: user.legalName,
+    nameReviewedFor: user.bankNameReviewedFor,
+    now: new Date(),
+  });
+  if (!problem) return null;
+  if (problem.code === 'BANK_MISMATCH') {
+    return { error: 'WITHDRAWAL_DESTINATION_MISMATCH', message: `Withdrawals go only to the bank account you authorized for debits${problem.mandateLast4 ? ` (ending ${problem.mandateLast4})` : ''}. Link that same account to withdraw.` };
+  }
+  if (problem.code === 'BANK_RECENTLY_CHANGED') {
+    const when = new Date(problem.availableAt).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return { error: 'BANK_RECENTLY_CHANGED', availableAt: problem.availableAt, message: `You changed your withdrawal bank recently. For your security, withdrawals to it open ${when} ET.` };
+  }
+  const key = `${user.id}|${bankAccountKey(user.debitMandate?.routingNumber, user.debitMandate?.last4)}`;
+  if (!bankReviewRequested.has(key)) {
+    bankReviewRequested.add(key);
+    notifyAdmins({ type: 'STATUS_CHANGE', title: '🏦 Bank owner name needs review', message: `${user.displayName}'s bank account holder name ("${problem.holderName}") doesn't match their verified name ("${problem.legalName}"). Review it in Admin Ops → Creators → Bank name checks.`, metadata: { userId: user.id } });
+  }
+  return { error: 'WITHDRAWAL_REVIEW_REQUIRED', message: "The name on your bank account doesn't match your verified name, so we're checking it before your first withdrawal. This usually takes one business day. Contact support if your name changed." };
+}
+
+// --- Pods of a pool ----------------------------------------------------------
+
+function createPoolPod(pool: CreatorPool, now: Date): Pod {
+  const existing = poolPodsOf(pool);
+  const seq = (existing.length ? Math.max(...existing.map(p => p.poolSequence || 0)) : 0) + 1;
+  const nowIso = now.toISOString();
+  const id = `pod_cp_${pool.id.slice(-6)}_${seq}_${crypto.randomBytes(3).toString('hex')}`;
+  const pod: Pod = {
+    id,
+    name: `${pool.name} · Pod ${seq}`,
+    description: pool.description || `${pool.creatorName}'s savings pool`,
+    category: 'Creator Pool',
+    podType: 'TRUSTED_CIRCLE',
+    activationPolicy: 'WHEN_FULL',
+    inviteWindowDays: 0,
+    autoOpenOnExpire: false,
+    inviteCode: crypto.randomBytes(4).toString('hex').toUpperCase(),
+    invitedContacts: [],
+    sizeTier: CREATOR_POD_SIZE,
+    depositTier: pool.depositTier,
+    status: 'FORMING',
+    currentCycleWeek: 1,
+    totalCycles: CREATOR_POD_SIZE,
+    agreementVersion: CREATOR_POOL_AGREEMENT_VERSION,
+    holdingFinAccountId: `fa_pod_holding_${Date.now()}`,
+    createdBy: CREATOR_POOL_REF(pool.id),
+    creatorName: pool.creatorName,
+    createdAt: nowIso,
+    members: [],
+    memberCount: 0,
+    weeklyPoolTarget: CREATOR_POD_SIZE * pool.depositTier,
+    currentWeeklyCollected: 0,
+    welcomeMatchGranted: false,
+    welcomeMatchAmountUsd: 0,
+    contingencyBufferUsd: 0,
+    contingencyBufferInitialUsd: 0,
+    feeBufferContributedUsd: 0,
+    feeBufferRefundedUsd: 0,
+    stewardshipMode: 'CREATOR_MANAGED',
+    managedBy: 'CREATOR',
+    creatorLastInRotation: false,
+    systemEscrowActive: false,
+    systemEscrowDrawnUsd: 0,
+    creatorHostRewardRate: FEES.hostRewardRate,
+    creatorPoolId: pool.id,
+    creatorId: pool.creatorId,
+    poolSequence: seq,
+    heldSlots: [],
+    lastJoinAt: nowIso,
+  };
+  pods.unshift(pod);
+  pool.podIds.push(id);
+  pool.updatedAt = nowIso;
+  try {
+    postPodMessage(pod, { senderId: 'system', senderName: 'MutualPool', content: creatorSafetyNotice(pool.creatorName), type: 'SYSTEM', metadata: { pinned: true, kind: 'creator_safety_notice' } });
+  } catch (err) {
+    console.warn('[Creator pools] safety notice not posted:', err);
+  }
+  return pod;
+}
+
+type SeatFailure = { ok: false; error: 'INSUFFICIENT_FUNDS' | 'NO_HELD_SLOT'; totalUsd: number };
+type SeatResult =
+  | { ok: true; pod: Pod; member: PodMembership; kind: 'HELD' | 'FORMING' | 'NEW_POD' }
+  | SeatFailure;
+
+// Take a seat: charge the deposit for the pod's current week plus the 5%
+// buffer contribution, add the member with their signed agreement, and start
+// the pod if this seat filled it. Synchronous from check to seat, so two
+// followers can never take the same seat.
+function seatMember(pool: CreatorPool, user: User, opts: {
+  signatureName: string;
+  evidence?: DebitAuthorizationEvidence;
+  asCreator?: boolean;
+  countSeat?: boolean;
+  heldOnly?: boolean;
+  now?: Date;
+}): SeatResult {
+  const now = opts.now || new Date();
+  const nowIso = now.toISOString();
+  const deposit = pool.depositTier;
+  const fee = roundCents(deposit * FEES.depositFeeRate);
+  const total = roundCents(deposit + fee);
+  if ((Number(user.treasury?.balanceUsd) || 0) < total) return { ok: false, error: 'INSUFFICIENT_FUNDS', totalUsd: total };
+
+  const choice = chooseSeat(poolPodsOf(pool), user.id);
+  if (opts.heldOnly && choice.kind !== 'HELD') return { ok: false, error: 'NO_HELD_SLOT', totalUsd: total };
+  let pod: Pod;
+  let rotationIndex: number;
+  if (choice.kind === 'HELD') {
+    pod = choice.pod;
+    rotationIndex = choice.slot.rotationIndex;
+    pod.heldSlots = (pod.heldSlots || []).filter(s => s.rotationIndex !== rotationIndex);
+  } else if (choice.kind === 'FORMING') {
+    pod = choice.pod;
+    rotationIndex = pod.members.length;
+  } else {
+    pod = createPoolPod(pool, now);
+    rotationIndex = 0;
+  }
+  const week = pod.status === 'ACTIVE' ? (pod.currentCycleWeek || 1) : 1;
+
+  if (!debitLedger(user, total)) return { ok: false, error: 'INSUFFICIENT_FUNDS', totalUsd: total };
+  mv(MEMBER(user.id), POD(pod.id), deposit, 'DEPOSIT', `Week ${week} deposit (took a seat in a creator pool)`, { podId: pod.id, userId: user.id, cycleWeek: week });
+  contributeFeeToBuffer(pod, user.id, fee, week);
+
+  const displayName = user.displayName && user.displayName !== 'Verified Member' ? user.displayName : (user.email ? user.email.split('@')[0] : 'Member');
+  const member: PodMembership = {
+    id: `pm_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    podId: pod.id,
+    userId: user.id,
+    displayName,
+    email: user.email,
+    avatarUrl: user.avatarUrl || '',
+    platform: user.platform || 'DoorDash',
+    rotationIndex,
+    hasReceivedPayout: false,
+    delinquencyStatus: 'CLEAN',
+    joinedAt: nowIso,
+    agreementSignedAt: nowIso,
+    agreementSignatureName: opts.signatureName,
+    authorization: opts.evidence,
+  };
+  pod.members.push(member);
+  pod.memberCount = pod.members.length;
+  pod.lastJoinAt = nowIso;
+  if (pod.status === 'ACTIVE') pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
+  deposits.unshift({
+    id: newLedgerId('dep_seat'),
+    membershipId: member.id,
+    podId: pod.id,
+    cycleId: `cyc_w${week}`,
+    userId: user.id,
+    userName: displayName,
+    amount: deposit,
+    stripePaymentId: newLedgerId('ledger_creator_seat'),
+    status: 'COMPLETE',
+    createdAt: nowIso,
+  });
+  pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + deposit);
+  if (!opts.asCreator && opts.countSeat !== false) pool.seatedCount += 1;
+  pool.updatedAt = nowIso;
+
+  addAuditLog(pod.id, user.id, displayName, 'CREATOR_SEAT_TAKEN',
+    `${displayName} took ${choice.kind === 'HELD' ? `the open slot #${rotationIndex + 1}` : 'a seat'} in "${pod.name}" and deposited $${deposit.toFixed(2)} for week ${week} ($${fee.toFixed(2)} to the buffer). Agreement ${CREATOR_POOL_AGREEMENT_VERSION} signed as "${opts.signatureName}".`,
+    { poolId: pool.id, kind: choice.kind, rotationIndex, deposit, fee, cycleWeek: week, agreementTextSha256: opts.evidence?.agreementTextSha256 });
+
+  if (choice.kind === 'HELD') {
+    createNotification({
+      userId: user.id, type: 'POD_JOINED', title: `You're in "${pod.name}"`,
+      message: `You took an open slot in a pod that's already running. Your payout is in week ${rotationIndex + 1}. Deposits of $${deposit.toFixed(2)} are taken every Thursday until the pod ends in week ${pod.totalCycles}.`,
+      podId: pod.id, podName: pod.name,
+    });
+    notifyPodMembers(pod, {
+      type: 'STATUS_CHANGE', title: '👋 The open slot was filled',
+      message: `${displayName} joined "${pod.name}" and took open slot #${rotationIndex + 1}.`,
+      excludeUserId: user.id,
+    });
+  } else if (!opts.asCreator) {
+    createNotification({
+      userId: user.id, type: 'POD_JOINED', title: `You're in "${pod.name}"`,
+      message: `${pod.members.length} of ${CREATOR_POD_SIZE} seats are taken. The pod starts as soon as it's full, and your payout week is drawn then.`,
+      podId: pod.id, podName: pod.name,
+    });
+  }
+
+  if (pod.status === 'FORMING' && pod.members.length >= CREATOR_POD_SIZE) startCreatorPod(pod, now);
+  if (!opts.asCreator && pool.status === 'OPEN' && pool.seatedCount >= pool.followerCap) closeCreatorPool(pool, 'FOLLOWER_CAP', now);
+  savePodsToDisk();
+  saveUsersToDisk();
+  requestFlush();
+  return { ok: true, pod, member, kind: choice.kind };
+}
+
+// Give back a seat in a pod that never started: deposit and buffer
+// contribution return to the member's balance.
+function refundFormingSeat(pod: Pod, member: PodMembership, reason: string): void {
+  const user = userById(member.userId);
+  const seatDeposits = deposits.filter(d => d && d.podId === pod.id && d.userId === member.userId && d.status === 'COMPLETE');
+  const depositTotal = roundCents(seatDeposits.reduce((s, d) => s + (Number(d.amount) || 0), 0));
+  const fee = roundCents(Math.min(depositTotal * FEES.depositFeeRate, Number(pod.contingencyBufferUsd) || 0));
+  for (const d of seatDeposits) d.status = 'REFUNDED';
+  pod.currentWeeklyCollected = roundCents(Math.max(0, (pod.currentWeeklyCollected || 0) - depositTotal));
+  pod.contingencyBufferUsd = roundCents(Math.max(0, (pod.contingencyBufferUsd || 0) - fee));
+  pod.feeBufferContributedUsd = roundCents(Math.max(0, (pod.feeBufferContributedUsd || 0) - fee));
+  if (user && depositTotal + fee > 0) {
+    creditLedger(user, roundCents(depositTotal + fee));
+    if (depositTotal > 0) mv(POD(pod.id), MEMBER(user.id), depositTotal, 'ADJUSTMENT', 'Seat returned: deposit refunded (pod did not start)', { podId: pod.id, userId: user.id });
+    if (fee > 0) mv(POD(pod.id), MEMBER(user.id), fee, 'BUFFER_REFUND', 'Seat returned: buffer contribution refunded', { podId: pod.id, userId: user.id });
+  }
+  pod.members = pod.members.filter(m => m && m.userId !== member.userId);
+  pod.memberCount = pod.members.length;
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool Creator Pools', 'CREATOR_SEAT_RELEASED',
+    `${member.displayName}'s seat in "${pod.name}" was returned (${reason}); $${roundCents(depositTotal + fee).toFixed(2)} refunded to their balance.`,
+    { userId: member.userId, depositTotal, fee, reason });
+}
+
+// A member leaves (or is removed from) a creator pod before it starts: their
+// deposit comes back and the seat opens for the next follower.
+function returnCreatorSeat(pod: Pod, member: PodMembership, reason: string): void {
+  refundFormingSeat(pod, member, reason);
+  const pool = creatorPools.find(p => p && p.id === pod.creatorPoolId);
+  if (pool && member.userId !== pool.creatorId) pool.seatedCount = Math.max(0, pool.seatedCount - 1);
+  if (pool) pool.updatedAt = new Date().toISOString();
+}
+
+function creatorRemovalText(outcome: 'HELD' | 'PAID' | 'COLLAPSED' | 'RETURNED'): string {
+  return outcome === 'HELD' ? 'Their slot is held for the next follower who joins.'
+    : outcome === 'PAID' ? "They had already been paid, so the slot stays empty and the pod's buffer covers it each week."
+      : outcome === 'RETURNED' ? 'The pod had not started, so their deposit was refunded and the seat reopened.'
+        : 'Their payout week was too close to refill, so the slot was removed and everyone after it moves up a week.';
+}
+
+// The pod is full (or enrollment ended): draw the payout order and start.
+function startCreatorPod(pod: Pod, now: Date): boolean {
+  if (pod.status !== 'FORMING' || pod.members.length < 2) return false;
+  const nowIso = now.toISOString();
+  const rankOf = (userId: string): number => {
+    const u = userById(userId);
+    if (!u) return 0;
+    return creatorTrustRank({
+      cleanCompletedPods: cleanCompletedPods(u),
+      accountAgeDays: calculateAccountAgeDays(u.createdAt, u.accountAgeDays),
+      hasDebitMandate: hasActiveDebitMandate(u),
+      hasEarningsDeposit: (u.earningsDeposit?.count || 0) > 0,
+    }, EARLY_SLOT_TENURE_DAYS);
+  };
+  const creatorMember = pod.members.find(m => m && m.userId === pod.creatorId);
+  const followers = pod.members.filter(m => m && m.userId !== pod.creatorId);
+  const ranks = new Map(followers.map(m => [m.userId, rankOf(m.userId)]));
+  const potUsd = pod.members.length * pod.depositTier;
+  const plan = planRotation(
+    followers.map(m => ({ userId: m.userId, trust: ranks.get(m.userId) || 0 })),
+    { totalMembers: pod.members.length, potUsd, randomInt: n => crypto.randomInt(n), requireSeasonedEarly: false },
+  );
+  if ('error' in plan) return false;
+  const byId = new Map(followers.map(m => [m.userId, m]));
+  const ordered: PodMembership[] = plan.order.map((userId, idx) => {
+    const m = byId.get(userId)!;
+    m.rotationIndex = idx;
+    m.trustAtLock = creatorTrustLabel(ranks.get(userId) || 0);
+    return m;
+  });
+  if (creatorMember) {
+    creatorMember.rotationIndex = ordered.length;
+    creatorMember.trustAtLock = creatorTrustLabel(rankOf(creatorMember.userId));
+    ordered.push(creatorMember);
+  }
+  pod.members = ordered;
+  pod.memberCount = ordered.length;
+  pod.earlySlotCount = plan.earlyCount;
+  pod.potAtLockUsd = potUsd;
+  pod.status = 'ACTIVE';
+  pod.cycleStartDate = nowIso;
+  pod.activatedAt = nowIso;
+  pod.totalCycles = ordered.length;
+  pod.weeklyPoolTarget = potUsd;
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool Creator Pools', 'CREATOR_POD_STARTED',
+    `"${pod.name}" started with ${ordered.length} members ($${potUsd.toLocaleString()} weekly pot). Payout order drawn at random within trust levels (completed pod, direct deposit, 90+ days, new).`,
+    { members: ordered.length, potUsd, order: ordered.map(m => ({ userId: m.userId, slot: m.rotationIndex + 1, trust: m.trustAtLock })) });
+  for (const m of ordered) {
+    createNotification({
+      userId: m.userId, type: 'STATUS_CHANGE', title: '🚀 Your pod has started',
+      message: `"${pod.name}" has started with ${ordered.length} members. Your payout is in week ${m.rotationIndex + 1} of ${ordered.length}. Deposits of $${pod.depositTier.toFixed(2)} are taken every Thursday. Want to be paid sooner? Request a swap with another member.`,
+      podId: pod.id, podName: pod.name, metadata: { slot: m.rotationIndex + 1 },
+    });
+  }
+  const creator = userById(pod.creatorId);
+  if (creator && !creatorMember) {
+    createNotification({ userId: creator.id, type: 'STATUS_CHANGE', title: `Pod ${pod.poolSequence} has started`, message: `"${pod.name}" started with ${ordered.length} members. You earn 3% of its pot every week.`, podId: pod.id, podName: pod.name });
+  }
+  savePodsToDisk();
+  return true;
+}
+
+// A forming pod that stopped filling (or whose pool closed): its followers move
+// into open slots of running pods first; the rest start together if there are
+// at least two, otherwise the seat is returned.
+function resolveStalledPod(pod: Pod, pool: CreatorPool, now: Date): void {
+  if (pod.status !== 'FORMING') return;
+  const followers = pod.members.filter(m => m && m.userId !== pod.creatorId)
+    .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+  for (const m of followers) {
+    const hasHeld = poolPodsOf(pool).some(p => p.id !== pod.id && p.status === 'ACTIVE' && (p.heldSlots || []).length > 0 && !p.members.some(x => x && x.userId === m.userId));
+    if (!hasHeld) break;
+    const user = userById(m.userId);
+    if (!user) continue;
+    refundFormingSeat(pod, m, 'moved to an open slot in a running pod');
+    const seated = seatMember(pool, user, { signatureName: m.agreementSignatureName || user.displayName, evidence: m.authorization, countSeat: false, heldOnly: true, now });
+    if (!seated.ok) {
+      createNotification({ userId: user.id, type: 'STATUS_CHANGE', title: 'Your seat was returned', message: `"${pod.name}" didn't fill, and we couldn't move you to another pod (${(seated as SeatFailure).error === 'INSUFFICIENT_FUNDS' ? 'your balance was too low' : 'no open slot'}). Your deposit is back in your balance.`, podId: pod.id, podName: pod.name });
+    }
+  }
+  if (pod.status !== 'FORMING') return;
+  if (pod.members.length >= 2) {
+    startCreatorPod(pod, now);
+    return;
+  }
+  for (const m of [...pod.members]) {
+    refundFormingSeat(pod, m, 'the pod did not fill');
+    createNotification({ userId: m.userId, type: 'STATUS_CHANGE', title: 'Your seat was returned', message: `"${pod.name}" didn't get enough members to start, so your seat was returned and your deposit is back in your balance.`, podName: pod.name });
+  }
+  pods = pods.filter(p => p && p.id !== pod.id);
+  pool.podIds = pool.podIds.filter(id => id !== pod.id);
+  pool.updatedAt = now.toISOString();
+}
+
+function closeCreatorPool(pool: CreatorPool, reason: CreatorPoolCloseReason, now: Date): void {
+  if (pool.status !== 'OPEN') return;
+  pool.status = reason === 'CREATOR_SUSPENDED' ? 'SUSPENDED' : 'CLOSED';
+  pool.closedAt = now.toISOString();
+  pool.closedReason = reason;
+  pool.updatedAt = pool.closedAt;
+  const why = reason === 'CREATOR' ? 'you closed enrollment'
+    : reason === 'ENROLLMENT_PERIOD_ENDED' ? `its ${Math.round(CREATOR_ENROLLMENT_DAYS / 7)}-week enrollment period ended`
+      : reason === 'FOLLOWER_CAP' ? `it reached ${pool.followerCap.toLocaleString()} followers`
+        : 'your creator account was suspended';
+  addAuditLog(undefined, pool.creatorId, pool.creatorName, 'CREATOR_POOL_CLOSED', `Enrollment in "${pool.name}" closed: ${why}.`, { poolId: pool.id, reason, seatedCount: pool.seatedCount });
+  createNotification({
+    userId: pool.creatorId, type: 'STATUS_CHANGE', title: 'Enrollment closed',
+    message: `Enrollment in "${pool.name}" closed because ${why}. Its pods keep running until they complete${reason === 'CREATOR_SUSPENDED' ? '' : ', and you can open your next pool now'}.`,
+    metadata: { poolId: pool.id },
+  });
+  for (const pod of poolPodsOf(pool)) {
+    if (pod.status === 'FORMING') resolveStalledPod(pod, pool, now);
+  }
+  maybeCompletePool(pool, now);
+}
+
+function maybeCompletePool(pool: CreatorPool, now = new Date()): boolean {
+  if (pool.status === 'OPEN' || pool.status === 'COMPLETED') return false;
+  const poolPods = poolPodsOf(pool);
+  if (poolPods.some(p => p.status !== 'COMPLETED')) return false;
+  pool.status = 'COMPLETED';
+  pool.completedAt = now.toISOString();
+  pool.updatedAt = pool.completedAt;
+  addAuditLog(undefined, pool.creatorId, pool.creatorName, 'CREATOR_POOL_COMPLETED', `Every pod in "${pool.name}" has completed (${poolPods.length} pod${poolPods.length === 1 ? '' : 's'}).`, { poolId: pool.id });
+  createNotification({ userId: pool.creatorId, type: 'POD_COMPLETED', title: '🎉 Your pool is complete', message: `Every pod in "${pool.name}" has paid out all its members.`, metadata: { poolId: pool.id } });
+  return true;
+}
+
+function completeCreatorPod(pod: Pod): void {
+  const nowIso = new Date().toISOString();
+  pod.completedAt = nowIso;
+  pod.renewalDecision = 'CLOSED';
+  if (pod.pauseVote?.status === 'OPEN') { pod.pauseVote.status = 'RESOLVED'; pod.pauseVote.resolvedAt = nowIso; }
+  pod.heldSlots = [];
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool', 'POD_COMPLETED', 'Every member has received a payout.', { memberCount: pod.members.length });
+  notifyPodMembers(pod, {
+    type: 'POD_COMPLETED',
+    title: '🎉 Pod complete',
+    message: `Every member of "${pod.name}" has been paid. Members who made every deposit can now be in up to 3 creator pods at a time.`,
+    metadata: { completedAt: nowIso },
+  });
+  if (pod.creatorId && !pod.members.some(m => m && m.userId === pod.creatorId)) {
+    createNotification({ userId: pod.creatorId, type: 'POD_COMPLETED', title: `Pod ${pod.poolSequence} is complete`, message: `Every member of "${pod.name}" has been paid out.`, podId: pod.id, podName: pod.name });
+  }
+  const pool = creatorPools.find(p => p && p.id === pod.creatorPoolId);
+  if (pool) maybeCompletePool(pool);
+}
+
+// --- Removed members, held slots and shortfalls ------------------------------
+
+// Returns what happened to the slot. HELD: kept open for the next follower.
+// PAID: member had been paid, slot stays empty (buffer covers it each week).
+// COLLAPSED: too close to its payout week, slot removed.
+function removeCreatorPodMember(pod: Pod, member: PodMembership): 'HELD' | 'PAID' | 'COLLAPSED' | 'RETURNED' {
+  if (pod.status === 'FORMING') {
+    returnCreatorSeat(pod, member, 'removed before the pod started');
+    return 'RETURNED';
+  }
+  if (member.hasReceivedPayout) {
+    removeMemberFromRotation(pod, member.userId);
+    return 'PAID';
+  }
+  if (pod.status === 'ACTIVE' && canHoldSlot(pod.currentCycleWeek || 1, member.rotationIndex)) {
+    pod.members = pod.members.filter(m => m && m.userId !== member.userId);
+    pod.memberCount = pod.members.length;
+    pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
+    pod.heldSlots = [...(pod.heldSlots || []), {
+      rotationIndex: member.rotationIndex,
+      heldSince: new Date().toISOString(),
+      vacatedByUserId: member.userId,
+      vacatedByName: member.displayName,
+    }];
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Creator Pools', 'CREATOR_SLOT_HELD',
+      `Slot #${member.rotationIndex + 1} (payout week ${member.rotationIndex + 1}) is held for the next follower who joins.`,
+      { rotationIndex: member.rotationIndex, vacatedByUserId: member.userId });
+    return 'HELD';
+  }
+  removeMemberFromRotation(pod, member.userId);
+  return 'COLLAPSED';
+}
+
+// Held slots whose payout is next week (or past) are removed: everyone after
+// them moves up a week. Returns how many were removed.
+function releaseDueHeldSlots(pod: Pod, now: Date = new Date()): number {
+  const due = (pod.heldSlots || [])
+    .filter(slot => heldSlotReleaseDue(pod.currentCycleWeek || 1, slot))
+    .sort((a, b) => b.rotationIndex - a.rotationIndex);
+  for (const slot of due) {
+    collapseSlot(pod, slot.rotationIndex);
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Creator Pools', 'CREATOR_SLOT_REMOVED',
+      `Nobody took open slot #${slot.rotationIndex + 1} before its payout week, so it was removed. Everyone after it moves up a week; the pod now ends in week ${pod.totalCycles}.`,
+      { rotationIndex: slot.rotationIndex, at: now.toISOString() });
+    notifyPodMembers(pod, {
+      type: 'STATUS_CHANGE',
+      title: 'Open slot removed',
+      message: `Nobody took the open slot #${slot.rotationIndex + 1} in "${pod.name}" before its payout week, so it was removed. Everyone after it is paid a week earlier, and the pod now ends in week ${pod.totalCycles}.`,
+    });
+  }
+  if (due.length) {
+    pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
+    savePodsToDisk();
+  }
+  return due.length;
+}
+
+// A week's pot is short by more than the buffer could cover. Remembered by
+// week (members who vote to cover split it), and the pause vote opens.
+function noteCreatorShortfall(pod: Pod, cycleWeek: number, amountUsd: number): void {
+  if (!(amountUsd > 0)) return;
+  const key = String(cycleWeek);
+  pod.creatorShortfallUsdByWeek = { ...(pod.creatorShortfallUsdByWeek || {}), [key]: roundCents((pod.creatorShortfallUsdByWeek?.[key] || 0) + amountUsd) };
+  if (pod.status !== 'ACTIVE' || pod.coverShareActive || pod.pauseVote?.status === 'OPEN') return;
+  const now = new Date();
+  const vote = buildPauseVote({ id: newLedgerId('pvote'), pod, defaults: depositDefaults, now });
+  pod.pauseVote = vote;
+  const closes = etDateTime(vote.closesAt);
+  addAuditLog(pod.id, 'SYSTEM', 'MutualPool Default Monitor', 'POD_PAUSE_VOTE_OPENED',
+    `Week ${cycleWeek}'s pot is $${amountUsd.toFixed(2)} short: the buffer could not cover the missed deposits. ${vote.eligibleVoterIds.length} member(s) may vote PAUSE or COVER until ${closes}.`,
+    { voteId: vote.id, shortfallUsd: amountUsd, cycleWeek, closesAt: vote.closesAt });
+  notifyPodMembers(pod, {
+    type: 'POD_PAUSE_VOTE',
+    title: '🗳️ Your vote is needed',
+    message: `This week's pot in "${pod.name}" is $${amountUsd.toFixed(2)} short: the pod's buffer can't cover the missed deposits. Vote to PAUSE the pod while what's owed is collected, or to COVER the gap between you each week. The vote closes ${closes}. If nobody votes, the pod pauses.`,
+    metadata: { voteId: vote.id, podId: pod.id },
+    email: {
+      kind: 'pod_pause_vote',
+      subject: `"${pod.name}": your vote is needed`,
+      text: `This week's pot in "${pod.name}" is $${amountUsd.toFixed(2)} short because the pod's buffer can't cover the missed deposits.
+
+Vote from the pod page:
+• PAUSE: deposits and payouts stop while what's owed is collected.
+• COVER: the pod keeps going and the members split the gap each Thursday.
+
+The vote closes ${closes}. If nobody votes, the pod pauses.`,
+    },
+  });
+  notifyAdmins({ type: 'STATUS_CHANGE', title: '🗳️ Creator pod pause vote opened', message: `"${pod.name}" is $${amountUsd.toFixed(2)} short in week ${cycleWeek}; members are voting until ${closes}.`, podId: pod.id, podName: pod.name, metadata: { voteId: vote.id } });
+  savePodsToDisk();
+}
+
+// Members removed after being paid leave an empty slot for the rest of the
+// pod. Each week: money recovered from them first, then the buffer.
+function bridgeCreatorPodVacancies(pod: Pod, cycleWeek: number, depositUsd: number, details: string[]): void {
+  const seen = new Set<string>();
+  let shortfall = 0;
+  for (const d of depositDefaults) {
+    if (!d || d.podId !== pod.id || !d.memberRemoved || !(Number(d.payoutReceivedUsd) > 0)) continue;
+    if (seen.has(d.userId)) continue;
+    seen.add(d.userId);
+    if (cycleWeek <= d.cycleWeek || d.lastBridgedCycleWeek === cycleWeek) continue;
+    d.lastBridgedCycleWeek = cycleWeek;
+    const fromReserve = roundCents(Math.min(Number(d.reserveUsd) || 0, depositUsd));
+    if (fromReserve > 0) {
+      d.reserveUsd = roundCents((d.reserveUsd || 0) - fromReserve);
+      mv(PLATFORM('operating'), POD(pod.id), fromReserve, 'RESERVE_BRIDGE', `Week ${cycleWeek} bridged from recovered default funds`, { podId: pod.id, cycleWeek, defaultId: d.id });
+    }
+    const fromBuffer = roundCents(Math.min(Number(pod.contingencyBufferUsd) || 0, depositUsd - fromReserve));
+    if (fromBuffer > 0) pod.contingencyBufferUsd = roundCents((pod.contingencyBufferUsd || 0) - fromBuffer);
+    pod.currentWeeklyCollected = roundCents((pod.currentWeeklyCollected || 0) + fromReserve + fromBuffer);
+    const gap = roundCents(depositUsd - fromReserve - fromBuffer);
+    shortfall = roundCents(shortfall + gap);
+    d.updatedAt = new Date().toISOString();
+    addAuditLog(pod.id, 'SYSTEM', 'MutualPool Contingency Engine', 'CONTINGENCY_BUFFER_BRIDGED_DEPOSIT',
+      `${d.userName}'s empty slot, week ${cycleWeek}: $${fromReserve.toFixed(2)} from money recovered from them and $${fromBuffer.toFixed(2)} from the buffer${gap > 0 ? `; $${gap.toFixed(2)} still short` : ''}. Buffer left: $${(pod.contingencyBufferUsd || 0).toFixed(2)}.`,
+      { defaultId: d.id, cycleWeek, fromReserve, fromBuffer, gap });
+    details.push(`[${pod.name}] Covered ${d.userName}'s empty slot: $${fromReserve.toFixed(2)} recovered + $${fromBuffer.toFixed(2)} buffer${gap > 0 ? `, $${gap.toFixed(2)} short` : ''}`);
+  }
+  if (shortfall > 0) noteCreatorShortfall(pod, cycleWeek, shortfall);
+}
+
+// Every minute (from runDelinquencyTick). Returns how many changes it made.
+function runCreatorPoolTick(now: Date): number {
+  let changes = 0;
+  for (const pool of [...creatorPools]) {
+    if (!pool) continue;
+    if (pool.status === 'OPEN') {
+      const reason = poolClosedReason(pool, now);
+      if (reason === 'ENROLLMENT_PERIOD_ENDED' || reason === 'FOLLOWER_CAP') {
+        closeCreatorPool(pool, reason, now);
+        changes += 1;
+      }
+    }
+    for (const pod of poolPodsOf(pool)) {
+      if (pod.status === 'FORMING' && isStalled(pod, pool, now)) {
+        resolveStalledPod(pod, pool, now);
+        changes += 1;
+      } else if (pod.status === 'ACTIVE' && (pod.heldSlots || []).length) {
+        changes += releaseDueHeldSlots(pod, now);
+      }
+    }
+    if (maybeCompletePool(pool, now)) changes += 1;
+  }
+  for (const u of users) {
+    if (!u?.payoutHolds?.length) continue;
+    const keep = u.payoutHolds.filter(h => new Date(h.releaseAt).getTime() > now.getTime());
+    if (keep.length !== u.payoutHolds.length) {
+      u.payoutHolds = keep;
+      changes += 1;
+    }
+  }
+  return changes;
+}
+
+// --- Creators ------------------------------------------------------------------
+
+function creatorReadinessFor(user: User, profile?: CreatorProfile) {
+  return creatorReadiness({
+    accounts: profile?.accounts || [],
+    kycVerified: user.kycStatus === 'VERIFIED',
+    hasDebitMandate: hasActiveDebitMandate(user),
+    termsAcceptedVersion: profile?.termsAcceptedVersion,
+  });
+}
+
+function refreshCreatorApproval(profile: CreatorProfile, user: User): void {
+  if (profile.status !== 'PENDING') return;
+  if (!isCreatorReady(creatorReadinessFor(user, profile))) return;
+  const nowIso = new Date().toISOString();
+  profile.status = 'APPROVED';
+  profile.approvedAt = nowIso;
+  profile.updatedAt = nowIso;
+  addAuditLog(undefined, user.id, user.displayName, 'CREATOR_APPROVED', `Approved as a creator (${totalFollowers(profile.accounts).toLocaleString()} followers across ${profile.accounts.map(a => a.platform).join(', ')}).`, { handle: profile.handle });
+  createNotification({ userId: user.id, type: 'STATUS_CHANGE', title: "🎉 You're approved as a creator", message: `You can now open your first pool. Your link: ${creatorLink(profile.handle)}` });
+}
+
+function poolSummary(pool: CreatorPool) {
+  const poolPods = poolPodsOf(pool);
+  const count = (s: Pod['status']) => poolPods.filter(p => p.status === s).length;
+  let expected = 0;
+  let missed = 0;
+  for (const p of poolPods) {
+    if (p.status !== 'ACTIVE') continue;
+    const week = p.currentCycleWeek || 1;
+    const missedHere = depositDefaults.filter(d => d.podId === p.id && d.cycleWeek === week && isUnsettled(d)).length;
+    expected += p.members.length + missedHere;
+    missed += missedHere;
+  }
+  const now = new Date();
+  return {
+    ...pool,
+    link: creatorLink(pool.handle),
+    podCounts: { forming: count('FORMING'), active: count('ACTIVE'), paused: count('PAUSED'), completed: count('COMPLETED'), total: poolPods.length },
+    membersNow: poolPods.reduce((s, p) => s + p.members.filter(m => m && m.userId !== pool.creatorId).length, 0),
+    openSlots: poolPods.reduce((s, p) => s + (p.heldSlots || []).length, 0),
+    missedThisWeek: missed,
+    onTimeRateThisWeek: expected > 0 ? Math.round(((expected - missed) / expected) * 1000) / 10 : null,
+    earningsUsd: roundCents(poolPods.reduce((s, p) => s + (Number(p.creatorStewardshipEarningsUsd) || 0), 0)),
+    enrollmentDaysLeft: pool.status === 'OPEN' ? Math.max(0, Math.ceil((new Date(pool.enrollmentEndsAt).getTime() - now.getTime()) / 86_400_000)) : 0,
+  };
+}
+
+function creatorSelfView(user: User) {
+  const fresh = userById(user.id) || user;
+  const profile = creatorProfileOf(user.id);
+  const readiness = creatorReadinessFor(fresh, profile);
+  const pools = creatorPools.filter(p => p && p.creatorId === user.id).sort((a, b) => b.sequence - a.sequence);
+  const tax = taxFormOf(user.id);
+  const isFirstPool = pools.length === 0;
+  return {
+    profile: profile || null,
+    readiness,
+    ready: isCreatorReady(readiness),
+    totalFollowers: totalFollowers(profile?.accounts || []),
+    followerCountsFresh: followerCountsFresh(profile?.accounts || [], new Date()),
+    minFollowers: CREATOR_MIN_FOLLOWERS,
+    platforms: Object.fromEntries(SOCIAL_PLATFORMS.map(p => [p, platformConfigured(p)])),
+    demoConnect: DEMO_MODE,
+    termsVersion: CREATOR_TERMS_VERSION,
+    depositOptions: allowedDeposits(isFirstPool),
+    isFirstPool,
+    completedOnlyFromUsd: 70,
+    enrollmentDays: CREATOR_ENROLLMENT_DAYS,
+    followerCap: CREATOR_POOL_FOLLOWER_CAP,
+    pools: pools.map(poolSummary),
+    openPoolId: pools.find(p => p.status === 'OPEN')?.id || null,
+    link: profile ? creatorLink(profile.handle) : null,
+    earningsUsd: profile?.earningsUsd || 0,
+    taxForm: tax ? { legalName: tax.legalName, businessName: tax.businessName, tinType: tax.tinType, tinLast4: tax.tinLast4, signedAt: tax.signedAt, tinMatch: tax.tinMatch } : null,
+    withdrawalHoldUsd: withdrawalHoldUsd(fresh),
+    waitlistCount: creatorWaitlist.filter(w => w.creatorId === user.id && !w.notifiedAt).length,
+  };
+}
+
+function notifyCreatorWaitlist(profile: CreatorProfile, pool: CreatorPool): void {
+  const nowIso = new Date().toISOString();
+  const link = creatorLink(profile.handle);
+  for (const w of creatorWaitlist) {
+    if (!w || w.creatorId !== profile.userId || w.notifiedAt) continue;
+    w.notifiedAt = nowIso;
+    w.notifiedPoolId = pool.id;
+    const subject = `${profile.displayName} opened a new savings pool`;
+    const text = `${profile.displayName} just opened "${pool.name}" on MutualPool: $${pool.depositTier} a week in pods of ${CREATOR_POD_SIZE}.\n\nTake your seat: ${link}\n\nYou're getting this because you asked to be notified when ${profile.displayName}'s next pool opens.`;
+    const u = userById(w.userId);
+    if (u) {
+      createNotification({ userId: u.id, type: 'STATUS_CHANGE', title: subject, message: `"${pool.name}" is open: $${pool.depositTier} a week. Take your seat at ${link}`, metadata: { poolId: pool.id, handle: profile.handle } });
+      sendEmail({ to: u.email, kind: 'creator_waitlist', subject, text, onChange: requestFlush });
+    } else if (w.email) {
+      sendEmail({ to: w.email, kind: 'creator_waitlist', subject, text, onChange: requestFlush });
+    }
+  }
+}
+
+function upsertCreatorAccount(profile: CreatorProfile, input: { platform: SocialPlatform; externalId: string; handle: string; followers: number; verifiedBy: 'OAUTH' | 'ADMIN' | 'DEMO' }): string | null {
+  const taken = creatorProfiles.find(p => p && p.userId !== profile.userId && p.accounts.some(a => a.platform === input.platform && a.externalId === input.externalId));
+  if (taken) return 'This account is already connected to another creator.';
+  const nowIso = new Date().toISOString();
+  const prev = profile.accounts.find(a => a.platform === input.platform);
+  const account = {
+    platform: input.platform,
+    externalId: input.externalId,
+    handle: input.handle.slice(0, 120),
+    followers: Math.max(0, Math.floor(input.followers)),
+    connectedAt: prev?.connectedAt || nowIso,
+    refreshedAt: nowIso,
+    verifiedBy: input.verifiedBy,
+  };
+  profile.accounts = [...profile.accounts.filter(a => a.platform !== input.platform), account];
+  profile.updatedAt = nowIso;
+  addAuditLog(undefined, profile.userId, profile.displayName, 'CREATOR_ACCOUNT_CONNECTED', `Connected ${input.platform} @${account.handle} (${account.followers.toLocaleString()} followers, ${input.verifiedBy}).`, { platform: input.platform, followers: account.followers, verifiedBy: input.verifiedBy });
+  return null;
+}
+
+// --- Public pool page and joining -------------------------------------------------
+
+function publicCreatorView(profile: CreatorProfile, viewer: User | null, req: Request) {
+  const pool = openPoolOf(profile.userId);
+  const now = new Date();
+  const open = pool && !poolClosedReason(pool, now) ? pool : undefined;
+  const owner = userById(profile.userId);
+  const pot = open ? CREATOR_POD_SIZE * open.depositTier : 0;
+  const forming = open ? poolPodsOf(open).filter(p => p.status === 'FORMING').sort((a, b) => (a.poolSequence || 0) - (b.poolSequence || 0))[0] : undefined;
+  let viewerInfo: Record<string, unknown> = { signedIn: false };
+  if (viewer) {
+    const v = userById(viewer.id) || viewer;
+    const done = cleanCompletedPods(v);
+    const country = (req as any).country || US_CONFIG;
+    const myPods = open ? poolPodsOf(open).filter(p => p.members.some(m => m && m.userId === v.id)) : [];
+    viewerInfo = {
+      signedIn: true,
+      isCreator: v.id === profile.userId,
+      inUS: country.countryCode === 'US',
+      kycVerified: v.kycStatus === 'VERIFIED',
+      hasDebitMandate: hasActiveDebitMandate(v),
+      restricted: Boolean(restrictionFor(v) || v.riskHold || v.isHardshipInactive),
+      balanceUsd: roundCents(Number(v.treasury?.balanceUsd) || 0),
+      requiredUsd: open ? roundCents(open.depositTier * (1 + FEES.depositFeeRate)) : 0,
+      cleanCompletedPods: done,
+      podLimit: followerPodLimit(done),
+      activeCreatorPods: activeCreatorPodCount(pods, v.id),
+      meetsCompletedRequirement: !open?.completedMembersOnly || done >= 1,
+      onWaitlist: creatorWaitlist.some(w => w.creatorId === profile.userId && !w.notifiedAt && w.userId === v.id),
+      myPods: myPods.map(p => ({ id: p.id, name: p.name, status: p.status, members: p.members.length })),
+    };
+  }
+  return {
+    creator: {
+      handle: profile.handle,
+      displayName: profile.displayName,
+      bio: profile.bio || '',
+      avatarUrl: owner?.avatarUrl || '',
+      accounts: profile.accounts.map(a => ({ platform: a.platform, handle: a.handle, followers: a.followers })),
+      totalFollowers: totalFollowers(profile.accounts),
+    },
+    pool: open ? {
+      id: open.id,
+      name: open.name,
+      description: open.description,
+      depositTier: open.depositTier,
+      podSize: CREATOR_POD_SIZE,
+      potUsd: pot,
+      payoutUsd: roundCents(pot * (1 - FEES.payoutFeeRate)),
+      creatorCommissionUsd: roundCents(pot * FEES.hostRewardRate),
+      bufferContributionUsd: roundCents(open.depositTier * FEES.depositFeeRate),
+      completedMembersOnly: open.completedMembersOnly,
+      creatorParticipates: open.creatorParticipates,
+      enrollmentEndsAt: open.enrollmentEndsAt,
+      seatsTakenInCurrentPod: forming ? forming.members.length : 0,
+      podsRunning: poolPodsOf(open).filter(p => p.status === 'ACTIVE').length,
+      agreementVersion: CREATOR_POOL_AGREEMENT_VERSION,
+      agreementText: creatorPoolAgreementText({ creatorName: profile.displayName, depositTier: open.depositTier }),
+    } : null,
+    viewer: viewerInfo,
+  };
+}
+
+app.get('/api/c/:handle', (req: Request, res: Response) => {
+  const profile = creatorProfileByHandle(normalizeHandle(req.params.handle));
+  if (!profile || profile.status === 'PENDING') return res.status(404).json({ error: 'CREATOR_NOT_FOUND', message: 'We could not find this creator.' });
+  if (profile.status === 'SUSPENDED') return res.status(410).json({ error: 'CREATOR_UNAVAILABLE', message: "This creator's pool isn't available." });
+  res.json(publicCreatorView(profile, getCurrentUser(req), req));
+});
+
+app.post('/api/c/:handle/join', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Sign in to take your seat.' });
+  const profile = creatorProfileByHandle(normalizeHandle(req.params.handle));
+  if (!profile || profile.status !== 'APPROVED') return res.status(404).json({ error: 'CREATOR_NOT_FOUND', message: "This creator's pool isn't available." });
+  const now = new Date();
+  const pool = openPoolOf(profile.userId);
+  if (!pool || poolClosedReason(pool, now)) {
+    return res.status(409).json({ error: 'POOL_CLOSED', message: `Enrollment is closed. Ask to be notified when ${profile.displayName}'s next pool opens.` });
+  }
+  if (profile.userId === user.id) return res.status(400).json({ error: 'OWN_POOL', message: 'You host this pool.' });
+  const country = (req as any).country || US_CONFIG;
+  if (country.countryCode !== 'US') return res.status(403).json({ error: 'US_ONLY', message: "Creator pools aren't available in your country yet." });
+  const target = userById(user.id) || user;
+  if (target.kycStatus !== 'VERIFIED') return res.status(403).json({ error: 'KYC_REQUIRED', message: 'Verify your identity before taking a seat.' });
+  if (target.isHardshipInactive) return res.status(403).json({ error: 'HARDSHIP_HOLD', message: 'Your account is on hold until your hardship balance is repaid.' });
+  if (!hasActiveDebitMandate(target)) return debitMandateRequiredResponse(res);
+  if (target.riskHold) return riskHoldResponse(res, target);
+  if (restrictionFor(target)) return accountRestrictedResponse(res, target);
+  const done = cleanCompletedPods(target);
+  if (pool.completedMembersOnly && done < 1) {
+    return res.status(403).json({ error: 'COMPLETED_POD_REQUIRED', message: `This pool ($${pool.depositTier} a week) is for members who have completed a pod. Complete one first, then come back.` });
+  }
+  const limit = followerPodLimit(done);
+  if (activeCreatorPodCount(pods, target.id) >= limit) {
+    return res.status(403).json({
+      error: 'CREATOR_POD_LIMIT',
+      message: limit === 1
+        ? "You're already in a creator pod. After you complete your first pod, you can be in up to 3 at a time."
+        : "You're already in 3 creator pods, the most at one time. You can join another when one completes.",
+    });
+  }
+  const b = req.body || {};
+  const signatureName = typeof b.signatureName === 'string' ? b.signatureName.trim().slice(0, 120) : '';
+  if (b.agreementAccepted !== true || signatureName.length < 2) {
+    return res.status(400).json({ error: 'AGREEMENT_REQUIRED', message: 'Read and sign the agreement to take your seat.' });
+  }
+  if (b.agreementVersion && b.agreementVersion !== CREATOR_POOL_AGREEMENT_VERSION) {
+    return res.status(409).json({ error: 'AGREEMENT_CHANGED', message: 'The agreement was updated. Please read it again before signing.' });
+  }
+  let queue = creatorJoinQueues.get(pool.id);
+  if (!queue) {
+    queue = new JoinQueue(CREATOR_JOIN_RATE_PER_MINUTE);
+    creatorJoinQueues.set(pool.id, queue);
+  }
+  const wait = queue.admit(Number(b.ticket) || undefined);
+  if (wait) {
+    return res.status(429).json({ error: 'QUEUED', ticket: wait.ticket, position: wait.position, retryAfterSeconds: 5, message: `You're #${wait.position} in line. We'll hold your place.` });
+  }
+  const total = roundCents(pool.depositTier * (1 + FEES.depositFeeRate));
+  if ((Number(target.treasury?.balanceUsd) || 0) < total) return insufficientFunds(res, total, target);
+
+  const agreementText = creatorPoolAgreementText({ creatorName: profile.displayName, depositTier: pool.depositTier });
+  const evidence: DebitAuthorizationEvidence = {
+    at: now.toISOString(),
+    ip: req.ip,
+    userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
+    agreementVersion: CREATOR_POOL_AGREEMENT_VERSION,
+    agreementTextSha256: sha256Hex(agreementText),
+    signatureName,
+    mandateId: target.debitMandate?.mandateId,
+    mandateLast4: target.debitMandate?.last4,
+  };
+  const seated = seatMember(pool, target, { signatureName, evidence, now });
+  if (!seated.ok) return insufficientFunds(res, (seated as SeatFailure).totalUsd, target);
+  res.json({
+    success: true,
+    pod: { id: seated.pod.id, name: seated.pod.name, status: seated.pod.status, members: seated.pod.members.length, poolSequence: seated.pod.poolSequence },
+    kind: seated.kind,
+    payoutWeek: seated.pod.status === 'ACTIVE' ? seated.member.rotationIndex + 1 : null,
+    user: target,
+  });
+});
+
+// The creator-pool agreement a member signed when taking their seat, with
+// their signature record. Members, the hosting creator and admins only.
+app.get('/api/pods/:id/creator-agreement', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  const pod = pods.find(p => p && p.id === req.params.id);
+  if (!pod || !pod.creatorPoolId) return res.status(404).json({ error: 'POD_NOT_FOUND' });
+  const member = pod.members.find(m => m && m.userId === user.id);
+  if (!member && pod.creatorId !== user.id && !checkIsAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+  const pool = creatorPools.find(p => p && p.id === pod.creatorPoolId);
+  const creatorName = creatorProfileOf(pod.creatorId)?.displayName || pool?.creatorName || pod.creatorName;
+  const text = creatorPoolAgreementText({ creatorName, depositTier: pod.depositTier });
+  const auth = member?.authorization;
+  res.json({
+    version: CREATOR_POOL_AGREEMENT_VERSION,
+    text,
+    creatorName,
+    signature: member ? {
+      signedAt: member.agreementSignedAt || null,
+      signatureName: member.agreementSignatureName || null,
+      version: auth?.agreementVersion || null,
+      mandateLast4: auth?.mandateLast4 || null,
+      // False if the wording changed after they signed.
+      matchesSignedText: auth ? auth.agreementTextSha256 === sha256Hex(text) : null,
+    } : null,
+  });
+});
+
+app.post('/api/c/:handle/waitlist', publicFormRateLimiter, (req: Request, res: Response) => {
+  const profile = creatorProfileByHandle(normalizeHandle(req.params.handle));
+  if (!profile || profile.status !== 'APPROVED') return res.status(404).json({ error: 'CREATOR_NOT_FOUND' });
+  const user = getCurrentUser(req);
+  const email = user ? '' : (typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase().slice(0, 200) : '');
+  if (!user && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'VALIDATION', message: 'Enter a valid email.' });
+  const exists = creatorWaitlist.some(w => w.creatorId === profile.userId && !w.notifiedAt && (user ? w.userId === user.id : w.email === email));
+  if (!exists) {
+    creatorWaitlist.push({ id: newLedgerId('cwl'), creatorId: profile.userId, userId: user?.id, email: user ? undefined : email, createdAt: new Date().toISOString() });
+    requestFlush();
+  }
+  res.json({ success: true });
+});
+
+// --- Creator dashboard ----------------------------------------------------------
+
+function requireCreatorUser(req: Request, res: Response): { user: User; profile: CreatorProfile } | null {
+  const user = getCurrentUser(req);
+  if (!user) { res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' }); return null; }
+  const profile = creatorProfileOf(user.id);
+  if (!profile) { res.status(404).json({ error: 'NOT_A_CREATOR', message: 'Set up your creator profile first.' }); return null; }
+  return { user: userById(user.id) || user, profile };
+}
+
+app.get('/api/creator/me', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  const fresh = userById(user.id) || user;
+  const profile = creatorProfileOf(user.id);
+  if (profile) refreshCreatorApproval(profile, fresh);
+  res.json(creatorSelfView(fresh));
+});
+
+app.post('/api/creator/profile', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  const fresh = userById(user.id) || user;
+  const b = req.body || {};
+  const nowIso = new Date().toISOString();
+  let profile = creatorProfileOf(user.id);
+  const wantsHandle = b.handle !== undefined ? normalizeHandle(b.handle) : undefined;
+  if (wantsHandle !== undefined && (!profile || wantsHandle !== profile.handle)) {
+    const problem = handleProblem(wantsHandle);
+    if (problem) return res.status(400).json({ error: 'INVALID_HANDLE', message: problem });
+    if (creatorProfileByHandle(wantsHandle)) return res.status(409).json({ error: 'HANDLE_TAKEN', message: 'That link name is taken.' });
+    if (profile && creatorPools.some(p => p.creatorId === user.id)) return res.status(409).json({ error: 'HANDLE_LOCKED', message: "Your link can't change after you've opened a pool: followers already have it." });
+  }
+  if (!profile) {
+    if (!wantsHandle) return res.status(400).json({ error: 'INVALID_HANDLE', message: 'Choose your link name.' });
+    profile = { id: `creator_${user.id}`, userId: user.id, handle: wantsHandle, displayName: fresh.displayName, status: 'PENDING', accounts: [], earningsUsd: 0, createdAt: nowIso, updatedAt: nowIso };
+    creatorProfiles.push(profile);
+  } else if (wantsHandle) {
+    profile.handle = wantsHandle;
+  }
+  if (typeof b.displayName === 'string') {
+    const name = b.displayName.trim().slice(0, 60);
+    if (name.length < 2) return res.status(400).json({ error: 'INVALID_NAME', message: 'Enter the name your followers know you by.' });
+    profile.displayName = name;
+  }
+  if (typeof b.bio === 'string') profile.bio = b.bio.trim().slice(0, 300);
+  if (b.acceptTerms === true) {
+    profile.termsAcceptedVersion = CREATOR_TERMS_VERSION;
+    profile.termsAcceptedAt = nowIso;
+  }
+  profile.updatedAt = nowIso;
+  refreshCreatorApproval(profile, fresh);
+  requestFlush();
+  res.json(creatorSelfView(fresh));
+});
+
+app.get('/api/creator/connect/:platform/start', (req: Request, res: Response) => {
+  const ctx = requireCreatorUser(req, res);
+  if (!ctx) return;
+  const platform = req.params.platform as SocialPlatform;
+  if (!SOCIAL_PLATFORMS.includes(platform)) return res.status(404).json({ error: 'UNKNOWN_PLATFORM' });
+  if (!platformConfigured(platform)) return res.status(503).json({ error: 'PLATFORM_NOT_CONFIGURED', message: `Connecting ${platform} isn't available yet. Contact us and we'll verify your account by hand.` });
+  res.json({ url: authorizeUrl(platform, signState(ctx.user.id, platform), appUrl()) });
+});
+
+// Browser redirect from the platform (no auth header): the signed state says
+// which creator started it.
+app.get('/api/creator/connect/:platform/callback', async (req: Request, res: Response) => {
+  const platform = req.params.platform as SocialPlatform;
+  const back = (q: string) => res.redirect(302, `/creator?${q}`);
+  if (!SOCIAL_PLATFORMS.includes(platform)) return back('connect_error=unknown_platform');
+  if (typeof req.query.error === 'string') return back(`connect_error=${encodeURIComponent(req.query.error)}`);
+  const userId = verifyState(String(req.query.state || ''), platform);
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+  if (!userId || !code) return back('connect_error=expired');
+  const profile = creatorProfileOf(userId);
+  const user = userById(userId);
+  if (!profile || !user) return back('connect_error=no_profile');
+  try {
+    const p = await exchangeAndReadProfile(platform, code, appUrl());
+    const problem = upsertCreatorAccount(profile, { platform, externalId: p.externalId, handle: p.handle, followers: p.followers, verifiedBy: 'OAUTH' });
+    if (problem) return back('connect_error=account_in_use');
+    refreshCreatorApproval(profile, user);
+    requestFlush();
+    return back(`connected=${platform}`);
+  } catch (err: any) {
+    console.error(`[Creator connect] ${platform} failed:`, err?.message || err);
+    return back('connect_error=failed');
+  }
+});
+
+// DEMO_MODE only: stands in for the platform login in tests and local runs.
+app.post('/api/creator/connect/:platform/demo', (req: Request, res: Response) => {
+  if (!DEMO_MODE) return res.status(404).json({ error: 'NOT_FOUND' });
+  const ctx = requireCreatorUser(req, res);
+  if (!ctx) return;
+  const platform = req.params.platform as SocialPlatform;
+  if (!SOCIAL_PLATFORMS.includes(platform)) return res.status(404).json({ error: 'UNKNOWN_PLATFORM' });
+  const handle = String(req.body?.handle || ctx.profile.handle).replace(/^@/, '').slice(0, 60);
+  const followers = Math.max(0, Math.floor(Number(req.body?.followers) || 0));
+  const problem = upsertCreatorAccount(ctx.profile, { platform, externalId: `demo_${platform}_${handle}`, handle, followers, verifiedBy: 'DEMO' });
+  if (problem) return res.status(409).json({ error: 'ACCOUNT_IN_USE', message: problem });
+  refreshCreatorApproval(ctx.profile, ctx.user);
+  requestFlush();
+  res.json(creatorSelfView(ctx.user));
+});
+
+app.post('/api/creator/pools', (req: Request, res: Response) => {
+  const ctx = requireCreatorUser(req, res);
+  if (!ctx) return;
+  const { user, profile } = ctx;
+  const now = new Date();
+  refreshCreatorApproval(profile, user);
+  if (profile.status !== 'APPROVED') {
+    return res.status(403).json({ error: 'CREATOR_NOT_APPROVED', message: profile.status === 'SUSPENDED' ? 'Your creator account is suspended.' : 'Finish the creator checklist before opening a pool.', readiness: creatorReadinessFor(user, profile) });
+  }
+  if (openPoolOf(user.id)) return res.status(409).json({ error: 'POOL_ALREADY_OPEN', message: 'You already have a pool open. Close its enrollment before opening the next one.' });
+  if (!followerCountsFresh(profile.accounts, now)) return res.status(403).json({ error: 'FOLLOWERS_STALE', message: 'Reconnect your accounts to refresh your follower counts before opening a pool.' });
+  if (totalFollowers(profile.accounts) < CREATOR_MIN_FOLLOWERS) return res.status(403).json({ error: 'FOLLOWERS_BELOW_MIN', message: `You need at least ${CREATOR_MIN_FOLLOWERS.toLocaleString()} followers across your connected accounts.` });
+  const b = req.body || {};
+  const name = typeof b.name === 'string' ? b.name.trim().slice(0, 60) : '';
+  if (name.length < 3) return res.status(400).json({ error: 'INVALID_NAME', message: 'Give your pool a name (at least 3 characters).' });
+  const description = typeof b.description === 'string' ? b.description.trim().slice(0, 500) : '';
+  const isFirstPool = !creatorPools.some(p => p.creatorId === user.id);
+  const depositTier = Number(b.depositTier);
+  const options = allowedDeposits(isFirstPool);
+  if (!options.includes(depositTier as any)) {
+    return res.status(400).json({ error: 'INVALID_DEPOSIT', message: `Choose a weekly deposit of ${options.map(d => `$${d}`).join(', ')}.` });
+  }
+  const participates = b.creatorParticipates === true;
+  const total = roundCents(depositTier * (1 + FEES.depositFeeRate));
+  if (participates) {
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
+    if ((Number(user.treasury?.balanceUsd) || 0) < total) return insufficientFunds(res, total, user);
+  }
+  const nowIso = now.toISOString();
+  const pool: CreatorPool = {
+    id: newLedgerId('cpool'),
+    creatorId: user.id,
+    creatorName: profile.displayName,
+    handle: profile.handle,
+    sequence: creatorPools.filter(p => p.creatorId === user.id).length + 1,
+    name,
+    description,
+    depositTier: depositTier as CreatorPool['depositTier'],
+    completedMembersOnly: completedMembersOnly(depositTier),
+    creatorParticipates: participates,
+    status: 'OPEN',
+    openedAt: nowIso,
+    enrollmentEndsAt: enrollmentEndsAt(now).toISOString(),
+    podIds: [],
+    seatedCount: 0,
+    followerCap: CREATOR_POOL_FOLLOWER_CAP,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+  creatorPools.unshift(pool);
+  createPoolPod(pool, now);
+  if (participates) {
+    const text = creatorPoolAgreementText({ creatorName: profile.displayName, depositTier });
+    const seated = seatMember(pool, user, {
+      signatureName: profile.displayName,
+      asCreator: true,
+      now,
+      evidence: { at: nowIso, ip: req.ip, userAgent: String(req.headers['user-agent'] || '').slice(0, 300), agreementVersion: CREATOR_POOL_AGREEMENT_VERSION, agreementTextSha256: sha256Hex(text), signatureName: profile.displayName, mandateId: user.debitMandate?.mandateId, mandateLast4: user.debitMandate?.last4 },
+    });
+    if (!seated.ok) {
+      creatorPools = creatorPools.filter(p => p.id !== pool.id);
+      pods = pods.filter(p => p.creatorPoolId !== pool.id);
+      return insufficientFunds(res, (seated as SeatFailure).totalUsd, user);
+    }
+  }
+  addAuditLog(undefined, user.id, profile.displayName, 'CREATOR_POOL_OPENED',
+    `Opened pool "${name}": $${depositTier}/week, pods of ${CREATOR_POD_SIZE}${pool.completedMembersOnly ? ', completed members only' : ''}${participates ? ', creator takes the last slot of Pod 1' : ''}. Enrollment until ${pool.enrollmentEndsAt}.`,
+    { poolId: pool.id, depositTier, participates });
+  notifyCreatorWaitlist(profile, pool);
+  savePodsToDisk();
+  requestFlush();
+  res.json(creatorSelfView(user));
+});
+
+function creatorPoolFor(req: Request, res: Response): { user: User; profile: CreatorProfile; pool: CreatorPool } | null {
+  const ctx = requireCreatorUser(req, res);
+  if (!ctx) return null;
+  const pool = creatorPools.find(p => p && p.id === req.params.id && p.creatorId === ctx.user.id);
+  if (!pool) { res.status(404).json({ error: 'POOL_NOT_FOUND' }); return null; }
+  return { ...ctx, pool };
+}
+
+app.get('/api/creator/pools/:id', (req: Request, res: Response) => {
+  const ctx = creatorPoolFor(req, res);
+  if (!ctx) return;
+  const poolPods = poolPodsOf(ctx.pool).sort((a, b) => (a.poolSequence || 0) - (b.poolSequence || 0));
+  res.json({
+    pool: poolSummary(ctx.pool),
+    pods: poolPods.map(p => ({
+      id: p.id,
+      name: p.name,
+      poolSequence: p.poolSequence,
+      status: p.status,
+      members: p.members.filter(m => m && m.userId !== ctx.pool.creatorId).length,
+      currentCycleWeek: p.currentCycleWeek,
+      totalCycles: p.totalCycles,
+      openSlots: (p.heldSlots || []).length,
+      missedThisWeek: depositDefaults.filter(d => d.podId === p.id && d.cycleWeek === p.currentCycleWeek && isUnsettled(d)).length,
+      pauseVoteOpen: p.pauseVote?.status === 'OPEN',
+      earningsUsd: roundCents(Number(p.creatorStewardshipEarningsUsd) || 0),
+    })),
+  });
+});
+
+app.post('/api/creator/pools/:id/close', (req: Request, res: Response) => {
+  const ctx = creatorPoolFor(req, res);
+  if (!ctx) return;
+  if (ctx.pool.status !== 'OPEN') return res.status(409).json({ error: 'POOL_NOT_OPEN', message: 'Enrollment is already closed.' });
+  closeCreatorPool(ctx.pool, 'CREATOR', new Date());
+  savePodsToDisk();
+  saveUsersToDisk();
+  requestFlush();
+  res.json(creatorSelfView(ctx.user));
+});
+
+app.post('/api/creator/pools/:id/announce', (req: Request, res: Response) => {
+  const ctx = creatorPoolFor(req, res);
+  if (!ctx) return;
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 1000) : '';
+  if (message.length < 2) return res.status(400).json({ error: 'EMPTY_MESSAGE', message: 'Write your announcement.' });
+  const last = creatorLastAnnouncementAt.get(ctx.pool.id) || 0;
+  if (Date.now() - last < CREATOR_ANNOUNCEMENT_GAP_MS) {
+    return res.status(429).json({ error: 'TOO_SOON', message: 'You can post one announcement every 10 minutes.' });
+  }
+  creatorLastAnnouncementAt.set(ctx.pool.id, Date.now());
+  let sent = 0;
+  for (const pod of poolPodsOf(ctx.pool)) {
+    if (pod.status === 'COMPLETED') continue;
+    const msg = postPodMessage(pod, { senderId: ctx.user.id, senderName: `${ctx.profile.displayName} (host)`, senderAvatar: ctx.user.avatarUrl, content: message, type: 'POD_ANNOUNCEMENT', metadata: { creatorPoolId: ctx.pool.id } });
+    if (msg) sent += 1;
+  }
+  addAuditLog(undefined, ctx.user.id, ctx.profile.displayName, 'CREATOR_ANNOUNCEMENT', `Announcement to ${sent} pod(s) of "${ctx.pool.name}".`, { poolId: ctx.pool.id, pods: sent });
+  res.json({ success: true, pods: sent });
+});
+
+app.get('/api/creator/pods/:podId', (req: Request, res: Response) => {
+  const ctx = requireCreatorUser(req, res);
+  if (!ctx) return;
+  const pod = pods.find(p => p && p.id === req.params.podId && p.creatorId === ctx.user.id);
+  if (!pod) return res.status(404).json({ error: 'POD_NOT_FOUND' });
+  const unsettled = depositDefaults.filter(d => d.podId === pod.id && isUnsettled(d));
+  const missedIds = new Set(unsettled.map(d => d.userId));
+  res.json({
+    id: pod.id,
+    name: pod.name,
+    poolSequence: pod.poolSequence,
+    status: pod.status,
+    depositTier: pod.depositTier,
+    currentCycleWeek: pod.currentCycleWeek,
+    totalCycles: pod.totalCycles,
+    startedAt: pod.cycleStartDate || null,
+    potUsd: pod.members.length * pod.depositTier,
+    earningsUsd: roundCents(Number(pod.creatorStewardshipEarningsUsd) || 0),
+    pauseVote: pod.pauseVote ? { status: pod.pauseVote.status, closesAt: pod.pauseVote.closesAt, outcome: pod.pauseVote.outcome } : null,
+    members: [...pod.members].sort((a, b) => a.rotationIndex - b.rotationIndex).map(m => ({
+      userId: m.userId,
+      displayName: m.displayName,
+      avatarUrl: m.avatarUrl || '',
+      slot: pod.status === 'FORMING' ? null : m.rotationIndex + 1,
+      paid: m.hasReceivedPayout,
+      joinedAt: m.joinedAt,
+      missedDeposit: missedIds.has(m.userId),
+      isCreator: m.userId === ctx.user.id,
+    })),
+    openSlots: (pod.heldSlots || []).map(s => ({ slot: s.rotationIndex + 1 })),
+    missed: unsettled.map(d => ({ userId: d.userId, displayName: d.userName, cycleWeek: d.cycleWeek, removed: Boolean(d.memberRemoved) || !pod.members.some(m => m.userId === d.userId) })),
+  });
+});
+
+const TAX_CLASSIFICATIONS: readonly TaxClassification[] = ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'SINGLE_MEMBER_LLC', 'C_CORPORATION', 'S_CORPORATION', 'PARTNERSHIP', 'LLC', 'OTHER'];
+
+app.post('/api/creator/tax-form', (req: Request, res: Response) => {
+  const ctx = requireCreatorUser(req, res);
+  if (!ctx) return;
+  const key = taxIdKey();
+  if (!key) return res.status(503).json({ error: 'TAX_FORMS_UNAVAILABLE', message: "Tax forms can't be accepted right now. Please try again later." });
+  const b = req.body || {};
+  const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const address = b.address || {};
+  const form = {
+    legalName: text(b.legalName, 120),
+    businessName: text(b.businessName, 120),
+    taxClassification: String(b.taxClassification || '') as TaxClassification,
+    line1: text(address.line1, 120),
+    line2: text(address.line2, 120),
+    city: text(address.city, 80),
+    state: text(address.state, 2).toUpperCase(),
+    postalCode: text(address.postalCode, 10),
+    tinType: b.tinType === 'EIN' ? 'EIN' as const : 'SSN' as const,
+    tin: normalizeTaxId(b.tin),
+    signatureName: text(b.signatureName, 120),
+  };
+  const problems: string[] = [];
+  if (form.legalName.length < 2) problems.push('legal name');
+  if (!TAX_CLASSIFICATIONS.includes(form.taxClassification)) problems.push('tax classification');
+  if (!form.line1 || !form.city || !/^[A-Z]{2}$/.test(form.state) || !/^\d{5}(-\d{4})?$/.test(form.postalCode)) problems.push('US address');
+  if (!form.tin) problems.push(`9-digit ${form.tinType}`);
+  if (form.signatureName.length < 2 || b.certify !== true) problems.push('signed certification');
+  if (problems.length) return res.status(400).json({ error: 'INVALID_INPUT', message: `Please provide: ${problems.join(', ')}.` });
+  const nowIso = new Date().toISOString();
+  const existing = taxFormOf(ctx.user.id);
+  const record: CreatorTaxForm = {
+    id: `tax_${ctx.user.id}`,
+    userId: ctx.user.id,
+    legalName: form.legalName,
+    businessName: form.businessName || undefined,
+    taxClassification: form.taxClassification,
+    address: { line1: form.line1, line2: form.line2 || undefined, city: form.city, state: form.state, postalCode: form.postalCode },
+    tinType: form.tinType,
+    tinEncrypted: encryptTaxId(form.tin!, key),
+    tinLast4: form.tin!.slice(-4),
+    signatureName: form.signatureName,
+    signedAt: nowIso,
+    ip: req.ip,
+    tinMatch: 'UNCHECKED',
+    createdAt: existing?.createdAt || nowIso,
+    updatedAt: nowIso,
+  };
+  creatorTaxForms = [...creatorTaxForms.filter(f => f.userId !== ctx.user.id), record];
+  addAuditLog(undefined, ctx.user.id, ctx.profile.displayName, 'CREATOR_TAX_FORM_SUBMITTED', `W-9 submitted (${form.tinType} ending ${record.tinLast4}).`, { tinType: form.tinType });
+  notifyAdmins({ type: 'STATUS_CHANGE', title: '🧾 Creator W-9 submitted', message: `${ctx.profile.displayName} (@${ctx.profile.handle}) submitted a W-9. Check the name and ${form.tinType} with IRS TIN Matching, then record the result in Admin Ops.` });
+  requestFlush();
+  res.json(creatorSelfView(ctx.user));
+});
+
+// --- Admin -------------------------------------------------------------------------
+
+function creatorEarningsInYear(userId: string, year: number): number {
+  return roundCents(custodyMovements
+    .filter(m => m && m.purpose === 'HOST_REWARD' && m.to?.kind === 'member' && (m.to as { userId?: string }).userId === userId && new Date(m.createdAt).getUTCFullYear() === year)
+    .reduce((s, m) => s + (Number(m.amountUsd) || 0), 0));
+}
+
+app.get('/api/admin/creators', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  res.json({
+    creators: creatorProfiles.map(p => {
+      const tax = taxFormOf(p.userId);
+      return {
+        ...p,
+        totalFollowers: totalFollowers(p.accounts),
+        pools: creatorPools.filter(x => x.creatorId === p.userId).map(x => ({ id: x.id, name: x.name, status: x.status, seatedCount: x.seatedCount, depositTier: x.depositTier, pods: x.podIds.length })),
+        taxForm: tax ? { tinType: tax.tinType, tinLast4: tax.tinLast4, tinMatch: tax.tinMatch, signedAt: tax.signedAt, legalName: tax.legalName } : null,
+      };
+    }),
+  });
+});
+
+function adminCreatorTarget(req: Request, res: Response): CreatorProfile | null {
+  if (!checkIsAdmin(req)) { res.status(403).json({ error: 'Access denied. Administrator role required.' }); return null; }
+  const profile = creatorProfileOf(req.params.userId);
+  if (!profile) { res.status(404).json({ error: 'NOT_A_CREATOR' }); return null; }
+  return profile;
+}
+
+app.post('/api/admin/creators/:userId/suspend', (req: Request, res: Response) => {
+  const profile = adminCreatorTarget(req, res);
+  if (!profile) return;
+  const admin = getCurrentUser(req);
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 300) : '';
+  const now = new Date();
+  profile.status = 'SUSPENDED';
+  profile.suspendedAt = now.toISOString();
+  profile.suspendedReason = reason || 'Creator terms';
+  profile.updatedAt = profile.suspendedAt;
+  const pool = openPoolOf(profile.userId);
+  if (pool) closeCreatorPool(pool, 'CREATOR_SUSPENDED', now);
+  addAuditLog(undefined, admin?.id || 'admin', admin?.displayName || 'Admin', 'CREATOR_SUSPENDED', `Suspended creator @${profile.handle}: ${profile.suspendedReason}. Their pods keep running; their 3% goes to MutualPool while suspended.`, { userId: profile.userId });
+  createNotification({ userId: profile.userId, type: 'STATUS_CHANGE', title: 'Creator account suspended', message: `Your creator account was suspended (${profile.suspendedReason}). Your pods keep running for their members. Contact support to appeal.` });
+  savePodsToDisk();
+  saveUsersToDisk();
+  requestFlush();
+  res.json({ success: true, profile });
+});
+
+app.post('/api/admin/creators/:userId/restore', (req: Request, res: Response) => {
+  const profile = adminCreatorTarget(req, res);
+  if (!profile) return;
+  const admin = getCurrentUser(req);
+  profile.status = 'APPROVED';
+  profile.suspendedAt = undefined;
+  profile.suspendedReason = undefined;
+  profile.updatedAt = new Date().toISOString();
+  addAuditLog(undefined, admin?.id || 'admin', admin?.displayName || 'Admin', 'CREATOR_RESTORED', `Restored creator @${profile.handle}.`, { userId: profile.userId });
+  createNotification({ userId: profile.userId, type: 'STATUS_CHANGE', title: 'Creator account restored', message: 'Your creator account is active again. You can open a new pool.' });
+  requestFlush();
+  res.json({ success: true, profile });
+});
+
+// Manual verification when a platform login isn't available.
+app.post('/api/admin/creators/:userId/accounts', (req: Request, res: Response) => {
+  const profile = adminCreatorTarget(req, res);
+  if (!profile) return;
+  const platform = req.body?.platform as SocialPlatform;
+  if (!SOCIAL_PLATFORMS.includes(platform)) return res.status(400).json({ error: 'UNKNOWN_PLATFORM' });
+  const handle = String(req.body?.handle || '').replace(/^@/, '').trim().slice(0, 60);
+  const followers = Math.max(0, Math.floor(Number(req.body?.followers) || 0));
+  if (!handle) return res.status(400).json({ error: 'INVALID_HANDLE' });
+  const problem = upsertCreatorAccount(profile, { platform, externalId: `manual_${platform}_${handle.toLowerCase()}`, handle, followers, verifiedBy: 'ADMIN' });
+  if (problem) return res.status(409).json({ error: 'ACCOUNT_IN_USE', message: problem });
+  const user = userById(profile.userId);
+  if (user) refreshCreatorApproval(profile, user);
+  requestFlush();
+  res.json({ success: true, profile });
+});
+
+app.get('/api/admin/bank-reviews', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const reviews = users
+    .filter(u => u && involvedInCreatorPools(u))
+    .map(u => ({ u, problem: withdrawalBankProblem({
+      mandate: u.debitMandate ? { last4: u.debitMandate.last4, routingNumber: u.debitMandate.routingNumber, accountHolderName: u.debitMandate.accountHolderName } : undefined,
+      legalName: u.legalName, nameReviewedFor: u.bankNameReviewedFor, now: new Date(),
+    }) }))
+    .filter(x => x.problem?.code === 'NAME_REVIEW')
+    .map(({ u, problem }) => ({
+      userId: u.id,
+      displayName: u.displayName,
+      email: u.email,
+      legalName: u.legalName,
+      accountHolderName: u.debitMandate?.accountHolderName,
+      bankName: u.debitMandate?.bankName,
+      last4: u.debitMandate?.last4,
+      isCreator: Boolean(creatorProfileOf(u.id)),
+      code: problem!.code,
+    }));
+  res.json({ reviews });
+});
+
+app.post('/api/admin/bank-reviews/:userId/approve', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const u = userById(req.params.userId);
+  if (!u?.debitMandate) return res.status(404).json({ error: 'NO_BANK_AUTHORIZATION' });
+  const admin = getCurrentUser(req);
+  u.bankNameReviewedFor = bankAccountKey(u.debitMandate.routingNumber, u.debitMandate.last4);
+  addAuditLog(undefined, admin?.id || 'admin', admin?.displayName || 'Admin', 'BANK_LINKED', `Confirmed bank account owner for ${u.displayName} (account ending ${u.debitMandate.last4 || '????'}; holder "${u.debitMandate.accountHolderName || ''}", verified name "${u.legalName || ''}").`, { userId: u.id });
+  createNotification({ userId: u.id, type: 'STATUS_CHANGE', title: 'Bank account confirmed', message: 'We confirmed your bank account. You can withdraw now.' });
+  saveUsersToDisk();
+  requestFlush();
+  res.json({ success: true });
+});
+
+app.post('/api/admin/creators/:userId/tin-match', (req: Request, res: Response) => {
+  const profile = adminCreatorTarget(req, res);
+  if (!profile) return;
+  const form = taxFormOf(profile.userId);
+  if (!form) return res.status(404).json({ error: 'NO_TAX_FORM' });
+  const result = req.body?.result;
+  if (result !== 'MATCHED' && result !== 'MISMATCH') return res.status(400).json({ error: 'INVALID_RESULT' });
+  form.tinMatch = result;
+  form.updatedAt = new Date().toISOString();
+  if (result === 'MISMATCH') {
+    createNotification({ userId: profile.userId, type: 'STATUS_CHANGE', title: 'Please check your tax details', message: "The name and tax ID on your W-9 don't match IRS records. Submit the W-9 again with the exact name and number on your IRS documents." });
+  }
+  requestFlush();
+  res.json({ success: true, tinMatch: form.tinMatch });
+});
+
+// Year-end 1099-NEC data for the IRS IRIS upload (map these columns onto the
+// IRIS CSV template). Decrypts tax IDs: admins only, every export is logged.
+app.get('/api/admin/creators/tax-export', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const key = taxIdKey();
+  if (!key) return res.status(503).json({ error: 'TAX_KEY_MISSING', message: 'TAX_ID_ENCRYPTION_KEY is not configured.' });
+  const year = Number(req.query.year) || new Date().getUTCFullYear() - 1;
+  const threshold = req.query.all === '1' ? 0 : 2000;
+  const header = ['Tax Year', 'Recipient TIN Type', 'Recipient TIN', 'Recipient Name', 'Business Name', 'Address', 'City', 'State', 'ZIP', 'Box 1 Nonemployee Compensation', 'TIN Match', 'MutualPool User ID', 'Creator Handle'];
+  const rows: string[] = [header.map(csvCell).join(',')];
+  const missing: string[] = [];
+  for (const profile of creatorProfiles) {
+    const earned = creatorEarningsInYear(profile.userId, year);
+    if (earned <= 0 || earned < threshold) continue;
+    const form = taxFormOf(profile.userId);
+    if (!form) { missing.push(profile.handle); continue; }
+    rows.push([
+      year, form.tinType, decryptTaxId(form.tinEncrypted, key), form.legalName, form.businessName || '',
+      [form.address.line1, form.address.line2].filter(Boolean).join(' '), form.address.city, form.address.state, form.address.postalCode,
+      earned.toFixed(2), form.tinMatch, profile.userId, profile.handle,
+    ].map(csvCell).join(','));
+  }
+  const admin = getCurrentUser(req);
+  addAuditLog(undefined, admin?.id || 'admin', admin?.displayName || 'Admin', 'CREATOR_TAX_EXPORT', `Exported ${rows.length - 1} creator 1099-NEC row(s) for ${year}${missing.length ? `; missing W-9: ${missing.join(', ')}` : ''}.`, { year, rows: rows.length - 1, missing });
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="mutualpool-1099-nec-${year}.csv"`);
+  res.setHeader('Cache-Control', 'no-store');
+  if (missing.length) res.setHeader('X-Missing-W9', missing.join(','));
+  res.send(rows.join('\n') + '\n');
 });
 
 // --- CREATORS PAGE: early-access requests from content creators (Creator Pools pilot) ---
@@ -10014,6 +11616,10 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
   registerCollection({ collection: 'partnerInquiries', get: () => partnerInquiries, set: docs => { partnerInquiries = docs; } });
   registerCollection({ collection: 'creatorInterests', get: () => creatorInterests, set: docs => { creatorInterests = docs; } });
+  registerCollection({ collection: 'creatorProfiles', get: () => creatorProfiles, set: docs => { creatorProfiles = docs; } });
+  registerCollection({ collection: 'creatorPools', get: () => creatorPools, set: docs => { creatorPools = docs; } });
+  registerCollection({ collection: 'creatorWaitlist', get: () => creatorWaitlist, set: docs => { creatorWaitlist = docs; } });
+  registerCollection({ collection: 'creatorTaxForms', get: () => creatorTaxForms, set: docs => { creatorTaxForms = docs; } });
   registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });
   registerCollection({ collection: 'chatThreads', get: getChatThreads, set: setChatThreads });
   registerCollection({ collection: 'chatMessages', get: getChatMessages, set: docs => {

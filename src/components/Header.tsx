@@ -14,7 +14,7 @@ import { useChat } from '../context/ChatContext';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
-  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X, Globe, UserCheck
+  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X, Globe, UserCheck, Clapperboard
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -42,6 +42,7 @@ interface HeaderProps {
   onOpenHardshipModal?: (initialTab?: 'hardship' | 'trade') => void;
   onOpenPodDetail?: (podId: string) => void;
   onSwitchRole?: (role: UserRole) => void;
+  onOpenCreatorHub?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -69,6 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHardshipModal,
   onOpenPodDetail,
   onSwitchRole,
+  onOpenCreatorHub,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -547,6 +549,21 @@ export const Header: React.FC<HeaderProps> = ({
                           <span>{t('header.mediaKit')}</span>
                         </div>
                         <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded text-blue-900 font-bold uppercase">{t('header.mediaKitBadge')}</span>
+                      </button>
+                    )}
+
+                    {onOpenCreatorHub && (
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenCreatorHub();
+                        }}
+                        className="w-full text-left p-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-between transition-colors border border-purple-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clapperboard className="w-4 h-4 text-purple-700" />
+                          <span>{t('header.creatorDashboard' as any)}</span>
+                        </div>
                       </button>
                     )}
 

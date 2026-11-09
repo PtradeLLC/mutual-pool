@@ -251,7 +251,7 @@ MutualPool pays creators, so it files a **1099-NEC** for each creator paid more 
 
 ## 12. Launch and capacity
 
-- **Pilot:** 1–2 creators, each pool capped at **1,000 followers**, until it has run cleanly.
+- **Pilot:** 1–2 creators, each pool capped at **5,000 followers** (`CREATOR_POOL_FOLLOWER_CAP`), until it has run cleanly. Raise it after the pilot; the join queue spaces out sign-ups during a rush.
 - **Queue page** during sign-up surges. One creator post can bring more people at once than the single server handles (about 1,500–2,000 at the same time). Visitors past a set number of joins in progress see "You're #312, we'll hold your place" and continue in order.
 - **Before launch:**
   - approval from Column for paying creators and for buffer-covered shortfalls;
@@ -364,3 +364,26 @@ Moving to real tables is part of the multi-server work in [NEXT_FEATURES.md](NEX
 
 - Further protection against members who falsely claim a debit was unauthorized after being paid (section 7).
 - Move tax forms to a service once there are dozens of creators (section 11).
+
+---
+
+## 18. Implementation status (November 2026)
+
+Built and tested (`tests/creator-pools.test.ts`, `tests/creator-pools-flow.test.ts`):
+
+- **Server:** `src/server/creatorPools.ts` (rules), `src/server/creatorSocial.ts` (Instagram, TikTok, YouTube connection), `src/server/taxIdCrypto.ts` (W-9 tax ID encryption), and the routes and hooks in `server.ts`: creator profile and approval, pools, seating, automatic start, stalled pods, held slots, buffer-first shortfall vote, the creator's 3%, first-payout hold, withdrawal checks, waiting list, announcements, W-9, and admin endpoints (`/api/admin/creators...`, including the 1099 export).
+- **App:** `/creator` (creator dashboard), `/c/<handle>` (follower join page), creator rows in the pod screen (Member 21 "Last · Host", open slots, swap prompt), and a "Creator dashboard" entry in the user menu.
+
+Added after the first build:
+
+- **Admin Ops → Creator Pools panel:** creators and their pools, suspend/restore, manual account checks, IRS TIN-match results, the 1099-NEC CSV download, bank owner name reviews, and early-access requests from /creators.
+- **Withdrawal bank checks** (creator-pool members and creators): the bank must be the account authorized for debits (routing number and last 4 digits); a bank that replaced an earlier one waits 72 hours (`BANK_CHANGE_HOLD_HOURS`), and the member is told by email and in the app whenever it changes; if the account holder name on the debit authorization doesn't match the verified legal name, withdrawals wait for an admin to confirm it.
+- **Pool agreement** in the pod screen shows the creator-pool agreement with the member's signature record.
+- **Removals by type:** admin removals in creator pods hold an unpaid member's slot (or refund a seat in a pod that hasn't started) and never list the pod publicly; members can leave a creator pod before it starts and get their deposit back.
+
+Still to do before launch:
+
+1. **Platform credentials.** Register the redirect URIs and set the Instagram, TikTok and Google keys (`.env.example`). Until then, connect buttons show as unavailable and admins verify accounts by hand in Admin Ops.
+2. **`TAX_ID_ENCRYPTION_KEY`** must be set as a Fly secret, or W-9s are refused in production.
+3. **Bank-verified owner names.** The account holder name we compare is the one entered when authorizing debits; the bank doesn't confirm it. Turning on Stripe Financial Connections ownership data would make the name check bank-verified.
+4. **Open (unpaid) slots shrink the pot.** While a held slot waits for a follower, that week's pot is one deposit smaller; the buffer only covers slots of members removed after being paid. Decide whether the buffer should cover held slots too.

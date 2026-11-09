@@ -12,6 +12,7 @@ import { LanguageStatsCard } from './LanguageStatsCard';
 import { DepositDefaultsPanel } from './DepositDefaultsPanel';
 import { CustodyOpsPanel } from './CustodyOpsPanel';
 import { PartnerInquiriesPanel } from './PartnerInquiriesPanel';
+import { CreatorAdminPanel } from './CreatorAdminPanel';
 import { ReviewQueuePanel } from './ReviewQueuePanel';
 import { CampaignReviewPanel } from './CampaignReviewPanel';
 import { 
@@ -634,6 +635,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       {/* Deposit defaults & ACH collections */}
       <DepositDefaultsPanel currentUser={currentUser} onChanged={onRefreshData} />
       <CustodyOpsPanel />
+      <CreatorAdminPanel />
       <PartnerInquiriesPanel />
 
       {/* Brand campaign catalog approvals */}

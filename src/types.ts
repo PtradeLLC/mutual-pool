@@ -57,6 +57,9 @@ export interface DebitMandate {
   bankName?: string;
   last4?: string;
   fingerprint?: string;
+  // Routing number and the account holder name given for the debited account.
+  routingNumber?: string;
+  accountHolderName?: string;
   acceptedAt?: string;
   revokedAt?: string;
   termsVersion?: string;
@@ -139,6 +142,12 @@ export interface User {
   lastHardshipRequestedAt?: string;
   activeHardshipRequestId?: string;
   createdAt?: string;
+  payoutHolds?: PayoutHold[];
+  // Legal name from identity verification (sent to Column with the account
+  // application), used to check bank account ownership. Not secret.
+  legalName?: string;
+  // An admin confirmed the bank owner name for this account (routing:last4).
+  bankNameReviewedFor?: string;
 }
 
 export function calculateAccountAgeDays(createdAt?: string, fallbackDays: number = 1): number {
@@ -168,7 +177,8 @@ export function capFormingPodSize<T extends { status?: string; sizeTier: number;
   if (pod.status !== 'FORMING' || !(pod.sizeTier > MAX_POD_SIZE) || (pod.members?.length || 0) > MAX_POD_SIZE) return pod;
   return { ...pod, sizeTier: MAX_POD_SIZE, totalCycles: MAX_POD_SIZE, weeklyPoolTarget: MAX_POD_SIZE * pod.depositTier };
 }
-export type DepositTier = 5 | 10 | 20 | 50 | 100;
+// Gig pods use 5, 10, 20, 50 and 100; creator pools use 10 to 100 in steps of 10.
+export type DepositTier = 5 | 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 100;
 export type PodStatus = 'FORMING' | 'LOCKED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 export type DelinquencyStatus = 'CLEAN' | 'GRACE_PERIOD' | 'DELINQUENT';
 export type PodType = 'TRUSTED_CIRCLE' | 'OPEN_POD';
@@ -212,7 +222,31 @@ export interface PodMembership {
   invitedByName?: string;
   // Trust tier when the rotation was locked; early slots (the first half) go
   // to the most trusted members. See src/server/rotation.ts.
-  trustAtLock?: 'COMPLETED_POD' | 'TENURED' | 'NEW_WITH_MANDATE' | 'NEW';
+  trustAtLock?: 'COMPLETED_POD' | 'EARNINGS_DEPOSIT' | 'TENURED' | 'NEW_WITH_MANDATE' | 'NEW';
+  // Creator pools: evidence recorded when the member authorized debits and
+  // signed the agreement while taking their seat.
+  authorization?: DebitAuthorizationEvidence;
+}
+
+export interface DebitAuthorizationEvidence {
+  at: string;
+  ip?: string;
+  userAgent?: string;
+  agreementVersion: string;
+  agreementTextSha256: string;
+  signatureName: string;
+  mandateId?: string;
+  mandateLast4?: string;
+}
+
+// A slot in a running creator-pool pod whose member was removed before being
+// paid. The next follower to join takes it; it is deleted (later members move
+// up a week) if still empty the week before its payout.
+export interface HeldSlot {
+  rotationIndex: number;
+  heldSince: string;
+  vacatedByUserId: string;
+  vacatedByName: string;
 }
 
 export type ActivationPolicy = 'WHEN_FULL' | 'FLEXIBLE_EARLY';
@@ -305,6 +339,128 @@ export interface Pod {
   renewedToPodId?: string;
   // The pod's own holding account at Column (created on first movement).
   custody?: PodCustody;
+  // Creator pools (CREATOR_POOLS_SPEC.md): the pool this pod belongs to, the
+  // creator who hosts it (and earns the 3%), its number within the pool, open
+  // slots waiting for a follower, and when the last follower joined.
+  creatorPoolId?: string;
+  creatorId?: string;
+  poolSequence?: number;
+  heldSlots?: HeldSlot[];
+  lastJoinAt?: string;
+  // Missing deposits the buffer could not cover, by cycle week (members who
+  // voted to cover split these too).
+  creatorShortfallUsdByWeek?: Record<string, number>;
+}
+
+// ---------------------------------------------------------------------------
+// Creator Pools
+// ---------------------------------------------------------------------------
+export type SocialPlatform = 'instagram' | 'tiktok' | 'youtube';
+export const SOCIAL_PLATFORMS: readonly SocialPlatform[] = ['instagram', 'tiktok', 'youtube'];
+
+export interface CreatorSocialAccount {
+  platform: SocialPlatform;
+  externalId: string;
+  handle: string;
+  followers: number;
+  connectedAt: string;
+  refreshedAt: string;
+  // OAUTH: read from the platform. ADMIN: entered by an administrator after a
+  // manual check. DEMO: test environments only.
+  verifiedBy: 'OAUTH' | 'ADMIN' | 'DEMO';
+}
+
+export type CreatorStatus = 'PENDING' | 'APPROVED' | 'SUSPENDED';
+
+export interface CreatorProfile {
+  id: string; // creator_<userId>
+  userId: string;
+  // Lowercase link name: themutualpool.com/c/<handle>
+  handle: string;
+  displayName: string;
+  bio?: string;
+  status: CreatorStatus;
+  accounts: CreatorSocialAccount[];
+  termsAcceptedVersion?: string;
+  termsAcceptedAt?: string;
+  approvedAt?: string;
+  suspendedAt?: string;
+  suspendedReason?: string;
+  // Commission paid to the creator so far (3% of weekly pots).
+  earningsUsd: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreatorPoolStatus = 'OPEN' | 'CLOSED' | 'COMPLETED' | 'SUSPENDED';
+export type CreatorPoolCloseReason = 'CREATOR' | 'ENROLLMENT_PERIOD_ENDED' | 'FOLLOWER_CAP' | 'CREATOR_SUSPENDED';
+
+export interface CreatorPool {
+  id: string;
+  creatorId: string;
+  creatorName: string;
+  handle: string;
+  // 1 for the creator's first pool, 2 for the next, and so on.
+  sequence: number;
+  name: string;
+  description: string;
+  depositTier: DepositTier;
+  // $70-$100 pools only take followers with a completed pod.
+  completedMembersOnly: boolean;
+  // The creator also takes the last slot of Pod 1.
+  creatorParticipates: boolean;
+  status: CreatorPoolStatus;
+  openedAt: string;
+  enrollmentEndsAt: string;
+  closedAt?: string;
+  closedReason?: CreatorPoolCloseReason;
+  completedAt?: string;
+  podIds: string[];
+  seatedCount: number;
+  followerCap: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatorWaitlistEntry {
+  id: string;
+  creatorId: string;
+  userId?: string;
+  email?: string;
+  createdAt: string;
+  notifiedAt?: string;
+  notifiedPoolId?: string;
+}
+
+export type TaxClassification = 'INDIVIDUAL' | 'SOLE_PROPRIETOR' | 'SINGLE_MEMBER_LLC' | 'C_CORPORATION' | 'S_CORPORATION' | 'PARTNERSHIP' | 'LLC' | 'OTHER';
+
+// W-9 details. The tax ID is stored encrypted (src/server/taxIdCrypto.ts) and
+// never returned by the API except in the admin year-end export.
+export interface CreatorTaxForm {
+  id: string; // tax_<userId>
+  userId: string;
+  legalName: string;
+  businessName?: string;
+  taxClassification: TaxClassification;
+  address: { line1: string; line2?: string; city: string; state: string; postalCode: string };
+  tinType: 'SSN' | 'EIN';
+  tinEncrypted: string;
+  tinLast4: string;
+  signatureName: string;
+  signedAt: string;
+  ip?: string;
+  tinMatch: 'UNCHECKED' | 'MATCHED' | 'MISMATCH';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Part of a payout that can't be withdrawn yet (creator pools: a member's
+// first payout when they have no completed pod and no direct deposit).
+export interface PayoutHold {
+  podId: string;
+  amountUsd: number;
+  releaseAt: string;
+  createdAt: string;
 }
 
 // A missed weekly deposit, and what the member still owes because of it.
@@ -395,6 +551,11 @@ export interface MemberCustody {
   counterpartyId?: string;
   counterpartyLast4?: string;
   counterpartyName?: string;
+  counterpartyRoutingNumber?: string;
+  counterpartyLinkedAt?: string;
+  // Set when a linked bank replaced an earlier one (withdrawals to a new bank
+  // wait a few days for creator-pool members and creators).
+  counterpartyChangedAt?: string;
   // The linked bank accepts RTP/FedNow: withdrawals land in seconds instead of by ACH.
   realtimeEligible?: boolean;
   counterpartyBankName?: string;
@@ -571,7 +732,7 @@ export interface Deposit {
   userName: string;
   amount: number;
   stripePaymentId: string;
-  status: 'COMPLETE' | 'PENDING' | 'FAILED';
+  status: 'COMPLETE' | 'PENDING' | 'FAILED' | 'REFUNDED';
   createdAt: string;
   scheduledSweepType?: 'THURSDAY_AUTOMATED' | 'MANUAL_DEPOSIT';
 }
@@ -770,7 +931,22 @@ export interface AuditLogEntry {
     | 'CUSTODY_ACCOUNT_OPENED'
     | 'CUSTODY_MOVEMENT_FAILED'
     | 'CUSTODY_ACH_SETTLED'
-    | 'CUSTODY_ACH_RETURNED';
+    | 'CUSTODY_ACH_RETURNED'
+    | 'CREATOR_APPROVED'
+    | 'CREATOR_SUSPENDED'
+    | 'CREATOR_RESTORED'
+    | 'CREATOR_ACCOUNT_CONNECTED'
+    | 'CREATOR_POOL_OPENED'
+    | 'CREATOR_POOL_CLOSED'
+    | 'CREATOR_POOL_COMPLETED'
+    | 'CREATOR_SEAT_TAKEN'
+    | 'CREATOR_SEAT_RELEASED'
+    | 'CREATOR_POD_STARTED'
+    | 'CREATOR_SLOT_HELD'
+    | 'CREATOR_SLOT_REMOVED'
+    | 'CREATOR_ANNOUNCEMENT'
+    | 'CREATOR_TAX_FORM_SUBMITTED'
+    | 'CREATOR_TAX_EXPORT';
   detail: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
