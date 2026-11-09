@@ -196,6 +196,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
     }
   }, [showGearVerification]);
 
+  // This should be dynamically displayed
   const neighborhoods = [
     'West Loop & Fulton Market',
     'Downtown Loop Corridor',

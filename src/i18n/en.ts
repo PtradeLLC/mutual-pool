@@ -108,7 +108,7 @@ export const en = {
   // Ambassador / Ad Promo Banner
   "promo.badge": "Feature Service • Community-Powered Financial Security",
   "promo.ambassadorTitle":
-    "Get Paid to Rep brands, Don't Just Make deliveries: Start now & give Your t-shirt a Job",
+    "Gig Workers: Get Paid to Rep brands, Don't Just Make deliveries: Start now & give Your t-shirt a Job",
   "promo.ambassadorDesc":
     "After your Pod is created and activated with members, select brand campaigns, get equipped with free partner clothing, and earn guaranteed daily wages on your deliveries.",
   "promo.activatePodTitle": "Activate a Pod",
