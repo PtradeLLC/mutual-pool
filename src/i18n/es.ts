@@ -102,7 +102,7 @@ export const es: Record<TranslationKey, string> = {
 
   // Ambassador / Ad Promo Banner
   'promo.badge': 'Servicio Destacado • Seguridad Financiera Comunitaria',
-  'promo.ambassadorTitle': 'Gana Dinero Promocionando a Nuestros Clientes: Dale Trabajo a Tu Camiseta Mientras Entregas',
+  'promo.ambassadorTitle': 'Trabajadores gig: Gana Dinero Promocionando a Nuestros Clientes: Dale Trabajo a Tu Camiseta Mientras Entregas',
   'promo.ambassadorDesc': 'Después de crear y activar tu Grupo con miembros, selecciona campañas de marcas, equípate con indumentaria y accesorios gratuitos y gana ingresos diarios garantizados en tus entregas.',
   'promo.activatePodTitle': 'Activa un Grupo',
   'promo.activatePodDesc': 'Inicia un Grupo gratis, invita a amigos, compañeros de trabajo y familiares a participar.',

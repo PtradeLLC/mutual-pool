@@ -102,7 +102,7 @@ export const fr: Record<TranslationKey, string> = {
 
   // Ambassador / Ad Promo Banner
   'promo.badge': 'Service Vedette • Sécurité Financière Communautaire',
-  'promo.ambassadorTitle': 'Soyez Rémunéré pour Représenter nos Partenaires : Rentabilisez Chaque Livraison avec nos Vêtements Offerts',
+  'promo.ambassadorTitle': 'Travailleurs gig : Soyez Rémunéré pour Représenter nos Partenaires : Rentabilisez Chaque Livraison avec nos Vêtements Offerts',
   'promo.ambassadorDesc': 'Une fois votre Pod créé et activé avec des membres, sélectionnez des campagnes de marques partenaires, recevez gratuitement des équipements exclusifs et touchez des gains quotidiens garantis pendant vos livraisons.',
   'promo.activatePodTitle': 'Activez un Pod',
   'promo.activatePodDesc': 'Créez un Pod gratuitement, invitez des amis, collègues livreurs et proches à participer.',
