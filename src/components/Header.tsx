@@ -11,10 +11,11 @@ import { avatarUrlFor } from '../utils/avatar';
 import { scrollToTabSection } from '../utils/navigation';
 import { useTranslation } from '../i18n';
 import { useChat } from '../context/ChatContext';
+import { openReportProblem } from '../lib/telemetry';
 import { 
   Users, Gift, ShieldCheck, Building2, Download, LogOut,
   ChevronDown, Layers, Activity, AlertCircle, Lock, Wallet, Sparkles, RefreshCw, Home, PlusCircle, ExternalLink, Zap,
-  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X, Globe, UserCheck, Clapperboard
+  Megaphone, Shirt, BarChart3, MessageSquare, ChevronLeft, ChevronRight, Menu, X, Globe, UserCheck, Clapperboard, Bug
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -551,6 +552,17 @@ export const Header: React.FC<HeaderProps> = ({
                         <span className="text-[10px] bg-blue-200/80 px-1.5 py-0.5 rounded text-blue-900 font-bold uppercase">{t('header.mediaKitBadge')}</span>
                       </button>
                     )}
+
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        openReportProblem();
+                      }}
+                      className="w-full text-left p-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-2 transition-colors border border-slate-200 cursor-pointer"
+                    >
+                      <Bug className="w-4 h-4 text-slate-600" />
+                      <span>{t('feedback.reportLink' as any)}</span>
+                    </button>
 
                     {onOpenCreatorHub && (
                       <button

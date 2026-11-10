@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
+import { reportError } from '../lib/telemetry';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -119,7 +120,11 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [showToast]
   );
   const error = useCallback(
-    (message: string, options?: ToastOptions) => showToast('error', message, options),
+    (message: string, options?: ToastOptions) => {
+      // Error messages members see go to App health with the screen they were on.
+      reportError('ui', options?.title ? `${options.title}: ${message}` : message);
+      return showToast('error', message, options);
+    },
     [showToast]
   );
   const info = useCallback(

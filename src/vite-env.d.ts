@@ -14,3 +14,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Build version (vite.config.ts define), sent with error reports.
+declare const __APP_VERSION__: string;

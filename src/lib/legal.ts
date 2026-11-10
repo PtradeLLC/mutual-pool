@@ -6,7 +6,7 @@
 // Shared by the browser and the server.
 
 export const TERMS_VERSION = '2026-10-21';
-export const PRIVACY_VERSION = '2026-10-14';
+export const PRIVACY_VERSION = '2026-11-09';
 
 // Guarded so the same file works in the browser bundle and in Node.
 const envVar = (name: string): string | undefined => {

@@ -13,6 +13,7 @@ import { DepositDefaultsPanel } from './DepositDefaultsPanel';
 import { CustodyOpsPanel } from './CustodyOpsPanel';
 import { PartnerInquiriesPanel } from './PartnerInquiriesPanel';
 import { CreatorAdminPanel } from './CreatorAdminPanel';
+import { AppHealthPanel } from './AppHealthPanel';
 import { ReviewQueuePanel } from './ReviewQueuePanel';
 import { CampaignReviewPanel } from './CampaignReviewPanel';
 import { 
@@ -630,6 +631,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       </div>
 
       {/* Operations review queue: ambiguous Stripe outcomes, account holds, contact form */}
+      <AppHealthPanel />
       <ReviewQueuePanel currentUser={currentUser} onChanged={onRefreshData} />
 
       {/* Deposit defaults & ACH collections */}

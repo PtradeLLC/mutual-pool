@@ -6,10 +6,13 @@ import { CountryProvider } from './context/CountryContext.tsx';
 import { ToastProvider } from './context/ToastContext.tsx';
 import { LanguageProvider } from './i18n';
 import { installFetchInterceptor } from './lib/apiClient.ts';
+import { installTelemetry } from './lib/telemetry.ts';
 import './index.css';
 
 // Initialize global authenticated API interceptor
 installFetchInterceptor();
+// App health: errors, screens and journey steps (src/lib/telemetry.ts)
+installTelemetry();
 
 if (typeof window !== 'undefined') {
   // Suppress unhandled errors from crypto/wallet browser extensions

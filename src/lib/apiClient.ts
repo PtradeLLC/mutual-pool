@@ -1,3 +1,4 @@
+import { noteApiResponse, noteNetworkFailure } from './telemetry';
 import { auth } from './firebase';
 
 // Signed-in Firebase user id (the server derives identity from the ID token only).
@@ -148,7 +149,15 @@ export function installFetchInterceptor(): void {
           currentHeaders.set('Idempotency-Key', `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
         }
 
-        const response = await nativeFetch(input, { ...init, headers: currentHeaders });
+        let response: Response;
+        try {
+          response = await nativeFetch(input, { ...init, headers: currentHeaders });
+        } catch (err) {
+          noteNetworkFailure(method, url);
+          throw err;
+        }
+        // Failed requests the member saw go to App health (src/lib/telemetry.ts).
+        noteApiResponse(method, url, response);
 
         // A 401 while Firebase still has a user means the token was stale or rejected:
         // retry once with a freshly minted token, then give up on the session.

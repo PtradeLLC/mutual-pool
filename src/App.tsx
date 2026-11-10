@@ -40,6 +40,8 @@ const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate'
 const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
 const PartnersPage = lazy(() => import('./components/PartnersPage').then((module) => ({ default: module.PartnersPage })));
 const CreatorsPage = lazy(() => import('./components/CreatorsPage').then((module) => ({ default: module.CreatorsPage })));
+import { FeedbackPrompt, ReportProblemModal } from './components/FeedbackWidgets';
+import { setScreen, step as trackStep, askFeedback, openReportProblem } from './lib/telemetry';
 const CreatorJoinPage = lazy(() => import('./components/CreatorJoinPage').then((module) => ({ default: module.CreatorJoinPage })));
 const CreatorDashboard = lazy(() => import('./components/CreatorDashboard').then((module) => ({ default: module.CreatorDashboard })));
 
@@ -999,6 +1001,7 @@ export default function App() {
       return;
     }
     if (joiningPodIdsRef.current.has(pod.id)) return;
+    trackStep('join_pod_started');
 
     // Check if Trusted Circle and user is not already invited and no inviteCode was passed
     if (pod.podType === 'TRUSTED_CIRCLE' && pod.createdBy !== currentUser.id && !inviteCode) {
@@ -1061,6 +1064,7 @@ export default function App() {
         return;
       }
 
+      askFeedback('pod_joined');
       // Joined: the server returned the updated pod (and possibly the charged user).
       const updatedPod: Pod = data.pod || data;
       setInviteCodeTargetPod(null);
@@ -1117,6 +1121,24 @@ export default function App() {
     }
   };
 
+  // App health: which screen the member is on (errors are grouped by it) and
+  // the journey steps only the app can see (src/lib/telemetry.ts).
+  useEffect(() => {
+    const modal = showKycModal ? 'identity check' : showBankModal ? 'bank authorization' : showAddFundsModal ? 'add funds'
+      : showCreatePodModal ? 'create pod' : showAuthModal ? 'sign in' : agreementPod ? 'pod agreement'
+        : showHardshipModal ? 'hardship' : selectedPodDetail ? 'pod detail' : '';
+    const base = viewMode === 'DASHBOARD' ? `dashboard/${activeTab}` : viewMode === 'CREATOR_JOIN' ? 'creator link'
+      : viewMode === 'CREATOR_HUB' ? 'creator dashboard' : viewMode === 'CREATORS' ? 'creators page' : viewMode.toLowerCase();
+    setScreen(modal ? `${base} > ${modal}` : base);
+    if (showKycModal) trackStep('identity_started');
+    if (showBankModal) trackStep('bank_started');
+    if (showAddFundsModal) trackStep('add_funds_started');
+    if (showCreatePodModal) trackStep('create_pod_started');
+    if (viewMode === 'CREATORS') trackStep('creator_page_viewed');
+    if (viewMode === 'CREATOR_HUB') trackStep('creator_dashboard_opened');
+    if (viewMode === 'CREATOR_JOIN') trackStep('creator_link_opened');
+  }, [viewMode, activeTab, showKycModal, showBankModal, showAddFundsModal, showCreatePodModal, showAuthModal, agreementPod, showHardshipModal, selectedPodDetail]);
+
   const creatorPageModals = (
     <>
       <AuthModal
@@ -1150,6 +1172,7 @@ export default function App() {
             user={currentUser}
             onClose={() => setShowAddFundsModal(false)}
             onSuccess={async (updatedUser) => {
+              askFeedback('funds_added');
               if (updatedUser) {
                 setCurrentUser(updatedUser);
                 await syncUserWithBackend(updatedUser);
@@ -2107,6 +2130,10 @@ export default function App() {
               {t('nav.contact')}
             </button>
             <span>•</span>
+            <button type="button" onClick={() => openReportProblem()} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              {t('feedback.reportLink' as any)}
+            </button>
+            <span>•</span>
             <a href="/privacy" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors">
               {t('footer.privacy')}
             </a>
@@ -2165,6 +2192,7 @@ export default function App() {
             user={currentUser}
             onClose={() => setShowAddFundsModal(false)}
             onSuccess={async (updatedUser) => {
+              askFeedback('funds_added');
               if (updatedUser) {
                 setCurrentUser(updatedUser);
                 await saveUserToFirestore(updatedUser).catch(console.error);
@@ -2192,6 +2220,7 @@ export default function App() {
               setShowBankModal(true);
             }}
             onPodCreated={(newPod) => {
+              if (newPod) askFeedback('pod_created');
               setShowCreatePodModal(false);
               setCreatePodPrefill(null);
               if (newPod) {
@@ -2475,6 +2504,8 @@ export default function App() {
 
         </div>
       )}
+      <FeedbackPrompt />
+      <ReportProblemModal />
     </ChatProvider>
   );
 }

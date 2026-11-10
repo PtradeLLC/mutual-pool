@@ -6,6 +6,13 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    // Private source maps: written next to the bundles for the server to turn
+    // minified error traces into real file:line (App health), but not linked
+    // from the bundles and never served (server.ts blocks *.map).
+    build: { sourcemap: 'hidden' as const },
+    define: {
+      __APP_VERSION__: JSON.stringify(process.env.APP_VERSION || new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

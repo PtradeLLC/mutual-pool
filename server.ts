@@ -99,6 +99,12 @@ import {
 } from './src/server/creatorPools';
 import { taxIdKey, encryptTaxId, decryptTaxId, normalizeTaxId, csvCell } from './src/server/taxIdCrypto';
 import { isCreatorPoolsQuestion, creatorPoolsAnswer, CREATOR_POOLS_BRIEF } from './src/lib/creatorPoolsKnowledge';
+import {
+  cleanText as cleanTelemetryText, pathTemplate, simplifyUserAgent, errorFingerprint, recordError, markStep, mergeJourneys, computeFunnel, symbolicateStack,
+  FUNNELS, CLIENT_STEPS, dayId, TELEMETRY_DAYS_KEPT,
+} from './src/server/telemetry';
+import type { AppErrorGroup, UserJourney, TelemetryDay } from './src/server/telemetry';
+import { SourceMapConsumer } from 'source-map-js';
 import { platformConfigured, signState, verifyState, authorizeUrl, exchangeAndReadProfile } from './src/server/creatorSocial';
 
 let geminiClient: GoogleGenAI | null = null;
@@ -8697,6 +8703,312 @@ app.get('/api/admin/partner-inquiries', (req: Request, res: Response) => {
 });
 
 // ===========================================================================
+// APP HEALTH & USAGE INSIGHT (src/server/telemetry.ts). In-house only.
+// Errors users hit (grouped, by screen), journey funnels, screen views and
+// feedback. Users who opt out of usage data are never recorded or counted.
+// ===========================================================================
+let appErrors: AppErrorGroup[] = [];
+let userJourneys: UserJourney[] = [];
+let telemetryDays: TelemetryDay[] = [];
+let userFeedback: Array<{
+  id: string; at: string; kind: 'easy' | 'hard' | 'problem'; step?: string; comment: string; screen: string;
+  userId?: string; appVersion?: string; lastError?: string; breadcrumbs: string[]; browser: string; os: string; device: string; state: 'NEW' | 'DONE';
+}> = [];
+const journeyIndex = new Map<string, UserJourney>();
+function reindexJourneys() {
+  journeyIndex.clear();
+  for (const j of userJourneys) if (j?.id) journeyIndex.set(j.id, j);
+}
+const errorSessionSeen = new Set<string>();
+const daySessionSeen = new Set<string>();
+const MAX_FEEDBACK = 3000;
+
+function telemetryDay(now: Date): TelemetryDay {
+  const id = dayId(now);
+  let d = telemetryDays.find(x => x.id === id);
+  if (!d) {
+    d = { id, date: id.slice(4), screens: {}, errorsByScreen: {}, sessions: 0, updatedAt: now.toISOString() };
+    telemetryDays.push(d);
+    const cutoff = new Date(now.getTime() - TELEMETRY_DAYS_KEPT * 86_400_000).toISOString().slice(0, 10);
+    telemetryDays = telemetryDays.filter(x => x.date >= cutoff);
+    appErrors = appErrors.filter(e => e.lastSeen.slice(0, 10) >= cutoff);
+    errorSessionSeen.clear();
+    daySessionSeen.clear();
+  }
+  return d;
+}
+
+function bumpCounter(map: Record<string, number>, key: string, maxKeys = 300) {
+  if (map[key] === undefined && Object.keys(map).length >= maxKeys) return;
+  map[key] = (map[key] || 0) + 1;
+}
+
+const usageDataOff = (u?: User | null) => Boolean(u?.usageDataOptOut);
+
+app.post('/api/telemetry', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (usageDataOff(user)) return res.status(204).end();
+  const b = req.body || {};
+  const items = Array.isArray(b.items) ? b.items.slice(0, 40) : [];
+  const visitorId = typeof b.visitorId === 'string' && /^[a-z0-9]{8,40}$/i.test(b.visitorId) ? b.visitorId : '';
+  const sessionId = typeof b.sessionId === 'string' && /^[a-z0-9]{8,40}$/i.test(b.sessionId) ? b.sessionId : '';
+  const appVersion = typeof b.appVersion === 'string' ? b.appVersion.slice(0, 24) : undefined;
+  const language = typeof b.language === 'string' ? b.language.slice(0, 5) : undefined;
+  const country = (req as any).country?.countryCode;
+  const ua = String(req.headers['user-agent'] || '');
+  const now = new Date();
+  const day = telemetryDay(now);
+  const userKey = user ? user.id : visitorId ? `v:${visitorId}` : '';
+
+  if (sessionId && !daySessionSeen.has(sessionId)) {
+    daySessionSeen.add(sessionId);
+    day.sessions += 1;
+  }
+  // Steps taken before signing in carry over to the account.
+  if (user && visitorId) {
+    const visitor = journeyIndex.get(`v:${visitorId}`);
+    if (visitor) {
+      const own = journeyIndex.get(user.id) || { id: user.id, steps: {}, updatedAt: now.toISOString() };
+      mergeJourneys(own, visitor);
+      if (!journeyIndex.has(user.id)) { userJourneys.push(own); journeyIndex.set(user.id, own); }
+      userJourneys = userJourneys.filter(j => j.id !== visitor.id);
+      journeyIndex.delete(visitor.id);
+    }
+  }
+
+  for (const it of items) {
+    if (!it || typeof it !== 'object') continue;
+    if (it.t === 'screen' && typeof it.screen === 'string') {
+      bumpCounter(day.screens, cleanTelemetryText(it.screen, 60));
+    } else if (it.t === 'step' && typeof it.step === 'string' && (CLIENT_STEPS as readonly string[]).includes(it.step) && userKey) {
+      let j = journeyIndex.get(userKey);
+      if (!j) { j = { id: userKey, steps: {}, updatedAt: now.toISOString() }; userJourneys.push(j); journeyIndex.set(userKey, j); }
+      markStep(j, it.step, now);
+    } else if (it.t === 'error' && ['crash', 'error', 'api', 'ui'].includes(it.kind) && typeof it.message === 'string') {
+      const report = {
+        kind: it.kind as AppErrorGroup['kind'],
+        message: cleanTelemetryText(it.message, 300),
+        stack: typeof it.stack === 'string' ? it.stack.slice(0, 6000) : undefined,
+        method: typeof it.method === 'string' ? it.method.slice(0, 8).toUpperCase() : undefined,
+        path: typeof it.path === 'string' ? pathTemplate(it.path) : undefined,
+        status: Number.isFinite(Number(it.status)) ? Number(it.status) : undefined,
+        code: typeof it.code === 'string' ? cleanTelemetryText(it.code, 60) : undefined,
+        screen: typeof it.screen === 'string' ? it.screen : 'unknown',
+        breadcrumbs: Array.isArray(it.breadcrumbs) ? it.breadcrumbs.filter((x: unknown) => typeof x === 'string').slice(-10) : [],
+      };
+      const fp = errorFingerprint(report);
+      const seenKey = `${fp}|${sessionId || userKey}`;
+      const newSession = !errorSessionSeen.has(seenKey);
+      if (newSession) errorSessionSeen.add(seenKey);
+      const existing = appErrors.find(e => e.id === fp);
+      const { group, reopened, shouldAlert } = recordError(existing, report, {
+        fingerprint: fp, now, userKey: userKey || `s:${sessionId}`, userId: user?.id, ua, appVersion, language, country, newSession,
+      });
+      if (!existing) appErrors.push(group);
+      bumpCounter(day.errorsByScreen, cleanTelemetryText(report.screen, 60) || 'unknown');
+      if (shouldAlert) {
+        const where = Object.entries(group.screens).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([s]) => s).join(', ');
+        reportIncident('warning', 'client_error', `${reopened ? 'Back again' : 'New problem'} in the app (${group.userIds.length} users, on ${where}): ${group.kind === 'api' ? `${group.method} ${group.path} → ${group.status} ${group.code || ''}` : group.message}`, { errorId: group.id });
+      }
+    }
+  }
+  day.updatedAt = now.toISOString();
+  requestFlush();
+  res.status(204).end();
+});
+
+app.post('/api/telemetry/preference', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  const target = users.find(u => u && u.id === user.id) || user;
+  target.usageDataOptOut = req.body?.optOut === true;
+  if (target.usageDataOptOut) {
+    userJourneys = userJourneys.filter(j => j.id !== target.id);
+    journeyIndex.delete(target.id);
+  }
+  saveUsersToDisk();
+  requestFlush();
+  res.json({ success: true, usageDataOptOut: target.usageDataOptOut });
+});
+
+app.post('/api/feedback', publicFormRateLimiter, (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  const b = req.body || {};
+  const kind = ['easy', 'hard', 'problem'].includes(b.kind) ? b.kind : null;
+  if (!kind) return res.status(400).json({ error: 'VALIDATION' });
+  const comment = cleanTelemetryText(b.comment, 2000);
+  if (kind === 'problem' && comment.length < 3 && !b.lastError) return res.status(400).json({ error: 'VALIDATION', message: 'Tell us what went wrong.' });
+  const ua = simplifyUserAgent(String(req.headers['user-agent'] || ''));
+  const entry = {
+    id: newLedgerId('fb'),
+    at: new Date().toISOString(),
+    kind,
+    step: typeof b.step === 'string' ? cleanTelemetryText(b.step, 60) : undefined,
+    comment,
+    screen: cleanTelemetryText(b.screen, 60) || 'unknown',
+    userId: user?.id,
+    appVersion: typeof b.appVersion === 'string' ? b.appVersion.slice(0, 24) : undefined,
+    lastError: b.lastError ? cleanTelemetryText(b.lastError, 300) : undefined,
+    breadcrumbs: Array.isArray(b.breadcrumbs) ? b.breadcrumbs.filter((x: unknown) => typeof x === 'string').slice(-10).map((x: string) => cleanTelemetryText(x, 80)) : [],
+    browser: ua.browser, os: ua.os, device: ua.device,
+    state: 'NEW' as const,
+  };
+  userFeedback = [entry, ...userFeedback].slice(0, MAX_FEEDBACK);
+  if (kind === 'problem') {
+    notifyAdmins({ type: 'STATUS_CHANGE', title: '🐞 Problem reported', message: `On ${entry.screen}: "${comment.slice(0, 160)}"${entry.lastError ? ` (last error: ${entry.lastError.slice(0, 80)})` : ''}. See Admin Ops → App health → Feedback.`, metadata: { feedbackId: entry.id } });
+  }
+  requestFlush();
+  res.json({ success: true });
+});
+
+// Journeys = steps the app reported + steps derived from what the server
+// already records (so every existing user is included).
+function buildJourneys(): UserJourney[] {
+  const out = new Map<string, UserJourney>();
+  const get = (id: string) => {
+    let j = out.get(id);
+    if (!j) { j = { id, steps: {}, updatedAt: '' }; out.set(id, j); }
+    return j;
+  };
+  const set = (id: string, step: string, at?: string) => {
+    if (!at || isNaN(new Date(at).getTime())) return;
+    const j = get(id);
+    if (!j.steps[step] || at < j.steps[step]) j.steps[step] = at;
+  };
+  const optedOut = new Set(users.filter(u => u?.usageDataOptOut).map(u => u.id));
+  for (const j of userJourneys) {
+    if (!j || optedOut.has(j.id)) continue;
+    for (const [s, at] of Object.entries(j.steps)) set(j.id, s, at);
+  }
+  for (const u of users) {
+    if (!u || optedOut.has(u.id)) continue;
+    set(u.id, 'account_created', u.createdAt);
+    if (u.kycStatus === 'VERIFIED') set(u.id, 'identity_verified', u.kycVerifiedAt || u.createdAt);
+    if (u.debitMandate?.acceptedAt) set(u.id, 'bank_authorized', u.debitMandate.acceptedAt);
+  }
+  for (const m of custodyMovements) {
+    const uid = m?.refs?.userId;
+    if (!uid || optedOut.has(uid)) continue;
+    if (m.purpose === 'TOPUP') set(uid, 'funds_added', m.createdAt);
+  }
+  for (const p of pods) {
+    if (!p) continue;
+    const pool = p.creatorPoolId ? creatorPools.find(x => x.id === p.creatorPoolId) : undefined;
+    if (!p.creatorPoolId && p.createdBy && !optedOut.has(p.createdBy)) set(p.createdBy, 'pod_created', p.createdAt);
+    for (const m of p.members || []) {
+      if (!m?.userId || optedOut.has(m.userId)) continue;
+      if (p.creatorPoolId) {
+        if (m.userId !== p.creatorId) {
+          set(m.userId, 'follower_seated', m.joinedAt);
+          if (pool && !optedOut.has(pool.creatorId)) set(pool.creatorId, 'creator_first_follower', m.joinedAt);
+        }
+      } else if (m.userId !== p.createdBy) {
+        set(m.userId, 'pod_joined', m.joinedAt);
+      }
+      if (m.payoutProcessedAt) set(m.userId, 'first_payout', m.payoutProcessedAt);
+    }
+  }
+  for (const c of creatorProfiles) {
+    if (!c || optedOut.has(c.userId)) continue;
+    set(c.userId, 'creator_profile_created', c.createdAt);
+    const connected = c.accounts.map(a => a.connectedAt).sort()[0];
+    set(c.userId, 'creator_account_connected', connected);
+    set(c.userId, 'creator_approved', c.approvedAt);
+  }
+  for (const pool of creatorPools) {
+    if (pool && !optedOut.has(pool.creatorId)) set(pool.creatorId, 'creator_pool_opened', pool.openedAt);
+  }
+  return Array.from(out.values());
+}
+
+const sourceMapCache = new Map<string, InstanceType<typeof SourceMapConsumer> | null>();
+function loadClientSourceMap(file: string) {
+  if (!/^assets\/[A-Za-z0-9_.-]+\.js$/.test(file)) return null;
+  if (sourceMapCache.has(file)) return sourceMapCache.get(file)!;
+  let consumer: InstanceType<typeof SourceMapConsumer> | null = null;
+  try {
+    const raw = fs.readFileSync(path.join(process.cwd(), 'dist', `${file}.map`), 'utf8');
+    consumer = new SourceMapConsumer(JSON.parse(raw));
+  } catch {
+    consumer = null;
+  }
+  sourceMapCache.set(file, consumer);
+  return consumer;
+}
+
+app.get('/api/admin/app-health', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  const since = new Date(Date.now() - days * 86_400_000);
+  const sinceDay = since.toISOString().slice(0, 10);
+  const journeys = buildJourneys();
+  const screens: Record<string, { views: number; errors: number }> = {};
+  let sessions = 0;
+  for (const d of telemetryDays) {
+    if (d.date < sinceDay) continue;
+    sessions += d.sessions;
+    for (const [s, n] of Object.entries(d.screens)) (screens[s] ||= { views: 0, errors: 0 }).views += n;
+    for (const [s, n] of Object.entries(d.errorsByScreen)) (screens[s] ||= { views: 0, errors: 0 }).errors += n;
+  }
+  const feedbackInRange = userFeedback.filter(f => f.at >= since.toISOString());
+  const byStep: Record<string, { easy: number; hard: number }> = {};
+  for (const f of feedbackInRange) {
+    if (f.kind === 'problem' || !f.step) continue;
+    (byStep[f.step] ||= { easy: 0, hard: 0 })[f.kind as 'easy' | 'hard'] += 1;
+  }
+  res.json({
+    days,
+    sessions,
+    errors: appErrors
+      .filter(e => e.lastSeen >= since.toISOString())
+      .map(e => ({
+        id: e.id, kind: e.kind, message: e.message, method: e.method, path: e.path, status: e.status, code: e.code,
+        count: e.count, users: e.userIds.length, sessions: e.sessions, screens: e.screens, firstSeen: e.firstSeen, lastSeen: e.lastSeen,
+        lastAppVersion: e.lastAppVersion, state: e.state,
+      }))
+      .sort((a, b) => (a.state === b.state ? b.users - a.users || b.lastSeen.localeCompare(a.lastSeen) : a.state === 'OPEN' ? -1 : 1)),
+    funnels: FUNNELS.map(f => computeFunnel(f, journeys, since)),
+    screens: Object.entries(screens).map(([screen, v]) => ({ screen, ...v, errorRate: v.views ? Math.round((v.errors / v.views) * 1000) / 10 : null }))
+      .sort((a, b) => b.views - a.views),
+    feedback: {
+      byStep,
+      entries: feedbackInRange.slice(0, 200),
+    },
+  });
+});
+
+app.get('/api/admin/app-health/errors/:id', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const e = appErrors.find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: 'NOT_FOUND' });
+  res.json({
+    ...e,
+    userIds: undefined,
+    users: e.userIds.length,
+    samples: e.samples.map(s => ({ ...s, stack: s.stack ? symbolicateStack(s.stack, loadClientSourceMap) : undefined })),
+  });
+});
+
+app.post('/api/admin/app-health/errors/:id/resolve', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const e = appErrors.find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: 'NOT_FOUND' });
+  e.state = 'RESOLVED';
+  e.resolvedAt = new Date().toISOString();
+  requestFlush();
+  res.json({ success: true });
+});
+
+app.post('/api/admin/app-health/feedback/:id/done', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const f = userFeedback.find(x => x.id === req.params.id);
+  if (!f) return res.status(404).json({ error: 'NOT_FOUND' });
+  f.state = 'DONE';
+  requestFlush();
+  res.json({ success: true });
+});
+
+// ===========================================================================
 // CREATOR POOLS (CREATOR_POOLS_SPEC.md)
 //
 // A creator opens a pool with one permanent link (/c/<handle>). Followers who
@@ -11628,6 +11940,10 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'creatorPools', get: () => creatorPools, set: docs => { creatorPools = docs; } });
   registerCollection({ collection: 'creatorWaitlist', get: () => creatorWaitlist, set: docs => { creatorWaitlist = docs; } });
   registerCollection({ collection: 'creatorTaxForms', get: () => creatorTaxForms, set: docs => { creatorTaxForms = docs; } });
+  registerCollection({ collection: 'appErrors', get: () => appErrors, set: docs => { appErrors = docs; } });
+  registerCollection({ collection: 'userJourneys', get: () => userJourneys, set: docs => { userJourneys = docs; reindexJourneys(); } });
+  registerCollection({ collection: 'telemetryDays', get: () => telemetryDays, set: docs => { telemetryDays = docs; } });
+  registerCollection({ collection: 'userFeedback', get: () => userFeedback, set: docs => { userFeedback = docs; } });
   registerCollection({ collection: 'gearDesigns', get: () => gearDesigns, set: docs => { gearDesigns = docs; } });
   registerCollection({ collection: 'chatThreads', get: getChatThreads, set: setChatThreads });
   registerCollection({ collection: 'chatMessages', get: getChatMessages, set: docs => {
@@ -11703,6 +12019,11 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    // Never serve the server bundle or source maps: they contain the source code.
+    app.use((req, res, next) => {
+      if (/\.map$/i.test(req.path) || /^\/server\.cjs/i.test(req.path)) return res.status(404).end();
+      next();
+    });
     app.use(express.static(distPath, { index: false }));
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, 'index.html');

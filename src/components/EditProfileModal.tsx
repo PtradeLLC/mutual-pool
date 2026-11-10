@@ -5,6 +5,8 @@ import { updateProfile } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { saveUserToFirestore } from '../lib/firestoreService';
 import { TraditionSelect } from './TraditionSelect';
+import { useTranslation } from '../i18n';
+import { isUsageDataOff, setUsageDataOff } from '../lib/telemetry';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -19,6 +21,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   currentUser,
   onUpdateUser,
 }) => {
+  const { t } = useTranslation();
   const [displayName, setDisplayName] = useState(currentUser.displayName || '');
   const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl || '');
   const [platform, setPlatform] = useState<GigPlatform>(currentUser.platform || 'DoorDash');
@@ -53,6 +56,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   const [joinDate, setJoinDate] = useState<string>(getInitialJoinDate());
   const [loading, setLoading] = useState(false);
+  // App health and usage data (src/lib/telemetry.ts): on unless turned off here.
+  const [shareUsage, setShareUsage] = useState(!(currentUser.usageDataOptOut || isUsageDataOff()));
+  const toggleShareUsage = async (on: boolean) => {
+    setShareUsage(on);
+    setUsageDataOff(!on);
+    try {
+      await fetch('/api/telemetry/preference', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optOut: !on }) });
+    } catch { /* the device setting already applies */ }
+  };
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
@@ -368,6 +380,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               </button>
             </div>
           </div>
+
+          {/* App health and usage data */}
+          <label className="flex items-start gap-2 p-3 rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-700 cursor-pointer">
+            <input type="checkbox" className="mt-0.5 accent-[#005FB8]" checked={shareUsage} onChange={e => toggleShareUsage(e.target.checked)} />
+            <span>
+              <span className="font-semibold text-[#111827] block">{t('feedback.shareUsageLabel' as any)}</span>
+              {t('feedback.shareUsageDesc' as any)}
+            </span>
+          </label>
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">

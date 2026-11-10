@@ -148,6 +148,8 @@ export interface User {
   legalName?: string;
   // An admin confirmed the bank owner name for this account (routing:last4).
   bankNameReviewedFor?: string;
+  // The member turned off anonymous usage and error data (App health).
+  usageDataOptOut?: boolean;
 }
 
 export function calculateAccountAgeDays(createdAt?: string, fallbackDays: number = 1): number {

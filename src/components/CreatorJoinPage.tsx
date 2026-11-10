@@ -7,6 +7,7 @@ import { Logo } from './Logo';
 import { LanguageSelector } from './LanguageSelector';
 import { useTranslation, type TranslationKey } from '../i18n';
 import type { User } from '../types';
+import { step as trackStep, askFeedback } from '../lib/telemetry';
 
 // Public page behind a creator's permanent link: themutualpool.com/c/<handle>.
 // Shows the creator's open pool, walks a follower through every joining step
@@ -97,9 +98,12 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
   ] : [];
   const allReady = Boolean(v?.signedIn && !v.isCreator && !v.restricted && v.meetsCompletedRequirement && limitOk && steps.every(s => s.ok));
   const canSign = allReady && accepted && signature.trim().length >= 2 && !joining;
+  useEffect(() => { if (v?.signedIn && pool) trackStep('creator_link_signed_in'); }, [v?.signedIn, pool]);
+  useEffect(() => { if (allReady && pool) trackStep('follower_checklist_ready'); }, [allReady, pool]);
 
   const join = async (ticket?: number) => {
     if (!pool) return;
+    if (!ticket) trackStep('follower_seat_attempted');
     setJoining(true);
     setJoinError(null);
     try {
@@ -125,6 +129,7 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
       }
       if (body.user && onUserUpdated) onUserUpdated(body.user);
       setJoined({ podName: body.pod?.name || '', payoutWeek: body.payoutWeek ?? null, held: body.kind === 'HELD' });
+      askFeedback('follower_seated');
       void load();
     } catch {
       setJoinError(k('creatorJoin.joinFailed'));

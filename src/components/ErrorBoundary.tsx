@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { reportError, appContext } from '../lib/telemetry';
 
 interface Props {
   children: ReactNode;
@@ -7,6 +8,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  reported?: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -35,7 +37,22 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error in application:', error, errorInfo);
+    reportError('crash', error?.message || 'App crashed', { stack: `${error?.stack || ''}\nComponent stack:${errorInfo?.componentStack || ''}` });
   }
+
+  private sendReport = async () => {
+    try {
+      const ctx = appContext();
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'problem', comment: 'The app showed "Application Reload Needed".', lastError: this.state.error?.message, ...ctx }),
+      });
+      this.setState({ reported: true });
+    } catch {
+      this.setState({ reported: true });
+    }
+  };
 
   public override render() {
     if (this.state.hasError) {
@@ -57,6 +74,13 @@ export class ErrorBoundary extends Component<Props, State> {
               className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
             >
               Reload Application
+            </button>
+            <button
+              onClick={this.sendReport}
+              disabled={this.state.reported}
+              className="block mx-auto text-xs font-semibold text-[#005FB8] hover:underline disabled:text-emerald-700 disabled:no-underline cursor-pointer"
+            >
+              {this.state.reported ? 'Thanks, we got your report.' : 'Report this problem'}
             </button>
           </div>
         </div>

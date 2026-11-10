@@ -3,6 +3,7 @@ import { FEES } from '../lib/legal';
 import { Pod, User, Perk, isDemoPod, POD_SIZE_SUGGESTIONS, MIN_POD_SIZE, MAX_POD_SIZE } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
 import { HeroCarousel } from './HeroCarousel';
+import { openReportProblem } from '../lib/telemetry';
 import bikerAdImg from '../assets/images/bikerad.png';
 import { Logo } from './Logo';
 import { WatchVideoModal } from './WatchVideoModal';
@@ -1206,6 +1207,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </>
             )}
+            <span>•</span>
+            <button type="button" onClick={() => openReportProblem()} className="hover:text-[#005FB8] transition-colors cursor-pointer">
+              {t('feedback.reportLink' as any)}
+            </button>
             <span>•</span>
             <a href="/privacy" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors">
               {t('footer.privacy')}

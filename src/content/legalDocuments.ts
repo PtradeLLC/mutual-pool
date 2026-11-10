@@ -85,6 +85,7 @@ export function getPrivacyPolicy(ctx: LegalContext): LegalDocument {
           '**Messages and support.** Pod and direct chat messages, questions you ask the Lainie voice guide, and messages you send to support.',
           '**Perks and partners.** Perks you redeem; and, if you submit an offer or a campaign inquiry as a business, the contact details you provide.',
           '**Technical information.** Your IP address and request logs (used for security and rate limiting), browser type, and basic usage records such as sign-in times. We keep an audit log of actions that affect money in a pod.',
+          '**App health and usage.** To find and fix problems and make the app easier to use, the app sends us: errors you run into (the error message, the screen you were on, the last few buttons you tapped, your browser and device type, and the app version); which screens are opened; and when you reach key steps such as verifying your identity or joining a pod. We never record what you type into forms, and we mask email addresses and long numbers before anything is sent. This data stays with MutualPool and is not shared with analytics or advertising companies. If you answer a "Was this easy?" question or report a problem, we keep your answer with the screen it relates to.',
         ],
       },
       {
@@ -97,6 +98,7 @@ export function getPrivacyPolicy(ctx: LegalContext): LegalDocument {
           'To answer your questions through support and the voice guide.',
           'To meet legal obligations such as tax reporting, anti-money-laundering rules and responding to lawful requests.',
           'To understand which languages and communities use MutualPool, so we can decide which translations to add. We look at this in aggregate.',
+          'To find errors and the steps where people get stuck, and to fix them. We look at this in aggregate.',
         ],
       },
       {
@@ -130,6 +132,7 @@ export function getPrivacyPolicy(ctx: LegalContext): LegalDocument {
         title: 'Your choices and rights',
         bullets: [
           'You can see and update your name, photo, platform, city and savings-circle name in Edit Profile, and change your language at any time.',
+          'You can turn off app health and usage data in Edit Profile ("Share anonymous usage and error data"). When you turn it off we stop recording it and remove the usage steps we had linked to your account.',
           'You can ask us for a copy of the personal information we hold about you, ask us to correct it, or ask us to delete it, subject to the retention periods above and to any pod you are still part of.',
           'We send transactional messages (pod activity, payments, verification, shift checks) by in-app notification and email, and by SMS if you signed up with a phone number. You can turn off push notifications in your device settings. We do not send marketing messages without your consent.',
           'Depending on where you live you may have additional rights, such as those under the California Consumer Privacy Act. We honour these for everyone regardless of location.',
@@ -139,7 +142,7 @@ export function getPrivacyPolicy(ctx: LegalContext): LegalDocument {
       {
         title: 'Cookies and local storage',
         paragraphs: [
-          'We don\'t use advertising trackers or third-party analytics cookies. The app stores your preferences (language, country, chosen tradition name) and a cached copy of your pod list in your browser\'s local storage so it loads quickly; you can clear this through your browser. Firebase and Stripe set the cookies they need to keep you signed in and to protect against fraud.',
+          'We don\'t use advertising trackers or third-party analytics cookies. The app stores your preferences (language, country, chosen tradition name), a cached copy of your pod list, and a random device identifier used only for app health and usage data in your browser\'s local storage; you can clear this through your browser. Firebase and Stripe set the cookies they need to keep you signed in and to protect against fraud.',
         ],
       },
       {
