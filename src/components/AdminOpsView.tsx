@@ -13,6 +13,7 @@ import { DepositDefaultsPanel } from './DepositDefaultsPanel';
 import { CustodyOpsPanel } from './CustodyOpsPanel';
 import { PartnerInquiriesPanel } from './PartnerInquiriesPanel';
 import { CreatorAdminPanel } from './CreatorAdminPanel';
+import { SavingsRangeAdminPanel } from './SavingsRangeAdminPanel';
 import { AppHealthPanel } from './AppHealthPanel';
 import { ReviewQueuePanel } from './ReviewQueuePanel';
 import { CampaignReviewPanel } from './CampaignReviewPanel';
@@ -638,6 +639,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       <DepositDefaultsPanel currentUser={currentUser} onChanged={onRefreshData} />
       <CustodyOpsPanel />
       <CreatorAdminPanel />
+      <SavingsRangeAdminPanel />
       <PartnerInquiriesPanel />
 
       {/* Brand campaign catalog approvals */}

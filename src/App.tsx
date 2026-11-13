@@ -18,6 +18,8 @@ import { ChatButton } from './components/Chat/ChatButton';
 
 const LandingPage = lazy(() => import('./components/LandingPage').then((module) => ({ default: module.LandingPage })));
 const PodDetailModal = lazy(() => import('./components/PodDetailModal').then((module) => ({ default: module.PodDetailModal })));
+const FinancialAwarenessModal = lazy(() => import('./components/FinancialAwarenessModal').then((module) => ({ default: module.FinancialAwarenessModal })));
+const JoinPodModal = lazy(() => import('./components/JoinPodModal').then((module) => ({ default: module.JoinPodModal })));
 const CreatePodModal = lazy(() => import('./components/CreatePodModal').then((module) => ({ default: module.CreatePodModal })));
 const StripeBankModal = lazy(() => import('./components/StripeBankModal').then((module) => ({ default: module.StripeBankModal })));
 const AddFundsModal = lazy(() => import('./components/AddFundsModal').then((module) => ({ default: module.AddFundsModal })));
@@ -28,6 +30,9 @@ const CreatorPoolAgreementModal = lazy(() => import('./components/CreatorPoolAgr
 import { PerksMarketplace } from './components/PerksMarketplace';
 import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
+import { SavingsJourneyCard } from './components/SavingsJourneyCard';
+import type { FinancialProfileView } from './lib/financialAwareness';
+import { DEFAULT_POD_SIZE } from './types';
 import { CampaignsPage } from './components/CampaignsPage';
 const EditProfileModal = lazy(() => import('./components/EditProfileModal').then((module) => ({ default: module.EditProfileModal })));
 const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.AboutUsModal })));
@@ -220,6 +225,10 @@ export default function App() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCreatePodModal, setShowCreatePodModal] = useState(false);
   const [createPodPrefill, setCreatePodPrefill] = useState<CreatePodPrefill | null>(null);
+  // Financial Awareness and Savings Range matching (Join a Pod).
+  const [showFinancialAwarenessModal, setShowFinancialAwarenessModal] = useState(false);
+  const [showJoinPodModal, setShowJoinPodModal] = useState(false);
+  const [financialView, setFinancialView] = useState<FinancialProfileView | null>(null);
   const [showKycModal, setShowKycModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
@@ -995,6 +1004,34 @@ export default function App() {
   const joiningPodIdsRef = useRef<Set<string>>(new Set());
   const [joiningPodIds, setJoiningPodIds] = useState<Set<string>>(new Set());
 
+  // The member's own financial profile and progress (private to them).
+  const loadFinancialView = async () => {
+    try {
+      const res = await fetch('/api/financial-profile', { headers: { Accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.progress) setFinancialView(data);
+    } catch {
+      // The dashboard card simply stays in its "start" state.
+    }
+  };
+  useEffect(() => {
+    if (currentUser?.id) loadFinancialView();
+    else setFinancialView(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  // Create a Pod, with the weekly deposit suggested from the member's confirmed
+  // commitment. A suggestion only: the form and the server apply the usual rules.
+  const openCreatePodFromProfile = (view: FinancialProfileView | null) => {
+    const weekly = view?.profile?.completionStatus === 'COMPLETE' ? view.profile.confirmedWeeklyCommitmentCents : 0;
+    const isSeasoned = (currentUser?.accountAgeDays || 0) >= 90 || (currentUser?.completedPodsCount || 0) >= 1;
+    const tier = ([100, 50, 20, 10, 5] as const).find(d => d * 100 <= weekly && (isSeasoned || d <= 20));
+    setCreatePodPrefill(tier ? { name: '', podType: 'TRUSTED_CIRCLE', sizeTier: DEFAULT_POD_SIZE, depositTier: tier, renewedFromPodId: '' } : null);
+    setShowFinancialAwarenessModal(false);
+    setShowCreatePodModal(true);
+  };
+
   const handleJoinPod = async (pod: Pod, inviteCode?: string) => {
     if (!currentUser) {
       handleOpenAuth('LOGIN');
@@ -1049,6 +1086,14 @@ export default function App() {
           setShowBankModal(true);
           return;
         }
+        if (data.error === 'FINANCIAL_PROFILE_REQUIRED' || data.error === 'SAVINGS_RANGE_MISMATCH') {
+          // MutualPool-hosted pods are matched to the member's Savings Range.
+          setInviteCodeTargetPod(null);
+          toast.warning(data.message, { title: data.error === 'FINANCIAL_PROFILE_REQUIRED' ? t('hosted.profileNeededTitle') : t('hosted.rangeMismatchTitle') });
+          if (data.error === 'FINANCIAL_PROFILE_REQUIRED') setShowFinancialAwarenessModal(true);
+          else setShowJoinPodModal(true);
+          return;
+        }
         if (data.error === 'POT_CAP') {
           setInviteCodeTargetPod(null);
           toast.warning(data.message || 'This pod is larger than your current limit.', { title: 'Pod too large for now' });
@@ -1083,6 +1128,7 @@ export default function App() {
       }
       toast.success(`You joined "${pod.name}".`, { title: 'Pod joined' });
       fetchAppData();
+      loadFinancialView();
     } catch {
       // Network failure: nothing was confirmed, so nothing is changed locally.
       toast.error('Network error joining the pod. Your balance was not charged. Please try again.', { title: 'Could not join pod' });
@@ -1108,9 +1154,10 @@ export default function App() {
         return;
       }
 
-      toast.success(`You have left "${pod.name}".`, {
+      toast.success(data.refunded ? `You have left "${pod.name}". Your deposit was returned to your balance.` : `You have left "${pod.name}".`, {
         title: 'Pod Membership Updated',
       });
+      loadFinancialView();
 
       fetchAppData();
     } catch (err) {
@@ -1829,6 +1876,16 @@ export default function App() {
                 </button>
 
                 <button
+                  type="button"
+                  onClick={() => setShowJoinPodModal(true)}
+                  className="px-4 py-2 rounded-lg bg-white hover:bg-blue-50 text-[#005FB8] border border-[#005FB8] font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                  title={t('sr.intro')}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>{t('fa.joinPod')}</span>
+                </button>
+
+                <button
                   onClick={() => setShowCreatePodModal(true)}
                   className={`px-4 py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer ${
                     isPodCreationLimitReached
@@ -1941,6 +1998,16 @@ export default function App() {
               />
             </div>
           </div>
+        )}
+
+        {/* Financial Awareness, Savings Range and the five principles (Couriers & Admin only) */}
+        {!isAdvertiser && currentUser && (
+          <SavingsJourneyCard
+            view={financialView}
+            onOpenFinancialAwareness={() => setShowFinancialAwarenessModal(true)}
+            onJoinPod={() => setShowJoinPodModal(true)}
+            onCreatePod={() => openCreatePodFromProfile(financialView)}
+          />
         )}
 
         {/* FDIC Disclosure Notice Banner (Couriers & Admin only) */}
@@ -2199,6 +2266,35 @@ export default function App() {
                 await syncUserWithBackend(updatedUser);
               }
               fetchAppData(updatedUser?.id);
+            }}
+          />
+        </Suspense>
+      )}
+
+      {showFinancialAwarenessModal && currentUser && (
+        <Suspense fallback={null}>
+          <FinancialAwarenessModal
+            isOpen={showFinancialAwarenessModal}
+            onClose={() => setShowFinancialAwarenessModal(false)}
+            onSaved={(view) => setFinancialView(view)}
+            onJoinPod={() => { setShowFinancialAwarenessModal(false); setShowJoinPodModal(true); }}
+            onCreatePod={(view) => openCreatePodFromProfile(view)}
+          />
+        </Suspense>
+      )}
+
+      {showJoinPodModal && currentUser && (
+        <Suspense fallback={null}>
+          <JoinPodModal
+            isOpen={showJoinPodModal}
+            onClose={() => setShowJoinPodModal(false)}
+            onJoinPod={(pod) => handleJoinPod(pod)}
+            joiningPodIds={joiningPodIds}
+            onOpenFinancialAwareness={() => { setShowJoinPodModal(false); setShowFinancialAwarenessModal(true); }}
+            onExplorePods={() => {
+              setShowJoinPodModal(false);
+              setActiveTab('explore-pods');
+              scrollToTabSection('explore-pods');
             }}
           />
         </Suspense>

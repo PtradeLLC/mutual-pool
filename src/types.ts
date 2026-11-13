@@ -219,6 +219,18 @@ export interface PodMembership {
   payoutStripeTransferId?: string;
   payoutProcessedAt?: string;
   payoutNetAmountUsd?: number;
+  // The fee split applied to this member's payout, as charged at the time.
+  payoutFee?: {
+    hostType: 'USER' | 'MUTUALPOOL';
+    grossUsd: number;
+    totalFeeRate: number;
+    totalFeeUsd: number;
+    hostRewardRate: number;
+    hostRewardUsd: number;
+    platformFeeRate: number;
+    platformFeeUsd: number;
+    netPayoutUsd: number;
+  };
   agreementSignedAt?: string;
   agreementSignatureName?: string;
   delinquencyStatus: DelinquencyStatus;
@@ -343,6 +355,15 @@ export interface Pod {
   completedAt?: string;
   renewalDecision?: 'PENDING' | 'RENEWED' | 'CLOSED';
   renewedFromPodId?: string;
+  // Who hosts the pod. Unset means USER (a member created it). MUTUALPOOL pods
+  // are opened by the platform for a Savings Range: no member host, so the
+  // whole payout fee goes to MutualPool (src/server/payoutFees.ts).
+  hostType?: 'USER' | 'MUTUALPOOL';
+  hostId?: string;
+  // MutualPool's share of each pot, fixed when the pod is created.
+  applicableFeeRate?: number;
+  savingsRangeId?: string;
+  savingsPurpose?: string;
   renewedToPodId?: string;
   // The pod's own holding account at Column (created on first movement).
   custody?: PodCustody;
@@ -879,6 +900,8 @@ export interface AuditLogEntry {
   actorName: string;
   action: 
     | 'POD_CREATED'
+    | 'HOSTED_POD_CREATED'
+    | 'SAVINGS_RANGE_UPDATED'
     | 'AGREEMENT_SIGNED'
     | 'ROTATION_LOCKED'
     | 'DEPOSIT_COMPLETED'

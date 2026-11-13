@@ -575,7 +575,9 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
 
       const rewardNote = creatorReward > 0 
         ? ` (Includes +$${creatorReward.toFixed(2)} [3%] Host Reward to Creator ${pod.creatorName})`
-        : pod.stewardshipMode === 'AUTONOMOUS_AI' 
+        : pod.hostType === 'MUTUALPOOL'
+        ? ` (MutualPool-hosted pod: the full 10% fee goes to MutualPool)`
+        : pod.stewardshipMode === 'AUTONOMOUS_AI'
         ? ` (100% of 10% fee directed to System Escrow Liquidity Account)`
         : '';
 
@@ -1046,7 +1048,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               </div>
               <p className="text-[11px] leading-relaxed text-emerald-900">{isCreator ? t('complete.creatorBody') : t('complete.memberBody')}</p>
               {pod.renewalDecision === 'RENEWED' && <div className="text-[11px] font-semibold">{t('complete.renewedNote')}</div>}
-              {pod.renewalDecision === 'CLOSED' && <div className="text-[11px] font-semibold">{t('complete.closedNote')}</div>}
+              {pod.renewalDecision === 'CLOSED' && <div className="text-[11px] font-semibold">{pod.hostType === 'MUTUALPOOL' ? t('hosted.completeNote') : t('complete.closedNote')}</div>}
               {isCreator && pod.renewalDecision !== 'RENEWED' && pod.renewalDecision !== 'CLOSED' && (
                 <div className="flex flex-wrap items-center gap-2 pt-0.5">
                   <button
@@ -1706,7 +1708,11 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     <span>10% Platform Payout Service Fee:</span>
                     <span>-${(currentActivePool * FEES.payoutFeeRate).toFixed(2)}</span>
                   </div>
-                  {pod.stewardshipMode === 'AUTONOMOUS_AI' ? (
+                  {pod.hostType === 'MUTUALPOOL' ? (
+                    <div className="text-[10px] text-gray-600 font-sans pl-2 border-l-2 border-[#005FB8]">
+                      🏛️ <strong>-${(currentActivePool * FEES.payoutFeeRate).toFixed(2)} (10%)</strong> {t('hosted.feeNote')}
+                    </div>
+                  ) : pod.stewardshipMode === 'AUTONOMOUS_AI' ? (
                     <div className="text-[10px] text-purple-700 font-sans pl-2 border-l-2 border-purple-300">
                       🤖 <strong>100% (-${(currentActivePool * FEES.payoutFeeRate).toFixed(2)})</strong> directed to System Escrow & Platform Reserves (Autonomous Custodian Active)
                     </div>
@@ -1858,7 +1864,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                     <Sparkles className="w-4 h-4 text-[#005FB8] shrink-0 mt-0.5" />
                     <span>{t('podCreator.swapPrompt' as any)}</span>
                   </div>
-                ) : pod.createdBy === currentUser.id ? (
+                ) : pod.hostType === 'MUTUALPOOL' ? null : pod.createdBy === currentUser.id ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
                     <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <span>

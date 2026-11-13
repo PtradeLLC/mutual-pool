@@ -97,6 +97,12 @@ import {
   chooseSeat, canHoldSlot, heldSlotReleaseDue, collapseSlot, isStalled, addBusinessDays, heldBalanceUsd,
   creatorEarnsCommission, JoinQueue, creatorPoolAgreementText, withdrawalBankProblem, bankAccountKey,
 } from './src/server/creatorPools';
+import { payoutFeeSplit, hostTypeOf, platformFeeRateFor, MUTUALPOOL_HOST_ID, MUTUALPOOL_HOST_NAME } from './src/server/payoutFees';
+import {
+  defaultSavingsRanges, validateProfileInput, computeEstimate, monthlyEquivalentCents, profileIsComplete, missingForCompletion,
+  findSavingsRange, savingsRangeProblem, rankHostedPods, weeksToGoal, HOSTED_POD_DEPOSIT_TIERS, SAVINGS_PURPOSES,
+} from './src/lib/financialAwareness';
+import type { FinancialProfile, SavingsRange, ExpenseRecord, SavingsPurposeId } from './src/lib/financialAwareness';
 import { taxIdKey, encryptTaxId, decryptTaxId, normalizeTaxId, csvCell } from './src/server/taxIdCrypto';
 import { isCreatorPoolsQuestion, creatorPoolsAnswer, CREATOR_POOLS_BRIEF } from './src/lib/creatorPoolsKnowledge';
 import {
@@ -577,11 +583,58 @@ function getFinalSlotMember(pod: Pod): PodMembership | undefined {
   return last;
 }
 
+// Lock the rotation and start the pod. A one-time cryptographically random
+// order within trust tiers: the early slots (first half of the rotation) go to
+// the most trusted members, and a pot over $1,000 needs seasoned members in all
+// of them (src/server/rotation.ts). A member creator always takes the final
+// slot (skin in the game); MutualPool-hosted pods have no creator member, so
+// every slot is drawn. Changes nothing when the rotation cannot be planned.
+type RotationPlanResult = ReturnType<typeof planRotation>;
+type LockResult =
+  | { ok: true; plan: Exclude<RotationPlanResult, { error: string }>; potUsd: number }
+  | { ok: false; plan: Extract<RotationPlanResult, { error: string }>; potUsd: number };
+function lockPodRotation(pod: Pod): LockResult {
+  const creatorMember = pod.members.find(m => m.userId === pod.createdBy);
+  const nonCreatorMembers = pod.members.filter(m => m.userId !== pod.createdBy);
+
+  const potUsd = podPotUsd(pod);
+  const trustByUser = new Map(nonCreatorMembers.map(m => [m.userId, trustOf(users.find(x => x && x.id === m.userId))]));
+  const plan = planRotation(
+    nonCreatorMembers.map(m => ({ userId: m.userId, trust: trustByUser.get(m.userId) || 0 })),
+    { totalMembers: pod.members.length, potUsd, randomInt: n => crypto.randomInt(n) },
+  );
+  if ('error' in plan) return { ok: false, plan, potUsd };
+
+  const byUserId = new Map(nonCreatorMembers.map(m => [m.userId, m]));
+  const finalOrderedMembers: PodMembership[] = plan.order.map((userId, idx) => {
+    const m = byUserId.get(userId)!;
+    m.rotationIndex = idx;
+    m.trustAtLock = trustLabel(trustByUser.get(userId) || 0);
+    return m;
+  });
+  if (creatorMember) {
+    creatorMember.rotationIndex = finalOrderedMembers.length; // Final slot (e.g. slot 4 in 5-member pod, slot 19 in 20-member pod)
+    creatorMember.trustAtLock = trustLabel(trustOf(users.find(x => x && x.id === creatorMember.userId)));
+    finalOrderedMembers.push(creatorMember);
+  }
+
+  pod.members = finalOrderedMembers;
+  pod.earlySlotCount = plan.earlyCount;
+  pod.potAtLockUsd = potUsd;
+  pod.creatorLastInRotation = hostTypeOf(pod) !== 'MUTUALPOOL';
+  syncHostRewardRecipient(pod);
+  pod.status = 'ACTIVE';
+  pod.cycleStartDate = new Date().toISOString();
+  pod.totalCycles = pod.members.length;
+  pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
+  return { ok: true, plan, potUsd };
+}
+
 // Keep the stored reward recipient (used in audit logs/notifications) in step
 // with the final slot. Unset means the creator holds it.
 function syncHostRewardRecipient(pod: Pod): void {
   const last = getFinalSlotMember(pod);
-  if (!last || last.userId === pod.createdBy) {
+  if (!last || last.userId === pod.createdBy || hostTypeOf(pod) === 'MUTUALPOOL') {
     delete pod.hostRewardRecipientUserId;
     delete pod.hostRewardRecipientName;
   } else {
@@ -1412,6 +1465,22 @@ function onPodCompleted(pod: Pod): void {
   // Creator-pool pods have no "new round" step: the creator opens new pools.
   if (pod.creatorPoolId) {
     completeCreatorPod(pod);
+    return;
+  }
+  // MutualPool-hosted pods have no creator to renew them: members rejoin
+  // through Join a Pod, which matches them to the next pod in their range.
+  if (hostTypeOf(pod) === 'MUTUALPOOL') {
+    const doneIso = new Date().toISOString();
+    pod.completedAt = doneIso;
+    pod.renewalDecision = 'CLOSED';
+    addAuditLog(pod.id, 'SYSTEM', MUTUALPOOL_HOST_NAME, 'POD_COMPLETED', 'Every member has received a payout. This MutualPool-hosted pod is complete.', { memberCount: pod.members.length });
+    notifyPodMembers(pod, {
+      type: 'POD_COMPLETED',
+      title: '🎉 Savings cycle complete',
+      message: `Every member of "${pod.name}" has received their payout. You kept your commitment week after week. Use Join a Pod to start your next cycle.`,
+      metadata: { completedAt: doneIso },
+      email: { kind: 'pod_completed', subject: `"${pod.name}" is complete`, text: `Every member of "${pod.name}" has received their payout. Thank you for seeing it through.\n\nWhen you are ready for your next savings cycle, open MutualPool and choose Join a Pod.` },
+    });
     return;
   }
   const nowIso = new Date().toISOString();
@@ -3277,6 +3346,19 @@ app.get(['/api/health', '/health'], (req, res) => {
         return res.json({ success: true, pod, refunded: true });
       }
 
+      // MutualPool-hosted pods: the same before the pod starts, so nobody's
+      // deposit waits on a pod that has not filled.
+      if (hostTypeOf(pod) === 'MUTUALPOOL' && pod.status === 'FORMING') {
+        const seat = pod.members.find(m => m && m.userId === user.id);
+        if (!seat) return res.status(403).json({ error: 'NOT_A_MEMBER', message: 'You are not a member of this pod.' });
+        refundFormingSeat(pod, seat, 'left before the pod started');
+        pod.members.forEach((m, idx) => { m.rotationIndex = idx; });
+        savePodsToDisk();
+        saveUsersToDisk();
+        requestFlush();
+        return res.json({ success: true, pod, refunded: true });
+      }
+
       const hasEveryMemberReceivedPayout = pod.members && pod.members.length > 0 && (pod.status === 'COMPLETED' || pod.members.every(m => m.hasReceivedPayout));
 
       if (!hasEveryMemberReceivedPayout) {
@@ -3781,6 +3863,11 @@ app.get(['/api/health', '/health'], (req, res) => {
         return res.status(400).json({ error: 'You are already a member of this pod.' });
       }
 
+      // MutualPool-hosted pods group members by Savings Range: the member's
+      // confirmed weekly commitment must fall in the pod's range.
+      const hostedProblem = hostedPodJoinProblem(pod, user);
+      if (hostedProblem) return res.status(403).json(hostedProblem);
+
       // Check matching contact in invitedContacts safely
       const userEmailClean = (user.email || '').trim().toLowerCase();
       const contactMatch = pod.invitedContacts.find(ic => {
@@ -3822,7 +3909,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         inviterDisplayName = refName;
       }
 
-      if (!inviterId && !inviterDisplayName) {
+      if (!inviterId && !inviterDisplayName && hostTypeOf(pod) !== 'MUTUALPOOL') {
         // Default to pod creator
         inviterId = pod.createdBy;
         inviterDisplayName = pod.creatorName;
@@ -3953,6 +4040,10 @@ app.get(['/api/health', '/health'], (req, res) => {
         `Signed legal Pod Agreement v2.0-2026 as "${member.agreementSignatureName}". Confirmed understanding of fixed rotation order, automated weekly deposit withdrawals (Thursdays), automated rotation payouts (Fridays), ${TREASURY_PROGRAM_ENABLED ? 'FDIC pass-through coverage, ' : ''}and delinquency handling.`
       );
 
+      // MutualPool-hosted pods have no creator to lock them: they start once
+      // they are full and everyone has signed.
+      startHostedPodIfReady(pod);
+
       res.json({ success: true, member, pod });
     } catch (err: any) {
       console.error('Error in agreement/sign:', err);
@@ -4010,52 +4101,19 @@ app.get(['/api/health', '/health'], (req, res) => {
       });
     }
 
-    // Separate creator from non-creator members to guarantee creator is assigned to the final rotation slot (skin-in-the-game)
-    const creatorMember = pod.members.find(m => m.userId === pod.createdBy);
-    const nonCreatorMembers = pod.members.filter(m => m.userId !== pod.createdBy);
-
-    // One-time cryptographically random order within trust tiers: the early
-    // slots (first half of the rotation) go to the most trusted members, and a
-    // pot over $1,000 needs seasoned members in all of them. See src/server/rotation.ts.
-    const potUsd = podPotUsd(pod);
-    const trustByUser = new Map(nonCreatorMembers.map(m => [m.userId, trustOf(users.find(x => x && x.id === m.userId))]));
-    const plan = planRotation(
-      nonCreatorMembers.map(m => ({ userId: m.userId, trust: trustByUser.get(m.userId) || 0 })),
-      { totalMembers: pod.members.length, potUsd, randomInt: n => crypto.randomInt(n) },
-    );
-    if ('error' in plan) {
+    const locked = lockPodRotation(pod);
+    if (locked.ok === false) {
+      const plan = locked.plan;
       return res.status(400).json({
         error: plan.error,
-        message: `Can't lock yet: this pod plays for $${potUsd.toLocaleString()} a week, so its first ${plan.earlyCount} payout slot${plan.earlyCount === 1 ? '' : 's'} must go to members with a completed pod or ${EARLY_SLOT_TENURE_DAYS}+ days on MutualPool, and it has ${plan.seasonedCount} (the creator always takes the last slot). Invite ${plan.shortfall} more established member${plan.shortfall === 1 ? '' : 's'}, or lower the pot.`,
+        message: `Can't lock yet: this pod plays for $${locked.potUsd.toLocaleString()} a week, so its first ${plan.earlyCount} payout slot${plan.earlyCount === 1 ? '' : 's'} must go to members with a completed pod or ${EARLY_SLOT_TENURE_DAYS}+ days on MutualPool, and it has ${plan.seasonedCount} (the creator always takes the last slot). Invite ${plan.shortfall} more established member${plan.shortfall === 1 ? '' : 's'}, or lower the pot.`,
         earlySlotCount: plan.earlyCount,
         seasonedCount: plan.seasonedCount,
         shortfall: plan.shortfall,
-        potUsd,
+        potUsd: locked.potUsd,
       });
     }
-
-    const byUserId = new Map(nonCreatorMembers.map(m => [m.userId, m]));
-    const finalOrderedMembers: PodMembership[] = plan.order.map((userId, idx) => {
-      const m = byUserId.get(userId)!;
-      m.rotationIndex = idx;
-      m.trustAtLock = trustLabel(trustByUser.get(userId) || 0);
-      return m;
-    });
-    if (creatorMember) {
-      creatorMember.rotationIndex = finalOrderedMembers.length; // Final slot (e.g. slot 4 in 5-member pod, slot 19 in 20-member pod)
-      creatorMember.trustAtLock = trustLabel(trustOf(users.find(x => x && x.id === creatorMember.userId)));
-      finalOrderedMembers.push(creatorMember);
-    }
-
-    pod.members = finalOrderedMembers;
-    pod.earlySlotCount = plan.earlyCount;
-    pod.potAtLockUsd = potUsd;
-    pod.creatorLastInRotation = true;
-    syncHostRewardRecipient(pod);
-    pod.status = 'ACTIVE';
-    pod.cycleStartDate = new Date().toISOString();
-    pod.totalCycles = pod.members.length;
-    pod.weeklyPoolTarget = pod.members.length * pod.depositTier;
+    const { plan, potUsd } = locked;
 
     // Record Partner Campaign Agreement contract if submitted by creator
     if (req.body.campaignAgreement || req.body.campaignOptIn !== undefined || req.body.optedIn !== undefined) {
@@ -4316,10 +4374,6 @@ app.get(['/api/health', '/health'], (req, res) => {
         return res.status(400).json({ error: 'NOTHING_COLLECTED', message: 'No deposits have been collected for this cycle yet.' });
       }
       
-      // Apply 10% payout fee tag (e.g. $400 pool - 10% ($40) = $360 net paid to user)
-      const totalPayoutFee = Math.round(grossPayoutAmount * FEES.payoutFeeRate * 100) / 100;
-      const netPayoutAmount = grossPayoutAmount - totalPayoutFee;
-
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
       // Identify active 3% weekly reward beneficiary (defaults to creator; transfers if creator switches spot)
       // 3% host reward: whoever holds the final rotation slot (normally the creator).
@@ -4332,13 +4386,20 @@ app.get(['/api/health', '/health'], (req, res) => {
         : pod.members.some(m => m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
       const isTransferredFromCreator = !pod.creatorPoolId && activeRewardRecipientUserId !== pod.createdBy;
 
-      let creatorHostReward = 0;
-      let platformFeeRetained = totalPayoutFee;
+      // 10% payout fee (e.g. $400 pot - $40 = $360 net). Member-hosted pods pay 3%
+      // of the pot to the host and 7% to MutualPool; MutualPool-hosted pods have no
+      // member host, so the whole 10% is MutualPool's (src/server/payoutFees.ts).
+      const feeSplit = payoutFeeSplit({
+        grossUsd: grossPayoutAmount,
+        hostType: hostTypeOf(pod),
+        hostRewardApplies: Boolean(!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod),
+      });
+      const totalPayoutFee = feeSplit.totalFeeUsd;
+      const netPayoutAmount = feeSplit.netPayoutUsd;
+      const creatorHostReward = feeSplit.hostRewardUsd;
+      const platformFeeRetained = feeSplit.platformFeeUsd;
 
-      if (!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod) {
-        creatorHostReward = Math.round(grossPayoutAmount * FEES.hostRewardRate * 100) / 100; // 3% of gross pool
-        platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100; // 7% retained by platform
-        
+      if (creatorHostReward > 0 && hostRewardUser) {
         // Credit Active Host/Spot Beneficiary Treasury ledger with 3% host stewardship reward
         creditLedger(hostRewardUser, creatorHostReward);
         mv(POD(pod.id), MEMBER(hostRewardUser.id), creatorHostReward, 'HOST_REWARD', `Week ${pod.currentCycleWeek} host reward`, { podId: pod.id, userId: hostRewardUser.id, cycleWeek: pod.currentCycleWeek });
@@ -4400,6 +4461,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       recipientMember.payoutStripeTransferId = stripeTransferId;
       recipientMember.payoutProcessedAt = new Date().toISOString();
       recipientMember.payoutNetAmountUsd = netPayoutAmount;
+      recipientMember.payoutFee = feeSplit;
 
       // Reset weekly collected for next cycle
       pod.currentWeeklyCollected = 0;
@@ -4410,7 +4472,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       user.id,
       user.displayName,
       'PAYOUT_EXECUTED',
-      `Week ${pod.currentCycleWeek} payout credited to Treasury ledger (${stripeTransferId}) for ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${totalPayoutFee.toFixed(2)} (${creatorHostReward > 0 ? `3% / $${creatorHostReward.toFixed(2)} to Creator Host, 7% / $${platformFeeRetained.toFixed(2)} to Platform` : `100% / $${totalPayoutFee.toFixed(2)} to Platform System Escrow`}). Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's MutualPool account account.`,
+      `Week ${pod.currentCycleWeek} payout credited to Treasury ledger (${stripeTransferId}) for ${recipientMember.displayName} (Rotation #${recipientMember.rotationIndex}). Gross Pool: $${grossPayoutAmount.toFixed(2)}. 10% payout fee deducted: -$${totalPayoutFee.toFixed(2)} (${creatorHostReward > 0 ? `3% / $${creatorHostReward.toFixed(2)} to Creator Host, 7% / $${platformFeeRetained.toFixed(2)} to Platform` : feeSplit.hostType === 'MUTUALPOOL' ? `MutualPool-hosted pod: 100% / $${totalPayoutFee.toFixed(2)} to MutualPool` : `100% / $${totalPayoutFee.toFixed(2)} to Platform System Escrow`}). Net amount paid to user: $${netPayoutAmount.toFixed(2)}. Funds earmarked in member's MutualPool account account.`,
       { 
         stripeTransferId, 
         recipientId: recipientMember.userId, 
@@ -4418,6 +4480,10 @@ app.get(['/api/health', '/health'], (req, res) => {
         payoutFee: totalPayoutFee,
         creatorHostReward,
         platformFeeRetained,
+        hostType: feeSplit.hostType,
+        payoutFeeRate: feeSplit.totalFeeRate,
+        hostRewardRate: feeSplit.hostRewardRate,
+        platformFeeRate: feeSplit.platformFeeRate,
         stewardshipMode: pod.stewardshipMode || 'CREATOR_MANAGED',
         netPayoutAmount, 
         weekNumber: pod.currentCycleWeek,
@@ -4449,6 +4515,8 @@ app.get(['/api/health', '/health'], (req, res) => {
       payoutFee: totalPayoutFee,
       creatorHostReward,
       platformFeeRetained,
+      hostType: feeSplit.hostType,
+      platformFeeRate: feeSplit.platformFeeRate,
       creatorStewardshipEarningsUsd: pod.creatorStewardshipEarningsUsd || 0,
       payoutAmount: netPayoutAmount,
       recipientName: recipientMember.displayName,
@@ -4942,9 +5010,6 @@ app.get(['/api/health', '/health'], (req, res) => {
         details.push(`[${pod.name}] Skipped Week ${cycleWeek} payout: ${!recipientUser ? 'recipient account not found' : 'no deposits collected'}.`);
         continue;
       }
-      const totalPayoutFee = Math.round(grossPayoutAmount * FEES.payoutFeeRate * 100) / 100;
-      const netPayoutAmount = Math.max(0, grossPayoutAmount - totalPayoutFee);
-
       const isAutonomousAI = pod.stewardshipMode === 'AUTONOMOUS_AI';
       // 3% host reward: whoever holds the final rotation slot (normally the creator).
       // Creator pools: the 3% goes to the creator hosting the pool, while their
@@ -4956,12 +5021,19 @@ app.get(['/api/health', '/health'], (req, res) => {
         : pod.members.some(m => m && m.userId === activeRewardRecipientUserId) && isHostRewardEligible(pod);
       const isTransferredFromCreator = !pod.creatorPoolId && activeRewardRecipientUserId !== pod.createdBy;
 
-      let creatorHostReward = 0;
-      let platformFeeRetained = totalPayoutFee;
+      // Same split as the manual payout: 3% host + 7% MutualPool in member-hosted
+      // pods, the whole 10% to MutualPool in MutualPool-hosted pods.
+      const feeSplit = payoutFeeSplit({
+        grossUsd: grossPayoutAmount,
+        hostType: hostTypeOf(pod),
+        hostRewardApplies: Boolean(!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod),
+      });
+      const totalPayoutFee = feeSplit.totalFeeUsd;
+      const netPayoutAmount = feeSplit.netPayoutUsd;
+      const creatorHostReward = feeSplit.hostRewardUsd;
+      const platformFeeRetained = feeSplit.platformFeeUsd;
 
-      if (!isAutonomousAI && hostRewardUser && isBeneficiaryActiveInPod) {
-        creatorHostReward = Math.round(grossPayoutAmount * FEES.hostRewardRate * 100) / 100;
-        platformFeeRetained = Math.round((totalPayoutFee - creatorHostReward) * 100) / 100;
+      if (creatorHostReward > 0 && hostRewardUser) {
 
         if (!hostRewardUser.treasury) {
           hostRewardUser.treasury = {
@@ -5031,6 +5103,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       recipientMember.payoutStripeTransferId = stripeTransferId;
       recipientMember.payoutProcessedAt = new Date().toISOString();
       recipientMember.payoutNetAmountUsd = netPayoutAmount;
+      recipientMember.payoutFee = feeSplit;
 
       pod.currentWeeklyCollected = 0;
 
@@ -5060,6 +5133,10 @@ app.get(['/api/health', '/health'], (req, res) => {
             payoutFee: totalPayoutFee,
             creatorHostReward,
             platformFeeRetained,
+            hostType: feeSplit.hostType,
+            payoutFeeRate: feeSplit.totalFeeRate,
+            hostRewardRate: feeSplit.hostRewardRate,
+            platformFeeRate: feeSplit.platformFeeRate,
             netPayoutAmount,
             weekNumber: cycleWeek,
             scheduledSweep: 'FRIDAY_12AM',
@@ -6222,7 +6299,7 @@ Return ONLY a valid JSON object in this exact schema:
     );
 
     // Notify Pool Creator if creator is not the requester
-    if (pod.createdBy && pod.createdBy !== user.id) {
+    if (pod.createdBy && pod.createdBy !== user.id && hostTypeOf(pod) !== 'MUTUALPOOL') {
       createNotification({
         userId: pod.createdBy,
         senderUserId: user.id,
@@ -9009,6 +9086,443 @@ app.post('/api/admin/app-health/feedback/:id/done', (req: Request, res: Response
 });
 
 // ===========================================================================
+// FINANCIAL AWARENESS & SAVINGS RANGE
+//
+// A member's financial profile (goal, take-home pay, bills, confirmed weekly
+// commitment) is private to that member: it lives in its own collection and is
+// never attached to a user or pod record. The commitment places the member in
+// a Savings Range (admin-configured), and Join a Pod matches them to
+// MutualPool-hosted pods opened for that range. Hosted pods are ordinary pods
+// (same deposits, sweeps, buffer, rotation and 10% payout fee) with no member
+// host, so the whole payout fee goes to MutualPool (src/server/payoutFees.ts).
+// Rules live in src/lib/financialAwareness.ts.
+// ===========================================================================
+let financialProfiles: FinancialProfile[] = [];
+let savingsRanges: SavingsRange[] = [];
+
+function allSavingsRanges(): SavingsRange[] {
+  if (!savingsRanges.length) savingsRanges = defaultSavingsRanges(new Date().toISOString());
+  return savingsRanges;
+}
+function financialProfileOf(userId: string): FinancialProfile | undefined {
+  return financialProfiles.find(p => p && p.userId === userId);
+}
+// The member's range under today's thresholds (ranges can be edited after a
+// profile was saved).
+function currentRangeOf(profile: FinancialProfile | undefined): SavingsRange | null {
+  if (!profile || profile.completionStatus !== 'COMPLETE') return null;
+  return findSavingsRange(allSavingsRanges(), profile.confirmedWeeklyCommitmentCents);
+}
+function rangeView(range: SavingsRange | null) {
+  if (!range) return null;
+  return {
+    id: range.id,
+    name: range.name,
+    minWeeklyCents: range.minWeeklyCents,
+    maxWeeklyCents: range.maxWeeklyCents,
+    podDepositTier: range.matchingCriteria.podDepositTier,
+    podSize: range.matchingCriteria.podSize,
+  };
+}
+function isHostedPod(pod: Pod | undefined | null): pod is Pod {
+  return Boolean(pod && hostTypeOf(pod) === 'MUTUALPOOL');
+}
+
+// Discipline, commitment and progress, from the member's real pod records.
+function savingsProgressOf(user: User, profile: FinancialProfile | undefined) {
+  const totalContributedCents = Math.round(deposits
+    .filter(d => d && d.userId === user.id && d.status === 'COMPLETE')
+    .reduce((s, d) => s + (Number(d.amount) || 0), 0) * 100);
+  const myPods = pods.filter(p => p && !isDemoPodServer(p) && isPodMember(p, user));
+  const current = myPods.filter(p => p.status === 'ACTIVE' || p.status === 'FORMING');
+  const target = profile?.targetSavingsCents || 0;
+  return {
+    totalContributedCents,
+    completedContributions: deposits.filter(d => d && d.userId === user.id && d.status === 'COMPLETE').length,
+    missedContributions: depositDefaults.filter(d => d && d.userId === user.id).length,
+    weeklyObligationCents: current.reduce((s, p) => s + Math.round((Number(p.depositTier) || 0) * 100), 0),
+    activePodCount: current.length,
+    completedCycles: Number(user.completedPodsCount) || 0,
+    payoutsReceivedCents: Math.round((Number(user.treasury?.totalPayoutsReceivedUsd) || 0) * 100),
+    goalProgressPct: target > 0 ? Math.min(100, Math.floor((totalContributedCents * 100) / target)) : null,
+  };
+}
+
+function financialProfileView(user: User) {
+  const profile = financialProfileOf(user.id) || null;
+  const estimate = profile ? computeEstimate(profile) : null;
+  const range = currentRangeOf(profile || undefined);
+  return {
+    profile,
+    estimate,
+    savingsRange: rangeView(range),
+    // Bills are higher than income, or the commitment is above what the estimate leaves each week.
+    commitmentExceedsEstimate: Boolean(profile && estimate && !estimate.incomplete && profile.confirmedWeeklyCommitmentCents > estimate.proposedWeeklySavingsCents),
+    weeksToGoal: profile ? weeksToGoal(profile.targetSavingsCents, profile.confirmedWeeklyCommitmentCents) : null,
+    missing: profile ? missingForCompletion(profile) : ['targetSavingsCents', 'takeHomePayCents', 'confirmedWeeklyCommitmentCents'],
+    progress: savingsProgressOf(user, profile || undefined),
+  };
+}
+
+app.get('/api/financial-profile', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  res.json(financialProfileView(user));
+});
+
+// Create or replace the signed-in member's own profile. The server recomputes
+// every total; client-side totals are never trusted.
+app.put('/api/financial-profile', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  const checked = validateProfileInput(req.body);
+  if (checked.ok === false) {
+    return res.status(400).json({ error: 'INVALID_INPUT', message: checked.errors[0]?.message || 'Check the amounts and try again.', errors: checked.errors });
+  }
+  const input = checked.value;
+  const nowIso = new Date().toISOString();
+  const existing = financialProfileOf(user.id);
+  const previousExpenses = new Map((existing?.expenses || []).map(e => [e.id, e]));
+  const usedIds = new Set<string>();
+  const expenses: ExpenseRecord[] = input.expenses.map(e => {
+    const prior = e.id && !usedIds.has(e.id) ? previousExpenses.get(e.id) : undefined;
+    const id = prior ? prior.id : `exp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    usedIds.add(id);
+    const unchanged = prior && prior.name === e.name && prior.amountCents === e.amountCents && prior.frequency === e.frequency;
+    return {
+      id,
+      userId: user.id,
+      name: e.name,
+      amountCents: e.amountCents,
+      frequency: e.frequency,
+      monthlyEquivalentCents: monthlyEquivalentCents(e.amountCents, e.frequency),
+      createdAt: prior ? prior.createdAt : nowIso,
+      updatedAt: unchanged ? prior!.updatedAt : nowIso,
+    };
+  });
+  const estimate = computeEstimate({ takeHomePayCents: input.takeHomePayCents, incomeFrequency: input.incomeFrequency, expenses });
+  const complete = profileIsComplete(input);
+  const range = complete ? findSavingsRange(allSavingsRanges(), input.confirmedWeeklyCommitmentCents) : null;
+  const profile: FinancialProfile = {
+    id: user.id,
+    userId: user.id,
+    targetSavingsCents: input.targetSavingsCents,
+    savingsPurpose: input.savingsPurpose,
+    savingsPurposeText: input.savingsPurposeText,
+    takeHomePayCents: input.takeHomePayCents,
+    incomeFrequency: input.incomeFrequency,
+    expenses,
+    monthlyIncomeCents: estimate.monthlyIncomeCents,
+    totalMonthlyExpensesCents: estimate.totalMonthlyExpensesCents,
+    estimatedRemainingIncomeCents: estimate.estimatedRemainingIncomeCents,
+    confirmedWeeklyCommitmentCents: input.confirmedWeeklyCommitmentCents,
+    savingsRangeId: range ? range.id : null,
+    completionStatus: complete ? 'COMPLETE' : 'INCOMPLETE',
+    createdAt: existing ? existing.createdAt : nowIso,
+    updatedAt: nowIso,
+  };
+  financialProfiles = [profile, ...financialProfiles.filter(p => p && p.userId !== user.id)];
+  requestFlush();
+  res.json(financialProfileView(user));
+});
+
+app.delete('/api/financial-profile', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  financialProfiles = financialProfiles.filter(p => p && p.userId !== user.id);
+  requestFlush();
+  res.json({ success: true });
+});
+
+// Active ranges, for display. Thresholds only: no member data.
+app.get('/api/savings-ranges', (req: Request, res: Response) => {
+  if (!getCurrentUser(req)) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  res.json({ ranges: allSavingsRanges().filter(r => r.active).sort((a, b) => a.minWeeklyCents - b.minWeeklyCents).map(rangeView) });
+});
+
+// --- MutualPool-hosted pods ---
+
+function hostedPodsInRange(rangeId: string): Pod[] {
+  return pods.filter(p => isHostedPod(p) && p.savingsRangeId === rangeId && !isDemoPodServer(p));
+}
+function hostedPodHasSeat(pod: Pod): boolean {
+  return pod.status === 'FORMING' && (pod.members || []).length < Math.min(pod.sizeTier || MAX_POD_SIZE, MAX_POD_SIZE);
+}
+
+// Opens a hosted pod for a range. Called only by the server (range
+// auto-provisioning) or an administrator; there is no member-facing route.
+function createHostedPod(range: SavingsRange, opts: { depositTier?: number; sizeTier?: number; savingsPurpose?: SavingsPurposeId; name?: string; actorId: string; actorName: string }): Pod {
+  const nowIso = new Date().toISOString();
+  const depositTier = (opts.depositTier ?? range.matchingCriteria.podDepositTier) as Pod['depositTier'];
+  const sizeTier = opts.sizeTier ?? range.matchingCriteria.podSize;
+  const seq = hostedPodsInRange(range.id).length + 1;
+  const id = `pod_mp_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+  const pod: Pod = {
+    id,
+    name: (opts.name || '').trim() || `MutualPool ${range.name} Pod ${seq}`,
+    description: `Hosted by MutualPool for members saving $${depositTier} a week (${range.name} savings range).`,
+    category: 'MutualPool Hosted',
+    podType: 'OPEN_POD',
+    activationPolicy: 'WHEN_FULL',
+    inviteWindowDays: 0,
+    autoOpenOnExpire: false,
+    inviteCode: crypto.randomBytes(4).toString('hex').toUpperCase(),
+    invitedContacts: [],
+    sizeTier,
+    depositTier,
+    status: 'FORMING',
+    currentCycleWeek: 1,
+    totalCycles: sizeTier,
+    agreementVersion: 'v2.0-2026',
+    holdingFinAccountId: `fa_pod_holding_${Date.now()}`,
+    createdBy: MUTUALPOOL_HOST_ID,
+    creatorName: MUTUALPOOL_HOST_NAME,
+    createdAt: nowIso,
+    members: [],
+    memberCount: 0,
+    weeklyPoolTarget: sizeTier * depositTier,
+    currentWeeklyCollected: 0,
+    welcomeMatchGranted: false,
+    welcomeMatchAmountUsd: 0,
+    contingencyBufferUsd: 0,
+    contingencyBufferInitialUsd: 0,
+    feeBufferContributedUsd: 0,
+    feeBufferRefundedUsd: 0,
+    // Not AUTONOMOUS_AI: that mode means a defaulted creator's pod is backstopped
+    // by platform escrow. A hosted pod runs on its members' deposits like any other.
+    managedBy: 'SYSTEM_AI',
+    stewardName: MUTUALPOOL_HOST_NAME,
+    creatorLastInRotation: false,
+    systemEscrowActive: false,
+    systemEscrowDrawnUsd: 0,
+    hostType: 'MUTUALPOOL',
+    hostId: MUTUALPOOL_HOST_ID,
+    applicableFeeRate: platformFeeRateFor('MUTUALPOOL'),
+    savingsRangeId: range.id,
+    savingsPurpose: opts.savingsPurpose,
+  };
+  pods.unshift(pod);
+  addAuditLog(pod.id, opts.actorId, opts.actorName, 'HOSTED_POD_CREATED',
+    `Opened MutualPool-hosted pod "${pod.name}" for the ${range.name} savings range (${sizeTier} members @ $${depositTier}/wk). Payout fee 10% of each pot, all to MutualPool (no member host reward).`,
+    { savingsRangeId: range.id, sizeTier, depositTier, hostType: 'MUTUALPOOL', applicableFeeRate: pod.applicableFeeRate, savingsPurpose: opts.savingsPurpose || null });
+  savePodsToDisk();
+  return pod;
+}
+
+// Why this member may not join this hosted pod, or null. Other pods: null.
+function hostedPodJoinProblem(pod: Pod, user: User): { error: string; message: string } | null {
+  if (!isHostedPod(pod)) return null;
+  const profile = financialProfileOf(user.id);
+  if (!profile || profile.completionStatus !== 'COMPLETE') {
+    return { error: 'FINANCIAL_PROFILE_REQUIRED', message: 'Complete Financial Awareness first: MutualPool-hosted pods are matched to your confirmed weekly savings commitment.' };
+  }
+  const range = currentRangeOf(profile);
+  if (!range || range.id !== pod.savingsRangeId || profile.confirmedWeeklyCommitmentCents < Math.round((Number(pod.depositTier) || 0) * 100)) {
+    return { error: 'SAVINGS_RANGE_MISMATCH', message: `This pod is for a different savings range than your weekly commitment${range ? ` (yours is ${range.name})` : ''}. Use Join a Pod to see the pods that match you.` };
+  }
+  return null;
+}
+
+// Hosted pods an administrator has already been told could not start (once per run).
+const hostedStartAlerted = new Set<string>();
+
+// A hosted pod starts by itself once it is full and every member has signed.
+function startHostedPodIfReady(pod: Pod): boolean {
+  if (!isHostedPod(pod) || pod.status !== 'FORMING') return false;
+  if (pod.members.length < 2 || pod.members.length < pod.sizeTier) return false;
+  if (pod.members.some(m => !m.agreementSignedAt)) return false;
+  const locked = lockPodRotation(pod);
+  if (locked.ok === false) {
+    if (!hostedStartAlerted.has(pod.id)) {
+      hostedStartAlerted.add(pod.id);
+      notifyAdmins({ type: 'STATUS_CHANGE', title: '⚠️ Hosted pod could not start', message: `"${pod.name}" is full and signed, but its rotation could not be planned (${locked.plan.error}: ${locked.plan.seasonedCount} established members for ${locked.plan.earlyCount} early slots).`, podId: pod.id, podName: pod.name });
+    }
+    return false;
+  }
+  addAuditLog(pod.id, 'SYSTEM', MUTUALPOOL_HOST_NAME, 'ROTATION_LOCKED',
+    `MutualPool-hosted pod reached full capacity (${pod.members.length}/${pod.sizeTier}), every member signed, and it started on its own. 1-time cryptographically secure random shuffle within trust tiers set rotation order 0 to ${pod.members.length - 1} (pot $${locked.potUsd.toLocaleString()}).`,
+    { totalMembers: pod.members.length, agreementVersion: pod.agreementVersion, earlySlotCount: locked.plan.earlyCount, potUsd: locked.potUsd, hostType: 'MUTUALPOOL' });
+  for (const m of pod.members) {
+    createNotification({
+      userId: m.userId,
+      type: 'STATUS_CHANGE',
+      title: `"${pod.name}" has started`,
+      message: `Your pod is full and running. Your payout is in week ${m.rotationIndex + 1} of ${pod.totalCycles}. Deposits of $${Number(pod.depositTier).toFixed(2)} are taken every Thursday: keep your commitment week after week.`,
+      podId: pod.id,
+      podName: pod.name,
+    });
+  }
+  savePodsToDisk();
+  return true;
+}
+
+// Join a Pod: hosted pods in the member's Savings Range. Nobody is enrolled
+// here; the member picks one and joins through POST /api/pods/:id/join.
+app.get('/api/savings-range/matches', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  const profile = financialProfileOf(user.id);
+  if (!profile || profile.completionStatus !== 'COMPLETE') {
+    return res.json({ status: 'PROFILE_REQUIRED', savingsRange: null, pods: [], memberOf: [], bestPodId: null });
+  }
+  const range = currentRangeOf(profile);
+  if (!range) {
+    const lowest = allSavingsRanges().filter(r => r.active).sort((a, b) => a.minWeeklyCents - b.minWeeklyCents)[0];
+    return res.json({
+      status: 'NO_RANGE',
+      savingsRange: null,
+      lowestWeeklyCents: lowest ? lowest.minWeeklyCents : null,
+      pods: [],
+      memberOf: [],
+      bestPodId: null,
+    });
+  }
+  const inRange = hostedPodsInRange(range.id);
+  const memberOf = inRange.filter(p => isPodMember(p, user) && p.status !== 'COMPLETED');
+  let open = inRange.filter(p => hostedPodHasSeat(p) && !isPodMember(p, user));
+  // Reuse a forming pod whenever one has a seat; open a new one only when none does.
+  if (!open.length && range.matchingCriteria.autoProvision) {
+    open = [createHostedPod(range, { actorId: 'SYSTEM', actorName: MUTUALPOOL_HOST_NAME })];
+  }
+  const ranked = rankHostedPods(
+    open.map(p => ({ id: p.id, savingsRangeId: p.savingsRangeId, savingsPurpose: p.savingsPurpose as SavingsPurposeId | undefined, memberCount: p.members.length, sizeTier: p.sizeTier, createdAt: p.createdAt })),
+    profile.savingsPurpose,
+  );
+  const account = users.find(u => u && u.id === user.id) || user;
+  const matches = ranked.map(r => {
+    const pod = open.find(p => p.id === r.id)!;
+    const cap = potCapProblem(account, pod);
+    return {
+      pod: toPodView(pod, user, false),
+      purposeMatch: Boolean(pod.savingsPurpose && pod.savingsPurpose === profile.savingsPurpose),
+      seatsLeft: Math.max(0, pod.sizeTier - pod.members.length),
+      eligible: !cap,
+      ineligibleReason: cap ? cap.message : null,
+      firstChargeUsd: roundCents(pod.depositTier * (1 + FEES.depositFeeRate)),
+      potUsd: roundCents(pod.sizeTier * pod.depositTier),
+      netPayoutUsd: payoutFeeSplit({ grossUsd: pod.sizeTier * pod.depositTier, hostType: 'MUTUALPOOL', hostRewardApplies: false }).netPayoutUsd,
+    };
+  });
+  res.json({
+    status: matches.some(m => m.eligible) ? 'MATCHED' : 'NO_PODS',
+    savingsRange: rangeView(range),
+    pods: matches,
+    memberOf: memberOf.map(p => toPodView(p, user, false)),
+    bestPodId: matches.find(m => m.eligible)?.pod.id || null,
+  });
+});
+
+// --- Administration: ranges and hosted pods ---
+
+function rangeInputFrom(body: any) {
+  const c = body?.matchingCriteria || {};
+  return {
+    name: typeof body?.name === 'string' ? body.name.trim() : body?.name,
+    minWeeklyCents: body?.minWeeklyCents,
+    maxWeeklyCents: body?.maxWeeklyCents === undefined ? null : body.maxWeeklyCents,
+    active: body?.active === undefined ? true : body.active,
+    matchingCriteria: {
+      purposes: c.purposes === undefined ? [] : c.purposes,
+      podDepositTier: c.podDepositTier,
+      podSize: c.podSize,
+      autoProvision: c.autoProvision === undefined ? false : c.autoProvision,
+    },
+  };
+}
+// Thresholds changed: re-place every completed profile.
+function reassignSavingsRanges(): void {
+  for (const p of financialProfiles) {
+    if (!p) continue;
+    const range = currentRangeOf(p);
+    p.savingsRangeId = range ? range.id : null;
+  }
+}
+
+app.get('/api/admin/savings-ranges', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  // Counts only: individual financial profiles are never shown, even to administrators.
+  const complete = financialProfiles.filter(p => p && p.completionStatus === 'COMPLETE');
+  res.json({
+    ranges: [...allSavingsRanges()].sort((a, b) => a.minWeeklyCents - b.minWeeklyCents).map(r => {
+      const hosted = hostedPodsInRange(r.id);
+      return {
+        ...r,
+        memberCount: complete.filter(p => currentRangeOf(p)?.id === r.id).length,
+        hostedPods: hosted.map(p => ({ id: p.id, name: p.name, status: p.status, members: p.members.length, sizeTier: p.sizeTier, depositTier: p.depositTier, savingsPurpose: p.savingsPurpose || null, createdAt: p.createdAt })),
+      };
+    }),
+    profilesCompleted: complete.length,
+    profilesWithoutRange: complete.filter(p => !currentRangeOf(p)).length,
+    depositTiers: HOSTED_POD_DEPOSIT_TIERS,
+    purposes: SAVINGS_PURPOSES,
+    podSize: { min: MIN_POD_SIZE, max: MAX_POD_SIZE },
+    fees: { payoutFeeRate: FEES.payoutFeeRate, userPodPlatformRate: platformFeeRateFor('USER'), hostedPodPlatformRate: platformFeeRateFor('MUTUALPOOL') },
+  });
+});
+
+app.post('/api/admin/savings-ranges', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const admin = getCurrentUser(req);
+  const input = rangeInputFrom(req.body);
+  const problem = savingsRangeProblem(input, allSavingsRanges(), { minPodSize: MIN_POD_SIZE, maxPodSize: MAX_POD_SIZE });
+  if (problem) return res.status(400).json({ error: 'INVALID_RANGE', message: problem });
+  const nowIso = new Date().toISOString();
+  const range: SavingsRange = { id: `range_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, ...input, createdAt: nowIso, updatedAt: nowIso };
+  savingsRanges.push(range);
+  reassignSavingsRanges();
+  addAuditLog(undefined, admin?.id || 'admin', admin?.displayName || 'Administrator', 'SAVINGS_RANGE_UPDATED', `Created savings range "${range.name}".`, { rangeId: range.id, after: range });
+  requestFlush();
+  res.json({ range });
+});
+
+app.put('/api/admin/savings-ranges/:id', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const admin = getCurrentUser(req);
+  const range = allSavingsRanges().find(r => r.id === req.params.id);
+  if (!range) return res.status(404).json({ error: 'RANGE_NOT_FOUND' });
+  const input = rangeInputFrom({ ...range, ...req.body, matchingCriteria: { ...range.matchingCriteria, ...(req.body?.matchingCriteria || {}) } });
+  const problem = savingsRangeProblem(input, allSavingsRanges().filter(r => r.id !== range.id), { minPodSize: MIN_POD_SIZE, maxPodSize: MAX_POD_SIZE });
+  if (problem) return res.status(400).json({ error: 'INVALID_RANGE', message: problem });
+  const before = { ...range, matchingCriteria: { ...range.matchingCriteria } };
+  Object.assign(range, input, { updatedAt: new Date().toISOString() });
+  reassignSavingsRanges();
+  addAuditLog(undefined, admin?.id || 'admin', admin?.displayName || 'Administrator', 'SAVINGS_RANGE_UPDATED', `Updated savings range "${range.name}".`, { rangeId: range.id, before, after: range });
+  requestFlush();
+  res.json({ range });
+});
+
+app.post('/api/admin/hosted-pods', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+  const admin = getCurrentUser(req);
+  const body = req.body || {};
+  const range = allSavingsRanges().find(r => r.id === body.savingsRangeId);
+  if (!range || !range.active) return res.status(400).json({ error: 'RANGE_NOT_FOUND', message: 'Choose an active savings range.' });
+  const depositTier = body.depositTier === undefined ? range.matchingCriteria.podDepositTier : Number(body.depositTier);
+  const sizeTier = body.sizeTier === undefined ? range.matchingCriteria.podSize : Number(body.sizeTier);
+  if (!(HOSTED_POD_DEPOSIT_TIERS as readonly number[]).includes(depositTier) || depositTier * 100 > range.minWeeklyCents) {
+    return res.status(400).json({ error: 'INVALID_INPUT', message: 'The weekly deposit must be an existing deposit tier and no more than the range minimum.' });
+  }
+  if (!isValidPodSize(sizeTier)) {
+    return res.status(400).json({ error: 'INVALID_INPUT', message: `A pod can have ${MIN_POD_SIZE} to ${MAX_POD_SIZE} members.` });
+  }
+  if (body.savingsPurpose !== undefined && body.savingsPurpose !== null && !(SAVINGS_PURPOSES as readonly unknown[]).includes(body.savingsPurpose)) {
+    return res.status(400).json({ error: 'INVALID_INPUT', message: 'savingsPurpose must come from the savings purpose list.' });
+  }
+  if (body.name !== undefined && (typeof body.name !== 'string' || body.name.length > 120)) {
+    return res.status(400).json({ error: 'INVALID_INPUT', message: 'Pod name must be at most 120 characters.' });
+  }
+  const purpose = (body.savingsPurpose || undefined) as SavingsPurposeId | undefined;
+  // Do not open a second pod while an equivalent one still has seats.
+  const duplicate = hostedPodsInRange(range.id).find(p => hostedPodHasSeat(p) && p.depositTier === depositTier && (p.savingsPurpose || undefined) === purpose);
+  if (duplicate && body.allowDuplicate !== true) {
+    return res.status(409).json({ error: 'HOSTED_POD_EXISTS', message: `"${duplicate.name}" is still forming with ${duplicate.sizeTier - duplicate.members.length} seats left. Fill it first, or confirm to open another.`, podId: duplicate.id });
+  }
+  const pod = createHostedPod(range, { depositTier, sizeTier, savingsPurpose: purpose, name: body.name, actorId: admin?.id || 'admin', actorName: admin?.displayName || 'Administrator' });
+  requestFlush();
+  res.json({ pod });
+});
+
+// ===========================================================================
 // CREATOR POOLS (CREATOR_POOLS_SPEC.md)
 //
 // A creator opens a pool with one permanent link (/c/<handle>). Followers who
@@ -11558,7 +12072,8 @@ MUTUALPOOL OFFICIAL FAQ KNOWLEDGE BASE:
 - Payout Execution: the net payout (90% of the pot) is credited to the recipient's MutualPool balance on Friday. Withdrawals go to the member's linked bank account, no withdrawal fee; banks on instant rails (RTP/FedNow) receive them in seconds, others in 1-3 business days. Later rotation weeks never wait for a pending withdrawal. Recently deposited card funds may be held while contestable; chargebacks or fraud reviews can hold or reverse funds.
 - Fee Structure (the ONLY fees are the 10% payout fee and the 7% hardship repayment fee):
   * 5% Pod Buffer (NOT a fee): set aside with EVERY weekly deposit when it is taken (a $20 deposit moves $21 from the balance). It goes into the pod's own contingency buffer, covers a member's missed week so Friday's payout stays on time, and whatever is unused is refunded to the members when the pod completes. Never call it a platform fee or MutualPool revenue.
-  * 10% Payout Fee: deducted from each payout (e.g. $40 on a $400 pot = $360 net). 3% of the pot goes to the final-slot holder as Host Reward; 7% goes to MutualPool.
+  * 10% Payout Fee: deducted from each payout (e.g. $40 on a $400 pot = $360 net). 3% of the pot goes to the final-slot holder as Host Reward; 7% goes to MutualPool. In a MutualPool-hosted pod (opened by MutualPool for a Savings Range and joined through "Join a Pod") there is no member host and no Host Reward, so the whole 10% goes to MutualPool; members pay the same 10% as in any other pod.
+- Financial Awareness & Savings Range: in "Financial Awareness" a member enters a savings goal, take-home pay and bills, sees an estimate of what is left (an estimate, not guaranteed spare money) and confirms a weekly savings commitment. That commitment places them in a Savings Range, and "Join a Pod" shows MutualPool-hosted pods for that range. The profile is private to the member, is never shown to other members, and nobody is enrolled without confirming.
   * 7% Hardship Repayment Fee: added to a hardship advance when it is repaid.
   * No withdrawal fee, no card top-up fee, no interest. Fee changes get 30 days' notice in the app and apply only to pods that start afterwards.
 - Premium Perks: some partner perks are PREMIUM. They unlock for members whose employer or gig platform deposits earnings directly into their MutualPool account; one such deposit every 35 days keeps them unlocked. Direct deposit is optional. Members set it up from Add Funds (their MutualPool account and routing numbers). Standard perks stay open to every verified member.
@@ -11936,6 +12451,8 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
   registerCollection({ collection: 'partnerInquiries', get: () => partnerInquiries, set: docs => { partnerInquiries = docs; } });
   registerCollection({ collection: 'creatorInterests', get: () => creatorInterests, set: docs => { creatorInterests = docs; } });
+  registerCollection({ collection: 'financialProfiles', get: () => financialProfiles, set: docs => { financialProfiles = docs; } });
+  registerCollection({ collection: 'savingsRanges', get: () => savingsRanges, set: docs => { savingsRanges = docs; } });
   registerCollection({ collection: 'creatorProfiles', get: () => creatorProfiles, set: docs => { creatorProfiles = docs; } });
   registerCollection({ collection: 'creatorPools', get: () => creatorPools, set: docs => { creatorPools = docs; } });
   registerCollection({ collection: 'creatorWaitlist', get: () => creatorWaitlist, set: docs => { creatorWaitlist = docs; } });

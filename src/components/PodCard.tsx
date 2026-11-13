@@ -49,8 +49,9 @@ export const PodCard: React.FC<PodCardProps> = ({
 
   const effectiveMembers = [...(pod.members || [])];
 
+  const isHosted = pod.hostType === 'MUTUALPOOL';
   const displayCount = Math.max(
-    1,
+    isHosted ? 0 : 1,
     pod.memberCount || 0,
     effectiveMembers.length,
     pod.members ? pod.members.length : 0
@@ -62,6 +63,8 @@ export const PodCard: React.FC<PodCardProps> = ({
     (pod.status === 'COMPLETED' || effectiveMembers.every(m => m.hasReceivedPayout))
   );
 
+  // A MutualPool-hosted pod that has not started can be left (the deposit is refunded).
+  const canLeave = hasEveryMemberReceivedPayout || (isHosted && pod.status === 'FORMING');
   const isFull = displayCount >= pod.sizeTier;
   const progressPercent = Math.min(100, Math.round((displayCount / pod.sizeTier) * 100));
 
@@ -329,7 +332,7 @@ export const PodCard: React.FC<PodCardProps> = ({
       {/* Action Footer */}
       <div className="pt-3 border-t border-[#DDE1E6] flex items-center justify-between gap-2">
         <span className="text-[11px] text-[#6B7280]">
-          {t('pod.creator')}: <strong className="text-[#111827]">{pod.creatorName}</strong>
+          {isHosted ? t('hosted.host') : t('pod.creator')}: <strong className={isHosted ? 'text-[#005FB8]' : 'text-[#111827]'}>{pod.creatorName}</strong>
         </span>
 
         <div className="flex items-center gap-2">
@@ -349,15 +352,15 @@ export const PodCard: React.FC<PodCardProps> = ({
 
           {isMember ? (
             <button
-              disabled={!hasEveryMemberReceivedPayout}
+              disabled={!canLeave}
               onClick={() => onLeavePod?.(pod)}
               title={
-                !hasEveryMemberReceivedPayout
+                !canLeave
                   ? t('pod.leavePodDisabledTitle')
                   : t('pod.leavePod')
               }
               className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-xs border ${
-                !hasEveryMemberReceivedPayout
+                !canLeave
                   ? 'bg-[#F1F5F9] text-[#94A3B8] border-[#CBD5E1] cursor-not-allowed opacity-80'
                   : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 cursor-pointer'
               }`}
