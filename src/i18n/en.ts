@@ -27,9 +27,9 @@ export const en = {
 
   // Hero Section
   "hero.badge": "For anyone saving with people they trust",
-  "hero.title": "Build savings, access cash pools, and unlock benefits through the power of community.",
+  "hero.title": "It's Not How Much You Make. It's How Much You Save.",
   "hero.subtitle":
-    "Pool weekly cash deposits with your friends, crew and other members — one member gets the full pot each week, on a fair, fixed rotation.",
+    "Build better savings habits through discipline, commitment, and the power of community. Pool weekly cash deposits with your friends, crew and other members — one member gets the full pot each week, on a fair, fixed rotation.",
   "hero.startPodFree": "Start a Pod Free",
   "hero.goToDashboard": "Go to Dashboard",
   "hero.watchVideo": "For Gig Workers",
