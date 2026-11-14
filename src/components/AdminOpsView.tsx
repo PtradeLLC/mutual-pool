@@ -85,7 +85,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
+      if (res.ok && data.success) {    
         toast.success(
           `Design approved and dispatched to Fourthwall! Order #${data.fourthwall?.fourthwallOrderNumber || data.design?.fourthwallOrderNumber} is queued for printing.`,
           { title: 'Fourthwall Order Confirmed' }
