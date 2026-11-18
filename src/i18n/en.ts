@@ -83,10 +83,10 @@ export const en = {
   "hero.featurePodInviteDesc": "Create and invite or join trusted pods with friends, family, and co-workers",
   "hero.featureSafeDepositsTitle": "FDIC Pass-Through",
   "hero.featureSafeDepositsDesc": "Insured deposits up to $250k",
-  "hero.featurePerksBenefitsTitle": "Gig & Trade Workers",
-  "hero.featurePerksBenefitsDesc": "Members gets unique benefits and perks that are not provided by their current employer.",
-  "hero.featureEmergencySwapTitle": "Earn from Brand Campaigns",
-  "hero.featureEmergencySwapDesc": "Members earn money everyday by wearing partner sponsored clothing on their routes.",
+  "hero.featurePerksBenefitsTitle": "Unique Benefits & Perks",
+  "hero.featurePerksBenefitsDesc": "Members gets unique benefits and perks that are not provided elsewhere.",
+  "hero.featureEmergencySwapTitle": "Your Turn, Your Way",
+  "hero.featureEmergencySwapDesc": "Receive your payout when your turn arrives, or request a swap with another member for approval in an emergency.",
 
   // Interactive ROSCA Calculator Simulator
   // Gig platform strip (landing page)
@@ -623,7 +623,7 @@ export const en = {
   "hero.fdicBadgeTitle.noTreasury": "Secure Deposits",
   "hero.fdicBadgeSub.noTreasury": "Bank-grade security",
   "hero.featureSafeDepositsTitle.noTreasury": "Secure Deposits",
-  "hero.featureSafeDepositsDesc.noTreasury": "Get deposits in and out of your own money account; and withdraw to your bank any time",
+  "hero.featureSafeDepositsDesc.noTreasury": "Get deposits in to fund the weekly pot so that someone gets a payout turn",
   "calculator.fdicStatusLabel.noTreasury": "Payment Processing:",
   "calculator.fdicEligible.noTreasury": "Identity-verified members",
   "dash.fdicInsuredFooter.noTreasury": "Card payments are processed by Stripe. MutualPool is a technology platform, not a bank.",
