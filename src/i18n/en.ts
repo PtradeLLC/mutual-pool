@@ -86,7 +86,7 @@ export const en = {
   "hero.featurePerksBenefitsTitle": "Unique Benefits & Perks",
   "hero.featurePerksBenefitsDesc": "Members gets unique benefits and perks that are not provided elsewhere.",
   "hero.featureEmergencySwapTitle": "Your Turn, Your Way",
-  "hero.featureEmergencySwapDesc": "Receive your payout when your turn arrives, or request a swap with another member for approval in an emergency.",
+  "hero.featureEmergencySwapDesc": "Receive your payout when your turn arrives or request a swap with another member for approval in an emergency.",
 
   // Interactive ROSCA Calculator Simulator
   // Gig platform strip (landing page)
