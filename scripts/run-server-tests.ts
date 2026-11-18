@@ -33,6 +33,11 @@ const serverEnv: NodeJS.ProcessEnv = {
   GROQ_API_KEY: '',
   FOURTHWALL_API_KEY: '',
   FOURTHWALL_WEBHOOK_SECRET: 'fw_test_secret',
+  // The server loads .env, which on a developer machine holds the live alert
+  // webhook and mail key. Blank them (dotenv never overrides a variable that is
+  // already set) so test incidents and test emails stay off Slack and Resend.
+  ALERT_WEBHOOK_URL: '',
+  RESEND_API_KEY: '',
 };
 
 async function waitForHealth(timeoutMs = 90_000): Promise<void> {
