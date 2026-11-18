@@ -151,9 +151,9 @@ export const en = {
 
   // How It Works
   "howItWorks.badge": "Transparent Architecture",
-  "howItWorks.title": "How MutualPool Pods Work",
+  "howItWorks.title": "Pooling for Essential workers, Trades, and Independent Contractors",
   "howItWorks.subtitle":
-    "Digital Rotating Savings and Credit Associations (ROSCAs) engineered specifically for gig workers, trades, and independent contractor circles.",
+    "Digital Rotating Savings and Credit Associations (ROSCAs) engineered specifically for hard workers, trades, and independent contractor circles.",
   "howItWorks.step1Title": "Forming Circle",
   "howItWorks.step1Desc":
     "Create or Join an open pod in your trade, platform, or local independent worker network.",
@@ -162,7 +162,7 @@ export const en = {
     "When capacity is reached, a cryptographically random shuffle permanently locks rotation indices.",
   "howItWorks.step3Title": "Weekly Payout",
   "howItWorks.step3Desc":
-    "Each week everyone deposits the agreed amount. The pot is paid out in full to whoever's next in the rotation, straight into their MutualPool account.",
+    "Each week everyone deposits the agreed amount. The pot is paid out in full to whoever's next in the rotation, straight into their account.",
   "howItWorks.step4Title": "Emergency Voting",
   "howItWorks.step4Desc":
     "Facing sudden transmission or brake failure? Submit a reprioritization request. Members vote to swap payout weeks transparently.",
@@ -2439,7 +2439,7 @@ export const en = {
 
   // Shown instead of the MutualPool account-claim strings until the Treasury program is live (see src/lib/treasuryClaims.ts)
   "howItWorks.step3Title.noTreasury": "Weekly Payout",
-  "howItWorks.step3Desc.noTreasury": "Each week everyone deposits the agreed amount. The pot is paid out in full to whoever's next in the rotation, straight into their MutualPool account.",
+  "howItWorks.step3Desc.noTreasury": "Each week everyone deposits the agreed amount. The pot is paid out in full to whoever's next in the rotation, straight into their account.",
   "dash.stripeTreasuryAccount.noTreasury": "Balance & Payouts",
   "campaigns.stats.paymentChannelVal.noTreasury": "MutualPool account",
   "campaigns.enroll.termAgreeEarnings.noTreasury": "I acknowledge that daily earnings ($55–$75/day) are credited to my MutualPool account upon daily shift completion.",
