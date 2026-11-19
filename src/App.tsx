@@ -31,6 +31,7 @@ import { PerksMarketplace } from './components/PerksMarketplace';
 import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
 import { SavingsJourneyCard } from './components/SavingsJourneyCard';
+import { reportHeroConversion } from './lib/heroCampaignClient';
 import type { FinancialProfileView } from './lib/financialAwareness';
 import { DEFAULT_POD_SIZE } from './types';
 import { CampaignsPage } from './components/CampaignsPage';
@@ -1016,6 +1017,8 @@ export default function App() {
     }
   };
   useEffect(() => {
+    // Signed in after clicking a hero campaign: let the server credit the sign-up.
+    if (currentUser?.id && currentUser.id !== 'usr_guest') reportHeroConversion();
     if (currentUser?.id) loadFinancialView();
     else setFinancialView(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2316,7 +2319,7 @@ export default function App() {
               setShowBankModal(true);
             }}
             onPodCreated={(newPod) => {
-              if (newPod) askFeedback('pod_created');
+              if (newPod) { askFeedback('pod_created'); reportHeroConversion(); }
               setShowCreatePodModal(false);
               setCreatePodPrefill(null);
               if (newPod) {

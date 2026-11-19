@@ -37,6 +37,8 @@ const serverEnv: NodeJS.ProcessEnv = {
   // webhook and mail key. Blank them (dotenv never overrides a variable that is
   // already set) so test incidents and test emails stay off Slack and Resend.
   ALERT_WEBHOOK_URL: '',
+  // Hero campaigns use fixed offline AI output in tests (src/server/heroAi.ts).
+  HERO_AI_PROVIDER: 'stub',
   RESEND_API_KEY: '',
 };
 

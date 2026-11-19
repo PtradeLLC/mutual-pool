@@ -19,7 +19,8 @@ async function api(path: string, init: RequestInit = {}) {
 const send = (headers: Record<string, string>, payload: unknown) => api('/api/telemetry', { method: 'POST', headers, body: JSON.stringify(payload) });
 
 test('errors from different people group together, by screen, with personal data masked', async () => {
-  const code = `TEST_${nonce().toUpperCase()}`;
+  // Letters only: a run of digits in the code would be masked like a card number.
+  const code = `TEST_${nonce().toUpperCase().replace(/[0-9]/g, 'X')}`;
   for (let i = 0; i < 3; i++) {
     const r = await send(json, {
       visitorId: nonce(), sessionId: nonce(), appVersion: 'test', language: 'en',

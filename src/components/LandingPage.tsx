@@ -3,6 +3,8 @@ import { FEES } from '../lib/legal';
 import { Pod, User, Perk, isDemoPod, POD_SIZE_SUGGESTIONS, MIN_POD_SIZE, MAX_POD_SIZE } from '../types';
 import { savePerkToFirestore } from '../lib/firestoreService';
 import { HeroCarousel } from './HeroCarousel';
+import { useHeroCampaign, trackHeroClick } from '../lib/heroCampaignClient';
+import type { PublicHeroCampaign } from '../lib/heroCampaigns';
 import { openReportProblem } from '../lib/telemetry';
 import bikerAdImg from '../assets/images/bikerad.png';
 import { Logo } from './Logo';
@@ -73,7 +75,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenCreators,
 }) => {
   const isAuthUser = Boolean(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
-  const { t, formatCurrency } = useTranslation();
+  const { t, formatCurrency, language } = useTranslation();
+  // AI hero campaign (English copy only); null means the evergreen hero below.
+  const { campaign: heroCampaign, dismiss: dismissHeroCampaign } = useHeroCampaign(language === 'en');
   const { country, formatAmount } = useCountry();
 
   const handleActionOrAuth = (
@@ -84,6 +88,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       onGoToDashboard(destinationTab || 'explore-pods');
     } else {
       onOpenAuth(mode);
+    }
+  };
+
+  // Where a campaign's button leads. Only destinations inside the app exist.
+  const handleHeroCampaignCta = (campaign: PublicHeroCampaign) => {
+    trackHeroClick(campaign.id);
+    switch (campaign.ctaDestination) {
+      case 'CREATORS': return onOpenCreators ? onOpenCreators() : handleActionOrAuth('REGISTER', 'explore-pods');
+      case 'PARTNERS': return onOpenPartners ? onOpenPartners() : handleActionOrAuth('REGISTER', 'explore-pods');
+      case 'PERKS': return handleActionOrAuth('REGISTER', 'perks');
+      case 'HOW_IT_WORKS': return onOpenHowItWorks ? onOpenHowItWorks() : handleActionOrAuth('REGISTER', 'explore-pods');
+      case 'JOIN_POD': return handleActionOrAuth('REGISTER', 'explore-pods');
+      default: return handleActionOrAuth('REGISTER', 'my-pods');
     }
   };
 
@@ -535,6 +552,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {(() => {
         const heroImageElement = (
           <HeroCarousel
+            campaign={heroCampaign}
+            onCampaignCta={handleHeroCampaignCta}
+            onCampaignError={dismissHeroCampaign}
             renderOverlay={(slide) => (
               <>
                 {/* Floating Badge Top Right */}

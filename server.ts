@@ -97,6 +97,17 @@ import {
   chooseSeat, canHoldSlot, heldSlotReleaseDue, collapseSlot, isStalled, addBusinessDays, heldBalanceUsd,
   creatorEarnsCommission, JoinQueue, creatorPoolAgreementText, withdrawalBankProblem, bankAccountKey,
 } from './src/server/creatorPools';
+import {
+  defaultHeroSettings, applySettingsPatch, trendDedupeKey, isDuplicateTrend, evaluateCampaignPolicy, campaignWindow, scheduleProblem,
+  liveState, pickActiveCampaign, emptyCounts, addCounts, clickThroughRate, engagementScore, contentFromConcept, buildImagePrompt,
+  HERO_CATEGORIES, ENGAGEMENT_WEIGHTS, LIMITS as HERO_LIMITS,
+} from './src/lib/heroCampaigns';
+import type {
+  HeroTrend, HeroCampaign, HeroAsset, HeroPerformance, HeroSettings, PolicyResult, CampaignApproval, CampaignConcept, TrendAnalysis,
+  PerformanceCounts, PublicHeroCampaign,
+} from './src/lib/heroCampaigns';
+import { getHeroAiProvider, heroAiStatus, describeAiError, optimizeHeroImage } from './src/server/heroAi';
+import type { HeroAiProvider } from './src/server/heroAi';
 import { payoutFeeSplit, hostTypeOf, platformFeeRateFor, MUTUALPOOL_HOST_ID, MUTUALPOOL_HOST_NAME } from './src/server/payoutFees';
 import {
   defaultSavingsRanges, validateProfileInput, computeEstimate, monthlyEquivalentCents, profileIsComplete, missingForCompletion,
@@ -9086,6 +9097,625 @@ app.post('/api/admin/app-health/feedback/:id/done', (req: Request, res: Response
 });
 
 // ===========================================================================
+// AI HERO CAMPAIGNS
+//
+// Discovers current trends (search-grounded), drafts campaign concepts and a
+// hero image for the ones that fit MutualPool, and shows the approved, in-date
+// campaign as the first slide of the landing-page hero. Manual approval is the
+// default; automatic publication is an explicit administrator switch and never
+// applies to sensitive, brand-related or unverified material. Whenever there is
+// no valid campaign the landing page shows its evergreen hero.
+// Rules: src/lib/heroCampaigns.ts. AI calls: src/server/heroAi.ts.
+// ===========================================================================
+let heroTrends: HeroTrend[] = [];
+let heroCampaigns: HeroCampaign[] = [];
+let heroAssets: HeroAsset[] = [];
+let heroPerformance: HeroPerformance[] = [];
+let heroSettingsDoc: HeroSettings | null = null;
+interface HeroRun { id: string; at: string; kind: 'DISCOVERY' | 'CAMPAIGN' | 'IMAGE' | 'COPY'; trigger: string; ok: boolean; summary: string; error?: string }
+let heroRuns: HeroRun[] = [];
+// One AI job at a time (they are slow and cost money).
+let heroBusy: { kind: HeroRun['kind']; label: string; startedAt: string } | null = null;
+const heroAssetBytes = new Map<string, Buffer>();
+const HERO_SYSTEM_ACTOR = { id: 'SYSTEM', displayName: 'MutualPool (automatic)' };
+const HERO_KEEP_TRENDS = 200;
+const HERO_KEEP_CAMPAIGNS = 200;
+
+function heroSettings(): HeroSettings {
+  if (!heroSettingsDoc) heroSettingsDoc = defaultHeroSettings(new Date().toISOString());
+  return heroSettingsDoc;
+}
+function heroPerfOf(campaignId: string): HeroPerformance {
+  let perf = heroPerformance.find(p => p && p.campaignId === campaignId);
+  if (!perf) {
+    perf = { id: campaignId, campaignId, ...emptyCounts(), byDay: {}, registeredUserIds: [], podUserIds: [], updatedAt: new Date().toISOString() };
+    heroPerformance.push(perf);
+  }
+  return perf;
+}
+function heroRecordRun(run: Omit<HeroRun, 'id' | 'at'>): void {
+  heroRuns = [{ id: `hrun_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, at: new Date().toISOString(), ...run }, ...heroRuns].slice(0, 30);
+  if (!run.ok) reportIncident('warning', 'hero_campaign_job_failed', `${run.kind}: ${run.error || run.summary}`, { trigger: run.trigger });
+  requestFlush();
+}
+function heroPolicyFor(campaign: HeroCampaign): PolicyResult {
+  const trend = heroTrends.find(t => t && t.id === campaign.trendId);
+  return evaluateCampaignPolicy(campaign.content, {
+    sensitivity: campaign.sensitivity,
+    brandsMentioned: campaign.brandsMentioned,
+    trendText: `${campaign.trendTitle} ${campaign.trendDescription}`,
+    trendVerified: trend ? trend.verified : Boolean(campaign.trendSourceUrl),
+    blockedTerms: heroSettings().blockedTerms,
+  });
+}
+function heroLog(campaign: HeroCampaign, action: CampaignApproval['action'], actor: { id: string; displayName: string }, note?: string): void {
+  campaign.approvals = [...(campaign.approvals || []), { action, byUserId: actor.id, byName: actor.displayName, at: new Date().toISOString(), note }].slice(-60);
+  campaign.updatedAt = new Date().toISOString();
+}
+function heroDeleteAsset(assetId: string | null | undefined): void {
+  if (!assetId) return;
+  heroAssets = heroAssets.filter(a => a && a.id !== assetId);
+  heroAssetBytes.delete(assetId);
+}
+
+// Expired campaigns stop showing the moment their end date passes (the public
+// route checks dates itself); this records it and tidies old records.
+function heroRetireExpired(now = new Date()): number {
+  let retired = 0;
+  for (const c of heroCampaigns) {
+    if (!c || (c.status !== 'APPROVED' && c.status !== 'PAUSED')) continue;
+    if (new Date(c.endAt).getTime() > now.getTime()) continue;
+    c.status = 'RETIRED';
+    c.retiredReason = 'EXPIRED';
+    heroLog(c, 'EXPIRED', HERO_SYSTEM_ACTOR, 'The campaign reached its end date.');
+    retired += 1;
+  }
+  for (const t of heroTrends) {
+    if (t && t.status === 'NEW' && new Date(t.suggestedExpiresAt).getTime() <= now.getTime()) t.status = 'EXPIRED';
+  }
+  if (heroTrends.length > HERO_KEEP_TRENDS) heroTrends = heroTrends.slice(0, HERO_KEEP_TRENDS);
+  if (heroCampaigns.length > HERO_KEEP_CAMPAIGNS) {
+    const dropped = heroCampaigns.slice(HERO_KEEP_CAMPAIGNS).filter(c => c.status === 'RETIRED' || c.status === 'REJECTED');
+    const dropIds = new Set(dropped.map(c => c.id));
+    for (const c of dropped) heroDeleteAsset(c.assetId);
+    heroCampaigns = heroCampaigns.filter(c => !dropIds.has(c.id));
+    heroPerformance = heroPerformance.filter(p => !dropIds.has(p.campaignId));
+  }
+  if (retired) requestFlush();
+  return retired;
+}
+
+function heroActiveCampaign(now = new Date()): HeroCampaign | null {
+  const active = pickActiveCampaign(heroCampaigns, now);
+  return active && heroAssets.some(a => a && a.id === active.assetId) ? active : null;
+}
+function heroPublicView(c: HeroCampaign): PublicHeroCampaign {
+  return {
+    id: c.id,
+    label: c.content.label,
+    headline: c.content.headline,
+    description: c.content.description,
+    ctaLabel: c.content.ctaLabel,
+    ctaDestination: c.content.ctaDestination,
+    imageUrl: `/api/hero/assets/${c.assetId}`,
+    imageAlt: c.content.imageAlt,
+    endAt: c.endAt,
+  };
+}
+
+// --- AI jobs ---
+
+async function heroMakeImage(campaign: HeroCampaign, provider: HeroAiProvider): Promise<void> {
+  const concept = campaign.concepts[campaign.selectedConcept] || campaign.concepts[0];
+  const prompt = buildImagePrompt(concept?.imagePrompt || campaign.content.headline, campaign.brandsMentioned);
+  try {
+    const generated = await provider.generateImage(prompt);
+    const image = await optimizeHeroImage(generated);
+    const asset: HeroAsset = {
+      id: `hasset_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      campaignId: campaign.id,
+      mimeType: image.mimeType,
+      width: image.width,
+      height: image.height,
+      bytes: image.data.length,
+      dataBase64: image.data.toString('base64'),
+      prompt,
+      model: generated.model,
+      createdAt: new Date().toISOString(),
+    };
+    const previous = campaign.assetId;
+    heroAssets.push(asset);
+    campaign.assetId = asset.id;
+    delete campaign.imageError;
+    heroDeleteAsset(previous);
+  } catch (err) {
+    // Keep whatever image the campaign already had.
+    campaign.imageError = describeAiError(err);
+    throw err;
+  } finally {
+    campaign.updatedAt = new Date().toISOString();
+  }
+}
+
+async function heroWriteConcepts(trend: HeroTrend, provider: HeroAiProvider): Promise<{ analysis: TrendAnalysis; concepts: CampaignConcept[] }> {
+  let last: { analysis: TrendAnalysis; concepts: CampaignConcept[] } | null = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    last = await provider.generateConcepts(trend, heroSettings());
+    if (last.concepts.length >= 3) break;
+  }
+  if (!last || last.concepts.length < 3) throw new Error(`The model returned ${last?.concepts.length || 0} usable concepts; at least 3 are required.`);
+  // Concepts that already pass the copy rules come first.
+  const passes = (c: CampaignConcept) => evaluateCampaignPolicy(contentFromConcept(c, 'Trending now'), {
+    sensitivity: trend.sensitivity, brandsMentioned: trend.brandsMentioned, trendText: `${trend.title} ${trend.description}`, trendVerified: trend.verified, blockedTerms: heroSettings().blockedTerms,
+  }).ok;
+  last.concepts = [...last.concepts.filter(passes), ...last.concepts.filter(c => !passes(c))].slice(0, 6);
+  return last;
+}
+
+// Drafts a campaign for a trend: analysis, at least three concepts, an image.
+// In automatic mode a clean, low-risk campaign is published straight away.
+async function heroCreateCampaign(trend: HeroTrend, actor: { id: string; displayName: string }, provider: HeroAiProvider): Promise<HeroCampaign> {
+  if (!trend.verified) throw new Error('This trend has no verified source, so no campaign can be made from it.');
+  const settings = heroSettings();
+  const { analysis, concepts } = await heroWriteConcepts(trend, provider);
+  const now = new Date();
+  const window = campaignWindow({ startAt: now, category: trend.category, settings, eventDate: trend.eventDate, suggestedExpiresAt: trend.suggestedExpiresAt, suggestedDurationDays: concepts[0].suggestedDurationDays });
+  const campaign: HeroCampaign = {
+    id: `hcamp_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    trendId: trend.id,
+    trendTitle: trend.title,
+    trendDescription: trend.description,
+    trendSourceName: trend.sourceName,
+    trendSourceUrl: trend.sourceUrl,
+    category: trend.category,
+    status: 'DRAFT',
+    priority: settings.defaultPriority,
+    startAt: window.startAt,
+    endAt: window.endAt,
+    analysis,
+    concepts,
+    selectedConcept: 0,
+    content: contentFromConcept(concepts[0], 'Trending now'),
+    assetId: null,
+    policy: { ok: false, issues: [], warnings: [], requiresManualReview: true, reviewReasons: [] },
+    sensitivity: trend.sensitivity,
+    brandsMentioned: trend.brandsMentioned,
+    approvals: [],
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+  campaign.policy = heroPolicyFor(campaign);
+  heroLog(campaign, 'GENERATED', actor, `${concepts.length} concepts from "${trend.title}".`);
+  heroCampaigns.unshift(campaign);
+  trend.status = 'CAMPAIGN_CREATED';
+  requestFlush();
+  try {
+    await heroMakeImage(campaign, provider);
+  } catch (err) {
+    console.warn('[hero] image generation failed; the campaign stays a draft:', describeAiError(err));
+  }
+  if (settings.publishMode === 'AUTO' && campaign.assetId && campaign.policy.ok && !campaign.policy.requiresManualReview && trend.relevanceScore >= settings.relevanceThreshold) {
+    campaign.status = 'APPROVED';
+    campaign.publishedBy = 'AUTO';
+    heroLog(campaign, 'AUTO_PUBLISHED', HERO_SYSTEM_ACTOR, 'Passed every check; published automatically.');
+    addAuditLog(undefined, 'SYSTEM', 'MutualPool', 'HERO_CAMPAIGN_UPDATED', `Hero campaign "${campaign.content.headline}" was published automatically (${campaign.startAt.slice(0, 10)} to ${campaign.endAt.slice(0, 10)}).`, { campaignId: campaign.id, trendId: trend.id });
+  }
+  requestFlush();
+  return campaign;
+}
+
+async function heroRunDiscovery(trigger: string, actor: { id: string; displayName: string }, provider: HeroAiProvider): Promise<{ found: number; added: number; campaigns: number }> {
+  const settings = heroSettings();
+  const now = new Date();
+  const found = await provider.discoverTrends(settings, now);
+  const recent = heroTrends.filter(t => t && now.getTime() - new Date(t.discoveredAt).getTime() < 30 * 86_400_000);
+  const added: HeroTrend[] = [];
+  for (const t of found) {
+    const dedupeKey = trendDedupeKey(t.title);
+    if (isDuplicateTrend({ dedupeKey, sourceUrl: '' }, [...recent, ...added])) continue;
+    added.push({ ...t, id: `htrend_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`, discoveredAt: now.toISOString(), dedupeKey, status: 'NEW' });
+  }
+  heroTrends = [...added, ...heroTrends];
+  requestFlush();
+  // Draft campaigns for the best new trends. High-sensitivity ones wait for a person to ask.
+  const candidates = added
+    .filter(t => t.verified && t.sensitivity !== 'HIGH' && t.relevanceScore >= settings.relevanceThreshold)
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, settings.campaignsPerRun);
+  let campaigns = 0;
+  for (const trend of candidates) {
+    try {
+      await heroCreateCampaign(trend, actor, provider);
+      campaigns += 1;
+    } catch (err) {
+      heroRecordRun({ kind: 'CAMPAIGN', trigger, ok: false, summary: `No campaign for "${trend.title}".`, error: describeAiError(err) });
+    }
+  }
+  heroRecordRun({ kind: 'DISCOVERY', trigger, ok: true, summary: `${found.length} trends found, ${added.length} new, ${campaigns} campaign draft${campaigns === 1 ? '' : 's'}.` });
+  return { found: found.length, added: added.length, campaigns };
+}
+
+// Starts a job in the background; the admin screen polls for the result.
+function heroStartJob(kind: HeroRun['kind'], label: string, trigger: string, work: (provider: HeroAiProvider) => Promise<string | void>): { started: boolean; reason?: string } {
+  const provider = getHeroAiProvider(IS_PRODUCTION);
+  if (!provider) return { started: false, reason: 'No AI provider is configured (GEMINI_API_KEY is not set).' };
+  if (heroBusy) return { started: false, reason: `Another job is running (${heroBusy.label}). Try again when it finishes.` };
+  heroBusy = { kind, label, startedAt: new Date().toISOString() };
+  work(provider)
+    .then(summary => { if (summary) heroRecordRun({ kind, trigger, ok: true, summary }); })
+    .catch(err => heroRecordRun({ kind, trigger, ok: false, summary: `${label} failed.`, error: describeAiError(err) }))
+    .finally(() => { heroBusy = null; requestFlush(); });
+  return { started: true };
+}
+
+function heroTick(now = new Date()): void {
+  try {
+    heroRetireExpired(now);
+    const settings = heroSettings();
+    if (!settings.discoveryEnabled || heroBusy) return;
+    const last = heroRuns.find(r => r.kind === 'DISCOVERY');
+    if (last && now.getTime() - new Date(last.at).getTime() < settings.discoveryIntervalHours * 3_600_000) return;
+    heroStartJob('DISCOVERY', 'Scheduled trend discovery', 'SCHEDULE', async provider => { await heroRunDiscovery('SCHEDULE', HERO_SYSTEM_ACTOR, provider); });
+  } catch (err) {
+    console.error('[hero] tick error:', err);
+  }
+}
+function startHeroScheduler(): void {
+  const timer = setInterval(() => heroTick(), 5 * 60_000);
+  if (typeof timer.unref === 'function') timer.unref();
+}
+
+// --- Public: the landing page ---
+
+app.get('/api/hero/active', (_req: Request, res: Response) => {
+  try {
+    const active = heroActiveCampaign();
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.json({ campaign: active ? heroPublicView(active) : null });
+  } catch (err) {
+    // The hero must never break: no campaign means the evergreen hero.
+    console.error('[hero] active campaign error:', err);
+    res.json({ campaign: null });
+  }
+});
+
+app.get('/api/hero/assets/:id', (req: Request, res: Response) => {
+  const asset = heroAssets.find(a => a && a.id === req.params.id);
+  if (!asset) return res.status(404).json({ error: 'NOT_FOUND' });
+  let bytes = heroAssetBytes.get(asset.id);
+  if (!bytes) {
+    bytes = Buffer.from(asset.dataBase64, 'base64');
+    if (heroAssetBytes.size > 40) heroAssetBytes.clear();
+    heroAssetBytes.set(asset.id, bytes);
+  }
+  // An asset never changes: a new image gets a new id.
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('Content-Type', asset.mimeType);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.end(bytes);
+});
+
+// Impressions and button clicks, counted in aggregate. No visitor identifiers
+// are stored; "unique" is the browser saying it has not seen this campaign before.
+const heroEventSeen = new Map<string, number>();
+app.post('/api/hero/events', (req: Request, res: Response) => {
+  const { campaignId, type, unique } = req.body || {};
+  const active = heroActiveCampaign();
+  if (typeof campaignId !== 'string' || !active || active.id !== campaignId || (type !== 'impression' && type !== 'click')) {
+    return res.json({ counted: false });
+  }
+  // The same visitor cannot inflate a number by repeating a request.
+  const key = `${req.ip}|${campaignId}|${type}`;
+  const nowMs = Date.now();
+  if (heroEventSeen.size > 20_000) heroEventSeen.clear();
+  if (nowMs - (heroEventSeen.get(key) || 0) < (type === 'impression' ? 30_000 : 3_000)) return res.json({ counted: false });
+  heroEventSeen.set(key, nowMs);
+  const perf = heroPerfOf(campaignId);
+  const day = new Date().toISOString().slice(0, 10);
+  const bucket = perf.byDay[day] || (perf.byDay[day] = emptyCounts());
+  if (type === 'impression') {
+    perf.impressions += 1; bucket.impressions += 1;
+    if (unique === true) { perf.uniqueImpressions += 1; bucket.uniqueImpressions += 1; }
+  } else {
+    perf.clicks += 1; bucket.clicks += 1;
+  }
+  perf.updatedAt = new Date().toISOString();
+  res.json({ counted: true });
+});
+
+// A signed-in member who arrived through a campaign. The server decides what
+// counts from its own records: a new account, and a pod the member created,
+// each at most once per member per campaign.
+app.post('/api/hero/conversion', (req: Request, res: Response) => {
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+  const campaign = heroCampaigns.find(c => c && c.id === req.body?.campaignId);
+  const nowMs = Date.now();
+  if (!campaign || !campaign.approvals.some(a => a.action === 'APPROVED' || a.action === 'AUTO_PUBLISHED')
+    || nowMs < new Date(campaign.startAt).getTime() || nowMs > new Date(campaign.endAt).getTime() + 7 * 86_400_000) {
+    return res.json({ registration: false, podCreation: false });
+  }
+  const startMs = new Date(campaign.startAt).getTime();
+  const perf = heroPerfOf(campaign.id);
+  const day = new Date().toISOString().slice(0, 10);
+  const bucket = perf.byDay[day] || (perf.byDay[day] = emptyCounts());
+  const account = users.find(u => u && u.id === user.id) || user;
+  let registration = false;
+  let podCreation = false;
+  if (account.createdAt && new Date(account.createdAt).getTime() >= startMs && !perf.registeredUserIds.includes(user.id) && perf.registeredUserIds.length < 5000) {
+    perf.registeredUserIds.push(user.id);
+    perf.registrations += 1; bucket.registrations += 1;
+    registration = true;
+  }
+  const createdPod = pods.some(p => p && p.createdBy === user.id && !isDemoPodServer(p) && new Date(p.createdAt).getTime() >= startMs);
+  if (createdPod && !perf.podUserIds.includes(user.id) && perf.podUserIds.length < 5000) {
+    perf.podUserIds.push(user.id);
+    perf.podCreations += 1; bucket.podCreations += 1;
+    podCreation = true;
+  }
+  if (registration || podCreation) { perf.updatedAt = new Date().toISOString(); requestFlush(); }
+  res.json({ registration, podCreation });
+});
+
+// --- Administration ---
+
+function heroAdmin(req: Request, res: Response): User | null {
+  if (!checkIsAdmin(req)) { res.status(403).json({ error: 'Access denied. Administrator role required.' }); return null; }
+  return getCurrentUser(req) || ({ id: 'admin', displayName: 'Administrator' } as User);
+}
+function heroCampaignOr404(req: Request, res: Response): HeroCampaign | null {
+  const campaign = heroCampaigns.find(c => c && c.id === req.params.id);
+  if (!campaign) { res.status(404).json({ error: 'CAMPAIGN_NOT_FOUND' }); return null; }
+  return campaign;
+}
+function heroAdminCampaignView(c: HeroCampaign, now: Date) {
+  const perf = heroPerformance.find(p => p && p.campaignId === c.id);
+  const counts: PerformanceCounts = perf ? { impressions: perf.impressions, uniqueImpressions: perf.uniqueImpressions, clicks: perf.clicks, registrations: perf.registrations, podCreations: perf.podCreations } : emptyCounts();
+  const asset = c.assetId ? heroAssets.find(a => a && a.id === c.assetId) : undefined;
+  return {
+    ...c,
+    state: liveState(c, now),
+    imageUrl: asset ? `/api/hero/assets/${asset.id}` : null,
+    image: asset ? { width: asset.width, height: asset.height, bytes: asset.bytes, mimeType: asset.mimeType, model: asset.model, prompt: asset.prompt, createdAt: asset.createdAt } : null,
+    performance: { ...counts, clickThroughRate: clickThroughRate(counts), engagementScore: engagementScore(counts) },
+  };
+}
+
+app.get('/api/admin/hero', (req: Request, res: Response) => {
+  if (!heroAdmin(req, res)) return;
+  const now = new Date();
+  heroRetireExpired(now);
+  const campaigns = heroCampaigns.map(c => heroAdminCampaignView(c, now));
+  const byCategory = HERO_CATEGORIES.map(category => {
+    const list = campaigns.filter(c => c.category === category && c.performance.impressions > 0);
+    const total = list.reduce((sum, c) => addCounts(sum, c.performance), emptyCounts());
+    return { category, campaigns: list.length, ...total, clickThroughRate: clickThroughRate(total), engagementScore: engagementScore(total) };
+  }).filter(row => row.campaigns > 0);
+  const active = heroActiveCampaign(now);
+  res.json({
+    settings: heroSettings(),
+    ai: heroAiStatus(IS_PRODUCTION),
+    busy: heroBusy,
+    runs: heroRuns.slice(0, 12),
+    activeCampaignId: active ? active.id : null,
+    trends: heroTrends.slice(0, 60),
+    campaigns,
+    categoryPerformance: byCategory,
+    engagementWeights: ENGAGEMENT_WEIGHTS,
+  });
+});
+
+app.put('/api/admin/hero/settings', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const current = heroSettings();
+  const body = req.body || {};
+  // Automatic publication is switched on only by an explicit confirmation.
+  if (body.publishMode === 'AUTO' && current.publishMode !== 'AUTO' && body.confirmAutoPublish !== true) {
+    return res.status(400).json({ error: 'CONFIRMATION_REQUIRED', message: 'Confirm that campaigns passing every check may be published without review.' });
+  }
+  const result = applySettingsPatch(current, body, new Date().toISOString());
+  if (result.ok === false) return res.status(400).json({ error: 'INVALID_SETTINGS', message: result.message });
+  if (result.settings.publishMode === 'AUTO' && current.publishMode !== 'AUTO') {
+    result.settings.autoPublishActivatedAt = new Date().toISOString();
+    result.settings.autoPublishActivatedBy = admin.displayName;
+  }
+  heroSettingsDoc = result.settings;
+  // Content rules changed: check every campaign that is or could go live again.
+  for (const c of heroCampaigns) {
+    if (c.status === 'RETIRED' || c.status === 'REJECTED') continue;
+    c.policy = heroPolicyFor(c);
+  }
+  addAuditLog(undefined, admin.id, admin.displayName, 'HERO_CAMPAIGN_UPDATED', `Hero campaign settings updated (publishing: ${result.settings.publishMode}, scheduled discovery: ${result.settings.discoveryEnabled ? `every ${result.settings.discoveryIntervalHours}h` : 'off'}).`, { before: current, after: result.settings });
+  requestFlush();
+  res.json({ settings: heroSettingsDoc });
+});
+
+app.post('/api/admin/hero/discover', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const job = heroStartJob('DISCOVERY', 'Trend discovery', 'ADMIN', async provider => { await heroRunDiscovery('ADMIN', admin, provider); });
+  if (!job.started) return res.status(409).json({ error: 'NOT_STARTED', message: job.reason });
+  res.status(202).json({ started: true });
+});
+
+app.post('/api/admin/hero/trends/:id/generate', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const trend = heroTrends.find(t => t && t.id === req.params.id);
+  if (!trend) return res.status(404).json({ error: 'TREND_NOT_FOUND' });
+  if (!trend.verified) return res.status(400).json({ error: 'UNVERIFIED_TREND', message: 'This trend has no verified source, so no campaign can be made from it.' });
+  const existing = heroCampaigns.find(c => c && c.trendId === trend.id && c.status !== 'REJECTED' && c.status !== 'RETIRED');
+  if (existing) return res.status(409).json({ error: 'CAMPAIGN_EXISTS', message: 'This trend already has a campaign. Edit or regenerate that one.', campaignId: existing.id });
+  const job = heroStartJob('CAMPAIGN', `Campaign for "${trend.title}"`, 'ADMIN', async provider => {
+    const campaign = await heroCreateCampaign(trend, admin, provider);
+    return `Drafted "${campaign.content.headline}" with ${campaign.concepts.length} concepts${campaign.assetId ? '' : ' (image failed: regenerate it)'}.`;
+  });
+  if (!job.started) return res.status(409).json({ error: 'NOT_STARTED', message: job.reason });
+  res.status(202).json({ started: true });
+});
+
+app.post('/api/admin/hero/trends/:id/dismiss', (req: Request, res: Response) => {
+  if (!heroAdmin(req, res)) return;
+  const trend = heroTrends.find(t => t && t.id === req.params.id);
+  if (!trend) return res.status(404).json({ error: 'TREND_NOT_FOUND' });
+  if (trend.status === 'NEW') trend.status = 'DISMISSED';
+  requestFlush();
+  res.json({ trend });
+});
+
+// Edit copy, pick another concept, or change the schedule. Every change is
+// checked again; a published campaign cannot be edited into breaking a rule.
+app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const campaign = heroCampaignOr404(req, res);
+  if (!campaign) return;
+  if (campaign.status === 'RETIRED' || campaign.status === 'REJECTED') return res.status(400).json({ error: 'CAMPAIGN_CLOSED', message: 'This campaign is closed and can no longer be edited.' });
+  const body = req.body || {};
+  const draft: HeroCampaign = { ...campaign, content: { ...campaign.content } };
+  if (body.selectedConcept !== undefined) {
+    const index = Number(body.selectedConcept);
+    if (!Number.isInteger(index) || !campaign.concepts[index]) return res.status(400).json({ error: 'INVALID_INPUT', message: 'Choose one of the listed concepts.' });
+    draft.selectedConcept = index;
+    draft.content = { ...contentFromConcept(campaign.concepts[index], campaign.content.label), imageAlt: campaign.content.imageAlt };
+  }
+  if (body.content !== undefined) {
+    if (!body.content || typeof body.content !== 'object') return res.status(400).json({ error: 'INVALID_INPUT', message: 'content must be an object.' });
+    for (const key of ['label', 'headline', 'description', 'ctaLabel', 'ctaDestination', 'imageAlt'] as const) {
+      if (body.content[key] === undefined) continue;
+      if (typeof body.content[key] !== 'string' || body.content[key].length > 600) return res.status(400).json({ error: 'INVALID_INPUT', message: `${key} must be text.` });
+      (draft.content as any)[key] = body.content[key].replace(/\s+/g, ' ').trim();
+    }
+    draft.content.imageAlt = draft.content.imageAlt.slice(0, HERO_LIMITS.altChars);
+  }
+  if (body.priority !== undefined) {
+    if (!Number.isInteger(body.priority) || body.priority < 1 || body.priority > 10) return res.status(400).json({ error: 'INVALID_INPUT', message: 'Priority must be 1 to 10.' });
+    draft.priority = body.priority;
+  }
+  if (body.startAt !== undefined || body.endAt !== undefined) {
+    const startAt = body.startAt ?? campaign.startAt;
+    const endAt = body.endAt ?? campaign.endAt;
+    const problem = scheduleProblem(startAt, endAt, new Date());
+    if (problem) return res.status(400).json({ error: 'INVALID_SCHEDULE', message: problem });
+    draft.startAt = new Date(startAt).toISOString();
+    draft.endAt = new Date(endAt).toISOString();
+  }
+  const policy = heroPolicyFor(draft);
+  if (campaign.status === 'APPROVED' && !policy.ok) {
+    return res.status(400).json({ error: 'POLICY_VIOLATION', message: `This campaign is published, so the change was not saved: ${policy.issues[0]}`, issues: policy.issues });
+  }
+  Object.assign(campaign, { content: draft.content, selectedConcept: draft.selectedConcept, priority: draft.priority, startAt: draft.startAt, endAt: draft.endAt, policy });
+  heroLog(campaign, 'EDITED', admin);
+  requestFlush();
+  res.json({ campaign: heroAdminCampaignView(campaign, new Date()) });
+});
+
+app.post('/api/admin/hero/campaigns/:id/regenerate-image', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const campaign = heroCampaignOr404(req, res);
+  if (!campaign) return;
+  if (campaign.status === 'RETIRED' || campaign.status === 'REJECTED') return res.status(400).json({ error: 'CAMPAIGN_CLOSED', message: 'This campaign is closed.' });
+  const job = heroStartJob('IMAGE', `New image for "${campaign.content.headline}"`, 'ADMIN', async provider => {
+    await heroMakeImage(campaign, provider);
+    heroLog(campaign, 'REGENERATED_IMAGE', admin);
+    return `New image for "${campaign.content.headline}".`;
+  });
+  if (!job.started) return res.status(409).json({ error: 'NOT_STARTED', message: job.reason });
+  res.status(202).json({ started: true });
+});
+
+app.post('/api/admin/hero/campaigns/:id/regenerate-copy', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const campaign = heroCampaignOr404(req, res);
+  if (!campaign) return;
+  if (campaign.status !== 'DRAFT') return res.status(400).json({ error: 'NOT_A_DRAFT', message: 'Only a draft can have its copy regenerated. Pause or retire a published campaign first.' });
+  const trend = heroTrends.find(t => t && t.id === campaign.trendId);
+  if (!trend) return res.status(400).json({ error: 'TREND_NOT_FOUND', message: 'The trend behind this campaign is no longer on record.' });
+  const job = heroStartJob('COPY', `New copy for "${campaign.trendTitle}"`, 'ADMIN', async provider => {
+    const { analysis, concepts } = await heroWriteConcepts(trend, provider);
+    campaign.analysis = analysis;
+    campaign.concepts = concepts;
+    campaign.selectedConcept = 0;
+    campaign.content = { ...contentFromConcept(concepts[0], campaign.content.label), imageAlt: campaign.content.imageAlt };
+    campaign.policy = heroPolicyFor(campaign);
+    heroLog(campaign, 'REGENERATED_COPY', admin);
+    return `New copy for "${campaign.trendTitle}": ${concepts.length} concepts.`;
+  });
+  if (!job.started) return res.status(409).json({ error: 'NOT_STARTED', message: job.reason });
+  res.status(202).json({ started: true });
+});
+
+app.post('/api/admin/hero/campaigns/:id/:action(approve|reject|pause|resume|retire)', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const campaign = heroCampaignOr404(req, res);
+  if (!campaign) return;
+  const action = req.params.action;
+  const body = req.body || {};
+  const note = typeof body.note === 'string' ? body.note.slice(0, 300) : undefined;
+  const now = new Date();
+  const refuse = (message: string, error = 'INVALID_STATE') => res.status(400).json({ error, message });
+
+  if (action === 'approve' || action === 'resume') {
+    if (action === 'approve' && campaign.status !== 'DRAFT') return refuse('Only a draft can be approved.');
+    if (action === 'resume' && campaign.status !== 'PAUSED') return refuse('Only a paused campaign can be resumed.');
+    const startAt = body.startAt ?? campaign.startAt;
+    const endAt = body.endAt ?? campaign.endAt;
+    const problem = scheduleProblem(startAt, endAt, now);
+    if (problem) return refuse(problem, 'INVALID_SCHEDULE');
+    if (body.priority !== undefined && (!Number.isInteger(body.priority) || body.priority < 1 || body.priority > 10)) return refuse('Priority must be 1 to 10.', 'INVALID_INPUT');
+    const policy = heroPolicyFor(campaign);
+    campaign.policy = policy;
+    if (!policy.ok) return res.status(400).json({ error: 'POLICY_VIOLATION', message: `Fix this before publishing: ${policy.issues[0]}`, issues: policy.issues });
+    if (!campaign.assetId || !heroAssets.some(a => a && a.id === campaign.assetId)) return refuse('This campaign has no image yet. Regenerate the image first.', 'IMAGE_MISSING');
+    campaign.startAt = new Date(startAt).toISOString();
+    campaign.endAt = new Date(endAt).toISOString();
+    if (body.priority !== undefined) campaign.priority = body.priority;
+    campaign.status = 'APPROVED';
+    campaign.publishedBy = 'ADMIN';
+    heroLog(campaign, action === 'approve' ? 'APPROVED' : 'RESUMED', admin, note);
+  } else if (action === 'reject') {
+    if (campaign.status !== 'DRAFT') return refuse('Only a draft can be rejected. Retire a published campaign instead.');
+    campaign.status = 'REJECTED';
+    heroLog(campaign, 'REJECTED', admin, note);
+    const trend = heroTrends.find(t => t && t.id === campaign.trendId);
+    if (trend) trend.status = 'DISMISSED';
+    heroDeleteAsset(campaign.assetId);
+    campaign.assetId = null;
+  } else if (action === 'pause') {
+    if (campaign.status !== 'APPROVED') return refuse('Only a published or scheduled campaign can be paused.');
+    campaign.status = 'PAUSED';
+    heroLog(campaign, 'PAUSED', admin, note);
+  } else {
+    if (campaign.status === 'RETIRED') return refuse('This campaign is already retired.');
+    campaign.status = 'RETIRED';
+    campaign.retiredReason = 'ADMIN';
+    heroLog(campaign, 'RETIRED', admin, note);
+  }
+  addAuditLog(undefined, admin.id, admin.displayName, 'HERO_CAMPAIGN_UPDATED', `Hero campaign "${campaign.content.headline}": ${action}${action === 'approve' ? ` (${campaign.startAt.slice(0, 10)} to ${campaign.endAt.slice(0, 10)}, priority ${campaign.priority})` : ''}.`, { campaignId: campaign.id, action, note: note || null });
+  requestFlush();
+  res.json({ campaign: heroAdminCampaignView(campaign, now) });
+});
+
+// Scheduler hook (CRON_SECRET or an administrator): retire expired campaigns
+// and run discovery if it is due, or now with { discover: true }.
+app.post('/api/platform/schedule/hero-campaigns', (req: Request, res: Response) => {
+  if (!isSystemRequest(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+  const now = req.body?.now && !IS_PRODUCTION ? new Date(req.body.now) : new Date();
+  const retired = heroRetireExpired(now);
+  let discovery: { started: boolean; reason?: string } = { started: false, reason: 'Not due.' };
+  if (req.body?.discover === true) {
+    discovery = heroStartJob('DISCOVERY', 'Trend discovery', 'CRON', async provider => { await heroRunDiscovery('CRON', HERO_SYSTEM_ACTOR, provider); });
+  } else {
+    heroTick(now);
+  }
+  res.json({ retired, discovery, busy: heroBusy });
+});
+
+// ===========================================================================
 // FINANCIAL AWARENESS & SAVINGS RANGE
 //
 // A member's financial profile (goal, take-home pay, bills, confirmed weekly
@@ -12451,6 +13081,12 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'advertiserInquiries', get: () => advertiserInquiries, set: docs => { advertiserInquiries = docs; } });
   registerCollection({ collection: 'partnerInquiries', get: () => partnerInquiries, set: docs => { partnerInquiries = docs; } });
   registerCollection({ collection: 'creatorInterests', get: () => creatorInterests, set: docs => { creatorInterests = docs; } });
+  registerCollection({ collection: 'heroTrends', get: () => heroTrends, set: docs => { heroTrends = docs; } });
+  registerCollection({ collection: 'heroCampaigns', get: () => heroCampaigns, set: docs => { heroCampaigns = docs; } });
+  registerCollection({ collection: 'heroAssets', get: () => heroAssets, set: docs => { heroAssets = docs; } });
+  registerCollection({ collection: 'heroPerformance', get: () => heroPerformance, set: docs => { heroPerformance = docs; } });
+  registerCollection({ collection: 'heroSettings', get: () => (heroSettingsDoc ? [heroSettingsDoc] : []), set: docs => { heroSettingsDoc = (docs && docs[0]) || null; } });
+  registerCollection({ collection: 'heroRuns', get: () => heroRuns, set: docs => { heroRuns = docs; } });
   registerCollection({ collection: 'financialProfiles', get: () => financialProfiles, set: docs => { financialProfiles = docs; } });
   registerCollection({ collection: 'savingsRanges', get: () => savingsRanges, set: docs => { savingsRanges = docs; } });
   registerCollection({ collection: 'creatorProfiles', get: () => creatorProfiles, set: docs => { creatorProfiles = docs; } });
@@ -12500,6 +13136,7 @@ async function startServer() {
     startAutoFlush();
   }
   (app as any).locals.startSweepScheduler?.();
+  startHeroScheduler();
 
   configureChatManager({
     verifyToken: verifySocketToken,

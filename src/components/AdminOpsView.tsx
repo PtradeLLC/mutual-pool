@@ -14,6 +14,7 @@ import { CustodyOpsPanel } from './CustodyOpsPanel';
 import { PartnerInquiriesPanel } from './PartnerInquiriesPanel';
 import { CreatorAdminPanel } from './CreatorAdminPanel';
 import { SavingsRangeAdminPanel } from './SavingsRangeAdminPanel';
+import { HeroCampaignAdminPanel } from './HeroCampaignAdminPanel';
 import { AppHealthPanel } from './AppHealthPanel';
 import { ReviewQueuePanel } from './ReviewQueuePanel';
 import { CampaignReviewPanel } from './CampaignReviewPanel';
@@ -640,6 +641,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
       <CustodyOpsPanel />
       <CreatorAdminPanel />
       <SavingsRangeAdminPanel />
+      <HeroCampaignAdminPanel />
       <PartnerInquiriesPanel />
 
       {/* Brand campaign catalog approvals */}

@@ -901,6 +901,7 @@ export interface AuditLogEntry {
   action: 
     | 'POD_CREATED'
     | 'HOSTED_POD_CREATED'
+    | 'HERO_CAMPAIGN_UPDATED'
     | 'SAVINGS_RANGE_UPDATED'
     | 'AGREEMENT_SIGNED'
     | 'ROTATION_LOCKED'
