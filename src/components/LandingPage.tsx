@@ -4,7 +4,7 @@ import { Pod, User, Perk, isDemoPod, POD_SIZE_SUGGESTIONS, MIN_POD_SIZE, MAX_POD
 import { savePerkToFirestore } from '../lib/firestoreService';
 import { HeroCarousel } from './HeroCarousel';
 import { useHeroCampaign, trackHeroClick } from '../lib/heroCampaignClient';
-import type { PublicHeroCampaign } from '../lib/heroCampaigns';
+import type { PublicHeroCampaign, PublicHeroSlide } from '../lib/heroCampaigns';
 import { openReportProblem } from '../lib/telemetry';
 import bikerAdImg from '../assets/images/bikerad.png';
 import { Logo } from './Logo';
@@ -77,7 +77,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const isAuthUser = Boolean(currentUser && currentUser.id && currentUser.id !== 'usr_guest');
   const { t, formatCurrency, language } = useTranslation();
   // AI hero campaign (English copy only); null means the evergreen hero below.
-  const { campaign: heroCampaign, dismiss: dismissHeroCampaign } = useHeroCampaign(language === 'en');
+  const { campaign: heroCampaign, dropSlide: dropHeroSlide } = useHeroCampaign(language === 'en');
   const { country, formatAmount } = useCountry();
 
   const handleActionOrAuth = (
@@ -92,9 +92,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   // Where a campaign's button leads. Only destinations inside the app exist.
-  const handleHeroCampaignCta = (campaign: PublicHeroCampaign) => {
+  const handleHeroCampaignCta = (campaign: PublicHeroCampaign, slide: PublicHeroSlide) => {
     trackHeroClick(campaign.id);
-    switch (campaign.ctaDestination) {
+    switch (slide.ctaDestination) {
       case 'CREATORS': return onOpenCreators ? onOpenCreators() : handleActionOrAuth('REGISTER', 'explore-pods');
       case 'PARTNERS': return onOpenPartners ? onOpenPartners() : handleActionOrAuth('REGISTER', 'explore-pods');
       case 'PERKS': return handleActionOrAuth('REGISTER', 'perks');
@@ -554,7 +554,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <HeroCarousel
             campaign={heroCampaign}
             onCampaignCta={handleHeroCampaignCta}
-            onCampaignError={dismissHeroCampaign}
+            onCampaignSlideError={dropHeroSlide}
             renderOverlay={(slide) => (
               <>
                 {/* Floating Badge Top Right */}

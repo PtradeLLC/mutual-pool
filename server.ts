@@ -99,12 +99,12 @@ import {
 } from './src/server/creatorPools';
 import {
   defaultHeroSettings, applySettingsPatch, trendDedupeKey, isDuplicateTrend, evaluateCampaignPolicy, campaignWindow, scheduleProblem,
-  liveState, pickActiveCampaign, emptyCounts, addCounts, clickThroughRate, engagementScore, contentFromConcept, buildImagePrompt,
-  HERO_CATEGORIES, ENGAGEMENT_WEIGHTS, LIMITS as HERO_LIMITS,
+  liveState, pickActiveCampaign, scheduledDiscoveryDue, nextScheduledRefresh, refreshSlots, monthlyDaysOf, emptyCounts, addCounts, clickThroughRate, engagementScore, contentFromConcept, buildImagePrompt,
+  HERO_CATEGORIES, ENGAGEMENT_WEIGHTS, LIMITS as HERO_LIMITS, sensitiveTopics, normalizeCampaignSlides, slideOrder,
 } from './src/lib/heroCampaigns';
 import type {
   HeroTrend, HeroCampaign, HeroAsset, HeroPerformance, HeroSettings, PolicyResult, CampaignApproval, CampaignConcept, TrendAnalysis,
-  PerformanceCounts, PublicHeroCampaign,
+  PerformanceCounts, PublicHeroCampaign, PublicHeroSlide, CampaignContent,
 } from './src/lib/heroCampaigns';
 import { getHeroAiProvider, heroAiStatus, describeAiError, optimizeHeroImage } from './src/server/heroAi';
 import type { HeroAiProvider } from './src/server/heroAi';
@@ -9138,9 +9138,13 @@ function heroRecordRun(run: Omit<HeroRun, 'id' | 'at'>): void {
   if (!run.ok) reportIncident('warning', 'hero_campaign_job_failed', `${run.kind}: ${run.error || run.summary}`, { trigger: run.trigger });
   requestFlush();
 }
-function heroPolicyFor(campaign: HeroCampaign): PolicyResult {
+// The copy rules for one slide (the lead slide when no index is given). The
+// lead slide's result is the campaign's: it decides approval. Other slides
+// that fail are simply left off the hero.
+function heroPolicyFor(campaign: HeroCampaign, slide?: number): PolicyResult {
   const trend = heroTrends.find(t => t && t.id === campaign.trendId);
-  return evaluateCampaignPolicy(campaign.content, {
+  const content = slide === undefined ? campaign.content : (campaign.slideContent?.[slide] || campaign.content);
+  return evaluateCampaignPolicy(content, {
     sensitivity: campaign.sensitivity,
     brandsMentioned: campaign.brandsMentioned,
     trendText: `${campaign.trendTitle} ${campaign.trendDescription}`,
@@ -9157,6 +9161,12 @@ function heroDeleteAsset(assetId: string | null | undefined): void {
   heroAssets = heroAssets.filter(a => a && a.id !== assetId);
   heroAssetBytes.delete(assetId);
 }
+function heroDeleteCampaignAssets(c: HeroCampaign): void {
+  for (const id of new Set([c.assetId, ...(c.slideAssets || [])])) heroDeleteAsset(id);
+  if (c.slideAssets) c.slideAssets = c.slideAssets.map(() => null);
+  c.assetId = null;
+}
+const heroHasAsset = (id: string | null | undefined) => Boolean(id && heroAssets.some(a => a && a.id === id));
 
 // Expired campaigns stop showing the moment their end date passes (the public
 // route checks dates itself); this records it and tidies old records.
@@ -9177,7 +9187,7 @@ function heroRetireExpired(now = new Date()): number {
   if (heroCampaigns.length > HERO_KEEP_CAMPAIGNS) {
     const dropped = heroCampaigns.slice(HERO_KEEP_CAMPAIGNS).filter(c => c.status === 'RETIRED' || c.status === 'REJECTED');
     const dropIds = new Set(dropped.map(c => c.id));
-    for (const c of dropped) heroDeleteAsset(c.assetId);
+    for (const c of dropped) heroDeleteCampaignAssets(c);
     heroCampaigns = heroCampaigns.filter(c => !dropIds.has(c.id));
     heroPerformance = heroPerformance.filter(p => !dropIds.has(p.campaignId));
   }
@@ -9186,28 +9196,40 @@ function heroRetireExpired(now = new Date()): number {
 }
 
 function heroActiveCampaign(now = new Date()): HeroCampaign | null {
+  for (const c of heroCampaigns) if (c && c.concepts?.length) normalizeCampaignSlides(c);
   const active = pickActiveCampaign(heroCampaigns, now);
-  return active && heroAssets.some(a => a && a.id === active.assetId) ? active : null;
+  return active && heroHasAsset(active.assetId) ? active : null;
+}
+// Whether a slide is on the hero right now (when its campaign is live).
+function heroSlideShown(c: HeroCampaign, i: number): boolean {
+  if (i !== c.selectedConcept && (c.hiddenSlides || []).includes(i)) return false;
+  return heroHasAsset(c.slideAssets?.[i]) && heroPolicyFor(c, i).ok;
 }
 function heroPublicView(c: HeroCampaign): PublicHeroCampaign {
-  return {
-    id: c.id,
-    label: c.content.label,
-    headline: c.content.headline,
-    description: c.content.description,
-    ctaLabel: c.content.ctaLabel,
-    ctaDestination: c.content.ctaDestination,
-    imageUrl: `/api/hero/assets/${c.assetId}`,
-    imageAlt: c.content.imageAlt,
-    endAt: c.endAt,
-  };
+  const slides: PublicHeroSlide[] = slideOrder(c).filter(i => heroSlideShown(c, i)).map(i => {
+    const content = c.slideContent![i];
+    return {
+      index: i,
+      label: content.label,
+      headline: content.headline,
+      description: content.description,
+      ctaLabel: content.ctaLabel,
+      ctaDestination: content.ctaDestination,
+      imageUrl: `/api/hero/assets/${c.slideAssets![i]}`,
+      imageAlt: content.imageAlt,
+    };
+  });
+  return { id: c.id, endAt: c.endAt, slides };
 }
 
 // --- AI jobs ---
 
-async function heroMakeImage(campaign: HeroCampaign, provider: HeroAiProvider): Promise<void> {
-  const concept = campaign.concepts[campaign.selectedConcept] || campaign.concepts[0];
-  const prompt = buildImagePrompt(concept?.imagePrompt || campaign.content.headline, campaign.brandsMentioned);
+// Makes (or replaces) the image for one slide. On failure the slide keeps the
+// image it had.
+async function heroMakeImage(campaign: HeroCampaign, provider: HeroAiProvider, slide = campaign.selectedConcept): Promise<void> {
+  normalizeCampaignSlides(campaign);
+  const concept = campaign.concepts[slide] || campaign.concepts[0];
+  const prompt = buildImagePrompt(concept?.imagePrompt || campaign.slideContent![slide].headline, campaign.brandsMentioned);
   try {
     const generated = await provider.generateImage(prompt);
     const image = await optimizeHeroImage(generated);
@@ -9223,19 +9245,43 @@ async function heroMakeImage(campaign: HeroCampaign, provider: HeroAiProvider): 
       model: generated.model,
       createdAt: new Date().toISOString(),
     };
-    const previous = campaign.assetId;
+    const previous = campaign.slideAssets![slide];
     heroAssets.push(asset);
-    campaign.assetId = asset.id;
-    delete campaign.imageError;
-    heroDeleteAsset(previous);
+    campaign.slideAssets![slide] = asset.id;
+    campaign.slideImageErrors![slide] = null;
+    if (previous && !campaign.slideAssets!.includes(previous)) heroDeleteAsset(previous);
   } catch (err) {
-    // Keep whatever image the campaign already had.
-    campaign.imageError = describeAiError(err);
+    campaign.slideImageErrors![slide] = describeAiError(err);
     throw err;
   } finally {
+    normalizeCampaignSlides(campaign);
     campaign.updatedAt = new Date().toISOString();
   }
 }
+
+// Images for several slides, two at a time. Returns how many failed; each
+// failure is recorded on its slide.
+async function heroMakeImages(campaign: HeroCampaign, provider: HeroAiProvider, slides: number[]): Promise<{ made: number; failed: number; firstError?: string }> {
+  const queue = [...slides];
+  let made = 0;
+  let failed = 0;
+  let firstError: string | undefined;
+  const worker = async () => {
+    for (let slide = queue.shift(); slide !== undefined; slide = queue.shift()) {
+      try {
+        await heroMakeImage(campaign, provider, slide);
+        made += 1;
+      } catch (err) {
+        failed += 1;
+        firstError = firstError || describeAiError(err);
+      }
+      requestFlush();
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  return { made, failed, firstError };
+}
+const heroMissingImages = (c: HeroCampaign) => c.concepts.map((_, i) => i).filter(i => !heroHasAsset(c.slideAssets?.[i]));
 
 async function heroWriteConcepts(trend: HeroTrend, provider: HeroAiProvider): Promise<{ analysis: TrendAnalysis; concepts: CampaignConcept[] }> {
   let last: { analysis: TrendAnalysis; concepts: CampaignConcept[] } | null = null;
@@ -9259,7 +9305,10 @@ async function heroCreateCampaign(trend: HeroTrend, actor: { id: string; display
   const settings = heroSettings();
   const { analysis, concepts } = await heroWriteConcepts(trend, provider);
   const now = new Date();
-  const window = campaignWindow({ startAt: now, category: trend.category, settings, eventDate: trend.eventDate, suggestedExpiresAt: trend.suggestedExpiresAt, suggestedDurationDays: concepts[0].suggestedDurationDays });
+  // Twice-monthly refresh: the campaign holds the hero until the next refresh
+  // (or until its event has passed, whichever is sooner).
+  const runUntil = settings.discoveryEnabled && settings.discoveryCadence === 'TWICE_MONTHLY' ? refreshSlots(now, monthlyDaysOf(settings)).next.toISOString() : null;
+  const window = campaignWindow({ startAt: now, category: trend.category, settings, eventDate: trend.eventDate, suggestedExpiresAt: trend.suggestedExpiresAt, suggestedDurationDays: concepts[0].suggestedDurationDays, runUntil });
   const campaign: HeroCampaign = {
     id: `hcamp_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
     trendId: trend.id,
@@ -9277,6 +9326,10 @@ async function heroCreateCampaign(trend: HeroTrend, actor: { id: string; display
     selectedConcept: 0,
     content: contentFromConcept(concepts[0], 'Trending now'),
     assetId: null,
+    slideContent: concepts.map(c => contentFromConcept(c, 'Trending now')),
+    slideAssets: concepts.map(() => null),
+    slideImageErrors: concepts.map(() => null),
+    hiddenSlides: [],
     policy: { ok: false, issues: [], warnings: [], requiresManualReview: true, reviewReasons: [] },
     sensitivity: trend.sensitivity,
     brandsMentioned: trend.brandsMentioned,
@@ -9289,11 +9342,9 @@ async function heroCreateCampaign(trend: HeroTrend, actor: { id: string; display
   heroCampaigns.unshift(campaign);
   trend.status = 'CAMPAIGN_CREATED';
   requestFlush();
-  try {
-    await heroMakeImage(campaign, provider);
-  } catch (err) {
-    console.warn('[hero] image generation failed; the campaign stays a draft:', describeAiError(err));
-  }
+  // One image per concept: every concept becomes a slide on the hero.
+  const images = await heroMakeImages(campaign, provider, slideOrder(campaign));
+  if (images.failed) console.warn(`[hero] ${images.failed} of ${concepts.length} slide images failed:`, images.firstError);
   if (settings.publishMode === 'AUTO' && campaign.assetId && campaign.policy.ok && !campaign.policy.requiresManualReview && trend.relevanceScore >= settings.relevanceThreshold) {
     campaign.status = 'APPROVED';
     campaign.publishedBy = 'AUTO';
@@ -9352,9 +9403,7 @@ function heroTick(now = new Date()): void {
   try {
     heroRetireExpired(now);
     const settings = heroSettings();
-    if (!settings.discoveryEnabled || heroBusy) return;
-    const last = heroRuns.find(r => r.kind === 'DISCOVERY');
-    if (last && now.getTime() - new Date(last.at).getTime() < settings.discoveryIntervalHours * 3_600_000) return;
+    if (heroBusy || !scheduledDiscoveryDue(settings, now, heroRuns.filter(r => r.kind === 'DISCOVERY'))) return;
     heroStartJob('DISCOVERY', 'Scheduled trend discovery', 'SCHEDULE', async provider => { await heroRunDiscovery('SCHEDULE', HERO_SYSTEM_ACTOR, provider); });
   } catch (err) {
     console.error('[hero] tick error:', err);
@@ -9471,12 +9520,31 @@ function heroCampaignOr404(req: Request, res: Response): HeroCampaign | null {
 function heroAdminCampaignView(c: HeroCampaign, now: Date) {
   const perf = heroPerformance.find(p => p && p.campaignId === c.id);
   const counts: PerformanceCounts = perf ? { impressions: perf.impressions, uniqueImpressions: perf.uniqueImpressions, clicks: perf.clicks, registrations: perf.registrations, podCreations: perf.podCreations } : emptyCounts();
-  const asset = c.assetId ? heroAssets.find(a => a && a.id === c.assetId) : undefined;
+  normalizeCampaignSlides(c);
+  const imageOf = (id: string | null | undefined) => {
+    const asset = id ? heroAssets.find(a => a && a.id === id) : undefined;
+    return asset ? { url: `/api/hero/assets/${asset.id}`, width: asset.width, height: asset.height, bytes: asset.bytes, mimeType: asset.mimeType, model: asset.model, prompt: asset.prompt, createdAt: asset.createdAt } : null;
+  };
+  const lead = imageOf(c.assetId);
   return {
     ...c,
     state: liveState(c, now),
-    imageUrl: asset ? `/api/hero/assets/${asset.id}` : null,
-    image: asset ? { width: asset.width, height: asset.height, bytes: asset.bytes, mimeType: asset.mimeType, model: asset.model, prompt: asset.prompt, createdAt: asset.createdAt } : null,
+    imageUrl: lead ? lead.url : null,
+    image: lead,
+    slides: c.concepts.map((_, i) => {
+      const image = imageOf(c.slideAssets![i]);
+      return {
+        index: i,
+        lead: i === c.selectedConcept,
+        hidden: (c.hiddenSlides || []).includes(i),
+        content: c.slideContent![i],
+        imageUrl: image ? image.url : null,
+        image,
+        imageError: c.slideImageErrors![i] || null,
+        policy: heroPolicyFor(c, i),
+        onHero: heroSlideShown(c, i),
+      };
+    }),
     performance: { ...counts, clickThroughRate: clickThroughRate(counts), engagementScore: engagementScore(counts) },
   };
 }
@@ -9497,6 +9565,7 @@ app.get('/api/admin/hero', (req: Request, res: Response) => {
     ai: heroAiStatus(IS_PRODUCTION),
     busy: heroBusy,
     runs: heroRuns.slice(0, 12),
+    nextRefreshAt: nextScheduledRefresh(heroSettings(), now, heroRuns.filter(r => r.kind === 'DISCOVERY')),
     activeCampaignId: active ? active.id : null,
     trends: heroTrends.slice(0, 60),
     campaigns,
@@ -9526,7 +9595,7 @@ app.put('/api/admin/hero/settings', (req: Request, res: Response) => {
     if (c.status === 'RETIRED' || c.status === 'REJECTED') continue;
     c.policy = heroPolicyFor(c);
   }
-  addAuditLog(undefined, admin.id, admin.displayName, 'HERO_CAMPAIGN_UPDATED', `Hero campaign settings updated (publishing: ${result.settings.publishMode}, scheduled discovery: ${result.settings.discoveryEnabled ? `every ${result.settings.discoveryIntervalHours}h` : 'off'}).`, { before: current, after: result.settings });
+  addAuditLog(undefined, admin.id, admin.displayName, 'HERO_CAMPAIGN_UPDATED', `Hero campaign settings updated (publishing: ${result.settings.publishMode}, scheduled discovery: ${!result.settings.discoveryEnabled ? 'off' : result.settings.discoveryCadence === 'TWICE_MONTHLY' ? `twice a month, on days ${monthlyDaysOf(result.settings).join(' and ')}` : `every ${result.settings.discoveryIntervalHours}h`}).`, { before: current, after: result.settings });
   requestFlush();
   res.json({ settings: heroSettingsDoc });
 });
@@ -9539,6 +9608,69 @@ app.post('/api/admin/hero/discover', (req: Request, res: Response) => {
   res.status(202).json({ started: true });
 });
 
+// A trend an administrator adds by hand, with the source they read it in. Used
+// when search-based discovery is unavailable, or for something it missed.
+app.post('/api/admin/hero/trends', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const body = req.body || {};
+  const bad = (message: string) => res.status(400).json({ error: 'INVALID_INPUT', message });
+  const title = typeof body.title === 'string' ? body.title.replace(/\s+/g, ' ').trim() : '';
+  const description = typeof body.description === 'string' ? body.description.replace(/\s+/g, ' ').trim() : '';
+  if (title.length < 3 || title.length > 160) return bad('Give the trend a title (3 to 160 characters).');
+  if (description.length < 10 || description.length > 600) return bad('Describe what is happening (10 to 600 characters).');
+  if (!(HERO_CATEGORIES as readonly unknown[]).includes(body.category)) return bad('Choose a category.');
+  const category = body.category as HeroTrend['category'];
+  let source: URL | null = null;
+  try {
+    source = typeof body.sourceUrl === 'string' && body.sourceUrl.length <= 500 ? new URL(body.sourceUrl.trim()) : null;
+  } catch {
+    source = null;
+  }
+  if (!source || (source.protocol !== 'https:' && source.protocol !== 'http:')) return bad('Add a link to where this was reported (a web address starting with https://). A trend needs a source.');
+  let eventDate: string | null = null;
+  if (body.eventDate) {
+    const t = new Date(body.eventDate).getTime();
+    if (!Number.isFinite(t)) return bad('The event date is not a valid date.');
+    eventDate = new Date(t).toISOString();
+  }
+  const brands: unknown[] = Array.isArray(body.brandsMentioned) ? body.brandsMentioned : [];
+  if (brands.length > 8 || brands.some(b => typeof b !== 'string' || b.length > 60)) return bad('List up to 8 brand names.');
+  const now = new Date();
+  const dedupeKey = trendDedupeKey(title);
+  const recent = heroTrends.filter(t => t && t.status !== 'DISMISSED' && t.status !== 'EXPIRED' && now.getTime() - new Date(t.discoveredAt).getTime() < 30 * 86_400_000);
+  if (isDuplicateTrend({ dedupeKey, sourceUrl: '' }, recent)) return res.status(409).json({ error: 'DUPLICATE_TREND', message: 'A trend like this is already on the list.' });
+  const settings = heroSettings();
+  const eventMs = eventDate ? new Date(eventDate).getTime() : 0;
+  const trend: HeroTrend = {
+    id: `htrend_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    title,
+    description,
+    category,
+    sourceName: (typeof body.sourceName === 'string' && body.sourceName.trim().slice(0, 120)) || source.hostname.replace(/^www\./, ''),
+    sourceUrl: source.toString(),
+    sources: [{ title: source.hostname.replace(/^www\./, ''), url: source.toString() }],
+    publishedAt: null,
+    eventDate,
+    discoveredAt: now.toISOString(),
+    region: settings.region,
+    popularity: '',
+    relevanceScore: 90,
+    relevanceReason: `Added by ${admin.displayName}.`,
+    suggestedExpiresAt: new Date(eventMs > now.getTime() ? eventMs + 86_400_000 : now.getTime() + settings.durationDays[category] * 86_400_000).toISOString(),
+    verified: true,
+    // The same topic checks as discovered trends: sensitive subjects need review.
+    sensitivity: sensitiveTopics(`${title} ${description}`).length ? 'HIGH' : 'LOW',
+    brandsMentioned: (brands as string[]).map(b => b.trim()).filter(Boolean),
+    dedupeKey,
+    status: 'NEW',
+  };
+  heroTrends.unshift(trend);
+  addAuditLog(undefined, admin.id, admin.displayName, 'HERO_CAMPAIGN_UPDATED', `Added hero trend "${trend.title}" by hand (source: ${trend.sourceName}).`, { trendId: trend.id });
+  requestFlush();
+  res.json({ trend });
+});
+
 app.post('/api/admin/hero/trends/:id/generate', (req: Request, res: Response) => {
   const admin = heroAdmin(req, res);
   if (!admin) return;
@@ -9549,7 +9681,8 @@ app.post('/api/admin/hero/trends/:id/generate', (req: Request, res: Response) =>
   if (existing) return res.status(409).json({ error: 'CAMPAIGN_EXISTS', message: 'This trend already has a campaign. Edit or regenerate that one.', campaignId: existing.id });
   const job = heroStartJob('CAMPAIGN', `Campaign for "${trend.title}"`, 'ADMIN', async provider => {
     const campaign = await heroCreateCampaign(trend, admin, provider);
-    return `Drafted "${campaign.content.headline}" with ${campaign.concepts.length} concepts${campaign.assetId ? '' : ' (image failed: regenerate it)'}.`;
+    const missing = heroMissingImages(campaign).length;
+    return `Drafted "${campaign.content.headline}": ${campaign.concepts.length} slides${missing ? `, ${missing} without an image (use "Make missing images")` : ', each with its own image'}.`;
   });
   if (!job.started) return res.status(409).json({ error: 'NOT_STARTED', message: job.reason });
   res.status(202).json({ started: true });
@@ -9573,21 +9706,37 @@ app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
   if (!campaign) return;
   if (campaign.status === 'RETIRED' || campaign.status === 'REJECTED') return res.status(400).json({ error: 'CAMPAIGN_CLOSED', message: 'This campaign is closed and can no longer be edited.' });
   const body = req.body || {};
-  const draft: HeroCampaign = { ...campaign, content: { ...campaign.content } };
+  normalizeCampaignSlides(campaign);
+  const draft: HeroCampaign = {
+    ...campaign,
+    slideContent: campaign.slideContent!.map(sc => ({ ...sc })),
+    hiddenSlides: [...(campaign.hiddenSlides || [])],
+  };
+  const isSlide = (v: unknown): v is number => Number.isInteger(v) && Boolean(campaign.concepts[v as number]);
+  // Which concept leads the hero. Each slide keeps its own copy and image.
   if (body.selectedConcept !== undefined) {
-    const index = Number(body.selectedConcept);
-    if (!Number.isInteger(index) || !campaign.concepts[index]) return res.status(400).json({ error: 'INVALID_INPUT', message: 'Choose one of the listed concepts.' });
-    draft.selectedConcept = index;
-    draft.content = { ...contentFromConcept(campaign.concepts[index], campaign.content.label), imageAlt: campaign.content.imageAlt };
+    if (!isSlide(body.selectedConcept)) return res.status(400).json({ error: 'INVALID_INPUT', message: 'Choose one of the listed concepts.' });
+    draft.selectedConcept = body.selectedConcept;
+    draft.hiddenSlides = draft.hiddenSlides!.filter(i => i !== body.selectedConcept);
   }
+  // `slide` says which slide `content` edits; the lead slide when left out.
+  const slide = body.slide === undefined ? draft.selectedConcept : body.slide;
+  if (!isSlide(slide)) return res.status(400).json({ error: 'INVALID_INPUT', message: 'Choose one of the listed slides.' });
   if (body.content !== undefined) {
     if (!body.content || typeof body.content !== 'object') return res.status(400).json({ error: 'INVALID_INPUT', message: 'content must be an object.' });
+    const next: CampaignContent = { ...draft.slideContent![slide] };
     for (const key of ['label', 'headline', 'description', 'ctaLabel', 'ctaDestination', 'imageAlt'] as const) {
       if (body.content[key] === undefined) continue;
       if (typeof body.content[key] !== 'string' || body.content[key].length > 600) return res.status(400).json({ error: 'INVALID_INPUT', message: `${key} must be text.` });
-      (draft.content as any)[key] = body.content[key].replace(/\s+/g, ' ').trim();
+      (next as any)[key] = body.content[key].replace(/\s+/g, ' ').trim();
     }
-    draft.content.imageAlt = draft.content.imageAlt.slice(0, HERO_LIMITS.altChars);
+    next.imageAlt = next.imageAlt.slice(0, HERO_LIMITS.altChars);
+    draft.slideContent![slide] = next;
+  }
+  if (body.hidden !== undefined) {
+    if (typeof body.hidden !== 'boolean') return res.status(400).json({ error: 'INVALID_INPUT', message: 'hidden must be true or false.' });
+    if (body.hidden && slide === draft.selectedConcept) return res.status(400).json({ error: 'INVALID_INPUT', message: 'The lead slide cannot be hidden. Make another slide the lead first.' });
+    draft.hiddenSlides = body.hidden ? [...draft.hiddenSlides!, slide] : draft.hiddenSlides!.filter(i => i !== slide);
   }
   if (body.priority !== undefined) {
     if (!Number.isInteger(body.priority) || body.priority < 1 || body.priority > 10) return res.status(400).json({ error: 'INVALID_INPUT', message: 'Priority must be 1 to 10.' });
@@ -9601,12 +9750,23 @@ app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
     draft.startAt = new Date(startAt).toISOString();
     draft.endAt = new Date(endAt).toISOString();
   }
+  normalizeCampaignSlides(draft);
   const policy = heroPolicyFor(draft);
-  if (campaign.status === 'APPROVED' && !policy.ok) {
-    return res.status(400).json({ error: 'POLICY_VIOLATION', message: `This campaign is published, so the change was not saved: ${policy.issues[0]}`, issues: policy.issues });
+  if (campaign.status === 'APPROVED') {
+    // A published campaign cannot be edited into breaking a rule, on the lead
+    // slide or on the slide being edited.
+    const edited = body.content !== undefined ? heroPolicyFor(draft, slide) : policy;
+    const problem = !policy.ok ? policy : !edited.ok ? edited : null;
+    if (problem) return res.status(400).json({ error: 'POLICY_VIOLATION', message: `This campaign is published, so the change was not saved: ${problem.issues[0]}`, issues: problem.issues });
+    if (!heroHasAsset(draft.slideAssets![draft.selectedConcept])) return res.status(400).json({ error: 'IMAGE_MISSING', message: 'That slide has no image yet, so it cannot lead a published campaign. Make its image first.' });
   }
-  Object.assign(campaign, { content: draft.content, selectedConcept: draft.selectedConcept, priority: draft.priority, startAt: draft.startAt, endAt: draft.endAt, policy });
-  heroLog(campaign, 'EDITED', admin);
+  Object.assign(campaign, {
+    slideContent: draft.slideContent, hiddenSlides: draft.hiddenSlides, selectedConcept: draft.selectedConcept,
+    priority: draft.priority, startAt: draft.startAt, endAt: draft.endAt,
+  });
+  normalizeCampaignSlides(campaign);
+  campaign.policy = heroPolicyFor(campaign);
+  heroLog(campaign, body.hidden === true ? 'SLIDE_HIDDEN' : body.hidden === false ? 'SLIDE_SHOWN' : 'EDITED', admin, body.hidden !== undefined || body.content !== undefined ? `Slide ${slide + 1}` : undefined);
   requestFlush();
   res.json({ campaign: heroAdminCampaignView(campaign, new Date()) });
 });
@@ -9617,10 +9777,25 @@ app.post('/api/admin/hero/campaigns/:id/regenerate-image', (req: Request, res: R
   const campaign = heroCampaignOr404(req, res);
   if (!campaign) return;
   if (campaign.status === 'RETIRED' || campaign.status === 'REJECTED') return res.status(400).json({ error: 'CAMPAIGN_CLOSED', message: 'This campaign is closed.' });
-  const job = heroStartJob('IMAGE', `New image for "${campaign.content.headline}"`, 'ADMIN', async provider => {
-    await heroMakeImage(campaign, provider);
-    heroLog(campaign, 'REGENERATED_IMAGE', admin);
-    return `New image for "${campaign.content.headline}".`;
+  normalizeCampaignSlides(campaign);
+  const body = req.body || {};
+  // { missing: true } makes every slide image that is not there yet;
+  // { slide: n } remakes one slide's image; nothing remakes the lead's.
+  let slides: number[];
+  if (body.missing === true) {
+    slides = heroMissingImages(campaign);
+    if (!slides.length) return res.status(400).json({ error: 'NOTHING_MISSING', message: 'Every slide already has an image.' });
+  } else {
+    const slide = body.slide === undefined ? campaign.selectedConcept : body.slide;
+    if (!Number.isInteger(slide) || !campaign.concepts[slide]) return res.status(400).json({ error: 'INVALID_INPUT', message: 'Choose one of the listed slides.' });
+    slides = [slide];
+  }
+  const label = slides.length > 1 ? `${slides.length} slide images` : `New image for slide ${slides[0] + 1}`;
+  const job = heroStartJob('IMAGE', label, 'ADMIN', async provider => {
+    const result = await heroMakeImages(campaign, provider, slides);
+    heroLog(campaign, 'REGENERATED_IMAGE', admin, `Slide${slides.length > 1 ? 's' : ''} ${slides.map(i => i + 1).join(', ')}`);
+    if (!result.made) throw new Error(result.firstError || 'Image generation failed.');
+    return `${result.made} new image${result.made === 1 ? '' : 's'} for "${campaign.content.headline}"${result.failed ? `; ${result.failed} failed: ${result.firstError}` : ''}.`;
   });
   if (!job.started) return res.status(409).json({ error: 'NOT_STARTED', message: job.reason });
   res.status(202).json({ started: true });
@@ -9636,10 +9811,20 @@ app.post('/api/admin/hero/campaigns/:id/regenerate-copy', (req: Request, res: Re
   if (!trend) return res.status(400).json({ error: 'TREND_NOT_FOUND', message: 'The trend behind this campaign is no longer on record.' });
   const job = heroStartJob('COPY', `New copy for "${campaign.trendTitle}"`, 'ADMIN', async provider => {
     const { analysis, concepts } = await heroWriteConcepts(trend, provider);
+    normalizeCampaignSlides(campaign);
+    const label = campaign.content.label;
+    const oldAssets = campaign.slideAssets || [];
+    // New copy for every slide; each slide keeps the image it had until it is
+    // remade. Images of slides that no longer exist are deleted.
+    for (const id of oldAssets.slice(concepts.length)) heroDeleteAsset(id);
     campaign.analysis = analysis;
     campaign.concepts = concepts;
     campaign.selectedConcept = 0;
-    campaign.content = { ...contentFromConcept(concepts[0], campaign.content.label), imageAlt: campaign.content.imageAlt };
+    campaign.slideContent = concepts.map((c, i) => ({ ...contentFromConcept(c, label), imageAlt: i === 0 ? campaign.content.imageAlt : contentFromConcept(c, label).imageAlt }));
+    campaign.slideAssets = concepts.map((_, i) => oldAssets[i] || null);
+    campaign.slideImageErrors = concepts.map(() => null);
+    campaign.hiddenSlides = [];
+    normalizeCampaignSlides(campaign);
     campaign.policy = heroPolicyFor(campaign);
     heroLog(campaign, 'REGENERATED_COPY', admin);
     return `New copy for "${campaign.trendTitle}": ${concepts.length} concepts.`;
@@ -9670,7 +9855,8 @@ app.post('/api/admin/hero/campaigns/:id/:action(approve|reject|pause|resume|reti
     const policy = heroPolicyFor(campaign);
     campaign.policy = policy;
     if (!policy.ok) return res.status(400).json({ error: 'POLICY_VIOLATION', message: `Fix this before publishing: ${policy.issues[0]}`, issues: policy.issues });
-    if (!campaign.assetId || !heroAssets.some(a => a && a.id === campaign.assetId)) return refuse('This campaign has no image yet. Regenerate the image first.', 'IMAGE_MISSING');
+    normalizeCampaignSlides(campaign);
+    if (!heroHasAsset(campaign.assetId)) return refuse('The lead slide has no image yet. Make its image first.', 'IMAGE_MISSING');
     campaign.startAt = new Date(startAt).toISOString();
     campaign.endAt = new Date(endAt).toISOString();
     if (body.priority !== undefined) campaign.priority = body.priority;
@@ -9683,8 +9869,7 @@ app.post('/api/admin/hero/campaigns/:id/:action(approve|reject|pause|resume|reti
     heroLog(campaign, 'REJECTED', admin, note);
     const trend = heroTrends.find(t => t && t.id === campaign.trendId);
     if (trend) trend.status = 'DISMISSED';
-    heroDeleteAsset(campaign.assetId);
-    campaign.assetId = null;
+    heroDeleteCampaignAssets(campaign);
   } else if (action === 'pause') {
     if (campaign.status !== 'APPROVED') return refuse('Only a published or scheduled campaign can be paused.');
     campaign.status = 'PAUSED';

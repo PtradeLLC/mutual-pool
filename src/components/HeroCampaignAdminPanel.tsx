@@ -1,22 +1,38 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Megaphone, RefreshCw, Search, Sparkles, ImageIcon, Check, X, Pause, Play, Archive, Save, AlertTriangle, ShieldAlert, ExternalLink, Settings2 } from 'lucide-react';
+import { Megaphone, RefreshCw, Search, Sparkles, ImageIcon, Check, X, Pause, Play, Archive, Save, AlertTriangle, ShieldAlert, ExternalLink, Settings2, Eye, EyeOff, Star, Pencil } from 'lucide-react';
 import {
-  HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS, HERO_SERVICE_LABELS, LIMITS, wordCount,
+  DEFAULT_MONTHLY_DAYS, HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS, HERO_SERVICE_LABELS, LIMITS, wordCount,
 } from '../lib/heroCampaigns';
-import type { HeroCampaign, HeroTrend, HeroSettings, HeroCategory, CampaignContent, LiveState, PerformanceCounts, HeroCtaDestination } from '../lib/heroCampaigns';
+import type { HeroCampaign, HeroTrend, HeroSettings, HeroCategory, CampaignContent, LiveState, PerformanceCounts, HeroCtaDestination, PolicyResult } from '../lib/heroCampaigns';
 
+type AdminImage = { url: string; width: number; height: number; bytes: number; mimeType: string; model: string; prompt: string; createdAt: string };
+interface AdminSlide {
+  index: number;
+  lead: boolean;
+  hidden: boolean;
+  content: CampaignContent;
+  imageUrl: string | null;
+  image: AdminImage | null;
+  imageError: string | null;
+  policy: PolicyResult;
+  // On the landing page while the campaign is live.
+  onHero: boolean;
+}
 type AdminCampaign = HeroCampaign & {
   state: LiveState;
   imageUrl: string | null;
-  image: { width: number; height: number; bytes: number; mimeType: string; model: string; prompt: string; createdAt: string } | null;
+  image: AdminImage | null;
+  slides: AdminSlide[];
   performance: PerformanceCounts & { clickThroughRate: number; engagementScore: number };
 };
+interface CampaignEdit { contents: Record<number, CampaignContent>; startAt: string; endAt: string; priority: number }
 interface Run { id: string; at: string; kind: string; trigger: string; ok: boolean; summary: string; error?: string }
 interface AdminData {
   settings: HeroSettings;
-  ai: { provider: string; configured: boolean; textModel: string; imageModel: string };
+  ai: { provider: string; configured: boolean; discovery: boolean; textModel: string; imageModel: string };
   busy: { kind: string; label: string; startedAt: string } | null;
   runs: Run[];
+  nextRefreshAt: string | null;
   activeCampaignId: string | null;
   trends: HeroTrend[];
   campaigns: AdminCampaign[];
@@ -50,11 +66,16 @@ export const HeroCampaignAdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [edits, setEdits] = useState<Record<string, { content: CampaignContent; startAt: string; endAt: string; priority: number }>>({});
+  const [edits, setEdits] = useState<Record<string, CampaignEdit>>({});
+  // Which slide the editor shows, per campaign (the lead slide by default).
+  const [editingSlide, setEditingSlide] = useState<Record<string, number>>({});
   const [showSettings, setShowSettings] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<HeroSettings | null>(null);
   const [showClosed, setShowClosed] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const emptyTrend = { title: '', description: '', category: 'HOLIDAYS_SEASONAL' as HeroCategory, sourceUrl: '', eventDate: '', brands: '' };
+  const [showAddTrend, setShowAddTrend] = useState(false);
+  const [newTrend, setNewTrend] = useState(emptyTrend);
 
   const load = async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -105,26 +126,59 @@ export const HeroCampaignAdminPanel: React.FC = () => {
     }
   };
 
-  const editOf = (c: AdminCampaign) => edits[c.id] || { content: c.content, startAt: c.startAt, endAt: c.endAt, priority: c.priority };
-  const setEdit = (c: AdminCampaign, patch: Partial<{ content: CampaignContent; startAt: string; endAt: string; priority: number }>) =>
+  const slidesOf = (c: AdminCampaign): AdminSlide[] => c.slides || [];
+  const slideIndexOf = (c: AdminCampaign) => {
+    const i = editingSlide[c.id];
+    return Number.isInteger(i) && slidesOf(c)[i] ? i : c.selectedConcept;
+  };
+  const editOf = (c: AdminCampaign): CampaignEdit => edits[c.id] || { contents: {}, startAt: c.startAt, endAt: c.endAt, priority: c.priority };
+  const contentOf = (c: AdminCampaign, i: number): CampaignContent => editOf(c).contents[i] || slidesOf(c)[i]?.content || c.content;
+  const setEdit = (c: AdminCampaign, patch: Partial<Omit<CampaignEdit, 'contents'>>) =>
     setEdits(prev => ({ ...prev, [c.id]: { ...editOf(c), ...patch } }));
+  const setSlideContent = (c: AdminCampaign, i: number, content: CampaignContent) =>
+    setEdits(prev => { const e = prev[c.id] || editOf(c); return { ...prev, [c.id]: { ...e, contents: { ...e.contents, [i]: content } } }; });
   const clearEdit = (id: string) => setEdits(prev => { const next = { ...prev }; delete next[id]; return next; });
 
-  const saveCampaign = async (c: AdminCampaign) => {
+  // Saves every slide with unsaved copy, then the schedule. Stops at the first refusal.
+  const saveEdits = async (c: AdminCampaign, withSchedule: boolean): Promise<boolean> => {
     const e = editOf(c);
-    if (await call(`/api/admin/hero/campaigns/${c.id}`, 'PUT', { content: e.content, startAt: e.startAt, endAt: e.endAt, priority: e.priority }, 'Campaign saved.')) clearEdit(c.id);
+    for (const [i, content] of Object.entries(e.contents)) {
+      if (!(await call(`/api/admin/hero/campaigns/${c.id}`, 'PUT', { slide: Number(i), content }))) {
+        setEditingSlide(prev => ({ ...prev, [c.id]: Number(i) }));
+        return false;
+      }
+    }
+    if (withSchedule && !(await call(`/api/admin/hero/campaigns/${c.id}`, 'PUT', { startAt: e.startAt, endAt: e.endAt, priority: e.priority }))) return false;
+    return true;
+  };
+  const saveCampaign = async (c: AdminCampaign) => {
+    if (await saveEdits(c, true)) { clearEdit(c.id); setMessage({ ok: true, text: 'Campaign saved.' }); }
   };
   const approve = async (c: AdminCampaign) => {
     const e = editOf(c);
     // Save any edits first so what is approved is what is on screen.
-    if (edits[c.id] && !(await call(`/api/admin/hero/campaigns/${c.id}`, 'PUT', { content: e.content, priority: e.priority }))) return;
+    if (Object.keys(e.contents).length && !(await saveEdits(c, false))) return;
     if (await call(`/api/admin/hero/campaigns/${c.id}/approve`, 'POST', { startAt: e.startAt, endAt: e.endAt, priority: e.priority }, 'Campaign approved.')) clearEdit(c.id);
   };
+  const slideAction = (c: AdminCampaign, body: Record<string, unknown>, done: string) =>
+    call(`/api/admin/hero/campaigns/${c.id}`, 'PUT', body, done);
   const act = (c: AdminCampaign, action: 'reject' | 'pause' | 'resume' | 'retire', done: string) => {
     const needsNote = action === 'reject' || action === 'retire';
     const note = needsNote ? window.prompt(action === 'reject' ? 'Why is this campaign rejected? (optional)' : 'Why is this campaign retired? (optional)') : undefined;
     if (needsNote && note === null) return;
     call(`/api/admin/hero/campaigns/${c.id}/${action}`, 'POST', { note: note || undefined }, done);
+  };
+
+  const addTrend = async () => {
+    const ok = await call('/api/admin/hero/trends', 'POST', {
+      title: newTrend.title,
+      description: newTrend.description,
+      category: newTrend.category,
+      sourceUrl: newTrend.sourceUrl,
+      eventDate: newTrend.eventDate ? new Date(`${newTrend.eventDate}T12:00:00`).toISOString() : undefined,
+      brandsMentioned: newTrend.brands.split(',').map(b => b.trim()).filter(Boolean),
+    }, 'Trend added. Use "Draft a campaign" to write the copy and make the image.');
+    if (ok) { setNewTrend(emptyTrend); setShowAddTrend(false); }
   };
 
   const saveSettings = async () => {
@@ -136,6 +190,8 @@ export const HeroCampaignAdminPanel: React.FC = () => {
       confirmAutoPublish: turningAutoOn ? true : undefined,
       discoveryEnabled: settingsDraft.discoveryEnabled,
       discoveryIntervalHours: Number(settingsDraft.discoveryIntervalHours),
+      discoveryCadence: settingsDraft.discoveryCadence || 'INTERVAL',
+      monthlyDays: (settingsDraft.monthlyDays || DEFAULT_MONTHLY_DAYS).map(Number),
       relevanceThreshold: Number(settingsDraft.relevanceThreshold),
       maxTrendsPerRun: Number(settingsDraft.maxTrendsPerRun),
       campaignsPerRun: Number(settingsDraft.campaignsPerRun),
@@ -159,7 +215,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
         <h3 className="font-extrabold text-sm flex items-center gap-2"><Megaphone className="w-4 h-4 text-[#005FB8]" /> AI hero campaigns</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => call('/api/admin/hero/discover', 'POST', {})} disabled={busy || !data?.ai.configured} className={`${btn} bg-[#005FB8] hover:bg-[#004C93] text-white`}>
+          <button type="button" onClick={() => call('/api/admin/hero/discover', 'POST', {})} disabled={busy || !data?.ai.discovery} title={data && !data.ai.discovery ? 'Finding trends needs Gemini web search. You can add a trend yourself below.' : ''} className={`${btn} bg-[#005FB8] hover:bg-[#004C93] text-white`}>
             <Search className="w-3 h-3" /> Find trends now
           </button>
           <button type="button" onClick={() => setShowSettings(v => !v)} className={`${btn} border border-[#DDE1E6] hover:bg-gray-50`}><Settings2 className="w-3 h-3" /> Settings</button>
@@ -170,7 +226,8 @@ export const HeroCampaignAdminPanel: React.FC = () => {
       {data && (
         <p className="text-xs text-slate-500 mb-3">
           Publishing: <strong>{data.settings.publishMode === 'AUTO' ? 'automatic for low-risk campaigns' : 'manual approval'}</strong>
-          {' · '}Scheduled discovery: <strong>{data.settings.discoveryEnabled ? `every ${data.settings.discoveryIntervalHours} hours` : 'off'}</strong>
+          {' · '}Scheduled refresh: <strong>{!data.settings.discoveryEnabled ? 'off' : data.settings.discoveryCadence === 'TWICE_MONTHLY' ? `twice a month (days ${(data.settings.monthlyDays || DEFAULT_MONTHLY_DAYS).join(' and ')})` : `every ${data.settings.discoveryIntervalHours} hours`}</strong>
+          {data.nextRefreshAt && <>{' · '}Next: <strong>{new Date(data.nextRefreshAt).getTime() <= Date.now() + 60_000 ? 'within minutes' : new Date(data.nextRefreshAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</strong></>}
           {' · '}On the landing page now: <strong>{data.activeCampaignId ? data.campaigns.find(c => c.id === data.activeCampaignId)?.content.headline : 'the evergreen hero'}</strong>
         </p>
       )}
@@ -178,7 +235,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
       {data && !data.ai.configured && (
         <div className="mb-3 p-2.5 rounded-lg text-xs border bg-amber-50 border-amber-200 text-amber-900 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>No AI provider is configured, so trends and campaigns cannot be generated. Set GEMINI_API_KEY (a key with billing enabled: search grounding and image generation have no free quota).</span>
+          <span>Campaign copy and images cannot be generated: no AI provider is configured for both. Copy needs GEMINI_API_KEY or GROQ_API_KEY; images need GEMINI_API_KEY or RUNWAY_API_KEY.</span>
         </div>
       )}
       {busy && data?.busy && (
@@ -200,15 +257,43 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                 <option value="AUTO">Automatic (low-risk only)</option>
               </select>
             </label>
-            <label className="font-bold text-slate-600 space-y-1 text-[10px]">Scheduled discovery
-              <select className={field} value={s.discoveryEnabled ? 'on' : 'off'} onChange={e => setSettingsDraft({ ...s, discoveryEnabled: e.target.value === 'on' })}>
+            <label className="font-bold text-slate-600 space-y-1 text-[10px]">Scheduled refresh (new image and copy)
+              <select
+                className={field}
+                value={!s.discoveryEnabled ? 'off' : s.discoveryCadence === 'TWICE_MONTHLY' ? 'twice' : 'interval'}
+                onChange={e => setSettingsDraft({ ...s, discoveryEnabled: e.target.value !== 'off', discoveryCadence: e.target.value === 'twice' ? 'TWICE_MONTHLY' : e.target.value === 'interval' ? 'INTERVAL' : s.discoveryCadence })}
+              >
                 <option value="off">Off</option>
-                <option value="on">On</option>
+                <option value="twice">Twice a month</option>
+                <option value="interval">Every few hours</option>
               </select>
             </label>
-            <label className="font-bold text-slate-600 space-y-1 text-[10px]">Every (hours)
-              <input className={`${field} font-mono`} type="number" min={6} max={168} value={s.discoveryIntervalHours} onChange={e => setSettingsDraft({ ...s, discoveryIntervalHours: Number(e.target.value) })} />
-            </label>
+            {s.discoveryCadence === 'TWICE_MONTHLY' ? (
+              <div className="font-bold text-slate-600 space-y-1 text-[10px]">Days of the month (1-28)
+                <div className="flex gap-1.5">
+                  {[0, 1].map(i => (
+                    <input
+                      key={i}
+                      aria-label={i === 0 ? 'First refresh day' : 'Second refresh day'}
+                      className={`${field} font-mono`}
+                      type="number"
+                      min={1}
+                      max={28}
+                      value={(s.monthlyDays || DEFAULT_MONTHLY_DAYS)[i]}
+                      onChange={e => {
+                        const days = [...(s.monthlyDays || DEFAULT_MONTHLY_DAYS)] as [number, number];
+                        days[i] = Number(e.target.value);
+                        setSettingsDraft({ ...s, monthlyDays: days });
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <label className="font-bold text-slate-600 space-y-1 text-[10px]">Every (hours)
+                <input className={`${field} font-mono`} type="number" min={6} max={168} value={s.discoveryIntervalHours} onChange={e => setSettingsDraft({ ...s, discoveryIntervalHours: Number(e.target.value) })} />
+              </label>
+            )}
             <label className="font-bold text-slate-600 space-y-1 text-[10px]">Region
               <input className={field} value={s.region} maxLength={60} onChange={e => setSettingsDraft({ ...s, region: e.target.value })} />
             </label>
@@ -242,6 +327,14 @@ export const HeroCampaignAdminPanel: React.FC = () => {
           <label className="block font-bold text-slate-600 space-y-1 text-[10px]">Blocked words and phrases (one per line). Campaigns using them cannot be published.
             <textarea className={`${field} font-normal`} rows={2} value={s.blockedTerms.join('\n')} onChange={e => setSettingsDraft({ ...s, blockedTerms: e.target.value.split('\n') })} />
           </label>
+          {s.discoveryCadence === 'TWICE_MONTHLY' && s.discoveryEnabled && (
+            <p className="text-[11px] text-slate-600">
+              On each of those days at 6:00 AM (server time) the system finds current trends and drafts a new campaign: image, headline, copy and button. Each campaign runs until the next refresh day, or until its event has passed.
+              {s.publishMode === 'AUTO'
+                ? ' Low-risk campaigns go live on their own; sensitive or brand-related ones wait here for approval.'
+                : ' With manual approval, each draft waits here until you approve it; the landing page changes only then.'}
+            </p>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] text-slate-500">AI: {data?.ai.provider} · text {data?.ai.textModel} · image {data?.ai.imageModel}
               {data?.settings.autoPublishActivatedAt && ` · automatic publishing turned on by ${data.settings.autoPublishActivatedBy} on ${new Date(data.settings.autoPublishActivatedAt).toLocaleDateString()}`}
@@ -268,7 +361,14 @@ export const HeroCampaignAdminPanel: React.FC = () => {
             const e = editOf(c);
             const open = openId === c.id;
             const closed = c.status === 'RETIRED' || c.status === 'REJECTED';
-            const words = wordCount(e.content.headline);
+            const slides = slidesOf(c);
+            const si = slideIndexOf(c);
+            const sl = slides[si];
+            const sc = contentOf(c, si);
+            const words = wordCount(sc.headline);
+            const missing = slides.filter(s => !s.imageUrl).length;
+            const onHero = slides.filter(s => s.onHero).length;
+            const unsaved = Object.keys(e.contents).length;
             return (
               <li key={c.id} className="rounded-xl border border-[#E2E8F0] overflow-hidden">
                 <button type="button" onClick={() => setOpenId(open ? null : c.id)} aria-expanded={open} className="w-full flex items-center gap-3 p-3 text-left bg-[#F8FAFC] hover:bg-slate-100">
@@ -278,8 +378,9 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${STATE_STYLE[c.state]}`}>{c.state === 'LIVE' && data?.activeCampaignId !== c.id ? 'Live (outranked)' : c.state}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#005FB8]">{onHero} of {slides.length} slides ready</span>
                       {c.policy.requiresManualReview && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 inline-flex items-center gap-1"><ShieldAlert className="w-3 h-3" /> Needs review</span>}
-                      {!c.policy.ok && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">Breaks a rule</span>}
+                      {!c.policy.ok && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">Lead slide breaks a rule</span>}
                       {c.publishedBy === 'AUTO' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Auto-published</span>}
                     </div>
                     <div className="text-sm font-bold text-slate-900 truncate mt-0.5">{c.content.headline}</div>
@@ -293,72 +394,123 @@ export const HeroCampaignAdminPanel: React.FC = () => {
 
                 {open && (
                   <div className="p-3 space-y-3 text-xs border-t border-[#E2E8F0]">
-                    {/* Preview, as the hero shows it */}
+                    <p className="text-[11px] text-slate-600">
+                      While this campaign is live, the landing page shows <strong>only its slides</strong> (lead slide first), each with its own image and copy. A slide joins the hero once it has an image and passes the copy rules; hidden slides stay off.
+                    </p>
+
+                    {/* Slides */}
+                    <div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                        <div className="font-bold text-slate-700">Slides ({slides.length})</div>
+                        {!closed && missing > 0 && (
+                          <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { missing: true })} disabled={busy} className={`${btn} bg-[#005FB8] hover:bg-[#004C93] text-white`}>
+                            <ImageIcon className="w-3 h-3" /> Make missing images ({missing})
+                          </button>
+                        )}
+                      </div>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        {slides.map(s => {
+                          const concept = c.concepts[s.index];
+                          const content = contentOf(c, s.index);
+                          return (
+                            <li key={s.index} className={`rounded-lg border overflow-hidden ${s.index === si ? 'border-[#005FB8] ring-1 ring-[#005FB8]' : 'border-[#E2E8F0]'} ${s.hidden ? 'opacity-60' : ''}`}>
+                              <button type="button" onClick={() => setEditingSlide(prev => ({ ...prev, [c.id]: s.index }))} className="block w-full text-left">
+                                {s.imageUrl
+                                  ? <img src={s.imageUrl} alt="" className="w-full aspect-video object-cover bg-slate-200" />
+                                  : <div className="w-full aspect-video bg-slate-100 flex items-center justify-center text-slate-400 text-[10px] p-2 text-center"><span><ImageIcon className="w-4 h-4 mx-auto mb-1" />{s.imageError ? `Image failed: ${s.imageError}` : 'No image yet'}</span></div>}
+                                <div className="p-2">
+                                  <div className="flex flex-wrap gap-1 mb-1">
+                                    {s.lead && <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#005FB8] text-white inline-flex items-center gap-0.5"><Star className="w-2.5 h-2.5" /> Lead</span>}
+                                    {s.onHero && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">Ready for hero</span>}
+                                    {s.hidden && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-700">Hidden</span>}
+                                    {!s.policy.ok && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">Breaks a rule</span>}
+                                    {editOf(c).contents[s.index] && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800">Unsaved</span>}
+                                  </div>
+                                  <div className="font-bold text-slate-900 leading-snug">{content.headline}</div>
+                                  {concept && <div className="text-[10px] text-slate-500 mt-0.5">{concept.targetAudience} · {HERO_SERVICE_LABELS[concept.service]}</div>}
+                                </div>
+                              </button>
+                              {!closed && (
+                                <div className="flex flex-wrap gap-1 px-2 pb-2">
+                                  <button type="button" onClick={() => setEditingSlide(prev => ({ ...prev, [c.id]: s.index }))} className="text-[10px] font-bold text-[#005FB8] hover:underline inline-flex items-center gap-0.5"><Pencil className="w-2.5 h-2.5" /> Edit</button>
+                                  {!s.lead && <button type="button" disabled={busy} onClick={() => slideAction(c, { selectedConcept: s.index }, `Slide ${s.index + 1} now leads the hero.`)} className="text-[10px] font-bold text-[#005FB8] hover:underline inline-flex items-center gap-0.5"><Star className="w-2.5 h-2.5" /> Make lead</button>}
+                                  {!s.lead && <button type="button" disabled={busy} onClick={() => slideAction(c, { slide: s.index, hidden: !s.hidden }, s.hidden ? `Slide ${s.index + 1} is back on the hero.` : `Slide ${s.index + 1} is off the hero.`)} className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-0.5">{s.hidden ? <><Eye className="w-2.5 h-2.5" /> Show</> : <><EyeOff className="w-2.5 h-2.5" /> Hide</>}</button>}
+                                  <button type="button" disabled={busy} onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { slide: s.index })} className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-0.5"><ImageIcon className="w-2.5 h-2.5" /> {s.imageUrl ? 'Remake image' : 'Make image'}</button>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+
+                    {/* Editor for the selected slide, previewed as the hero shows it */}
+                    <div className="font-bold text-slate-700">Editing slide {si + 1}{sl?.lead ? ' (lead)' : ''}</div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                       <div className="relative rounded-xl overflow-hidden bg-slate-900 aspect-[4/3] max-h-72">
-                        {c.imageUrl
-                          ? <img src={c.imageUrl} alt={e.content.imageAlt} className="absolute inset-0 w-full h-full object-cover" />
-                          : <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs p-4 text-center">No image yet{c.imageError ? `: ${c.imageError}` : ''}</div>}
+                        {sl?.imageUrl
+                          ? <img src={sl.imageUrl} alt={sc.imageAlt} className="absolute inset-0 w-full h-full object-cover" />
+                          : <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs p-4 text-center">No image yet{sl?.imageError ? `: ${sl.imageError}` : ''}</div>}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
                         <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-                          {e.content.label && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-[10px] font-bold uppercase"><Sparkles className="w-3 h-3" /> {e.content.label}</span>}
-                          <p className="mt-1.5 text-lg font-extrabold leading-tight">{e.content.headline}</p>
-                          <p className="mt-1 text-[11px] text-white/90 leading-snug line-clamp-3">{e.content.description}</p>
-                          <span className="mt-2 inline-block px-3 py-1.5 rounded-lg bg-white text-[#005FB8] font-bold text-[11px]">{e.content.ctaLabel}</span>
+                          {sc.label && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-[10px] font-bold uppercase"><Sparkles className="w-3 h-3" /> {sc.label}</span>}
+                          <p className="mt-1.5 text-lg font-extrabold leading-tight">{sc.headline}</p>
+                          <p className="mt-1 text-[11px] text-white/90 leading-snug line-clamp-3">{sc.description}</p>
+                          <span className="mt-2 inline-block px-3 py-1.5 rounded-lg bg-white text-[#005FB8] font-bold text-[11px]">{sc.ctaLabel}</span>
                         </div>
                       </div>
 
                       <div className="space-y-2">
                         <label className="block text-[10px] font-bold text-slate-600 space-y-1">Headline ({words} words; best at 3 to 9)
-                          <input className={field} disabled={closed} value={e.content.headline} maxLength={LIMITS.headlineChars} onChange={ev => setEdit(c, { content: { ...e.content, headline: ev.target.value } })} />
+                          <input className={field} disabled={closed} value={sc.headline} maxLength={LIMITS.headlineChars} onChange={ev => setSlideContent(c, si, { ...sc, headline: ev.target.value })} />
                         </label>
-                        <label className="block text-[10px] font-bold text-slate-600 space-y-1">Supporting description ({e.content.description.length}/{LIMITS.descriptionChars})
-                          <textarea className={field} disabled={closed} rows={3} value={e.content.description} maxLength={LIMITS.descriptionChars + 40} onChange={ev => setEdit(c, { content: { ...e.content, description: ev.target.value } })} />
+                        <label className="block text-[10px] font-bold text-slate-600 space-y-1">Supporting description ({sc.description.length}/{LIMITS.descriptionChars})
+                          <textarea className={field} disabled={closed} rows={3} value={sc.description} maxLength={LIMITS.descriptionChars + 40} onChange={ev => setSlideContent(c, si, { ...sc, description: ev.target.value })} />
                         </label>
                         <div className="grid grid-cols-2 gap-2">
                           <label className="block text-[10px] font-bold text-slate-600 space-y-1">Button label
-                            <input className={field} disabled={closed} value={e.content.ctaLabel} maxLength={LIMITS.ctaChars} onChange={ev => setEdit(c, { content: { ...e.content, ctaLabel: ev.target.value } })} />
+                            <input className={field} disabled={closed} value={sc.ctaLabel} maxLength={LIMITS.ctaChars} onChange={ev => setSlideContent(c, si, { ...sc, ctaLabel: ev.target.value })} />
                           </label>
                           <label className="block text-[10px] font-bold text-slate-600 space-y-1">Button goes to
-                            <select className={field} disabled={closed} value={e.content.ctaDestination} onChange={ev => setEdit(c, { content: { ...e.content, ctaDestination: ev.target.value as HeroCtaDestination } })}>
+                            <select className={field} disabled={closed} value={sc.ctaDestination} onChange={ev => setSlideContent(c, si, { ...sc, ctaDestination: ev.target.value as HeroCtaDestination })}>
                               {HERO_CTA_DESTINATIONS.map(d => <option key={d} value={d}>{HERO_CTA_LABELS[d]}</option>)}
                             </select>
                           </label>
                           <label className="block text-[10px] font-bold text-slate-600 space-y-1">Label (optional)
-                            <input className={field} disabled={closed} value={e.content.label} maxLength={LIMITS.labelChars} onChange={ev => setEdit(c, { content: { ...e.content, label: ev.target.value } })} />
+                            <input className={field} disabled={closed} value={sc.label} maxLength={LIMITS.labelChars} onChange={ev => setSlideContent(c, si, { ...sc, label: ev.target.value })} />
                           </label>
-                          <label className="block text-[10px] font-bold text-slate-600 space-y-1">Priority (1-10)
+                          <label className="block text-[10px] font-bold text-slate-600 space-y-1">Campaign priority (1-10)
                             <input className={`${field} font-mono`} disabled={closed} type="number" min={1} max={10} value={e.priority} onChange={ev => setEdit(c, { priority: Number(ev.target.value) })} />
                           </label>
-                          <label className="block text-[10px] font-bold text-slate-600 space-y-1">Starts
+                          <label className="block text-[10px] font-bold text-slate-600 space-y-1">Campaign starts
                             <input className={field} disabled={closed} type="datetime-local" value={toLocalInput(e.startAt)} onChange={ev => setEdit(c, { startAt: fromLocalInput(ev.target.value) || e.startAt })} />
                           </label>
-                          <label className="block text-[10px] font-bold text-slate-600 space-y-1">Ends
+                          <label className="block text-[10px] font-bold text-slate-600 space-y-1">Campaign ends
                             <input className={field} disabled={closed} type="datetime-local" value={toLocalInput(e.endAt)} onChange={ev => setEdit(c, { endAt: fromLocalInput(ev.target.value) || e.endAt })} />
                           </label>
                         </div>
                         <label className="block text-[10px] font-bold text-slate-600 space-y-1">Image description (for screen readers)
-                          <input className={field} disabled={closed} value={e.content.imageAlt} maxLength={LIMITS.altChars} onChange={ev => setEdit(c, { content: { ...e.content, imageAlt: ev.target.value } })} />
+                          <input className={field} disabled={closed} value={sc.imageAlt} maxLength={LIMITS.altChars} onChange={ev => setSlideContent(c, si, { ...sc, imageAlt: ev.target.value })} />
                         </label>
                       </div>
                     </div>
 
-                    {/* Checks */}
-                    {c.policy.issues.length > 0 && (
+                    {/* Checks for the slide being edited */}
+                    {sl && sl.policy.issues.length > 0 && (
                       <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
-                        <strong>Cannot be published until fixed:</strong>
-                        <ul className="list-disc pl-4 mt-1 space-y-0.5">{c.policy.issues.map(i => <li key={i}>{i}</li>)}</ul>
+                        <strong>{sl.lead ? 'The campaign cannot be published until this is fixed:' : 'This slide stays off the hero until this is fixed:'}</strong>
+                        <ul className="list-disc pl-4 mt-1 space-y-0.5">{sl.policy.issues.map(i => <li key={i}>{i}</li>)}</ul>
                       </div>
                     )}
                     {c.policy.reviewReasons.length > 0 && (
                       <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
                         <strong>Needs a person to approve (never published automatically):</strong>
                         <ul className="list-disc pl-4 mt-1 space-y-0.5">{c.policy.reviewReasons.map(i => <li key={i}>{i}</li>)}</ul>
-                        {c.brandsMentioned.length > 0 && <p className="mt-1">Check that the copy and image do not suggest MutualPool is affiliated with, sponsored by or endorsed by any of these, and that the image copies none of their artwork, logos or characters.</p>}
+                        {c.brandsMentioned.length > 0 && <p className="mt-1">Check that the copy and images do not suggest MutualPool is affiliated with, sponsored by or endorsed by any of these, and that no image copies their artwork, logos or characters.</p>}
                       </div>
                     )}
-                    {c.policy.warnings.length > 0 && <p className="text-amber-800">{c.policy.warnings.join(' ')}</p>}
-                    {c.imageError && <p className="text-rose-700">Last image attempt failed: {c.imageError}</p>}
+                    {sl && sl.policy.warnings.length > 0 && <p className="text-amber-800">{sl.policy.warnings.join(' ')}</p>}
+                    {sl?.imageError && <p className="text-rose-700">Last image attempt for this slide failed: {sl.imageError}</p>}
 
                     {/* Trend and reasoning */}
                     <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
@@ -377,34 +529,14 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Concepts */}
-                    <div>
-                      <div className="font-bold text-slate-700 mb-1">Concepts ({c.concepts.length})</div>
-                      <ul className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {c.concepts.map((concept, idx) => (
-                          <li key={idx} className={`p-2.5 rounded-lg border ${idx === c.selectedConcept ? 'border-[#005FB8] bg-blue-50/60' : 'border-[#E2E8F0]'}`}>
-                            <div className="font-bold text-slate-900">{concept.headline}</div>
-                            <div className="text-slate-600 mt-0.5">{concept.description}</div>
-                            <div className="text-[10px] text-slate-500 mt-1">{concept.targetAudience} · {HERO_SERVICE_LABELS[concept.service]} · {concept.suggestedDurationDays} days</div>
-                            <div className="text-[10px] text-slate-500 italic">{concept.marketingAngle}</div>
-                            {c.status === 'DRAFT' && idx !== c.selectedConcept && (
-                              <button type="button" onClick={async () => { if (await call(`/api/admin/hero/campaigns/${c.id}`, 'PUT', { selectedConcept: idx }, 'Concept selected. Regenerate the image if it should match the new concept.')) clearEdit(c.id); }} className="mt-1.5 text-[11px] font-bold text-[#005FB8] hover:underline">
-                                Use this concept
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
                     {/* Actions */}
                     {!closed && (
                       <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <button type="button" onClick={() => saveCampaign(c)} disabled={busy} className={`${btn} bg-slate-800 hover:bg-slate-900 text-white`}><Save className="w-3 h-3" /> Save changes</button>
-                        <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', {})} disabled={busy} className={`${btn} border border-[#DDE1E6] hover:bg-gray-50`}><ImageIcon className="w-3 h-3" /> Regenerate image</button>
+                        <button type="button" onClick={() => saveCampaign(c)} disabled={busy} className={`${btn} bg-slate-800 hover:bg-slate-900 text-white`}><Save className="w-3 h-3" /> Save changes{unsaved ? ` (${unsaved} slide${unsaved === 1 ? '' : 's'})` : ''}</button>
+                        <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { slide: si })} disabled={busy} className={`${btn} border border-[#DDE1E6] hover:bg-gray-50`}><ImageIcon className="w-3 h-3" /> {sl?.imageUrl ? `Remake image for slide ${si + 1}` : `Make image for slide ${si + 1}`}</button>
                         {c.status === 'DRAFT' && (
                           <>
-                            <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-copy`, 'POST', {})} disabled={busy} className={`${btn} border border-[#DDE1E6] hover:bg-gray-50`}><Sparkles className="w-3 h-3" /> Regenerate copy</button>
+                            <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-copy`, 'POST', {})} disabled={busy} className={`${btn} border border-[#DDE1E6] hover:bg-gray-50`}><Sparkles className="w-3 h-3" /> Regenerate all copy</button>
                             <button type="button" onClick={() => approve(c)} disabled={busy} className={`${btn} bg-emerald-600 hover:bg-emerald-700 text-white`}><Check className="w-3 h-3" /> Approve and schedule</button>
                             <button type="button" onClick={() => act(c, 'reject', 'Campaign rejected.')} disabled={busy} className={`${btn} border border-rose-200 text-rose-700 hover:bg-rose-50`}><X className="w-3 h-3" /> Reject</button>
                           </>
@@ -431,7 +563,39 @@ export const HeroCampaignAdminPanel: React.FC = () => {
       )}
 
       {/* Trends */}
-      <h4 className="text-xs font-extrabold text-slate-800 mb-2">Discovered trends without a campaign ({openTrends.length})</h4>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-xs font-extrabold text-slate-800">Trends without a campaign ({openTrends.length})</h4>
+        <button type="button" onClick={() => setShowAddTrend(v => !v)} className="text-[11px] font-semibold text-[#005FB8] hover:underline">{showAddTrend ? 'Cancel' : 'Add a trend yourself'}</button>
+      </div>
+      {showAddTrend && (
+        <div className="mb-3 p-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-2 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <label className="block text-[10px] font-bold text-slate-600 space-y-1">What is trending
+              <input className={field} value={newTrend.title} maxLength={160} placeholder="Thanksgiving travel week" onChange={e => setNewTrend({ ...newTrend, title: e.target.value })} />
+            </label>
+            <label className="block text-[10px] font-bold text-slate-600 space-y-1">Category
+              <select className={field} value={newTrend.category} onChange={e => setNewTrend({ ...newTrend, category: e.target.value as HeroCategory })}>
+                {HERO_CATEGORIES.map(c => <option key={c} value={c}>{HERO_CATEGORY_LABELS[c]}</option>)}
+              </select>
+            </label>
+          </div>
+          <label className="block text-[10px] font-bold text-slate-600 space-y-1">What is happening, and why now ({newTrend.description.length}/600)
+            <textarea className={field} rows={2} value={newTrend.description} maxLength={600} onChange={e => setNewTrend({ ...newTrend, description: e.target.value })} />
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <label className="block text-[10px] font-bold text-slate-600 space-y-1">Source link (required)
+              <input className={field} type="url" value={newTrend.sourceUrl} placeholder="https://..." onChange={e => setNewTrend({ ...newTrend, sourceUrl: e.target.value })} />
+            </label>
+            <label className="block text-[10px] font-bold text-slate-600 space-y-1">Event date (optional)
+              <input className={field} type="date" value={newTrend.eventDate} onChange={e => setNewTrend({ ...newTrend, eventDate: e.target.value })} />
+            </label>
+            <label className="block text-[10px] font-bold text-slate-600 space-y-1">Brands or names involved (optional, comma-separated)
+              <input className={field} value={newTrend.brands} onChange={e => setNewTrend({ ...newTrend, brands: e.target.value })} />
+            </label>
+          </div>
+          <button type="button" onClick={addTrend} className={`${btn} bg-slate-800 hover:bg-slate-900 text-white`}><Check className="w-3 h-3" /> Add trend</button>
+        </div>
+      )}
       {openTrends.length === 0 ? (
         <p className="text-xs text-slate-500 mb-4">Nothing waiting.</p>
       ) : (

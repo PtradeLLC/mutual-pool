@@ -5,13 +5,21 @@
 //           Search grounding for trends, a structured call for copy, and an
 //           image model for the picture. Needs GEMINI_API_KEY on a paid plan
 //           (search grounding and image generation have no free quota).
+//   groq    Copy only (GROQ_API_KEY): writes the analysis and concepts when
+//           Gemini cannot. It has no web search, so it never discovers trends.
+//   runway  Images only (RUNWAY_API_KEY): makes the picture when Gemini cannot.
 //   stub    Fixed, offline output for tests and local development. Selected
 //           with HERO_AI_PROVIDER=stub and never available in production.
+//
+// Copy and images each try their providers in order and move to the next when
+// one fails. Gemini goes first unless HERO_TEXT_PROVIDER / HERO_IMAGE_PROVIDER
+// names another. Trend discovery needs search, so it is Gemini only.
 //
 // Every function either returns clean data or throws; callers record the
 // failure and the hero keeps showing what it showed before.
 
 import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import {
   HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_SERVICES, HERO_SERVICE_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS,
   HEADLINE_MIN_WORDS, HEADLINE_MAX_WORDS, LIMITS, sanitizeConcept,
@@ -37,17 +45,88 @@ const TEXT_MODEL = () => process.env.HERO_TEXT_MODEL || 'gemini-3.7-flash';
 const IMAGE_MODEL = () => process.env.HERO_IMAGE_MODEL || 'gemini-3.1-flash-image';
 const AI_TIMEOUT_MS = 120_000;
 
-export function heroAiStatus(isProduction: boolean): { provider: 'gemini' | 'stub' | 'none'; configured: boolean; textModel: string; imageModel: string } {
-  if (!isProduction && process.env.HERO_AI_PROVIDER === 'stub') return { provider: 'stub', configured: true, textModel: 'stub', imageModel: 'stub' };
-  const configured = Boolean(process.env.GEMINI_API_KEY);
-  return { provider: configured ? 'gemini' : 'none', configured, textModel: TEXT_MODEL(), imageModel: IMAGE_MODEL() };
+const GROQ_MODEL = () => process.env.HERO_GROQ_MODEL || 'openai/gpt-oss-120b';
+const RUNWAY_MODEL = 'gen4_image';
+
+// Providers in the order they are tried: the preferred one (from the env
+// variable) first, then the rest; only those with a key.
+function providerOrder(preferred: string | undefined, available: Array<[string, boolean]>): string[] {
+  const names = available.filter(([, has]) => has).map(([name]) => name);
+  const first = (preferred || '').trim().toLowerCase();
+  return names.includes(first) ? [first, ...names.filter(n => n !== first)] : names;
+}
+const copyProviders = () => providerOrder(process.env.HERO_TEXT_PROVIDER, [['gemini', Boolean(process.env.GEMINI_API_KEY)], ['groq', Boolean(process.env.GROQ_API_KEY)]]);
+const imageProviders = () => providerOrder(process.env.HERO_IMAGE_PROVIDER, [['gemini', Boolean(process.env.GEMINI_API_KEY)], ['runway', Boolean(process.env.RUNWAY_API_KEY)]]);
+
+export interface HeroAiStatus {
+  provider: string;
+  // Copy and images can both be produced.
+  configured: boolean;
+  // Trends can be searched for (needs Gemini).
+  discovery: boolean;
+  textModel: string;
+  imageModel: string;
+}
+
+export function heroAiStatus(isProduction: boolean): HeroAiStatus {
+  if (!isProduction && process.env.HERO_AI_PROVIDER === 'stub') return { provider: 'stub', configured: true, discovery: true, textModel: 'stub', imageModel: 'stub' };
+  const copy = copyProviders();
+  const image = imageProviders();
+  const modelOf = (name: string) => (name === 'gemini' ? TEXT_MODEL() : name === 'groq' ? GROQ_MODEL() : name);
+  const imageModelOf = (name: string) => (name === 'gemini' ? IMAGE_MODEL() : name === 'runway' ? `runway ${RUNWAY_MODEL}` : name);
+  const configured = copy.length > 0 && image.length > 0;
+  return {
+    provider: configured ? `copy: ${copy.join(' then ')}; images: ${image.join(' then ')}` : 'none',
+    configured,
+    discovery: Boolean(process.env.GEMINI_API_KEY),
+    textModel: copy.map(modelOf).join(' then ') || 'none',
+    imageModel: image.map(imageModelOf).join(' then ') || 'none',
+  };
+}
+
+// A provider that just failed for lack of credit is not asked again for a while.
+const benched = new Map<string, number>();
+const BENCH_MS = 6 * 3_600_000;
+const isBillingFailure = (err: unknown) => /quota|RESOURCE_EXHAUSTED|credits|billing|payment|insufficient|\b40[23]\b|\b429\b/i.test(String((err as any)?.message || err));
+
+async function firstThatWorks<T>(kind: string, names: string[], run: (name: string) => Promise<T>): Promise<T> {
+  if (!names.length) throw new Error(`No AI provider is configured for ${kind}.`);
+  const now = Date.now();
+  // Benched providers go last rather than being skipped: one of them may be all there is.
+  const ordered = [...names.filter(n => (benched.get(`${kind}:${n}`) || 0) <= now), ...names.filter(n => (benched.get(`${kind}:${n}`) || 0) > now)];
+  const failures: string[] = [];
+  for (const name of ordered) {
+    try {
+      const result = await run(name);
+      benched.delete(`${kind}:${name}`);
+      return result;
+    } catch (err) {
+      if (isBillingFailure(err)) benched.set(`${kind}:${name}`, now + BENCH_MS);
+      failures.push(`${name}: ${describeAiError(err)}`);
+      console.warn(`[hero] ${kind} via ${name} failed:`, describeAiError(err));
+    }
+  }
+  throw new Error(failures.length === 1 ? failures[0].replace(/^[a-z]+: /, '') : `Every provider failed. ${failures.join(' | ')}`);
 }
 
 export function getHeroAiProvider(isProduction: boolean): HeroAiProvider | null {
   const status = heroAiStatus(isProduction);
   if (status.provider === 'stub') return stubProvider;
-  if (status.provider === 'gemini') return geminiProvider();
-  return null;
+  if (!status.configured && !status.discovery) return null;
+  const gemini = geminiProvider();
+  return {
+    name: status.provider,
+    discoverTrends(settings, now) {
+      if (!status.discovery) throw new Error('Finding trends needs web search, which only Gemini provides here. Set GEMINI_API_KEY, or add a trend yourself.');
+      return gemini.discoverTrends(settings, now);
+    },
+    generateConcepts(trend, settings) {
+      return firstThatWorks('copy', copyProviders(), name => (name === 'groq' ? groqConcepts(trend, settings) : gemini.generateConcepts(trend, settings)));
+    },
+    generateImage(prompt) {
+      return firstThatWorks('images', imageProviders(), name => (name === 'runway' ? runwayImage(prompt) : gemini.generateImage(prompt)));
+    },
+  };
 }
 
 // A short, safe description of a provider failure for the admin screen.
@@ -59,6 +138,7 @@ export function describeAiError(err: unknown): string {
   } catch {
     // not JSON
   }
+  if (/prepayment credits are depleted/i.test(message)) return 'Gemini refused the request: the prepaid credits for this API key are used up.';
   if (/quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(message)) {
     return 'The AI provider refused the request: quota exceeded. Google Search grounding and image generation need a Gemini API key with billing enabled.';
   }
@@ -216,6 +296,10 @@ function conceptJsonSchema() {
   };
 }
 
+function conceptPrompt(trend: HeroTrend, settings: HeroSettings): string {
+  return `${BRAND_BRIEF}\n\nYou are MutualPool's marketing strategist. Write hero-banner campaign concepts that tie a current trend to MutualPool.\n\nTREND\nTitle: ${trend.title}\nWhat: ${trend.description}\nCategory: ${HERO_CATEGORY_LABELS[trend.category]}\nRegion: ${trend.region}\nEvent date: ${trend.eventDate || 'n/a'}\nBrands named: ${trend.brandsMentioned.join(', ') || 'none'}\n\nFirst, the analysis: what is happening, why it matters now, who cares, which audience segment, how it connects naturally to MutualPool, which one service fits best, and the message that would land.\n\nThen write 4 different concepts (different angle or audience each). For each:\n- headline: ${HEADLINE_MIN_WORDS} to ${HEADLINE_MAX_WORDS} words, plain mainstream language, positive, with an emotional or practical benefit.\n- description: one or two sentences, at most ${LIMITS.descriptionChars} characters, that say what MutualPool lets people do (save together, pool money, take turns receiving the pot, reach a shared goal) and invite them in.\n- ctaLabel: at most ${LIMITS.ctaChars} characters. ctaDestination: ${HERO_CTA_DESTINATIONS.map(d => `${d} (${HERO_CTA_LABELS[d]})`).join('; ')}.\n- service: one of ${HERO_SERVICES.map(s => `${s} (${HERO_SERVICE_LABELS[s]})`).join('; ')}.\n- suggestedDurationDays: how long this stays timely.\n- imagePrompt: a scene for an original photograph or illustration that carries the theme through setting, light and mood. Ordinary people, plain clothing. Never name or depict brands, logos, characters, celebrities, team kits, game or film artwork, or any text.\n\nHard rules for the copy:\n- The trend is the hook; MutualPool's service is the point. Never just attach the brand name to an unrelated headline.\n- Never say or imply MutualPool is official, a sponsor, a partner of, or endorsed by anyone named in the trend. Prefer describing the moment ("the big game", "launch day") over naming a brand.\n- No promises: no "guaranteed", "risk-free", "win", "earn", "returns", "profit", "invest", "loan", "interest", no percentages, no dollar amounts, nothing that promises a payout or financial success.\n- Do not use: ${settings.blockedTerms.join(', ') || '(no extra blocked terms)'}.`;
+}
+
 function parseJson(text: string | undefined): any {
   if (!text) throw new Error('The model returned no content.');
   const trimmed = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
@@ -247,7 +331,7 @@ function geminiProvider(): HeroAiProvider {
       // Step 1: search. The sources come from the search service, not the model.
       const search = await gemini().models.generateContent({
         model: TEXT_MODEL(),
-        contents: `Today is ${today}. Use Google Search to find what people in ${settings.region} are talking about right now or will be in the next two weeks, in these areas:\n${categories}\n\nList up to ${settings.maxTrendsPerRun + 4} distinct items. For each give: a short title, two sentences on what is happening and why it matters now, when it was reported, the date of the event or release if there is one, and any sign of how popular it is. Only include things you found in current search results. Skip rumours, leaks and anything you cannot date. Skip tragedies, crime, politics and disasters.`,
+        contents: `Today is ${today}. Use Google Search to find what people in ${settings.region} are talking about right now or will be in the next two weeks, in these areas:\n${categories}\n\nList up to ${settings.maxTrendsPerRun + 4} distinct items. For each give: a short title, two sentences on what is happening and why it matters now, when it was reported, the date of the event or release if there is one, and any sign of how popular it is. ${settings.discoveryCadence === 'TWICE_MONTHLY' ? 'The result will be featured for about two weeks, so prefer things that stay timely that long (a season, an upcoming holiday, a multi-week event, a release with a long tail) over one-day news. ' : ''}Only include things you found in current search results. Skip rumours, leaks and anything you cannot date. Skip tragedies, crime, politics and disasters.`,
         config: { tools: [{ googleSearch: {} }] },
       });
       const candidate: any = search.candidates?.[0];
@@ -271,7 +355,7 @@ function geminiProvider(): HeroAiProvider {
     async generateConcepts(trend, settings) {
       const response = await gemini().models.generateContent({
         model: TEXT_MODEL(),
-        contents: `${BRAND_BRIEF}\n\nYou are MutualPool's marketing strategist. Write hero-banner campaign concepts that tie a current trend to MutualPool.\n\nTREND\nTitle: ${trend.title}\nWhat: ${trend.description}\nCategory: ${HERO_CATEGORY_LABELS[trend.category]}\nRegion: ${trend.region}\nEvent date: ${trend.eventDate || 'n/a'}\nBrands named: ${trend.brandsMentioned.join(', ') || 'none'}\n\nFirst, the analysis: what is happening, why it matters now, who cares, which audience segment, how it connects naturally to MutualPool, which one service fits best, and the message that would land.\n\nThen write 4 different concepts (different angle or audience each). For each:\n- headline: ${HEADLINE_MIN_WORDS} to ${HEADLINE_MAX_WORDS} words, plain mainstream language, positive, with an emotional or practical benefit.\n- description: one or two sentences, at most ${LIMITS.descriptionChars} characters, that say what MutualPool lets people do (save together, pool money, take turns receiving the pot, reach a shared goal) and invite them in.\n- ctaLabel: at most ${LIMITS.ctaChars} characters. ctaDestination: ${HERO_CTA_DESTINATIONS.map(d => `${d} (${HERO_CTA_LABELS[d]})`).join('; ')}.\n- service: one of ${HERO_SERVICES.map(s => `${s} (${HERO_SERVICE_LABELS[s]})`).join('; ')}.\n- suggestedDurationDays: how long this stays timely.\n- imagePrompt: a scene for an original photograph or illustration that carries the theme through setting, light and mood. Ordinary people, plain clothing. Never name or depict brands, logos, characters, celebrities, team kits, game or film artwork, or any text.\n\nHard rules for the copy:\n- The trend is the hook; MutualPool's service is the point. Never just attach the brand name to an unrelated headline.\n- Never say or imply MutualPool is official, a sponsor, a partner of, or endorsed by anyone named in the trend. Prefer describing the moment ("the big game", "launch day") over naming a brand.\n- No promises: no "guaranteed", "risk-free", "win", "earn", "returns", "profit", "invest", "loan", "interest", no percentages, no dollar amounts, nothing that promises a payout or financial success.\n- Do not use: ${settings.blockedTerms.join(', ') || '(no extra blocked terms)'}.`,
+        contents: conceptPrompt(trend, settings),
         config: { responseMimeType: 'application/json', responseSchema: conceptJsonSchema() },
       });
       return normalizeConcepts(parseJson(response.text), trend);
@@ -290,6 +374,54 @@ function geminiProvider(): HeroAiProvider {
       return { data: Buffer.from(image.inlineData.data, 'base64'), mimeType: image.inlineData.mimeType || 'image/png', model };
     },
   };
+}
+
+// --- Groq (copy only) ---
+
+let groqClient: Groq | null = null;
+
+const CONCEPT_JSON_SHAPE = `Reply with one JSON object and nothing else, in exactly this shape:
+{"analysis":{"whatIsHappening":"","whyRelevantNow":"","whoIsInterested":"","audienceSegment":"","connectionToMutualPool":"","service":"","message":""},"concepts":[{"title":"","headline":"","description":"","ctaLabel":"","ctaDestination":"","targetAudience":"","marketingAngle":"","service":"","category":"","suggestedDurationDays":7,"imagePrompt":""}]}
+"service" must be one of: ${HERO_SERVICES.join(', ')}. "ctaDestination" must be one of: ${HERO_CTA_DESTINATIONS.join(', ')}. "category" must be one of: ${HERO_CATEGORIES.join(', ')}.`;
+
+async function groqConcepts(trend: HeroTrend, settings: HeroSettings): Promise<{ analysis: TrendAnalysis; concepts: CampaignConcept[] }> {
+  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is not set.');
+  if (!groqClient) groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY, timeout: AI_TIMEOUT_MS, maxRetries: 1 });
+  const response = await groqClient.chat.completions.create({
+    model: GROQ_MODEL(),
+    messages: [{ role: 'user', content: `${conceptPrompt(trend, settings)}\n\n${CONCEPT_JSON_SHAPE}` }],
+    response_format: { type: 'json_object' },
+  });
+  return normalizeConcepts(parseJson(response.choices?.[0]?.message?.content || undefined), trend);
+}
+
+// --- Runway (images only) ---
+
+const RUNWAY_PROMPT_LIMIT = 1000;
+
+// Runway accepts at most 1000 characters. The originality rules (the tail of
+// the prompt) always survive; the scene description gives way.
+export function fitRunwayPrompt(prompt: string): string {
+  if (prompt.length <= RUNWAY_PROMPT_LIMIT) return prompt;
+  const rules = 'Cinematic wide 16:9 marketing photograph, one clear focal point, lower third darker and uncluttered. Original imagery only: no text, letters, logos, brand marks or watermarks; no real people, celebrities, characters, team kits or trademarked designs. Everyday adults in plain unbranded clothing, warm optimistic mood.';
+  const scene = prompt.slice(0, RUNWAY_PROMPT_LIMIT - rules.length - 1).replace(/\s+\S*$/, '');
+  return `${scene} ${rules}`;
+}
+
+async function runwayImage(prompt: string): Promise<GeneratedImage> {
+  if (!process.env.RUNWAY_API_KEY) throw new Error('RUNWAY_API_KEY is not set.');
+  const RunwayML = (await import('@runwayml/sdk')).default;
+  const runway = new RunwayML({ apiKey: process.env.RUNWAY_API_KEY, timeout: AI_TIMEOUT_MS, maxRetries: 2 });
+  const task = await runway.textToImage
+    .create({ model: RUNWAY_MODEL, ratio: '1920:1080', promptText: fitRunwayPrompt(prompt) })
+    .waitForTaskOutput({ timeout: 5 * 60_000 });
+  const url = task.output?.[0];
+  if (typeof url !== 'string' || !/^https:\/\//.test(url)) throw new Error('Runway returned no image.');
+  const download = await fetch(url);
+  if (!download.ok) throw new Error(`The Runway image could not be downloaded (HTTP ${download.status}).`);
+  const data = Buffer.from(await download.arrayBuffer());
+  if (data.length < 1000) throw new Error('The Runway image was empty.');
+  return { data, mimeType: download.headers.get('content-type') || 'image/png', model: `runway ${RUNWAY_MODEL}` };
 }
 
 // --- Stub (tests and local development) ---

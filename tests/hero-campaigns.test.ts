@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import {
   defaultHeroSettings, applySettingsPatch, trendDedupeKey, isDuplicateTrend, sensitiveTopics, evaluateCampaignPolicy,
   campaignWindow, scheduleProblem, liveState, pickActiveCampaign, engagementScore, clickThroughRate, sanitizeConcept,
-  contentFromConcept, buildImagePrompt, wordCount,
+  contentFromConcept, buildImagePrompt, wordCount, refreshSlots, scheduledDiscoveryDue, nextScheduledRefresh, monthlyDaysOf,
 } from '../src/lib/heroCampaigns';
 import type { CampaignContent, PolicyContext } from '../src/lib/heroCampaigns';
-import { normalizeTrends, normalizeConcepts, describeAiError } from '../src/server/heroAi';
+import { normalizeTrends, normalizeConcepts, describeAiError, fitRunwayPrompt, heroAiStatus } from '../src/server/heroAi';
+import { IMAGE_STYLE_RULES } from '../src/lib/heroCampaigns';
 
 const NOW = new Date('2026-11-19T12:00:00.000Z');
 const DAY = 86_400_000;
@@ -224,4 +225,133 @@ test('image prompts always carry the originality rules and never a brand name', 
 test('provider failures are described plainly', () => {
   assert.match(describeAiError(new Error('{"error":{"code":429,"message":"You exceeded your current quota","status":"RESOURCE_EXHAUSTED"}}')), /billing enabled/);
   assert.equal(describeAiError(new Error('boom')), 'boom');
+});
+
+// --- Twice-a-month refresh ---
+
+// Local-time dates, as the scheduler uses server time.
+const local = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h, 0, 0, 0);
+const twice = { ...settings, discoveryEnabled: true, discoveryCadence: 'TWICE_MONTHLY' as const, monthlyDays: [1, 15] as [number, number] };
+
+test('twice-a-month refresh times fall on the two chosen days at 6 AM', () => {
+  let s = refreshSlots(local(2026, 11, 19), [1, 15]);
+  assert.equal(s.previous.getTime(), local(2026, 11, 15, 6).getTime());
+  assert.equal(s.next.getTime(), local(2026, 12, 1, 6).getTime());
+  s = refreshSlots(local(2026, 11, 15, 5), [1, 15]);
+  assert.equal(s.previous.getTime(), local(2026, 11, 1, 6).getTime(), 'before 6 AM the refresh has not happened yet');
+  assert.equal(s.next.getTime(), local(2026, 11, 15, 6).getTime());
+  s = refreshSlots(local(2026, 11, 15, 6), [1, 15]);
+  assert.equal(s.previous.getTime(), local(2026, 11, 15, 6).getTime());
+  s = refreshSlots(local(2027, 1, 1, 3), [1, 15]);
+  assert.equal(s.previous.getTime(), local(2026, 12, 15, 6).getTime(), 'across the year boundary');
+  assert.equal(s.next.getTime(), local(2027, 1, 1, 6).getTime());
+  s = refreshSlots(local(2026, 2, 27), [10, 28]);
+  assert.equal(s.next.getTime(), local(2026, 2, 28, 6).getTime(), 'day 28 exists in every month');
+  assert.deepEqual(monthlyDaysOf({ monthlyDays: [20, 5] }), [5, 20]);
+  assert.deepEqual(monthlyDaysOf({}), [1, 15], 'settings saved before this option default to the 1st and 15th');
+});
+
+test('the refresh runs once per period, exactly twice a month', () => {
+  const run = (d: Date, ok = true) => ({ at: d.toISOString(), ok });
+  assert.equal(scheduledDiscoveryDue({ ...twice, discoveryEnabled: false }, local(2026, 11, 19), []), false, 'off means off');
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 11, 19), []), true, 'switched on mid-period: the current period is filled straight away');
+  const ran15 = [run(local(2026, 11, 15, 6))];
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 11, 15, 7), ran15), false);
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 11, 30, 23), ran15), false, 'nothing more until the next refresh day');
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 12, 1, 5), ran15), false);
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 12, 1, 6), ran15), true);
+  // Count the refreshes over a year of five-minute ticks, hour by hour.
+  const runs: Array<{ at: string; ok: boolean }> = [run(local(2026, 12, 15, 6))];
+  for (let t = local(2027, 1, 1, 0).getTime(); t < local(2028, 1, 1, 0).getTime(); t += 3_600_000) {
+    if (scheduledDiscoveryDue(twice, new Date(t), runs)) runs.unshift(run(new Date(t)));
+  }
+  assert.equal(runs.length - 1, 24, 'two a month for twelve months');
+  assert.ok(runs.every(r => [1, 15].includes(new Date(r.at).getDate()) && new Date(r.at).getHours() === 6));
+});
+
+test('a failed refresh is retried later the same day, not every few minutes', () => {
+  const failed = [{ at: local(2026, 11, 15, 6).toISOString(), ok: false }];
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 11, 15, 7), failed), false);
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 11, 15, 12), failed), true, 'six hours on');
+  const thenOk = [{ at: local(2026, 11, 15, 12).toISOString(), ok: true }, ...failed];
+  assert.equal(scheduledDiscoveryDue(twice, local(2026, 11, 16), thenOk), false);
+  assert.equal(nextScheduledRefresh(twice, local(2026, 11, 16), thenOk), local(2026, 12, 1, 6).toISOString());
+  assert.equal(nextScheduledRefresh({ ...twice, discoveryEnabled: false }, local(2026, 11, 16), thenOk), null);
+});
+
+test('hourly cadence still works as before', () => {
+  const every = { ...settings, discoveryEnabled: true, discoveryIntervalHours: 24 };
+  assert.equal(scheduledDiscoveryDue(every, NOW, []), true);
+  assert.equal(scheduledDiscoveryDue(every, NOW, [{ at: new Date(NOW.getTime() - 23 * 3_600_000).toISOString(), ok: true }]), false);
+  assert.equal(scheduledDiscoveryDue(every, NOW, [{ at: new Date(NOW.getTime() - 25 * 3_600_000).toISOString(), ok: false }]), true);
+});
+
+test('a twice-monthly campaign holds the hero until the next refresh, unless its event ends first', () => {
+  const start = local(2026, 11, 15, 6);
+  const until = local(2026, 12, 1, 6).toISOString();
+  const held = campaignWindow({ startAt: start, category: 'SPORTS', settings, runUntil: until });
+  assert.equal(held.endAt, until, 'not cut to the 5-day sports length');
+  const short = campaignWindow({ startAt: start, category: 'SPORTS', settings, runUntil: until, suggestedDurationDays: 3 });
+  assert.equal(short.endAt, until);
+  const event = campaignWindow({ startAt: start, category: 'SPORTS', settings, runUntil: until, eventDate: local(2026, 11, 20, 6).toISOString() });
+  assert.equal(event.endAt, local(2026, 11, 21, 6).toISOString(), 'a day after the event');
+  const expiring = campaignWindow({ startAt: start, category: 'SPORTS', settings, runUntil: until, suggestedExpiresAt: local(2026, 11, 25, 6).toISOString() });
+  assert.equal(expiring.endAt, local(2026, 11, 25, 6).toISOString());
+});
+
+test('twice-monthly settings are validated', () => {
+  const at = NOW.toISOString();
+  const ok = applySettingsPatch(settings, { discoveryEnabled: true, discoveryCadence: 'TWICE_MONTHLY', monthlyDays: [20, 5] }, at);
+  assert.equal(ok.ok, true);
+  if (ok.ok) assert.deepEqual(ok.settings.monthlyDays, [5, 20]);
+  assert.equal(applySettingsPatch(settings, { discoveryCadence: 'WEEKLY' }, at).ok, false);
+  assert.equal(applySettingsPatch(settings, { monthlyDays: [1, 31] }, at).ok, false, 'not every month has a 31st');
+  assert.equal(applySettingsPatch(settings, { monthlyDays: [1, 3] }, at).ok, false, 'too close together');
+  assert.equal(applySettingsPatch(settings, { monthlyDays: [15] }, at).ok, false);
+  assert.equal(applySettingsPatch(settings, { monthlyDays: [1.5, 15] }, at).ok, false);
+});
+
+// --- Providers ---
+
+test('copy and image providers are tried in order, the preferred one first', () => {
+  const saved = { ...process.env };
+  try {
+    delete process.env.HERO_AI_PROVIDER; delete process.env.HERO_TEXT_PROVIDER; delete process.env.HERO_IMAGE_PROVIDER;
+    process.env.GEMINI_API_KEY = 'g'; process.env.GROQ_API_KEY = 'q'; process.env.RUNWAY_API_KEY = 'r';
+    let s = heroAiStatus(true);
+    assert.equal(s.provider, 'copy: gemini then groq; images: gemini then runway');
+    assert.equal(s.configured, true);
+    assert.equal(s.discovery, true);
+    process.env.HERO_IMAGE_PROVIDER = 'runway'; process.env.HERO_TEXT_PROVIDER = 'Groq';
+    s = heroAiStatus(true);
+    assert.equal(s.provider, 'copy: groq then gemini; images: runway then gemini');
+    assert.match(s.imageModel, /^runway gen4_image then /);
+    // Without Gemini: copy and images still work, trend search does not.
+    process.env.GEMINI_API_KEY = '';
+    s = heroAiStatus(true);
+    assert.equal(s.provider, 'copy: groq; images: runway');
+    assert.equal(s.configured, true);
+    assert.equal(s.discovery, false);
+    process.env.RUNWAY_API_KEY = '';
+    assert.equal(heroAiStatus(true).configured, false, 'no image provider left');
+    process.env.HERO_AI_PROVIDER = 'stub';
+    assert.equal(heroAiStatus(true).provider, 'none', 'the stand-in is never used in production');
+    assert.equal(heroAiStatus(false).provider, 'stub');
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+    Object.assign(process.env, saved);
+  }
+});
+
+test('Runway prompts fit its 1000-character limit and keep the originality rules', () => {
+  const short = 'Friends on a sofa. No text, no logos.';
+  assert.equal(fitRunwayPrompt(short), short);
+  const long = buildImagePrompt('A family loading suitcases into a car on a tree-lined street in autumn. '.repeat(12), []);
+  assert.ok(long.length > 1000);
+  const fitted = fitRunwayPrompt(long);
+  assert.ok(fitted.length <= 1000, String(fitted.length));
+  assert.match(fitted, /^A family loading suitcases/);
+  assert.match(fitted, /no text, letters, logos/);
+  assert.match(fitted, /no real people, celebrities, characters/);
+  assert.ok(buildImagePrompt('x'.repeat(300), []).length <= 1000 || IMAGE_STYLE_RULES.length > 700);
 });

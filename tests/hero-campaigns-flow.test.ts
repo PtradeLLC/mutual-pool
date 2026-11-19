@@ -179,14 +179,23 @@ test('4. An approved campaign is scheduled, goes live, and is served with its im
   // Bring the start forward: it is live.
   const live = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { startAt: iso(-0.01), endAt: iso(4) });
   assert.equal(live.body.campaign.state, 'LIVE');
-  const shown = await activeCampaign();
-  assert.equal(shown.id, campaignId);
+  const active = await activeCampaign();
+  assert.equal(active.id, campaignId);
+  assert.ok(active.endAt);
+  assert.deepEqual(Object.keys(active).sort(), ['endAt', 'id', 'slides'], 'nothing internal is exposed');
+  // Every concept is a slide with its own image, the lead (edited) one first.
+  assert.equal(active.slides.length, 3);
+  assert.deepEqual(active.slides.map((x: any) => x.index), [0, 1, 2]);
+  assert.equal(new Set(active.slides.map((x: any) => x.imageUrl)).size, 3, 'a different image for each slide');
+  const shown = active.slides[0];
   assert.equal(shown.headline, 'Game Day. Save Together.');
   assert.equal(shown.label, 'Game day');
   assert.equal(shown.ctaLabel, 'Start a Savings Pool');
   assert.equal(shown.ctaDestination, 'START_POD');
-  assert.ok(shown.description && shown.imageAlt && shown.endAt);
-  assert.deepEqual(Object.keys(shown).sort(), ['ctaDestination', 'ctaLabel', 'description', 'endAt', 'headline', 'id', 'imageAlt', 'imageUrl', 'label'], 'nothing internal is exposed');
+  assert.ok(shown.description && shown.imageAlt);
+  assert.deepEqual(Object.keys(shown).sort(), ['ctaDestination', 'ctaLabel', 'description', 'headline', 'imageAlt', 'imageUrl', 'index', 'label']);
+  assert.equal(active.slides[1].headline, 'One Crew. One Goal.');
+  assert.equal(active.slides[1].ctaDestination, 'JOIN_POD');
 
   const image = await fetch(`${BASE_URL}${shown.imageUrl}`);
   assert.equal(image.status, 200);
@@ -199,8 +208,55 @@ test('4. An approved campaign is scheduled, goes live, and is served with its im
   const broken = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { content: { description: 'Pool money with friends: risk-free and guaranteed.' } });
   assert.equal(broken.status, 400);
   assert.equal(broken.body.error, 'POLICY_VIOLATION');
-  assert.equal((await activeCampaign()).description, shown.description, 'the live copy is unchanged');
+  assert.equal((await activeCampaign()).slides[0].description, shown.description, 'the live copy is unchanged');
   assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/regenerate-copy`)).status, 400, 'live copy is not regenerated');
+});
+
+test('4b. Each slide is managed on its own: edit, hide, lead, and per-slide images', async () => {
+  const slidesOf = async () => (await activeCampaign()).slides.map((x: any) => x.index);
+  // A published slide that is not the lead cannot be edited into breaking a rule either.
+  const broken = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 2, content: { description: 'Guaranteed payouts with your crew.' } });
+  assert.equal(broken.status, 400);
+  assert.equal(broken.body.error, 'POLICY_VIOLATION');
+  // Editing a non-lead slide changes only that slide.
+  const edited = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 2, content: { headline: 'Plan Big. Save Weekly Together.' } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  let active = await activeCampaign();
+  assert.equal(active.slides[0].headline, 'Game Day. Save Together.');
+  assert.equal(active.slides[2].headline, 'Plan Big. Save Weekly Together.');
+  const view = edited.body.campaign;
+  assert.equal(view.slides.length, 3);
+  assert.ok(view.slides.every((x: any) => x.imageUrl && x.onHero && x.policy.ok));
+  assert.equal(view.slides[0].lead, true);
+
+  // Hide and show a slide.
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 1, hidden: true })).status, 200);
+  assert.deepEqual(await slidesOf(), [0, 2]);
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 0, hidden: true })).status, 400, 'the lead cannot be hidden');
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 1, hidden: false })).status, 200);
+  assert.deepEqual(await slidesOf(), [0, 1, 2]);
+
+  // Another slide can lead; every slide keeps its own copy.
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { selectedConcept: 2 })).status, 200);
+  active = await activeCampaign();
+  assert.deepEqual(active.slides.map((x: any) => x.index), [2, 0, 1]);
+  assert.equal(active.slides[0].headline, 'Plan Big. Save Weekly Together.');
+  assert.equal(active.slides[1].headline, 'Game Day. Save Together.');
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { selectedConcept: 0 })).status, 200);
+
+  // One slide's image can be remade; the others keep theirs.
+  const before = (await activeCampaign()).slides.map((x: any) => x.imageUrl);
+  assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/regenerate-image`, { slide: 1 })).status, 202);
+  await idle();
+  const after = (await activeCampaign()).slides.map((x: any) => x.imageUrl);
+  assert.equal(after[0], before[0]);
+  assert.notEqual(after[1], before[1]);
+  assert.equal(after[2], before[2]);
+  assert.equal((await fetch(`${BASE_URL}${before[1]}`)).status, 404, 'the replaced image is removed');
+  const nothing = await post(admin, `/api/admin/hero/campaigns/${campaignId}/regenerate-image`, { missing: true });
+  assert.equal(nothing.status, 400);
+  assert.equal(nothing.body.error, 'NOTHING_MISSING');
+  assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/regenerate-image`, { slide: 9 })).status, 400);
 });
 
 test('5. Impressions, clicks, sign-ups and pods created are tracked per campaign', async () => {
@@ -387,9 +443,94 @@ test('10. Settings are validated and blocked terms apply to existing campaigns',
   // Blocking a phrase the live campaign uses takes it off the hero.
   const live = await activeCampaign();
   assert.ok(live);
-  const phrase = live.headline.split(' ').slice(0, 2).join(' ').replace(/[.]/g, '').toLowerCase();
+  const phrase = live.slides[0].headline.split(' ').slice(0, 2).join(' ').replace(/[.]/g, '').toLowerCase();
   assert.equal((await put(admin, '/api/admin/hero/settings', { blockedTerms: [phrase] })).status, 200);
   assert.equal(await activeCampaign(), null, 'falls back to the evergreen hero');
   assert.equal((await put(admin, '/api/admin/hero/settings', { blockedTerms: [], discoveryEnabled: false })).status, 200);
   assert.equal((await activeCampaign()).id, live.id);
+});
+
+test('11. Twice-a-month refresh: runs on schedule, once per period, and campaigns run until the next refresh', async () => {
+  assert.equal((await put(admin, '/api/admin/hero/settings', { monthlyDays: [1, 30] })).status, 400);
+  const on = await put(admin, '/api/admin/hero/settings', { discoveryEnabled: true, discoveryCadence: 'TWICE_MONTHLY', monthlyDays: [15, 1], categories: ['SPORTS', 'GAMING_ENTERTAINMENT', 'LIFESTYLE', 'TECHNOLOGY'] });
+  assert.equal(on.status, 200, JSON.stringify(on.body));
+  assert.equal(on.body.settings.discoveryCadence, 'TWICE_MONTHLY');
+  assert.deepEqual(on.body.settings.monthlyDays, [1, 15]);
+
+  // Discovery already ran earlier today, so this period is covered: the next
+  // refresh is on the 1st or the 15th at 6 AM, and a tick now does nothing.
+  let d = await dashboard();
+  const next = new Date(d.nextRefreshAt);
+  assert.ok(next.getTime() > Date.now());
+  assert.ok([1, 15].includes(next.getDate()), `next refresh on ${next.toString()}`);
+  assert.equal(next.getHours(), 6);
+  const tick = (now?: Date) => api('/api/platform/schedule/hero-campaigns', { method: 'POST', headers: CRON_HEADERS, body: JSON.stringify(now ? { now: now.toISOString() } : {}) });
+  // The dashboard lists only the latest jobs, so compare the newest one.
+  const lastRunBefore = d.runs[0]?.id;
+  assert.equal((await tick()).status, 200);
+  d = await idle();
+  assert.equal(d.runs[0]?.id, lastRunBefore, 'nothing runs between refresh days');
+  assert.equal((await tick(new Date(next.getTime() - 60_000))).status, 200);
+  d = await idle();
+  assert.equal(d.runs[0]?.id, lastRunBefore, 'not a minute early');
+
+  // The refresh day arrives: the scheduler runs discovery by itself.
+  assert.equal((await tick(new Date(next.getTime() + 60_000))).status, 200);
+  d = await idle();
+  assert.notEqual(d.runs[0].id, lastRunBefore);
+  assert.equal(d.runs[1]?.id, lastRunBefore, 'exactly one new run');
+  assert.equal(d.runs[0].kind, 'DISCOVERY');
+  assert.equal(d.runs[0].trigger, 'SCHEDULE');
+  assert.equal(d.runs[0].ok, true, JSON.stringify(d.runs[0]));
+
+  // A campaign drafted in this mode is scheduled to hand over at the next refresh.
+  // (The simulated refresh day was past the earlier campaign's end, so it has retired.)
+  assert.ok(!d.campaigns.some((c: any) => /pop-up/.test(c.trendTitle) && c.status !== 'RETIRED'));
+  const chef = d.trends.find((t: any) => /pop-up/.test(t.title));
+  assert.equal((await post(admin, `/api/admin/hero/trends/${chef.id}/generate`)).status, 202);
+  d = await idle();
+  const fresh = d.campaigns.find((c: any) => /pop-up/.test(c.trendTitle) && c.status === 'DRAFT');
+  assert.ok(fresh, 'a new draft with image and copy');
+  assert.ok(fresh.imageUrl && fresh.content.headline && fresh.content.description && fresh.content.ctaLabel);
+  const expectedEnd = Math.min(next.getTime(), new Date(chef.suggestedExpiresAt).getTime());
+  assert.equal(new Date(fresh.endAt).getTime(), expectedEnd, 'ends at the next refresh (or when the trend stops being timely)');
+
+  assert.equal((await put(admin, '/api/admin/hero/settings', { discoveryEnabled: false, discoveryCadence: 'INTERVAL' })).status, 200);
+  assert.equal((await dashboard()).nextRefreshAt, null);
+});
+
+test('12. An administrator can add a trend by hand and draft a campaign from it', async () => {
+  const good = { title: 'Thanksgiving travel week', description: 'Families are planning Thanksgiving trips and splitting the cost of travel and the meal.', category: 'HOLIDAYS_SEASONAL', sourceUrl: 'https://news.example.test/thanksgiving-travel', eventDate: iso(6) };
+  assert.equal((await post(member, '/api/admin/hero/trends', good)).status, 403);
+  assert.equal((await post(admin, '/api/admin/hero/trends', { ...good, sourceUrl: '' })).status, 400, 'a trend needs a source');
+  assert.equal((await post(admin, '/api/admin/hero/trends', { ...good, sourceUrl: 'javascript:alert(1)' })).status, 400);
+  assert.equal((await post(admin, '/api/admin/hero/trends', { ...good, category: 'POLITICS' })).status, 400);
+  assert.equal((await post(admin, '/api/admin/hero/trends', { ...good, title: 'x' })).status, 400);
+  assert.equal((await post(admin, '/api/admin/hero/trends', { ...good, eventDate: 'someday' })).status, 400);
+
+  const added = await post(admin, '/api/admin/hero/trends', good);
+  assert.equal(added.status, 200, JSON.stringify(added.body));
+  const trend = added.body.trend;
+  assert.equal(trend.verified, true);
+  assert.equal(trend.sensitivity, 'LOW');
+  assert.equal(trend.sourceName, 'news.example.test');
+  assert.equal(trend.status, 'NEW');
+  assert.equal(new Date(trend.suggestedExpiresAt).getTime(), new Date(good.eventDate).getTime() + DAY, 'timely until a day after the event');
+  assert.equal((await post(admin, '/api/admin/hero/trends', { ...good, title: 'Thanksgiving Travel Week!' })).status, 409, 'no duplicates');
+
+  // Sensitive subjects and brand names are flagged exactly as for discovered trends.
+  const risky = await post(admin, '/api/admin/hero/trends', { title: 'Election night watch parties', description: 'Friends are gathering to watch the election results together.', category: 'CULTURAL_EVENTS', sourceUrl: 'https://news.example.test/election' });
+  assert.equal(risky.body.trend.sensitivity, 'HIGH');
+  const branded = await post(admin, '/api/admin/hero/trends', { title: 'New console goes on sale', description: 'A new games console goes on sale next week and stores expect queues.', category: 'GAMING_ENTERTAINMENT', sourceUrl: 'https://news.example.test/console', brandsMentioned: ['PlayBox'] });
+  assert.deepEqual(branded.body.trend.brandsMentioned, ['PlayBox']);
+
+  assert.equal((await post(admin, `/api/admin/hero/trends/${trend.id}/generate`)).status, 202);
+  const d = await idle();
+  const campaign = byTrend(d, /Thanksgiving/);
+  assert.ok(campaign, JSON.stringify(d.runs[0]));
+  assert.equal(campaign.status, 'DRAFT');
+  assert.ok(campaign.concepts.length >= 3 && campaign.imageUrl);
+  assert.equal(campaign.policy.ok, true);
+  assert.equal(campaign.policy.requiresManualReview, false);
+  assert.equal(campaign.trendSourceUrl, good.sourceUrl);
 });

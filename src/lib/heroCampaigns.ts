@@ -139,7 +139,7 @@ export interface PolicyResult {
 export type CampaignStatus = 'DRAFT' | 'APPROVED' | 'PAUSED' | 'REJECTED' | 'RETIRED';
 
 export interface CampaignApproval {
-  action: 'GENERATED' | 'EDITED' | 'REGENERATED_IMAGE' | 'REGENERATED_COPY' | 'APPROVED' | 'AUTO_PUBLISHED' | 'REJECTED' | 'PAUSED' | 'RESUMED' | 'RETIRED' | 'EXPIRED';
+  action: 'GENERATED' | 'EDITED' | 'SLIDE_HIDDEN' | 'SLIDE_SHOWN' | 'REGENERATED_IMAGE' | 'REGENERATED_COPY' | 'APPROVED' | 'AUTO_PUBLISHED' | 'REJECTED' | 'PAUSED' | 'RESUMED' | 'RETIRED' | 'EXPIRED';
   byUserId: string;
   byName: string;
   at: string;
@@ -160,10 +160,19 @@ export interface HeroCampaign {
   endAt: string;
   analysis: TrendAnalysis | null;
   concepts: CampaignConcept[];
+  // Every concept is a slide on the hero, each with its own copy and image
+  // (index-aligned with `concepts`). The selected concept leads; `content` and
+  // `assetId` always mirror the lead slide. Campaigns saved before slides
+  // existed are filled in by normalizeCampaignSlides.
   selectedConcept: number;
   content: CampaignContent;
   assetId: string | null;
   imageError?: string;
+  slideContent?: CampaignContent[];
+  slideAssets?: Array<string | null>;
+  slideImageErrors?: Array<string | null>;
+  // Slides an administrator took off the hero.
+  hiddenSlides?: number[];
   policy: PolicyResult;
   sensitivity: TrendSensitivity;
   brandsMentioned: string[];
@@ -206,12 +215,20 @@ export interface HeroPerformance extends PerformanceCounts {
 }
 
 export type PublishMode = 'MANUAL' | 'AUTO';
+export type DiscoveryCadence = 'INTERVAL' | 'TWICE_MONTHLY';
+export const DEFAULT_MONTHLY_DAYS: [number, number] = [1, 15];
+// Scheduled refreshes start at this hour, server time.
+export const REFRESH_HOUR = 6;
 
 export interface HeroSettings {
   id: 'settings';
   publishMode: PublishMode;
   // Scheduled discovery. Off until an administrator turns it on.
   discoveryEnabled: boolean;
+  // INTERVAL: every discoveryIntervalHours. TWICE_MONTHLY: on two fixed days of
+  // the month, with each campaign running until the next of those days.
+  discoveryCadence?: DiscoveryCadence;
+  monthlyDays?: [number, number];
   discoveryIntervalHours: number;
   categories: HeroCategory[];
   region: string;
@@ -235,6 +252,8 @@ export function defaultHeroSettings(nowIso: string): HeroSettings {
     id: 'settings',
     publishMode: 'MANUAL',
     discoveryEnabled: false,
+    discoveryCadence: 'INTERVAL',
+    monthlyDays: [...DEFAULT_MONTHLY_DAYS],
     discoveryIntervalHours: 24,
     categories: [...HERO_CATEGORIES],
     region: 'United States',
@@ -272,6 +291,18 @@ export function applySettingsPatch(current: HeroSettings, patch: any, nowIso: st
   if (patch.discoveryEnabled !== undefined) {
     if (typeof patch.discoveryEnabled !== 'boolean') return { ok: false, message: 'discoveryEnabled must be true or false.' };
     next.discoveryEnabled = patch.discoveryEnabled;
+  }
+  if (patch.discoveryCadence !== undefined) {
+    if (patch.discoveryCadence !== 'INTERVAL' && patch.discoveryCadence !== 'TWICE_MONTHLY') return { ok: false, message: 'discoveryCadence must be INTERVAL or TWICE_MONTHLY.' };
+    next.discoveryCadence = patch.discoveryCadence;
+  }
+  if (patch.monthlyDays !== undefined) {
+    const days = Array.isArray(patch.monthlyDays) ? patch.monthlyDays.map((d: unknown) => int(d, 1, 28)) : [];
+    // 1 to 28 so every month has both days; a week apart so campaigns have time to run.
+    if (days.length !== 2 || days[0] === null || days[1] === null || Math.abs(days[0] - days[1]) < 7) {
+      return { ok: false, message: 'Choose two days of the month between 1 and 28, at least a week apart.' };
+    }
+    next.monthlyDays = [Math.min(days[0], days[1]), Math.max(days[0], days[1])];
   }
   const numeric: Array<[keyof HeroSettings, number, number, string]> = [
     ['discoveryIntervalHours', 6, 168, 'Discovery frequency must be 6 to 168 hours.'],
@@ -448,11 +479,16 @@ const DAY_MS = 86_400_000;
 
 // How long a campaign runs: the category's length, cut short by the event
 // itself (a day after it) and by the trend's own expiry, never over the cap.
-export function campaignWindow(input: { startAt: Date; category: HeroCategory; settings: Pick<HeroSettings, 'durationDays'>; eventDate?: string | null; suggestedExpiresAt?: string | null; suggestedDurationDays?: number }): { startAt: string; endAt: string } {
+// With `runUntil` (the next scheduled refresh) the campaign is meant to hold the
+// hero until then, so the category length does not apply; the event and the
+// trend's expiry still do.
+export function campaignWindow(input: { startAt: Date; category: HeroCategory; settings: Pick<HeroSettings, 'durationDays'>; eventDate?: string | null; suggestedExpiresAt?: string | null; suggestedDurationDays?: number; runUntil?: string | null }): { startAt: string; endAt: string } {
   const start = input.startAt.getTime();
   let days = input.settings.durationDays[input.category] || 7;
   if (input.suggestedDurationDays && input.suggestedDurationDays > 0) days = Math.min(days, Math.ceil(input.suggestedDurationDays));
   let end = start + Math.min(days, MAX_CAMPAIGN_DAYS) * DAY_MS;
+  const until = input.runUntil ? new Date(input.runUntil).getTime() : NaN;
+  if (Number.isFinite(until) && until > start) end = Math.min(until, start + MAX_CAMPAIGN_DAYS * DAY_MS);
   const bound = (iso?: string | null, padMs = 0) => {
     const t = iso ? new Date(iso).getTime() : NaN;
     if (Number.isFinite(t) && t + padMs > start) end = Math.min(end, t + padMs);
@@ -461,6 +497,52 @@ export function campaignWindow(input: { startAt: Date; category: HeroCategory; s
   bound(input.suggestedExpiresAt);
   if (end - start < DAY_MS) end = start + DAY_MS;
   return { startAt: new Date(start).toISOString(), endAt: new Date(end).toISOString() };
+}
+
+// --- Scheduled refreshes ---
+
+export function monthlyDaysOf(settings: Pick<HeroSettings, 'monthlyDays'>): [number, number] {
+  const d = settings.monthlyDays;
+  return Array.isArray(d) && d.length === 2 && d.every(n => Number.isInteger(n) && n >= 1 && n <= 28) ? [Math.min(d[0], d[1]), Math.max(d[0], d[1])] : [...DEFAULT_MONTHLY_DAYS];
+}
+
+// The twice-monthly refresh times around `now` (server local time): the most
+// recent one at or before it, and the next one after it.
+export function refreshSlots(now: Date, days: [number, number]): { previous: Date; next: Date } {
+  const slots: Date[] = [];
+  for (let m = -1; m <= 1; m += 1) {
+    for (const day of days) slots.push(new Date(now.getFullYear(), now.getMonth() + m, day, REFRESH_HOUR, 0, 0, 0));
+  }
+  slots.sort((a, b) => a.getTime() - b.getTime());
+  const previous = [...slots].reverse().find(s => s.getTime() <= now.getTime())!;
+  const next = slots.find(s => s.getTime() > now.getTime())!;
+  return { previous, next };
+}
+
+const RETRY_AFTER_FAILURE_MS = 6 * 3_600_000;
+
+// Whether scheduled discovery should run now. `runs`: earlier discovery runs.
+export function scheduledDiscoveryDue(settings: HeroSettings, now: Date, runs: Array<{ at: string; ok: boolean }>): boolean {
+  if (!settings.discoveryEnabled) return false;
+  const times = runs.map(r => ({ t: new Date(r.at).getTime(), ok: r.ok })).filter(r => Number.isFinite(r.t));
+  const lastAttempt = times.reduce((max, r) => Math.max(max, r.t), 0);
+  if (settings.discoveryCadence === 'TWICE_MONTHLY') {
+    const slot = refreshSlots(now, monthlyDaysOf(settings)).previous.getTime();
+    // Done for this period once a run has succeeded since the refresh time.
+    if (times.some(r => r.ok && r.t >= slot)) return false;
+    // A failed attempt is retried, but not every few minutes.
+    return !lastAttempt || now.getTime() - lastAttempt >= RETRY_AFTER_FAILURE_MS;
+  }
+  return !lastAttempt || now.getTime() - lastAttempt >= settings.discoveryIntervalHours * 3_600_000;
+}
+
+// When the next scheduled refresh will happen, or null when scheduling is off.
+export function nextScheduledRefresh(settings: HeroSettings, now: Date, runs: Array<{ at: string; ok: boolean }>): string | null {
+  if (!settings.discoveryEnabled) return null;
+  if (scheduledDiscoveryDue(settings, now, runs)) return now.toISOString();
+  if (settings.discoveryCadence === 'TWICE_MONTHLY') return refreshSlots(now, monthlyDaysOf(settings)).next.toISOString();
+  const last = runs.reduce((max, r) => Math.max(max, new Date(r.at).getTime() || 0), 0);
+  return new Date(last + settings.discoveryIntervalHours * 3_600_000).toISOString();
 }
 
 export function scheduleProblem(startAt: unknown, endAt: unknown, now: Date): string | null {
@@ -577,9 +659,37 @@ export function buildImagePrompt(conceptPrompt: string, brands: string[]): strin
   return `${prompt.trim()} ${IMAGE_STYLE_RULES}`;
 }
 
-// What the landing page receives. Nothing internal.
-export interface PublicHeroCampaign {
-  id: string;
+// --- Slides ---
+
+// Fills in the per-slide fields (for campaigns saved before every concept had
+// its own slide) and keeps `content` / `assetId` in step with the lead slide.
+export function normalizeCampaignSlides(c: HeroCampaign, labelFallback = 'Trending now'): HeroCampaign {
+  const n = c.concepts.length;
+  const lead = Number.isInteger(c.selectedConcept) && c.selectedConcept >= 0 && c.selectedConcept < n ? c.selectedConcept : 0;
+  c.selectedConcept = lead;
+  const label = c.content?.label ?? labelFallback;
+  const content = Array.isArray(c.slideContent) ? c.slideContent : [];
+  const assets = Array.isArray(c.slideAssets) ? c.slideAssets : [];
+  const errors = Array.isArray(c.slideImageErrors) ? c.slideImageErrors : [];
+  const fresh = !Array.isArray(c.slideContent);
+  c.slideContent = c.concepts.map((concept, i) => content[i] || (fresh && i === lead && c.content ? c.content : contentFromConcept(concept, label)));
+  c.slideAssets = c.concepts.map((_, i) => (assets[i] !== undefined ? assets[i] : fresh && i === lead ? c.assetId : null) || null);
+  c.slideImageErrors = c.concepts.map((_, i) => errors[i] ?? (fresh && i === lead ? c.imageError ?? null : null));
+  c.hiddenSlides = Array.from(new Set((c.hiddenSlides || []).filter(i => Number.isInteger(i) && i >= 0 && i < n && i !== lead))).sort((a, b) => a - b);
+  c.content = c.slideContent[lead];
+  c.assetId = c.slideAssets[lead];
+  if (c.slideImageErrors[lead]) c.imageError = c.slideImageErrors[lead]!;
+  else delete c.imageError;
+  return c;
+}
+
+// The order slides appear on the hero: the lead first, then the rest in order.
+export function slideOrder(c: Pick<HeroCampaign, 'concepts' | 'selectedConcept'>): number[] {
+  return [c.selectedConcept, ...c.concepts.map((_, i) => i).filter(i => i !== c.selectedConcept)];
+}
+
+export interface PublicHeroSlide {
+  index: number;
   label: string;
   headline: string;
   description: string;
@@ -587,5 +697,13 @@ export interface PublicHeroCampaign {
   ctaDestination: HeroCtaDestination;
   imageUrl: string;
   imageAlt: string;
+}
+
+// What the landing page receives. Nothing internal.
+export interface PublicHeroCampaign {
+  id: string;
   endAt: string;
+  // In display order, lead first. Only slides that pass the copy rules, have
+  // an image and are not hidden.
+  slides: PublicHeroSlide[];
 }
