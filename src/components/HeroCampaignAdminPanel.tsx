@@ -3,6 +3,7 @@ import { Megaphone, RefreshCw, Search, Sparkles, ImageIcon, Check, X, Pause, Pla
 import {
   DEFAULT_MONTHLY_DAYS, HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS, HERO_SERVICE_LABELS, LIMITS, wordCount, evaluateCampaignPolicy,
 } from '../lib/heroCampaigns';
+import { useConfirm } from './ConfirmDialog';
 import type { HeroCampaign, HeroTrend, HeroSettings, HeroCategory, CampaignContent, LiveState, PerformanceCounts, HeroCtaDestination, PolicyResult, FactCheck } from '../lib/heroCampaigns';
 
 type AdminImage = { url: string; width: number; height: number; bytes: number; mimeType: string; model: string; prompt: string; createdAt: string };
@@ -63,6 +64,7 @@ const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : '');
 
 /** Admin Ops: AI hero campaigns (trends, drafts, approval, schedule, performance, settings). */
 export const HeroCampaignAdminPanel: React.FC = () => {
+  const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -163,11 +165,35 @@ export const HeroCampaignAdminPanel: React.FC = () => {
   };
   const slideAction = (c: AdminCampaign, body: Record<string, unknown>, done: string) =>
     call(`/api/admin/hero/campaigns/${c.id}`, 'PUT', body, done);
-  const act = (c: AdminCampaign, action: 'reject' | 'pause' | 'resume' | 'retire', done: string) => {
-    const needsNote = action === 'reject' || action === 'retire';
-    const note = needsNote ? window.prompt(action === 'reject' ? 'Why is this campaign rejected? (optional)' : 'Why is this campaign retired? (optional)') : undefined;
-    if (needsNote && note === null) return;
-    call(`/api/admin/hero/campaigns/${c.id}/${action}`, 'POST', { note: note || undefined }, done);
+  const act = async (c: AdminCampaign, action: 'reject' | 'pause' | 'resume' | 'retire', done: string) => {
+    let note: string | undefined;
+    if (action === 'reject' || action === 'retire') {
+      const r = await confirm(action === 'reject'
+        ? { title: 'Reject this campaign?', body: <p>"{c.content.headline}" will not be published, and its images are deleted. The trend is dismissed.</p>, confirmLabel: 'Reject campaign', tone: 'danger', noteLabel: 'Reason (optional, kept in the review history)' }
+        : { title: 'Retire this campaign?', body: <p>"{c.content.headline}" comes off the landing page for good. The next live campaign, or the evergreen hero, takes its place.</p>, confirmLabel: 'Retire campaign', tone: 'danger', noteLabel: 'Reason (optional, kept in the review history)' });
+      if (!r.confirmed) return;
+      note = r.note || undefined;
+    }
+    call(`/api/admin/hero/campaigns/${c.id}/${action}`, 'POST', { note }, done);
+  };
+
+  // Approving copy the AI fact check flagged.
+  const publishAnyway = async (c: AdminCampaign, s: AdminSlide) => {
+    const r = await confirm({
+      title: 'Publish this slide anyway?',
+      body: (
+        <>
+          <p>The AI check flagged slide {s.index + 1}, "{s.content.headline}":</p>
+          <ul className="list-disc pl-5 text-rose-800">
+            {(s.factCheck?.claims.length ? s.factCheck.claims : ['Describes something MutualPool does not offer.']).map(claim => <li key={claim}>{claim}</li>)}
+          </ul>
+          <p>If the copy is accurate, approve it and the slide goes on the hero. The flagged points stay in the review history.</p>
+        </>
+      ),
+      confirmLabel: 'Publish anyway',
+      tone: 'danger',
+    });
+    if (r.confirmed) slideAction(c, { slide: s.index, approveCopy: true }, `Slide ${s.index + 1} approved. It joins the hero if it has an image.`);
   };
 
   // The same checks the server makes, so a half-filled form never reaches it.
@@ -197,7 +223,19 @@ export const HeroCampaignAdminPanel: React.FC = () => {
   const saveSettings = async () => {
     if (!settingsDraft || !data) return;
     const turningAutoOn = settingsDraft.publishMode === 'AUTO' && data.settings.publishMode !== 'AUTO';
-    if (turningAutoOn && !window.confirm('Turn on automatic publishing?\n\nCampaigns that pass every check will go live on the landing page without anyone reviewing them. Sensitive topics, campaigns that mention a brand, and anything uncertain will still wait for approval.')) return;
+    if (turningAutoOn) {
+      const r = await confirm({
+        title: 'Turn on automatic publishing?',
+        body: (
+          <>
+            <p>Campaigns that pass every check will go live on the landing page without anyone reviewing them.</p>
+            <p>Sensitive topics, campaigns that mention a brand, and anything uncertain will still wait for your approval.</p>
+          </>
+        ),
+        confirmLabel: 'Turn on automatic publishing',
+      });
+      if (!r.confirmed) return;
+    }
     const ok = await call('/api/admin/hero/settings', 'PUT', {
       publishMode: settingsDraft.publishMode,
       confirmAutoPublish: turningAutoOn ? true : undefined,
@@ -462,7 +500,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                                   {!s.lead && <button type="button" disabled={busy} onClick={() => slideAction(c, { slide: s.index, hidden: !s.hidden }, s.hidden ? `Slide ${s.index + 1} is back on the hero.` : `Slide ${s.index + 1} is off the hero.`)} className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-0.5">{s.hidden ? <><Eye className="w-2.5 h-2.5" /> Show</> : <><EyeOff className="w-2.5 h-2.5" /> Hide</>}</button>}
                                   <button type="button" disabled={busy} onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { slide: s.index })} className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-0.5"><ImageIcon className="w-2.5 h-2.5" /> {s.imageUrl ? 'Remake image' : 'Make image'}</button>
                                   {s.factCheck?.status === 'FAILED' && !editOf(c).contents[s.index] && (
-                                    <button type="button" disabled={busy} title={`Flagged: ${s.factCheck.claims.join('; ')}`} onClick={() => { if (window.confirm(`The AI check flagged this slide:\n\n- ${s.factCheck!.claims.join('\n- ') || 'describes something MutualPool does not offer'}\n\nApprove the copy as accurate and put the slide on the hero?`)) slideAction(c, { slide: s.index, approveCopy: true }, `Slide ${s.index + 1} approved. It joins the hero if it has an image.`); }} className="text-[10px] font-bold text-rose-700 hover:underline inline-flex items-center gap-0.5">
+                                    <button type="button" disabled={busy} title={`Flagged: ${s.factCheck.claims.join('; ')}`} onClick={() => publishAnyway(c, s)} className="text-[10px] font-bold text-rose-700 hover:underline inline-flex items-center gap-0.5">
                                       <Check className="w-2.5 h-2.5" /> Publish anyway
                                     </button>
                                   )}
@@ -547,7 +585,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                             {!unsavedHere && !closed && sl.factCheck?.status === 'FAILED' && (
                               <div className="mt-2 pt-2 border-t border-rose-200 text-rose-900">
                                 <p>The AI check can be stricter than needed. If this copy is accurate, approve it: the slide goes on the hero, and the flagged points stay in the review history.</p>
-                                <button type="button" disabled={busy} onClick={() => slideAction(c, { slide: si, approveCopy: true }, `Slide ${si + 1} approved. It joins the hero if it has an image.`)} className={`${btn} mt-1.5 bg-rose-700 hover:bg-rose-800 text-white`}>
+                                <button type="button" disabled={busy} onClick={() => publishAnyway(c, sl)} className={`${btn} mt-1.5 bg-rose-700 hover:bg-rose-800 text-white`}>
                                   <Check className="w-3 h-3" /> This copy is accurate: publish anyway
                                 </button>
                               </div>
@@ -726,6 +764,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
           </ul>
         </details>
       )}
+      {dialog}
     </div>
   );
 };

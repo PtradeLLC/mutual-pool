@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useConfirm } from './ConfirmDialog';
 import { Layers, RefreshCw, Plus, Save, PlusCircle } from 'lucide-react';
 import { dollarsToCents, centsToInput, formatCents } from '../lib/financialAwareness';
 import type { SavingsRange } from '../lib/financialAwareness';
@@ -49,6 +50,7 @@ const field = 'px-2 py-1.5 rounded-lg border border-[#DDE1E6] text-xs bg-white w
 
 /** Admin Ops: Savings Range thresholds and MutualPool-hosted pods. Shows counts only, never a member's finances. */
 export const SavingsRangeAdminPanel: React.FC = () => {
+  const { confirm, dialog } = useConfirm();
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -94,8 +96,13 @@ export const SavingsRangeAdminPanel: React.FC = () => {
       const out = await res.json().catch(() => ({}));
       if (!res.ok) {
         // An equivalent pod still has seats: opening another needs an explicit yes.
-        if (out.error === 'HOSTED_POD_EXISTS' && window.confirm(`${out.message}\n\nOpen another pod anyway?`)) {
-          await send(key, url, method, { ...body, allowDuplicate: true }, done);
+        if (out.error === 'HOSTED_POD_EXISTS') {
+          const r = await confirm({ title: 'Open another hosted pod?', body: <p>{out.message}</p>, confirmLabel: 'Open another pod' });
+          if (r.confirmed) {
+            await send(key, url, method, { ...body, allowDuplicate: true }, done);
+            return;
+          }
+          setMessage(null);
           return;
         }
         setMessage({ ok: false, text: out.message || out.error || `Request failed (HTTP ${res.status}).` });
@@ -214,6 +221,7 @@ export const SavingsRangeAdminPanel: React.FC = () => {
         </button>
         <p className="text-[11px] text-slate-500 mt-2">Active ranges cannot overlap, and a range's pod deposit cannot be more than its minimum, so nobody is asked for more than they committed to.</p>
       </div>
+      {dialog}
     </div>
   );
 };
