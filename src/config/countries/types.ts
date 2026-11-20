@@ -40,6 +40,8 @@ export interface RegulationsConfig {
   termsOfServiceUrl: string;
   dataRetentionDays: number;
   legalEntityName: string;
+  // The company's website, linked from the copyright lines.
+  legalEntityUrl?: string;
 }
 
 export interface CountryConfig {

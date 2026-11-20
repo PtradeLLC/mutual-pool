@@ -22,6 +22,7 @@ import { ApparelSleeveMockup } from './ApparelSleeveMockup';
 import promoFrontImg from '../assets/images/promo_hoodie_front_1786902471783.jpg';
 import promoBackImg from '../assets/images/promo_hoodie_back_1786902490265.jpg';
 import promoSleeveImg from '../assets/images/promo_hoodie_sleeve_1786902506042.jpg';
+import { LegalEntityName } from './LegalEntityName';
 
 interface AdvertiserPageProps {
   currentUser?: User | null;
@@ -2057,7 +2058,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             <Logo size="sm" />
           </div>
           <div className="flex items-center gap-3">
-            <span>© {new Date().getFullYear()} Chris Bitoye Ventures, LLC. {t('advertiser.rightsReserved')}</span>
+            <span>© {new Date().getFullYear()} <LegalEntityName />. {t('advertiser.rightsReserved')}</span>
             <span>•</span>
             <a href="/privacy" target="_blank" rel="noreferrer" className="hover:text-[#005FB8] transition-colors font-medium">
               {t('footer.privacy')}

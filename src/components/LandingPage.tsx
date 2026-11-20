@@ -17,6 +17,7 @@ import { PartnerLogoStrip } from './PartnerLogoStrip';
 import { ROSCA_TRADITIONS, FEATURED_TRADITION_IDS } from '../data/roscaTraditions';
 import { useTranslation } from '../i18n';
 import { useCountry } from '../context/CountryContext';
+import { LegalEntityName } from './LegalEntityName';
 import { 
   ShieldCheck, Users, Wallet, ArrowRight, Gift, Activity, 
   Sparkles, Layers, CheckCircle2, Lock, ChevronRight, HelpCircle, Building2,
@@ -1201,7 +1202,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* FOOTER */}
       <footer className="bg-[#F8FAFC] border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280]">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">         
-          <span>© {new Date().getFullYear()} {country.regulations.legalEntityName}. {t('footer.allRightsReserved')}</span>
+          <span>© {new Date().getFullYear()} <LegalEntityName />. {t('footer.allRightsReserved')}</span>
           <div className="flex items-center gap-4 text-xs font-medium">
             <button onClick={onOpenAbout} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('nav.about')}

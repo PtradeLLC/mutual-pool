@@ -507,7 +507,6 @@ export const fr: Record<TranslationKey, string> = {
   'dash.explorePodsTabTitle': 'Explorer les Pods',
   'dash.voiceAssistantOnline': 'Assistant Vocal en Ligne',
   'dash.fdicInsuredFooter': 'Garantie FDIC jusqu’à 250 000 $ par utilisateur',
-  'dash.allRightsReserved': 'Chris Bitoye Ventures, LLC. Tous droits réservés.',
 
   // Header specific labels
   "header.stripeTreasuryBalance": "Solde de trésorerie",

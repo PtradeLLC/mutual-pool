@@ -32,6 +32,7 @@ import { PerksMarketplace } from './components/PerksMarketplace';
 import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
 import { SavingsJourneyCard } from './components/SavingsJourneyCard';
+import { LegalEntityName } from './components/LegalEntityName';
 import { reportHeroConversion } from './lib/heroCampaignClient';
 import type { FinancialProfileView } from './lib/financialAwareness';
 import { DEFAULT_POD_SIZE } from './types';
@@ -2187,7 +2188,7 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-[#DDE1E6] py-6 text-center text-xs text-[#6B7280] mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>© {new Date().getFullYear()} {t('dash.allRightsReserved')}</span>
+          <span>© {new Date().getFullYear()} <LegalEntityName />. {t('footer.allRightsReserved')}</span>
           <div className="flex items-center gap-4 text-xs font-medium">
             <button onClick={() => setShowAboutModal(true)} className="hover:text-[#005FB8] transition-colors cursor-pointer">
               {t('nav.about')}

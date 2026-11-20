@@ -57,6 +57,7 @@ export const US_CONFIG: CountryConfig = {
     termsOfServiceUrl: '/terms',
     dataRetentionDays: 2555, // 7 years IRS / BSA requirement
     legalEntityName: 'Chris Bitoye Ventures, LLC',
+    legalEntityUrl: 'https://chrisbventures.com',
   },
   
   pwa: {
