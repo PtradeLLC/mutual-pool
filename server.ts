@@ -2390,6 +2390,48 @@ app.use((req, res, next) => {
   next();
 });
 
+// Firebase sign-in served from our own domain. The site's auth domain is
+// themutualpool.com, so Google's sign-in returns to themutualpool.com/__/auth/…
+// and these requests are passed through, untouched, to the project's Firebase
+// Hosting domain. Registered before body parsing (bodies are forwarded raw) and
+// before our security headers (Firebase sets its own, including the framing
+// rules its sign-in iframe needs on www.themutualpool.com).
+const FIREBASE_AUTH_ORIGIN = `https://${process.env.FIREBASE_AUTH_PROXY_HOST || `${process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'mutualpool-a7a3e'}.firebaseapp.com`}`;
+const HOP_BY_HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'content-encoding']);
+app.use(['/__/auth', '/__/firebase'], async (req: Request, res: Response) => {
+  try {
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(req.headers)) {
+      if (value === undefined || HOP_BY_HOP.has(name.toLowerCase()) || name.toLowerCase() === 'accept-encoding') continue;
+      headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+    }
+    let body: Buffer | undefined;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      body = Buffer.concat(chunks);
+    }
+    const upstream = await fetch(`${FIREBASE_AUTH_ORIGIN}${req.originalUrl}`, {
+      method: req.method,
+      headers,
+      body,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15_000),
+    });
+    res.status(upstream.status);
+    upstream.headers.forEach((value, name) => {
+      if (HOP_BY_HOP.has(name.toLowerCase()) || name.toLowerCase() === 'set-cookie') return;
+      res.setHeader(name, value);
+    });
+    const cookies = (upstream.headers as any).getSetCookie?.() as string[] | undefined;
+    if (cookies?.length) res.setHeader('Set-Cookie', cookies);
+    res.end(Buffer.from(await upstream.arrayBuffer()));
+  } catch (err) {
+    console.error('[auth proxy] Firebase sign-in request failed:', String((err as any)?.message || err));
+    if (!res.headersSent) res.status(502).type('text/plain').send('Sign-in is temporarily unavailable. Please try again.');
+  }
+});
+
 // Serverless & Standard Express body parsing middlewares
 app.use((req, res, next) => {
   if (res.headersSent) return next();
