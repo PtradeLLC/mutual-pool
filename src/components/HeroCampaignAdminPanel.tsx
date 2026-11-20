@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Megaphone, RefreshCw, Search, Sparkles, ImageIcon, Check, X, Pause, Play, Archive, Save, AlertTriangle, ShieldAlert, ExternalLink, Settings2, Eye, EyeOff, Star, Pencil } from 'lucide-react';
 import {
-  DEFAULT_MONTHLY_DAYS, HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS, HERO_SERVICE_LABELS, LIMITS, wordCount,
+  DEFAULT_MONTHLY_DAYS, HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS, HERO_SERVICE_LABELS, LIMITS, wordCount, evaluateCampaignPolicy,
 } from '../lib/heroCampaigns';
 import type { HeroCampaign, HeroTrend, HeroSettings, HeroCategory, CampaignContent, LiveState, PerformanceCounts, HeroCtaDestination, PolicyResult, FactCheck } from '../lib/heroCampaigns';
 
@@ -519,13 +519,32 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Checks for the slide being edited */}
-                    {sl && sl.policy.issues.length > 0 && (
-                      <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
-                        <strong>{sl.lead ? 'The campaign cannot be published until this is fixed:' : 'This slide stays off the hero until this is fixed:'}</strong>
-                        <ul className="list-disc pl-4 mt-1 space-y-0.5">{sl.policy.issues.map(i => <li key={i}>{i}</li>)}</ul>
-                      </div>
-                    )}
+                    {/* Checks for the slide being edited: of the text on screen, so
+                        unsaved edits are judged as typed (the server checks again on save). */}
+                    {sl && (() => {
+                      const unsavedHere = Boolean(editOf(c).contents[si]);
+                      const policy = unsavedHere
+                        ? evaluateCampaignPolicy(sc, {
+                            sensitivity: c.sensitivity,
+                            brandsMentioned: c.brandsMentioned,
+                            trendText: `${c.trendTitle} ${c.trendDescription}`,
+                            trendVerified: true,
+                            blockedTerms: data?.settings.blockedTerms || [],
+                            factCheck: { status: 'EDITED', claims: [], checkedAt: '' },
+                          })
+                        : sl.policy;
+                      if (policy.issues.length) {
+                        return (
+                          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
+                            <strong>{unsavedHere ? 'Your edits cannot be saved to the hero until this is fixed:' : sl.lead ? 'The campaign cannot be published until this is fixed:' : 'This slide stays off the hero until this is fixed:'}</strong>
+                            <ul className="list-disc pl-4 mt-1 space-y-0.5">{policy.issues.map(i => <li key={i}>{i}</li>)}</ul>
+                          </div>
+                        );
+                      }
+                      return unsavedHere
+                        ? <p className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800">Your edits pass the copy rules. Press <strong>Save changes</strong> to update the slide.</p>
+                        : null;
+                    })()}
                     {c.policy.reviewReasons.length > 0 && (
                       <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
                         <strong>Needs a person to approve (never published automatically):</strong>

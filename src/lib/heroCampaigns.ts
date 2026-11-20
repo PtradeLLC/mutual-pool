@@ -406,7 +406,9 @@ const BANNED_CLAIMS: Array<[RegExp, string]> = [
   [/\bfdic\b|\binsured\b/i, 'makes a deposit-insurance claim'],
   [/\b\d+(\.\d+)?\s?%/i, 'quotes a percentage'],
   [/\$\s?\d/i, 'quotes a dollar amount'],
-  [/\b(always|never fail\w*|100 ?percent|certain to|will definitely)\b/i, 'makes an absolute promise'],
+  // "Always" only as a promise about the outcome ("always pays out"), not in
+  // ordinary phrases like "the system you've always wanted".
+  [/\balways (pays?|paid|gets?|receives?|works?|arrives?|on time|there|delivers?|wins?)\b|\b(never fail\w*|never miss(es)? a payout|100 ?percent|certain to|will definitely)\b/i, 'makes an absolute promise'],
 ];
 
 // Wording that implies a third party is involved with MutualPool.

@@ -405,3 +405,11 @@ test('fact-check answers are read strictly', () => {
   assert.deepEqual(checks[1].claims, ['Promises exclusive merch']);
   assert.equal(checks[3].claims.length, 1, 'a failure always says something');
 });
+
+test('"always" is only a problem as a promise about the outcome', () => {
+  const mine = evaluateCampaignPolicy({ ...good, headline: 'Save money with friends to buy that gaming system', description: "Join a MutualPool pod and get the guys together on that gaming system you've always wanted. Don't wait, buy it now." }, ctx);
+  assert.equal(mine.ok, true, mine.issues.join(' '));
+  for (const promise of ['Your pod always pays out on time.', 'Save together: you always get paid.', 'A pod that never fails.']) {
+    assert.equal(evaluateCampaignPolicy({ ...good, description: `Pool money with friends. ${promise}` }, ctx).ok, false, promise);
+  }
+});
