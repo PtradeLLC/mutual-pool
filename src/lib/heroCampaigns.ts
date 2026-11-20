@@ -462,13 +462,15 @@ const UNOFFERED_CLAIMS: Array<[RegExp, string]> = [
   [/\b(milestones?|tournaments?|leaderboards?|launch part(y|ies)|giveaways?|competitions?)\b/i, 'describes milestones, competitions or events MutualPool does not run'],
 ];
 
-export type FactCheckStatus = 'PASSED' | 'FAILED' | 'UNCHECKED' | 'EDITED';
+// OVERRIDDEN: the AI flagged the copy and an administrator approved it anyway.
+export type FactCheckStatus = 'PASSED' | 'FAILED' | 'UNCHECKED' | 'EDITED' | 'OVERRIDDEN';
 export interface FactCheck {
   status: FactCheckStatus;
   // Claims the checker found that MutualPool does not offer.
   claims: string[];
   checkedAt: string;
   model?: string;
+  approvedBy?: string;
 }
 
 export interface PolicyContext {
@@ -625,8 +627,10 @@ export function liveState(c: Pick<HeroCampaign, 'status' | 'startAt' | 'endAt'>,
 
 // The campaign the hero shows now: approved, inside its dates, with an image.
 // Highest priority first, then the most recently started.
-export function pickActiveCampaign<T extends Pick<HeroCampaign, 'status' | 'startAt' | 'endAt' | 'priority' | 'assetId' | 'policy'>>(campaigns: T[], now: Date): T | null {
-  const live = campaigns.filter(c => c && liveState(c, now) === 'LIVE' && c.assetId && c.policy?.ok);
+// `showable` decides whether a live campaign has anything to show (by default:
+// its lead slide passes and has an image).
+export function pickActiveCampaign<T extends Pick<HeroCampaign, 'status' | 'startAt' | 'endAt' | 'priority' | 'assetId' | 'policy'>>(campaigns: T[], now: Date, showable: (c: T) => boolean = c => Boolean(c.assetId && c.policy?.ok)): T | null {
+  const live = campaigns.filter(c => c && liveState(c, now) === 'LIVE' && showable(c));
   if (!live.length) return null;
   return live.sort((a, b) => b.priority - a.priority || new Date(b.startAt).getTime() - new Date(a.startAt).getTime())[0];
 }

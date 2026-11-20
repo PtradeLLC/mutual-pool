@@ -9221,8 +9221,9 @@ function heroRetireExpired(now = new Date()): number {
 
 function heroActiveCampaign(now = new Date()): HeroCampaign | null {
   for (const c of heroCampaigns) if (c && c.concepts?.length) normalizeCampaignSlides(c);
-  const active = pickActiveCampaign(heroCampaigns, now);
-  return active && heroHasAsset(active.assetId) ? active : null;
+  // A live campaign stays on the hero as long as any of its slides can be
+  // shown, even when the lead slide cannot.
+  return pickActiveCampaign(heroCampaigns, now, c => slideOrder(c).some(i => heroSlideShown(c, i)));
 }
 // Whether a slide is on the hero right now (when its campaign is live).
 function heroSlideShown(c: HeroCampaign, i: number): boolean {
@@ -9780,6 +9781,15 @@ app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
       draft.slideFactChecks[slide] = { status: 'EDITED', claims: [], checkedAt: new Date().toISOString() };
     }
   }
+  // An administrator approves copy the AI fact check flagged. The rule-based
+  // checks still apply; the flagged claims stay on record.
+  if (body.approveCopy !== undefined) {
+    if (body.approveCopy !== true) return res.status(400).json({ error: 'INVALID_INPUT', message: 'approveCopy must be true.' });
+    const current = campaign.slideFactChecks?.[slide];
+    if (!current || current.status !== 'FAILED') return res.status(400).json({ error: 'NOTHING_TO_APPROVE', message: 'Only copy the fact check flagged needs approving.' });
+    draft.slideFactChecks = [...(campaign.slideFactChecks || [])];
+    draft.slideFactChecks[slide] = { ...current, status: 'OVERRIDDEN', approvedBy: admin.displayName, checkedAt: new Date().toISOString() };
+  }
   if (body.hidden !== undefined) {
     if (typeof body.hidden !== 'boolean') return res.status(400).json({ error: 'INVALID_INPUT', message: 'hidden must be true or false.' });
     if (body.hidden && slide === draft.selectedConcept) return res.status(400).json({ error: 'INVALID_INPUT', message: 'The lead slide cannot be hidden. Make another slide the lead first.' });
@@ -9800,12 +9810,17 @@ app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
   normalizeCampaignSlides(draft);
   const policy = heroPolicyFor(draft);
   if (campaign.status === 'APPROVED') {
-    // A published campaign cannot be edited into breaking a rule, on the lead
-    // slide or on the slide being edited.
-    const edited = body.content !== undefined ? heroPolicyFor(draft, slide) : policy;
-    const problem = !policy.ok ? policy : !edited.ok ? edited : null;
-    if (problem) return res.status(400).json({ error: 'POLICY_VIOLATION', message: `This campaign is published, so the change was not saved: ${problem.issues[0]}`, issues: problem.issues });
-    if (!heroHasAsset(draft.slideAssets![draft.selectedConcept])) return res.status(400).json({ error: 'IMAGE_MISSING', message: 'That slide has no image yet, so it cannot lead a published campaign. Make its image first.' });
+    // On a published campaign each change is judged on its own: an edited
+    // slide must pass the rules, and a new lead must pass and have an image.
+    // Problems on other slides never block an edit.
+    if (body.content !== undefined) {
+      const edited = heroPolicyFor(draft, slide);
+      if (!edited.ok) return res.status(400).json({ error: 'POLICY_VIOLATION', message: `This campaign is published, so the change was not saved: ${edited.issues[0]}`, issues: edited.issues });
+    }
+    if (body.selectedConcept !== undefined && body.selectedConcept !== campaign.selectedConcept) {
+      if (!policy.ok) return res.status(400).json({ error: 'POLICY_VIOLATION', message: `That slide cannot lead a published campaign yet: ${policy.issues[0]}`, issues: policy.issues });
+      if (!heroHasAsset(draft.slideAssets![draft.selectedConcept])) return res.status(400).json({ error: 'IMAGE_MISSING', message: 'That slide has no image yet, so it cannot lead a published campaign. Make its image first.' });
+    }
   }
   Object.assign(campaign, {
     slideContent: draft.slideContent, slideFactChecks: draft.slideFactChecks, hiddenSlides: draft.hiddenSlides, selectedConcept: draft.selectedConcept,
@@ -9813,7 +9828,9 @@ app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
   });
   normalizeCampaignSlides(campaign);
   campaign.policy = heroPolicyFor(campaign);
-  heroLog(campaign, body.hidden === true ? 'SLIDE_HIDDEN' : body.hidden === false ? 'SLIDE_SHOWN' : 'EDITED', admin, body.hidden !== undefined || body.content !== undefined ? `Slide ${slide + 1}` : undefined);
+  heroLog(campaign, body.hidden === true ? 'SLIDE_HIDDEN' : body.hidden === false ? 'SLIDE_SHOWN' : 'EDITED', admin,
+    body.approveCopy === true ? `Slide ${slide + 1}: copy approved despite the fact check (${(campaign.slideFactChecks?.[slide]?.claims || []).join('; ')})`
+      : body.hidden !== undefined || body.content !== undefined ? `Slide ${slide + 1}` : undefined);
   requestFlush();
   res.json({ campaign: heroAdminCampaignView(campaign, new Date()) });
 });
@@ -9861,9 +9878,15 @@ app.post('/api/admin/hero/campaigns/:id/fact-check', (req: Request, res: Respons
     const copies = campaign.slideContent!.map(c => ({ ...c }));
     const checks = await provider.factCheck(copies);
     // Copy edited while the check ran is left as it is.
-    campaign.slideFactChecks = campaign.slideContent!.map((c, i) => (c.headline === copies[i].headline && c.description === copies[i].description ? checks[i] : campaign.slideFactChecks![i]));
+    // Copy edited while the check ran is left as it is, and so is copy an
+    // administrator already approved over a flag.
+    campaign.slideFactChecks = campaign.slideContent!.map((c, i) => {
+      const prev = campaign.slideFactChecks![i];
+      if (prev?.status === 'OVERRIDDEN') return prev;
+      return c.headline === copies[i].headline && c.description === copies[i].description ? checks[i] : prev;
+    });
     campaign.policy = heroPolicyFor(campaign);
-    const failed = checks.filter(c => c.status === 'FAILED').length;
+    const failed = campaign.slideFactChecks.filter(c => c?.status === 'FAILED').length;
     heroLog(campaign, 'EDITED', admin, `Copy checked: ${failed} of ${checks.length} slides describe something MutualPool does not offer.`);
     return failed
       ? `${failed} of ${checks.length} slides describe something MutualPool does not offer and are off the hero. Rewrite them or hide them.`

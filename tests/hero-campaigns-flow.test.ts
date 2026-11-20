@@ -290,6 +290,46 @@ test('4c. Slides may only describe what MutualPool offers', async () => {
   assert.equal((await post(member, `/api/admin/hero/campaigns/${campaignId}/fact-check`)).status, 403);
 });
 
+test('4d. A flagged lead does not block other edits or take the campaign off the hero; flagged copy can be approved', async () => {
+  // The AI check flags the lead slide (the stand-in flags "UNOFFERED").
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 0, content: { description: 'Bring your group together, save the same amount each week and use the UNOFFERED feature.' } })).status, 200);
+  assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/fact-check`)).status, 202);
+  let d = await idle();
+  let view = d.campaigns.find((c: any) => c.id === campaignId);
+  assert.equal(view.slides[0].factCheck.status, 'FAILED');
+  assert.equal(view.policy.ok, false, 'the lead breaks a rule');
+  // The campaign stays live with the slides that pass.
+  assert.deepEqual((await activeCampaign()).slides.map((x: any) => x.index), [1, 2]);
+  assert.equal(d.activeCampaignId, campaignId);
+
+  // Editing another slide is judged on that slide alone.
+  const other = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 2, content: { headline: 'Save money with friends to buy that gaming system', description: "Join a MutualPool pod and get the guys together on that gaming system you've always wanted. Start saving now." } });
+  assert.equal(other.status, 200, JSON.stringify(other.body));
+  // A flagged slide cannot become the lead.
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { selectedConcept: 1 })).status, 200, 'a passing slide can');
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { selectedConcept: 0 })).status, 400, 'the flagged one cannot');
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 1, approveCopy: true })).status, 400, 'nothing to approve on a slide that passed');
+
+  // The administrator approves the flagged copy: it goes back on the hero.
+  const approved = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 0, approveCopy: true });
+  assert.equal(approved.status, 200, JSON.stringify(approved.body));
+  view = approved.body.campaign;
+  assert.equal(view.slides[0].factCheck.status, 'OVERRIDDEN');
+  assert.ok(view.slides[0].factCheck.claims.length, 'the flagged points stay on record');
+  assert.match(view.approvals.at(-1).note, /approved despite the fact check/);
+  assert.deepEqual((await activeCampaign()).slides.map((x: any) => x.index), [1, 0, 2]);
+  // Checking the copy again keeps the approval.
+  assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/fact-check`)).status, 202);
+  d = await idle();
+  assert.equal(d.campaigns.find((c: any) => c.id === campaignId).slides[0].factCheck.status, 'OVERRIDDEN');
+  // Back to the earlier state for the tests that follow.
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { selectedConcept: 0 })).status, 200);
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 0, content: { description: 'Planning something big with friends? Bring your group together, pool money each week, and reach your shared goal with MutualPool.' } })).status, 200);
+  assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/fact-check`)).status, 202);
+  await idle();
+  assert.deepEqual((await activeCampaign()).slides.map((x: any) => x.index), [0, 1, 2]);
+});
+
 test('5. Impressions, clicks, sign-ups and pods created are tracked per campaign', async () => {
   assert.equal((await post(null, '/api/hero/events', { campaignId, type: 'impression', unique: true })).body.counted, true);
   assert.equal((await post(null, '/api/hero/events', { campaignId, type: 'impression', unique: true })).body.counted, false, 'a repeat from the same visitor is not counted');
@@ -471,11 +511,17 @@ test('10. Settings are validated and blocked terms apply to existing campaigns',
   assert.equal(saved.body.settings.discoveryIntervalHours, 48);
   assert.deepEqual(saved.body.settings.categories, ['SPORTS', 'SHOPPING']);
 
-  // Blocking a phrase the live campaign uses takes it off the hero.
+  // Blocking a phrase takes every slide that uses it off the hero; the others stay.
   const live = await activeCampaign();
   assert.ok(live);
-  const phrase = live.slides[0].headline.split(' ').slice(0, 2).join(' ').replace(/[.]/g, '').toLowerCase();
+  const lead = live.slides[0];
+  const phrase = lead.headline.split(' ').slice(0, 2).join(' ').replace(/[.]/g, '').toLowerCase();
   assert.equal((await put(admin, '/api/admin/hero/settings', { blockedTerms: [phrase] })).status, 200);
+  const after = await activeCampaign();
+  assert.ok(!after || !after.slides.some((x: any) => x.index === lead.index), 'the slide using the phrase is off the hero');
+  assert.ok(!after || after.slides.every((x: any) => !`${x.headline} ${x.description}`.toLowerCase().includes(phrase)));
+  // A phrase every slide uses empties the campaign: the evergreen hero returns.
+  assert.equal((await put(admin, '/api/admin/hero/settings', { blockedTerms: [phrase, 'save', 'saving', 'pod', 'pool'] })).status, 200);
   assert.equal(await activeCampaign(), null, 'falls back to the evergreen hero');
   assert.equal((await put(admin, '/api/admin/hero/settings', { blockedTerms: [], discoveryEnabled: false })).status, 200);
   assert.equal((await activeCampaign()).id, live.id);

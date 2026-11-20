@@ -392,6 +392,9 @@ test('the AI fact check decides publication: failed blocks, missing needs a pers
   assert.equal(unchecked.requiresManualReview, true);
   assert.equal(evaluateCampaignPolicy(good, { ...ctx, factCheck: null }).requiresManualReview, true, 'never checked');
   assert.equal(evaluateCampaignPolicy(good, { ...ctx, factCheck: { status: 'EDITED', claims: [], checkedAt: at } }).requiresManualReview, false, 'a person wrote it');
+  const overridden = evaluateCampaignPolicy(good, { ...ctx, factCheck: { status: 'OVERRIDDEN', claims: ['Promises early access'], checkedAt: at, approvedBy: 'Admin' } });
+  assert.equal(overridden.ok, true, 'a person approved it over the flag');
+  assert.equal(overridden.requiresManualReview, false);
 });
 
 test('fact-check answers are read strictly', () => {

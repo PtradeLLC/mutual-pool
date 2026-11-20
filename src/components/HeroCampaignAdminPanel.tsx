@@ -448,6 +448,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                                     {s.factCheck?.status === 'PASSED' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Fact-checked</span>}
                                     {s.factCheck?.status === 'FAILED' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">Claims we don't offer</span>}
                                     {s.factCheck?.status === 'EDITED' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600">Edited by you</span>}
+                                    {s.factCheck?.status === 'OVERRIDDEN' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Approved by you</span>}
                                     {(!s.factCheck || s.factCheck.status === 'UNCHECKED') && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">Not fact-checked</span>}
                                   </div>
                                   <div className="font-bold text-slate-900 leading-snug">{content.headline}</div>
@@ -460,6 +461,11 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                                   {!s.lead && <button type="button" disabled={busy} onClick={() => slideAction(c, { selectedConcept: s.index }, `Slide ${s.index + 1} now leads the hero.`)} className="text-[10px] font-bold text-[#005FB8] hover:underline inline-flex items-center gap-0.5"><Star className="w-2.5 h-2.5" /> Make lead</button>}
                                   {!s.lead && <button type="button" disabled={busy} onClick={() => slideAction(c, { slide: s.index, hidden: !s.hidden }, s.hidden ? `Slide ${s.index + 1} is back on the hero.` : `Slide ${s.index + 1} is off the hero.`)} className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-0.5">{s.hidden ? <><Eye className="w-2.5 h-2.5" /> Show</> : <><EyeOff className="w-2.5 h-2.5" /> Hide</>}</button>}
                                   <button type="button" disabled={busy} onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { slide: s.index })} className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-0.5"><ImageIcon className="w-2.5 h-2.5" /> {s.imageUrl ? 'Remake image' : 'Make image'}</button>
+                                  {s.factCheck?.status === 'FAILED' && !editOf(c).contents[s.index] && (
+                                    <button type="button" disabled={busy} title={`Flagged: ${s.factCheck.claims.join('; ')}`} onClick={() => { if (window.confirm(`The AI check flagged this slide:\n\n- ${s.factCheck!.claims.join('\n- ') || 'describes something MutualPool does not offer'}\n\nApprove the copy as accurate and put the slide on the hero?`)) slideAction(c, { slide: s.index, approveCopy: true }, `Slide ${s.index + 1} approved. It joins the hero if it has an image.`); }} className="text-[10px] font-bold text-rose-700 hover:underline inline-flex items-center gap-0.5">
+                                      <Check className="w-2.5 h-2.5" /> Publish anyway
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </li>
@@ -538,6 +544,14 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                           <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
                             <strong>{unsavedHere ? 'Your edits cannot be saved to the hero until this is fixed:' : sl.lead ? 'The campaign cannot be published until this is fixed:' : 'This slide stays off the hero until this is fixed:'}</strong>
                             <ul className="list-disc pl-4 mt-1 space-y-0.5">{policy.issues.map(i => <li key={i}>{i}</li>)}</ul>
+                            {!unsavedHere && !closed && sl.factCheck?.status === 'FAILED' && (
+                              <div className="mt-2 pt-2 border-t border-rose-200 text-rose-900">
+                                <p>The AI check can be stricter than needed. If this copy is accurate, approve it: the slide goes on the hero, and the flagged points stay in the review history.</p>
+                                <button type="button" disabled={busy} onClick={() => slideAction(c, { slide: si, approveCopy: true }, `Slide ${si + 1} approved. It joins the hero if it has an image.`)} className={`${btn} mt-1.5 bg-rose-700 hover:bg-rose-800 text-white`}>
+                                  <Check className="w-3 h-3" /> This copy is accurate: publish anyway
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       }
