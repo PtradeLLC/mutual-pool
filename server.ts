@@ -104,7 +104,7 @@ import {
 } from './src/lib/heroCampaigns';
 import type {
   HeroTrend, HeroCampaign, HeroAsset, HeroPerformance, HeroSettings, PolicyResult, CampaignApproval, CampaignConcept, TrendAnalysis,
-  PerformanceCounts, PublicHeroCampaign, PublicHeroSlide, CampaignContent,
+  PerformanceCounts, PublicHeroCampaign, PublicHeroSlide, CampaignContent, FactCheck,
 } from './src/lib/heroCampaigns';
 import { getHeroAiProvider, heroAiStatus, describeAiError, optimizeHeroImage } from './src/server/heroAi';
 import type { HeroAiProvider } from './src/server/heroAi';
@@ -2539,6 +2539,19 @@ const limitWhen = (pattern: RegExp, limiter: express.RequestHandler): express.Re
 // Pre-auth limiter for the (demo-only) credential routes.
 app.use(['/api/users/login', '/api/users/register', '/api/users/switch'], authRateLimiter);
 
+// Firebase Admin error codes that mean the token itself is not acceptable.
+// Anything else (app/network-error, auth/internal-error, timeouts) is a failure
+// to check it, not a reason to sign the member out.
+const TOKEN_REJECTION_CODES = new Set([
+  'auth/id-token-expired', 'auth/id-token-revoked', 'auth/invalid-id-token', 'auth/argument-error',
+  'auth/invalid-argument', 'auth/user-disabled', 'auth/user-not-found', 'auth/project-not-found',
+  'auth/session-cookie-expired', 'auth/session-cookie-revoked',
+]);
+function isTokenRejection(code: string): boolean {
+  // An unrecognised error without a code is treated as a bad token, as before.
+  return !code || TOKEN_REJECTION_CODES.has(code);
+}
+
 // Firebase ID token verification for all routes. This is the ONLY place identity
 // is established; handlers read it through getCurrentUser()/checkIsAdmin().
 app.use(async (req: Request, res: Response, next) => {
@@ -2567,6 +2580,15 @@ app.use(async (req: Request, res: Response, next) => {
       picture = (decoded.picture as string) || null;
       isAdmin = decoded.admin === true;
     } catch (err: any) {
+      // Only a token that is itself bad means the member is signed out. If the
+      // check could not be made (Google's signing keys unreachable, a timeout),
+      // say so with a 503: answering 401 would sign the member out over a
+      // passing network problem.
+      const code = String(err?.code || err?.errorInfo?.code || '');
+      if (!isTokenRejection(code)) {
+        console.error('[Auth] Could not verify an ID token:', code || err?.message || err);
+        return res.status(503).json({ error: 'AUTH_UNAVAILABLE', message: 'Sign-in could not be checked just now. Please try again in a moment.' });
+      }
       return res.status(401).json({ error: 'INVALID_TOKEN', message: 'Your session has expired. Please sign in again.' });
     }
   }
@@ -9143,8 +9165,10 @@ function heroRecordRun(run: Omit<HeroRun, 'id' | 'at'>): void {
 // that fail are simply left off the hero.
 function heroPolicyFor(campaign: HeroCampaign, slide?: number): PolicyResult {
   const trend = heroTrends.find(t => t && t.id === campaign.trendId);
+  const index = slide === undefined ? campaign.selectedConcept : slide;
   const content = slide === undefined ? campaign.content : (campaign.slideContent?.[slide] || campaign.content);
   return evaluateCampaignPolicy(content, {
+    factCheck: campaign.slideFactChecks?.[index] ?? null,
     sensitivity: campaign.sensitivity,
     brandsMentioned: campaign.brandsMentioned,
     trendText: `${campaign.trendTitle} ${campaign.trendDescription}`,
@@ -9283,19 +9307,33 @@ async function heroMakeImages(campaign: HeroCampaign, provider: HeroAiProvider, 
 }
 const heroMissingImages = (c: HeroCampaign) => c.concepts.map((_, i) => i).filter(i => !heroHasAsset(c.slideAssets?.[i]));
 
-async function heroWriteConcepts(trend: HeroTrend, provider: HeroAiProvider): Promise<{ analysis: TrendAnalysis; concepts: CampaignConcept[] }> {
+// Checks slide copy against what MutualPool offers. A failed check (provider
+// down) marks the copy UNCHECKED, which a person then has to approve.
+async function heroFactCheck(copies: CampaignContent[], provider: HeroAiProvider): Promise<FactCheck[]> {
+  try {
+    return await provider.factCheck(copies);
+  } catch (err) {
+    console.warn('[hero] fact check unavailable:', describeAiError(err));
+    const at = new Date().toISOString();
+    return copies.map(() => ({ status: 'UNCHECKED' as const, claims: [], checkedAt: at }));
+  }
+}
+
+async function heroWriteConcepts(trend: HeroTrend, provider: HeroAiProvider): Promise<{ analysis: TrendAnalysis; concepts: CampaignConcept[]; factChecks: FactCheck[] }> {
   let last: { analysis: TrendAnalysis; concepts: CampaignConcept[] } | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     last = await provider.generateConcepts(trend, heroSettings());
     if (last.concepts.length >= 3) break;
   }
   if (!last || last.concepts.length < 3) throw new Error(`The model returned ${last?.concepts.length || 0} usable concepts; at least 3 are required.`);
-  // Concepts that already pass the copy rules come first.
-  const passes = (c: CampaignConcept) => evaluateCampaignPolicy(contentFromConcept(c, 'Trending now'), {
-    sensitivity: trend.sensitivity, brandsMentioned: trend.brandsMentioned, trendText: `${trend.title} ${trend.description}`, trendVerified: trend.verified, blockedTerms: heroSettings().blockedTerms,
+  const checks = await heroFactCheck(last.concepts.map(c => contentFromConcept(c, 'Trending now')), provider);
+  // Concepts that pass the copy rules and the fact check come first, so the
+  // lead slide is a clean one whenever there is one.
+  const passes = (c: CampaignConcept, i: number) => evaluateCampaignPolicy(contentFromConcept(c, 'Trending now'), {
+    sensitivity: trend.sensitivity, brandsMentioned: trend.brandsMentioned, trendText: `${trend.title} ${trend.description}`, trendVerified: trend.verified, blockedTerms: heroSettings().blockedTerms, factCheck: checks[i],
   }).ok;
-  last.concepts = [...last.concepts.filter(passes), ...last.concepts.filter(c => !passes(c))].slice(0, 6);
-  return last;
+  const order = last.concepts.map((c, i) => ({ c, i, ok: passes(c, i) })).sort((a, b) => Number(b.ok) - Number(a.ok)).slice(0, 6);
+  return { analysis: last.analysis, concepts: order.map(o => o.c), factChecks: order.map(o => checks[o.i]) };
 }
 
 // Drafts a campaign for a trend: analysis, at least three concepts, an image.
@@ -9303,7 +9341,7 @@ async function heroWriteConcepts(trend: HeroTrend, provider: HeroAiProvider): Pr
 async function heroCreateCampaign(trend: HeroTrend, actor: { id: string; displayName: string }, provider: HeroAiProvider): Promise<HeroCampaign> {
   if (!trend.verified) throw new Error('This trend has no verified source, so no campaign can be made from it.');
   const settings = heroSettings();
-  const { analysis, concepts } = await heroWriteConcepts(trend, provider);
+  const { analysis, concepts, factChecks } = await heroWriteConcepts(trend, provider);
   const now = new Date();
   // Twice-monthly refresh: the campaign holds the hero until the next refresh
   // (or until its event has passed, whichever is sooner).
@@ -9329,6 +9367,7 @@ async function heroCreateCampaign(trend: HeroTrend, actor: { id: string; display
     slideContent: concepts.map(c => contentFromConcept(c, 'Trending now')),
     slideAssets: concepts.map(() => null),
     slideImageErrors: concepts.map(() => null),
+    slideFactChecks: factChecks,
     hiddenSlides: [],
     policy: { ok: false, issues: [], warnings: [], requiresManualReview: true, reviewReasons: [] },
     sensitivity: trend.sensitivity,
@@ -9541,6 +9580,7 @@ function heroAdminCampaignView(c: HeroCampaign, now: Date) {
         imageUrl: image ? image.url : null,
         image,
         imageError: c.slideImageErrors![i] || null,
+        factCheck: c.slideFactChecks?.[i] || null,
         policy: heroPolicyFor(c, i),
         onHero: heroSlideShown(c, i),
       };
@@ -9731,7 +9771,14 @@ app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
       (next as any)[key] = body.content[key].replace(/\s+/g, ' ').trim();
     }
     next.imageAlt = next.imageAlt.slice(0, HERO_LIMITS.altChars);
+    const before = draft.slideContent![slide];
     draft.slideContent![slide] = next;
+    // Copy a person rewrote is theirs: the earlier AI check no longer applies
+    // (the rule-based checks still do). "Check copy" can check it again.
+    if (next.headline !== before.headline || next.description !== before.description || next.ctaLabel !== before.ctaLabel) {
+      draft.slideFactChecks = [...(campaign.slideFactChecks || [])];
+      draft.slideFactChecks[slide] = { status: 'EDITED', claims: [], checkedAt: new Date().toISOString() };
+    }
   }
   if (body.hidden !== undefined) {
     if (typeof body.hidden !== 'boolean') return res.status(400).json({ error: 'INVALID_INPUT', message: 'hidden must be true or false.' });
@@ -9761,7 +9808,7 @@ app.put('/api/admin/hero/campaigns/:id', (req: Request, res: Response) => {
     if (!heroHasAsset(draft.slideAssets![draft.selectedConcept])) return res.status(400).json({ error: 'IMAGE_MISSING', message: 'That slide has no image yet, so it cannot lead a published campaign. Make its image first.' });
   }
   Object.assign(campaign, {
-    slideContent: draft.slideContent, hiddenSlides: draft.hiddenSlides, selectedConcept: draft.selectedConcept,
+    slideContent: draft.slideContent, slideFactChecks: draft.slideFactChecks, hiddenSlides: draft.hiddenSlides, selectedConcept: draft.selectedConcept,
     priority: draft.priority, startAt: draft.startAt, endAt: draft.endAt,
   });
   normalizeCampaignSlides(campaign);
@@ -9801,6 +9848,31 @@ app.post('/api/admin/hero/campaigns/:id/regenerate-image', (req: Request, res: R
   res.status(202).json({ started: true });
 });
 
+// Checks every slide's current copy against what MutualPool offers. Works on a
+// live campaign too: slides that fail drop off the hero at once.
+app.post('/api/admin/hero/campaigns/:id/fact-check', (req: Request, res: Response) => {
+  const admin = heroAdmin(req, res);
+  if (!admin) return;
+  const campaign = heroCampaignOr404(req, res);
+  if (!campaign) return;
+  if (campaign.status === 'RETIRED' || campaign.status === 'REJECTED') return res.status(400).json({ error: 'CAMPAIGN_CLOSED', message: 'This campaign is closed.' });
+  normalizeCampaignSlides(campaign);
+  const job = heroStartJob('COPY', `Checking the copy of "${campaign.content.headline}"`, 'ADMIN', async provider => {
+    const copies = campaign.slideContent!.map(c => ({ ...c }));
+    const checks = await provider.factCheck(copies);
+    // Copy edited while the check ran is left as it is.
+    campaign.slideFactChecks = campaign.slideContent!.map((c, i) => (c.headline === copies[i].headline && c.description === copies[i].description ? checks[i] : campaign.slideFactChecks![i]));
+    campaign.policy = heroPolicyFor(campaign);
+    const failed = checks.filter(c => c.status === 'FAILED').length;
+    heroLog(campaign, 'EDITED', admin, `Copy checked: ${failed} of ${checks.length} slides describe something MutualPool does not offer.`);
+    return failed
+      ? `${failed} of ${checks.length} slides describe something MutualPool does not offer and are off the hero. Rewrite them or hide them.`
+      : `All ${checks.length} slides match what MutualPool offers.`;
+  });
+  if (!job.started) return res.status(409).json({ error: 'NOT_STARTED', message: job.reason });
+  res.status(202).json({ started: true });
+});
+
 app.post('/api/admin/hero/campaigns/:id/regenerate-copy', (req: Request, res: Response) => {
   const admin = heroAdmin(req, res);
   if (!admin) return;
@@ -9810,7 +9882,7 @@ app.post('/api/admin/hero/campaigns/:id/regenerate-copy', (req: Request, res: Re
   const trend = heroTrends.find(t => t && t.id === campaign.trendId);
   if (!trend) return res.status(400).json({ error: 'TREND_NOT_FOUND', message: 'The trend behind this campaign is no longer on record.' });
   const job = heroStartJob('COPY', `New copy for "${campaign.trendTitle}"`, 'ADMIN', async provider => {
-    const { analysis, concepts } = await heroWriteConcepts(trend, provider);
+    const { analysis, concepts, factChecks } = await heroWriteConcepts(trend, provider);
     normalizeCampaignSlides(campaign);
     const label = campaign.content.label;
     const oldAssets = campaign.slideAssets || [];
@@ -9823,6 +9895,7 @@ app.post('/api/admin/hero/campaigns/:id/regenerate-copy', (req: Request, res: Re
     campaign.slideContent = concepts.map((c, i) => ({ ...contentFromConcept(c, label), imageAlt: i === 0 ? campaign.content.imageAlt : contentFromConcept(c, label).imageAlt }));
     campaign.slideAssets = concepts.map((_, i) => oldAssets[i] || null);
     campaign.slideImageErrors = concepts.map(() => null);
+    campaign.slideFactChecks = factChecks;
     campaign.hiddenSlides = [];
     normalizeCampaignSlides(campaign);
     campaign.policy = heroPolicyFor(campaign);
@@ -13363,10 +13436,26 @@ async function startServer() {
       if (/\.map$/i.test(req.path) || /^\/server\.cjs/i.test(req.path)) return res.status(404).end();
       next();
     });
-    app.use(express.static(distPath, { index: false }));
+    app.use(express.static(distPath, {
+      index: false,
+      // Hashed build files never change, so browsers may keep them; anything
+      // else (icons, manifest, service worker) is revalidated.
+      setHeaders: (res, filePath) => {
+        res.setHeader('Cache-Control', /[\\/]assets[\\/]/.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    }));
+    // A build file that is not there (an older version's, after a deploy) is a
+    // 404. Answering with the app page instead makes the browser try to run
+    // HTML as code, and lets the service worker keep that wrong copy.
+    app.get(/^\/assets\//, (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(404).type('text/plain').send('Not found');
+    });
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, 'index.html');
       if (fs.existsSync(indexPath)) {
+        // Always revalidated, so a new deploy reaches open phones and tabs.
+        res.setHeader('Cache-Control', 'no-cache');
         res.sendFile(indexPath);
       } else {
         res.status(404).json({ error: 'Endpoint or asset not found' });

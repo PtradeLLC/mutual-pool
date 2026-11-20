@@ -7,7 +7,7 @@ import {
   contentFromConcept, buildImagePrompt, wordCount, refreshSlots, scheduledDiscoveryDue, nextScheduledRefresh, monthlyDaysOf,
 } from '../src/lib/heroCampaigns';
 import type { CampaignContent, PolicyContext } from '../src/lib/heroCampaigns';
-import { normalizeTrends, normalizeConcepts, describeAiError, fitRunwayPrompt, heroAiStatus } from '../src/server/heroAi';
+import { normalizeTrends, normalizeConcepts, describeAiError, fitRunwayPrompt, heroAiStatus, normalizeFactChecks } from '../src/server/heroAi';
 import { IMAGE_STYLE_RULES } from '../src/lib/heroCampaigns';
 
 const NOW = new Date('2026-11-19T12:00:00.000Z');
@@ -354,4 +354,54 @@ test('Runway prompts fit its 1000-character limit and keep the originality rules
   assert.match(fitted, /no text, letters, logos/);
   assert.match(fitted, /no real people, celebrities, characters/);
   assert.ok(buildImagePrompt('x'.repeat(300), []).length <= 1000 || IMAGE_STYLE_RULES.length > 700);
+});
+
+// --- Copy may only describe what MutualPool offers ---
+
+test('copy that invents features is blocked; accurate copy passes', () => {
+  const invented = [
+    ['Earn Perks While You Play', 'Join a MutualPool pod and unlock exclusive gaming perks, like early access codes or discount vouchers, as you save together.'],
+    ["Join the Creator's Money Quest", "Follow your favorite streamer's savings pod and help each other reach milestones, like exclusive merch or game nights, with every weekly contribution."],
+    ['Team Up for Game Night Funds', 'Employers can set up a savings pod for staff to pool money for shared gaming experiences, like a launch party or tournament entry, with scheduled payouts.'],
+    ['Save and Get Rewards', 'Every weekly deposit in your savings pod gets you closer to rewards.'],
+    ['Cashback on Every Pod', 'Save together and enjoy cash back on your weekly contributions.'],
+  ];
+  for (const [headline, description] of invented) {
+    assert.equal(evaluateCampaignPolicy({ ...good, headline, description }, ctx).ok, false, headline);
+  }
+  const accurate = [
+    ['One Crew. One Goal.', 'Set a goal with the people you trust. Everyone saves the same amount each week and you take turns receiving the pot.'],
+    ['Perks for the Road', 'Members get everyday discounts on quick meals, tire repair and car washes while they save together.'],
+    ['Host Your Crew', 'Start a pod for your crew, take the last turn and earn the host reward on each weekly pot.'],
+    ['Level Up Your Savings Together', 'Create a savings pod with friends to fund the next big game release, rotating contributions and payouts to keep the excitement rolling.'],
+  ];
+  for (const [headline, description] of accurate) {
+    const r = evaluateCampaignPolicy({ ...good, headline, description }, ctx);
+    assert.equal(r.ok, true, `${headline}: ${r.issues.join(' ')}`);
+  }
+});
+
+test('the AI fact check decides publication: failed blocks, missing needs a person', () => {
+  const at = NOW.toISOString();
+  assert.equal(evaluateCampaignPolicy(good, { ...ctx, factCheck: { status: 'PASSED', claims: [], checkedAt: at } }).requiresManualReview, false);
+  const failed = evaluateCampaignPolicy(good, { ...ctx, factCheck: { status: 'FAILED', claims: ['Promises early access'], checkedAt: at } });
+  assert.equal(failed.ok, false);
+  assert.match(failed.issues.join(' '), /Promises early access/);
+  const unchecked = evaluateCampaignPolicy(good, { ...ctx, factCheck: { status: 'UNCHECKED', claims: [], checkedAt: at } });
+  assert.equal(unchecked.ok, true);
+  assert.equal(unchecked.requiresManualReview, true);
+  assert.equal(evaluateCampaignPolicy(good, { ...ctx, factCheck: null }).requiresManualReview, true, 'never checked');
+  assert.equal(evaluateCampaignPolicy(good, { ...ctx, factCheck: { status: 'EDITED', claims: [], checkedAt: at } }).requiresManualReview, false, 'a person wrote it');
+});
+
+test('fact-check answers are read strictly', () => {
+  const checks = normalizeFactChecks({ results: [
+    { index: 0, supported: true, unsupportedClaims: [] },
+    { index: 1, supported: false, unsupportedClaims: ['Promises exclusive merch'] },
+    { index: 2, supported: true, unsupportedClaims: ['Says perks are earned by saving'] },
+    { index: 3, supported: false, unsupportedClaims: [] },
+  ] }, 5, 'm');
+  assert.deepEqual(checks.map(c => c.status), ['PASSED', 'FAILED', 'FAILED', 'FAILED', 'UNCHECKED']);
+  assert.deepEqual(checks[1].claims, ['Promises exclusive merch']);
+  assert.equal(checks[3].claims.length, 1, 'a failure always says something');
 });

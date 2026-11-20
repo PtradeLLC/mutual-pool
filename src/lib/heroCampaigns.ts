@@ -171,6 +171,8 @@ export interface HeroCampaign {
   slideContent?: CampaignContent[];
   slideAssets?: Array<string | null>;
   slideImageErrors?: Array<string | null>;
+  // The AI fact check of each slide's copy against PRODUCT_FACTS.
+  slideFactChecks?: Array<FactCheck | null>;
   // Slides an administrator took off the hero.
   hiddenSlides?: number[];
   policy: PolicyResult;
@@ -426,12 +428,56 @@ export function wordCount(text: string): number {
   return String(text || '').trim().split(/\s+/).filter(Boolean).length;
 }
 
+// --- What MutualPool actually offers ---
+
+// The only product facts campaign copy may rely on. Given to the AI that writes
+// the copy and to the AI that checks it. Keep it in step with the app.
+export const PRODUCT_FACTS = `WHAT MUTUALPOOL OFFERS (nothing else exists):
+- Savings Pods: a rotating savings circle (also called a susu, tanda, pardna or chama) run in an app. A group of 2 to 20 members each puts in the same fixed amount every week ($5 to $100). Each week one member receives the whole pot. Every member receives it exactly once, in turn, on a fixed schedule; then the pod ends and the group can start a new round. Each member spends their own payout on their own goal. It is the members' own money: not a loan, not an investment, no interest, no credit check.
+- Trusted Circles are invite-only pods for friends, family and co-workers. Open Pods can be joined by verified members.
+- Join a Pod: MutualPool matches a member with MutualPool-hosted pods of people who save a similar amount each week.
+- Financial Awareness: a member sets a savings goal, enters take-home pay and bills, sees what is left, and picks a weekly amount they can keep up.
+- Hosting: the member who creates a pod takes the last turn and earns 3% of each weekly pot for keeping the group together.
+- Creator Pools: a creator shares one link; followers join pods of 20 and save together; the creator hosts every pod and earns 3% of each weekly pot. Followers get the same savings pod as anyone else, nothing more.
+- Business Pools: an employer, fleet or union offers pods to its workers as a free benefit, usually hosted by a shift lead. The employer pays nothing and guarantees nothing.
+- Perks: a marketplace of everyday discounts for gig and delivery workers on the road (quick meals, coffee, tire and phone repair, car washes, parking, massages and similar). Some premium perks unlock when a member has their earnings paid into their MutualPool account. Perks are never earned by saving, playing, contributing or joining a pod.
+
+WHAT MUTUALPOOL DOES NOT OFFER (never say or imply it):
+- No rewards, points, cashback, bonuses, prizes, giveaways or interest for saving.
+- No exclusive content, merchandise, early access, game or promo codes, vouchers, or discounts on games, tickets, devices or brands.
+- No shared group fund for one joint purchase, party, trip or event: each member receives the pot on their own turn.
+- No milestones, challenges, leaderboards, tournaments or competitions.
+- No partnership with, or access to, any brand, game, studio, team, league, show, artist, creator or celebrity named in a trend.`;
+
+// Wording for things MutualPool does not offer, caught even when the AI check
+// is unavailable. Each entry: pattern, and what it claims.
+const UNOFFERED_CLAIMS: Array<[RegExp, string]> = [
+  [/\bwhile you (play|game|gaming|watch|stream|shop|scroll)\b/i, 'promises something for playing, watching or shopping'],
+  [/\b(exclusive|early[- ]access|access codes?|promo codes?|game codes?|codes?\b(?= or| and)|vouchers?|coupons?|merch(andise)?|swag|cash ?back|loyalty|reward points|points)\b/i, 'promises extras MutualPool does not offer (exclusive items, codes, vouchers, merchandise, cashback or points)'],
+  [/\b(gaming|game|streamer|creator|exclusive|member|vip) (perks?|rewards?|benefits?)\b/i, 'describes perks MutualPool does not offer (Perks are everyday discounts for workers on the road)'],
+  [/\b(earn|unlock|collect|rack up)\w*\b[^.]{0,40}\b(perks?|rewards?|bonus(es)?|prizes?)\b/i, 'says members earn perks or rewards for saving'],
+  [/\brewards?\b/i, 'mentions rewards, which MutualPool does not give'],
+  [/\b(milestones?|tournaments?|leaderboards?|launch part(y|ies)|giveaways?|competitions?)\b/i, 'describes milestones, competitions or events MutualPool does not run'],
+];
+
+export type FactCheckStatus = 'PASSED' | 'FAILED' | 'UNCHECKED' | 'EDITED';
+export interface FactCheck {
+  status: FactCheckStatus;
+  // Claims the checker found that MutualPool does not offer.
+  claims: string[];
+  checkedAt: string;
+  model?: string;
+}
+
 export interface PolicyContext {
   sensitivity: TrendSensitivity;
   brandsMentioned: string[];
   trendText: string;
   trendVerified: boolean;
   blockedTerms: string[];
+  // The AI check of this copy against PRODUCT_FACTS. Missing or UNCHECKED: the
+  // copy needs a person to approve it; FAILED: it cannot be published.
+  factCheck?: FactCheck | null;
 }
 
 // Checks campaign copy against the brand and financial-communication rules.
@@ -457,6 +503,17 @@ export function evaluateCampaignPolicy(content: CampaignContent, ctx: PolicyCont
 
   for (const [re, why] of BANNED_CLAIMS) if (re.test(copy)) issues.push(`The copy ${why}.`);
   for (const [re, why] of AFFILIATION_CLAIMS) if (re.test(copy)) issues.push(`The copy ${why}, which suggests a third party is affiliated with MutualPool.`);
+  // "Host reward" is the app's own name for the 3% hosts earn.
+  const claimsText = copy.replace(/\bhost rewards?\b/gi, 'host share');
+  for (const [re, why] of UNOFFERED_CLAIMS) {
+    const hit = claimsText.match(re);
+    if (hit) issues.push(`The copy ${why} ("${hit[0]}").`);
+  }
+  if (ctx.factCheck?.status === 'FAILED') {
+    issues.push(`The fact check found claims MutualPool does not offer: ${ctx.factCheck.claims.slice(0, 3).join('; ') || 'see the slide'}.`);
+  } else if (ctx.factCheck !== undefined && (!ctx.factCheck || ctx.factCheck.status === 'UNCHECKED')) {
+    reviewReasons.push('The copy has not been checked against what MutualPool offers.');
+  }
   for (const term of ctx.blockedTerms) {
     if (term && copy.toLowerCase().includes(term.toLowerCase())) issues.push(`The copy uses a blocked term ("${term}").`);
   }
@@ -671,10 +728,12 @@ export function normalizeCampaignSlides(c: HeroCampaign, labelFallback = 'Trendi
   const content = Array.isArray(c.slideContent) ? c.slideContent : [];
   const assets = Array.isArray(c.slideAssets) ? c.slideAssets : [];
   const errors = Array.isArray(c.slideImageErrors) ? c.slideImageErrors : [];
+  const checks = Array.isArray(c.slideFactChecks) ? c.slideFactChecks : [];
   const fresh = !Array.isArray(c.slideContent);
   c.slideContent = c.concepts.map((concept, i) => content[i] || (fresh && i === lead && c.content ? c.content : contentFromConcept(concept, label)));
   c.slideAssets = c.concepts.map((_, i) => (assets[i] !== undefined ? assets[i] : fresh && i === lead ? c.assetId : null) || null);
   c.slideImageErrors = c.concepts.map((_, i) => errors[i] ?? (fresh && i === lead ? c.imageError ?? null : null));
+  c.slideFactChecks = c.concepts.map((_, i) => checks[i] ?? null);
   c.hiddenSlides = Array.from(new Set((c.hiddenSlides || []).filter(i => Number.isInteger(i) && i >= 0 && i < n && i !== lead))).sort((a, b) => a - b);
   c.content = c.slideContent[lead];
   c.assetId = c.slideAssets[lead];

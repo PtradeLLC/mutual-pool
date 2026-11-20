@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-postgres.test.ts tests/hardship-risk.test.ts tests/treasury-claims.test.ts tests/shift-schedule.test.ts tests/rotation.test.ts tests/sweep-schedule.test.ts tests/default-controls-rules.test.ts tests/custody.test.ts tests/earnings.test.ts tests/market-providers.test.ts tests/visible-poll.test.ts tests/pod-size.test.ts tests/creator-pools.test.ts tests/telemetry.test.ts tests/financial-awareness.test.ts tests/hero-campaigns.test.ts && npm run test:security && npm run test:integration && npm run test:creators && npm run test:savings && npm run test:hero",
+    "test": "tsx test/multiCountry.test.ts && tsx --test tests/sleeve-qr.test.ts tests/persistence.test.ts tests/storage-postgres.test.ts tests/hardship-risk.test.ts tests/treasury-claims.test.ts tests/shift-schedule.test.ts tests/rotation.test.ts tests/sweep-schedule.test.ts tests/default-controls-rules.test.ts tests/custody.test.ts tests/earnings.test.ts tests/market-providers.test.ts tests/visible-poll.test.ts tests/pod-size.test.ts tests/creator-pools.test.ts tests/telemetry.test.ts tests/financial-awareness.test.ts tests/hero-campaigns.test.ts tests/lazy-reload.test.ts && npm run test:security && npm run test:integration && npm run test:creators && npm run test:savings && npm run test:hero",
     "test:hero": "tsx scripts/run-server-tests.ts --env=demo tests/hero-campaigns-flow.test.ts",
     "test:savings": "tsx scripts/run-server-tests.ts --env=demo tests/savings-range-flow.test.ts",
     "test:security": "tsx scripts/run-server-tests.ts --env=secure tests/security.test.ts",

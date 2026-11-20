@@ -1,4 +1,6 @@
-const CACHE_NAME = 'gig-mutual-pwa-v6';
+// v7: drops copies of the app page that earlier versions stored under build
+// file names (see safeCachePut).
+const CACHE_NAME = 'gig-mutual-pwa-v7';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -59,6 +61,10 @@ self.addEventListener('fetch', (event) => {
     // Never attempt to cache non-http(s) or opaque chrome-extension requests
     if (!request.url.startsWith('http://') && !request.url.startsWith('https://')) return;
     if (!response || response.status !== 200) return;
+    // A build file must never be stored as the app page: that is what a
+    // missing file used to return, and the copy would break every later visit.
+    const type = response.headers.get('content-type') || '';
+    if (request.mode !== 'navigate' && /\/assets\//.test(new URL(request.url).pathname) && type.includes('text/html')) return;
 
     caches.open(CACHE_NAME).then((cache) => {
       cache.put(request, response).catch(() => {

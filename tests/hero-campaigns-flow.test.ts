@@ -259,6 +259,37 @@ test('4b. Each slide is managed on its own: edit, hide, lead, and per-slide imag
   assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/regenerate-image`, { slide: 9 })).status, 400);
 });
 
+test('4c. Slides may only describe what MutualPool offers', async () => {
+  // New copy is fact-checked as it is written.
+  let view = (await dashboard()).campaigns.find((c: any) => c.id === campaignId);
+  // Slides 0 and 2 were rewritten by the administrator in earlier tests.
+  assert.deepEqual(view.slides.map((x: any) => x.factCheck?.status), ['EDITED', 'PASSED', 'EDITED']);
+  // A live slide cannot be edited into describing something that does not exist.
+  const invented = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 1, content: { description: 'Join a pod and unlock exclusive gaming perks like early access codes as you save together.' } });
+  assert.equal(invented.status, 400);
+  assert.equal(invented.body.error, 'POLICY_VIOLATION');
+  // Wording the rules cannot catch is caught by "Check copy" (the stand-in AI
+  // flags "UNOFFERED"). Edited copy is marked as written by a person until then.
+  const edited = await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 1, content: { description: 'Save the same amount each week with your crew and use the UNOFFERED feature together.' } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.equal(edited.body.campaign.slides[1].factCheck.status, 'EDITED');
+  assert.deepEqual((await activeCampaign()).slides.map((x: any) => x.index), [0, 1, 2]);
+  assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/fact-check`)).status, 202);
+  let d = await idle();
+  assert.equal(d.runs[0].ok, true, JSON.stringify(d.runs[0]));
+  assert.match(d.runs[0].summary, /1 of 3 slides/);
+  view = d.campaigns.find((c: any) => c.id === campaignId);
+  assert.equal(view.slides[1].factCheck.status, 'FAILED');
+  assert.equal(view.slides[1].onHero, false);
+  assert.deepEqual((await activeCampaign()).slides.map((x: any) => x.index), [0, 2], 'the slide is off the hero at once');
+  // Rewritten accurately and checked again, it comes back.
+  assert.equal((await put(admin, `/api/admin/hero/campaigns/${campaignId}`, { slide: 1, content: { description: 'Set a goal with the people you trust. Everyone saves the same amount each week and you take turns receiving the pot.' } })).status, 200);
+  assert.equal((await post(admin, `/api/admin/hero/campaigns/${campaignId}/fact-check`)).status, 202);
+  d = await idle();
+  assert.deepEqual((await activeCampaign()).slides.map((x: any) => x.index), [0, 1, 2]);
+  assert.equal((await post(member, `/api/admin/hero/campaigns/${campaignId}/fact-check`)).status, 403);
+});
+
 test('5. Impressions, clicks, sign-ups and pods created are tracked per campaign', async () => {
   assert.equal((await post(null, '/api/hero/events', { campaignId, type: 'impression', unique: true })).body.counted, true);
   assert.equal((await post(null, '/api/hero/events', { campaignId, type: 'impression', unique: true })).body.counted, false, 'a repeat from the same visitor is not counted');

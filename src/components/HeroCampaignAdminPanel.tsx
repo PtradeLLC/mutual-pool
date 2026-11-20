@@ -3,7 +3,7 @@ import { Megaphone, RefreshCw, Search, Sparkles, ImageIcon, Check, X, Pause, Pla
 import {
   DEFAULT_MONTHLY_DAYS, HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS, HERO_SERVICE_LABELS, LIMITS, wordCount,
 } from '../lib/heroCampaigns';
-import type { HeroCampaign, HeroTrend, HeroSettings, HeroCategory, CampaignContent, LiveState, PerformanceCounts, HeroCtaDestination, PolicyResult } from '../lib/heroCampaigns';
+import type { HeroCampaign, HeroTrend, HeroSettings, HeroCategory, CampaignContent, LiveState, PerformanceCounts, HeroCtaDestination, PolicyResult, FactCheck } from '../lib/heroCampaigns';
 
 type AdminImage = { url: string; width: number; height: number; bytes: number; mimeType: string; model: string; prompt: string; createdAt: string };
 interface AdminSlide {
@@ -14,6 +14,7 @@ interface AdminSlide {
   imageUrl: string | null;
   image: AdminImage | null;
   imageError: string | null;
+  factCheck: FactCheck | null;
   policy: PolicyResult;
   // On the landing page while the campaign is live.
   onHero: boolean;
@@ -169,12 +170,24 @@ export const HeroCampaignAdminPanel: React.FC = () => {
     call(`/api/admin/hero/campaigns/${c.id}/${action}`, 'POST', { note: note || undefined }, done);
   };
 
+  // The same checks the server makes, so a half-filled form never reaches it.
+  const trendProblems = (() => {
+    const problems: string[] = [];
+    const title = newTrend.title.trim();
+    const description = newTrend.description.trim();
+    if (title.length < 3) problems.push('a title (at least 3 characters)');
+    if (description.length < 10) problems.push('what is happening (at least 10 characters)');
+    if (!/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(newTrend.sourceUrl.trim())) problems.push('a source link starting with https://');
+    return problems;
+  })();
+
   const addTrend = async () => {
+    if (trendProblems.length) return;
     const ok = await call('/api/admin/hero/trends', 'POST', {
-      title: newTrend.title,
-      description: newTrend.description,
+      title: newTrend.title.trim(),
+      description: newTrend.description.trim(),
       category: newTrend.category,
-      sourceUrl: newTrend.sourceUrl,
+      sourceUrl: newTrend.sourceUrl.trim(),
       eventDate: newTrend.eventDate ? new Date(`${newTrend.eventDate}T12:00:00`).toISOString() : undefined,
       brandsMentioned: newTrend.brands.split(',').map(b => b.trim()).filter(Boolean),
     }, 'Trend added. Use "Draft a campaign" to write the copy and make the image.');
@@ -402,11 +415,18 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                     <div>
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                         <div className="font-bold text-slate-700">Slides ({slides.length})</div>
+                        <div className="flex flex-wrap gap-1.5">
+                        {!closed && (
+                          <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/fact-check`, 'POST', {})} disabled={busy} title="Check every slide's copy against what MutualPool actually offers" className={`${btn} border border-[#005FB8] text-[#005FB8] hover:bg-blue-50`}>
+                            <ShieldAlert className="w-3 h-3" /> Check copy
+                          </button>
+                        )}
                         {!closed && missing > 0 && (
                           <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { missing: true })} disabled={busy} className={`${btn} bg-[#005FB8] hover:bg-[#004C93] text-white`}>
                             <ImageIcon className="w-3 h-3" /> Make missing images ({missing})
                           </button>
                         )}
+                        </div>
                       </div>
                       <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {slides.map(s => {
@@ -425,6 +445,10 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                                     {s.hidden && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-700">Hidden</span>}
                                     {!s.policy.ok && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">Breaks a rule</span>}
                                     {editOf(c).contents[s.index] && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800">Unsaved</span>}
+                                    {s.factCheck?.status === 'PASSED' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Fact-checked</span>}
+                                    {s.factCheck?.status === 'FAILED' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">Claims we don't offer</span>}
+                                    {s.factCheck?.status === 'EDITED' && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600">Edited by you</span>}
+                                    {(!s.factCheck || s.factCheck.status === 'UNCHECKED') && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">Not fact-checked</span>}
                                   </div>
                                   <div className="font-bold text-slate-900 leading-snug">{content.headline}</div>
                                   {concept && <div className="text-[10px] text-slate-500 mt-0.5">{concept.targetAudience} · {HERO_SERVICE_LABELS[concept.service]}</div>}
@@ -511,6 +535,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                     )}
                     {sl && sl.policy.warnings.length > 0 && <p className="text-amber-800">{sl.policy.warnings.join(' ')}</p>}
                     {sl?.imageError && <p className="text-rose-700">Last image attempt for this slide failed: {sl.imageError}</p>}
+                    {sl?.factCheck?.status === 'EDITED' && <p className="text-slate-600">You edited this copy, so the earlier AI check no longer applies. Use "Check copy" to check it again.</p>}
 
                     {/* Trend and reasoning */}
                     <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
@@ -593,7 +618,10 @@ export const HeroCampaignAdminPanel: React.FC = () => {
               <input className={field} value={newTrend.brands} onChange={e => setNewTrend({ ...newTrend, brands: e.target.value })} />
             </label>
           </div>
-          <button type="button" onClick={addTrend} className={`${btn} bg-slate-800 hover:bg-slate-900 text-white`}><Check className="w-3 h-3" /> Add trend</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={addTrend} disabled={trendProblems.length > 0} className={`${btn} bg-slate-800 hover:bg-slate-900 text-white`}><Check className="w-3 h-3" /> Add trend</button>
+            {trendProblems.length > 0 && <span className="text-[11px] text-slate-500">Still needed: {trendProblems.join(', ')}.</span>}
+          </div>
         </div>
       )}
       {openTrends.length === 0 ? (

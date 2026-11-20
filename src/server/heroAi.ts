@@ -24,7 +24,8 @@ import {
   HERO_CATEGORIES, HERO_CATEGORY_LABELS, HERO_SERVICES, HERO_SERVICE_LABELS, HERO_CTA_DESTINATIONS, HERO_CTA_LABELS,
   HEADLINE_MIN_WORDS, HEADLINE_MAX_WORDS, LIMITS, sanitizeConcept,
 } from '../lib/heroCampaigns';
-import type { HeroCategory, HeroService, HeroSettings, HeroTrend, CampaignConcept, TrendAnalysis, TrendSensitivity, TrendSource } from '../lib/heroCampaigns';
+import { PRODUCT_FACTS } from '../lib/heroCampaigns';
+import type { HeroCategory, HeroService, HeroSettings, HeroTrend, CampaignConcept, CampaignContent, TrendAnalysis, TrendSensitivity, TrendSource, FactCheck } from '../lib/heroCampaigns';
 
 export type DiscoveredTrend = Omit<HeroTrend, 'id' | 'discoveredAt' | 'dedupeKey' | 'status'>;
 
@@ -39,6 +40,8 @@ export interface HeroAiProvider {
   discoverTrends(settings: HeroSettings, now: Date): Promise<DiscoveredTrend[]>;
   generateConcepts(trend: HeroTrend, settings: HeroSettings): Promise<{ analysis: TrendAnalysis; concepts: CampaignConcept[] }>;
   generateImage(prompt: string): Promise<GeneratedImage>;
+  // Checks each slide's copy against PRODUCT_FACTS (index-aligned results).
+  factCheck(copies: CampaignContent[]): Promise<FactCheck[]>;
 }
 
 const TEXT_MODEL = () => process.env.HERO_TEXT_MODEL || 'gemini-3.7-flash';
@@ -126,7 +129,39 @@ export function getHeroAiProvider(isProduction: boolean): HeroAiProvider | null 
     generateImage(prompt) {
       return firstThatWorks('images', imageProviders(), name => (name === 'runway' ? runwayImage(prompt) : gemini.generateImage(prompt)));
     },
+    factCheck(copies) {
+      return firstThatWorks('copy', copyProviders(), name => (name === 'groq' ? groqFactCheck(copies) : gemini.factCheck(copies)));
+    },
   };
+}
+
+// --- Fact check ---
+
+function factCheckPrompt(copies: CampaignContent[]): string {
+  return `You check marketing copy for MutualPool against the facts below. Flag any claim, promise or implication about MutualPool that the facts do not support: features, rewards, perks, extras, events, partnerships, or a wrong description of how pods work (for example a shared fund for one group purchase). General encouragement ("save together", "reach your goal") is fine. Ignore style.\n\n${PRODUCT_FACTS}\n\nCOPY TO CHECK:\n${copies.map((c, i) => `${i}. Headline: ${c.headline}\n   Description: ${c.description}\n   Button: ${c.ctaLabel}`).join('\n')}\n\nFor every item, in order, return {"index": n, "supported": true|false, "unsupportedClaims": ["each unsupported claim, quoted or briefly described"]}.`;
+}
+
+export function normalizeFactChecks(raw: any, count: number, model: string): FactCheck[] {
+  const list: any[] = Array.isArray(raw?.results) ? raw.results : Array.isArray(raw) ? raw : [];
+  const at = new Date().toISOString();
+  return Array.from({ length: count }, (_, i) => {
+    const r = list.find(x => Number(x?.index) === i) ?? list[i];
+    if (!r || typeof r.supported !== 'boolean') return { status: 'UNCHECKED', claims: [], checkedAt: at, model };
+    const claims = (Array.isArray(r.unsupportedClaims) ? r.unsupportedClaims : []).map((c: unknown) => clean(c, 160)).filter(Boolean).slice(0, 5);
+    // Supported only when the checker says so and lists nothing against it.
+    return { status: r.supported && !claims.length ? 'PASSED' : 'FAILED', claims: r.supported ? claims : (claims.length ? claims : ['Describes something MutualPool does not offer.']), checkedAt: at, model };
+  });
+}
+
+async function groqFactCheck(copies: CampaignContent[]): Promise<FactCheck[]> {
+  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is not set.');
+  if (!groqClient) groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY, timeout: AI_TIMEOUT_MS, maxRetries: 1 });
+  const response = await groqClient.chat.completions.create({
+    model: GROQ_MODEL(),
+    messages: [{ role: 'user', content: `${factCheckPrompt(copies)}\n\nReply with one JSON object and nothing else: {"results":[{"index":0,"supported":true,"unsupportedClaims":[]}]}` }],
+    response_format: { type: 'json_object' },
+  });
+  return normalizeFactChecks(parseJson(response.choices?.[0]?.message?.content || undefined), copies.length, GROQ_MODEL());
 }
 
 // A short, safe description of a provider failure for the admin screen.
@@ -227,7 +262,8 @@ function gemini(): GoogleGenAI {
   return client;
 }
 
-const BRAND_BRIEF = `MutualPool is a community savings app. Members form a "Savings Pod" (a rotating savings circle, also known as a susu, tanda or pardna): everyone puts in the same amount each week and members take turns receiving the whole pot on a set schedule. It is the members' own money: not a loan, not an investment, no interest. MutualPool also offers Financial Awareness tools (goal, budget, weekly commitment), Creator Pools (a creator hosts pods for followers), Business Pools for employers and partners, and member Perks.`;
+// What the AI may say about MutualPool: the shared fact sheet (src/lib/heroCampaigns.ts).
+const BRAND_BRIEF = `MutualPool is a community savings app.\n\n${PRODUCT_FACTS}`;
 
 function trendJsonSchema() {
   return {
@@ -297,7 +333,7 @@ function conceptJsonSchema() {
 }
 
 function conceptPrompt(trend: HeroTrend, settings: HeroSettings): string {
-  return `${BRAND_BRIEF}\n\nYou are MutualPool's marketing strategist. Write hero-banner campaign concepts that tie a current trend to MutualPool.\n\nTREND\nTitle: ${trend.title}\nWhat: ${trend.description}\nCategory: ${HERO_CATEGORY_LABELS[trend.category]}\nRegion: ${trend.region}\nEvent date: ${trend.eventDate || 'n/a'}\nBrands named: ${trend.brandsMentioned.join(', ') || 'none'}\n\nFirst, the analysis: what is happening, why it matters now, who cares, which audience segment, how it connects naturally to MutualPool, which one service fits best, and the message that would land.\n\nThen write 4 different concepts (different angle or audience each). For each:\n- headline: ${HEADLINE_MIN_WORDS} to ${HEADLINE_MAX_WORDS} words, plain mainstream language, positive, with an emotional or practical benefit.\n- description: one or two sentences, at most ${LIMITS.descriptionChars} characters, that say what MutualPool lets people do (save together, pool money, take turns receiving the pot, reach a shared goal) and invite them in.\n- ctaLabel: at most ${LIMITS.ctaChars} characters. ctaDestination: ${HERO_CTA_DESTINATIONS.map(d => `${d} (${HERO_CTA_LABELS[d]})`).join('; ')}.\n- service: one of ${HERO_SERVICES.map(s => `${s} (${HERO_SERVICE_LABELS[s]})`).join('; ')}.\n- suggestedDurationDays: how long this stays timely.\n- imagePrompt: a scene for an original photograph or illustration that carries the theme through setting, light and mood. Ordinary people, plain clothing. Never name or depict brands, logos, characters, celebrities, team kits, game or film artwork, or any text.\n\nHard rules for the copy:\n- The trend is the hook; MutualPool's service is the point. Never just attach the brand name to an unrelated headline.\n- Never say or imply MutualPool is official, a sponsor, a partner of, or endorsed by anyone named in the trend. Prefer describing the moment ("the big game", "launch day") over naming a brand.\n- No promises: no "guaranteed", "risk-free", "win", "earn", "returns", "profit", "invest", "loan", "interest", no percentages, no dollar amounts, nothing that promises a payout or financial success.\n- Do not use: ${settings.blockedTerms.join(', ') || '(no extra blocked terms)'}.`;
+  return `${BRAND_BRIEF}\n\nYou are MutualPool's marketing strategist. Write hero-banner campaign concepts that tie a current trend to MutualPool.\n\nTREND\nTitle: ${trend.title}\nWhat: ${trend.description}\nCategory: ${HERO_CATEGORY_LABELS[trend.category]}\nRegion: ${trend.region}\nEvent date: ${trend.eventDate || 'n/a'}\nBrands named: ${trend.brandsMentioned.join(', ') || 'none'}\n\nFirst, the analysis: what is happening, why it matters now, who cares, which audience segment, how it connects naturally to MutualPool, which one service fits best, and the message that would land.\n\nThen write 4 different concepts (different angle or audience each). For each:\n- headline: ${HEADLINE_MIN_WORDS} to ${HEADLINE_MAX_WORDS} words, plain mainstream language, positive, with an emotional or practical benefit.\n- description: one or two sentences, at most ${LIMITS.descriptionChars} characters, that say what MutualPool lets people do (save the same amount each week with people they trust and take turns receiving the whole pot, so each person reaches their own goal) and invite them in.\n- ctaLabel: at most ${LIMITS.ctaChars} characters. ctaDestination: ${HERO_CTA_DESTINATIONS.map(d => `${d} (${HERO_CTA_LABELS[d]})`).join('; ')}.\n- service: one of ${HERO_SERVICES.map(s => `${s} (${HERO_SERVICE_LABELS[s]})`).join('; ')}.\n- suggestedDurationDays: how long this stays timely.\n- imagePrompt: a scene for an original photograph or illustration that carries the theme through setting, light and mood. Ordinary people, plain clothing. Never name or depict brands, logos, characters, celebrities, team kits, game or film artwork, or any text.\n\nHard rules for the copy:\n- Describe ONLY what the fact sheet above says MutualPool offers. Never invent features, rewards, perks, extras, events or ways of using a pod. If the only link to the trend would need something MutualPool does not offer, use a different angle.\n- Describe pods correctly: each member puts in the same amount every week and receives the whole pot once, on their own turn. A pod is not a shared fund for one group purchase, party or trip.\n- Perks are only everyday discounts for workers on the road; never tie perks to games, creators, saving or playing.\n- The trend is the hook; MutualPool's service is the point. Never just attach the brand name to an unrelated headline.\n- Never say or imply MutualPool is official, a sponsor, a partner of, or endorsed by anyone named in the trend. Prefer describing the moment ("the big game", "launch day") over naming a brand.\n- No promises: no "guaranteed", "risk-free", "win", "earn", "returns", "profit", "invest", "loan", "interest", no percentages, no dollar amounts, nothing that promises a payout or financial success.\n- Do not use: ${settings.blockedTerms.join(', ') || '(no extra blocked terms)'}.`;
 }
 
 function parseJson(text: string | undefined): any {
@@ -359,6 +395,31 @@ function geminiProvider(): HeroAiProvider {
         config: { responseMimeType: 'application/json', responseSchema: conceptJsonSchema() },
       });
       return normalizeConcepts(parseJson(response.text), trend);
+    },
+
+    async factCheck(copies) {
+      const response = await gemini().models.generateContent({
+        model: TEXT_MODEL(),
+        contents: factCheckPrompt(copies),
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              results: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: { index: { type: Type.INTEGER }, supported: { type: Type.BOOLEAN }, unsupportedClaims: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                  required: ['index', 'supported', 'unsupportedClaims'],
+                },
+              },
+            },
+            required: ['results'],
+          },
+        },
+      });
+      return normalizeFactChecks(parseJson(response.text), copies.length, TEXT_MODEL());
     },
 
     async generateImage(prompt) {
@@ -472,6 +533,14 @@ const stubProvider: HeroAiProvider = {
         { title: 'Unusable', headline: '', description: '', ctaLabel: '', ctaDestination: 'NOWHERE', service: 'SAVINGS_PODS', imagePrompt: '' },
       ],
     }, trend);
+  },
+
+  async factCheck(copies) {
+    // Tests: copy containing "UNOFFERED" fails; a region of FAIL_FACTCHECK makes the check itself fail.
+    if (process.env.HERO_STUB_FAIL === 'factcheck') throw new Error('Stub: fact check is down.');
+    return normalizeFactChecks({
+      results: copies.map((c, i) => ({ index: i, supported: !/UNOFFERED/.test(`${c.headline} ${c.description}`), unsupportedClaims: /UNOFFERED/.test(`${c.headline} ${c.description}`) ? ['Invents an UNOFFERED feature'] : [] })),
+    }, copies.length, 'stub');
   },
 
   async generateImage(prompt) {

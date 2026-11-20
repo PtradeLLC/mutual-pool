@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import { lazyWithReload } from './lib/lazyWithReload';
 import { User, Pod, isValidPodSize, MAX_POD_SIZE, mergePodObjects, isDemoPod, AdCampaign, CourierCampaignParticipation, CampaignShiftLog, ActiveShiftSession, calculateAccountAgeDays, UserRole, isAdminUser, isAdvertiserUser, isCourierUser, isAdvertiserOrAdmin, PodDetailTab } from './types';
 import { Header } from './components/Header';
 import { AuthModal } from './components/AuthModal';
@@ -16,17 +17,17 @@ import { ChatProvider } from './context/ChatContext';
 import { ChatDrawer } from './components/Chat/ChatDrawer';
 import { ChatButton } from './components/Chat/ChatButton';
 
-const LandingPage = lazy(() => import('./components/LandingPage').then((module) => ({ default: module.LandingPage })));
-const PodDetailModal = lazy(() => import('./components/PodDetailModal').then((module) => ({ default: module.PodDetailModal })));
-const FinancialAwarenessModal = lazy(() => import('./components/FinancialAwarenessModal').then((module) => ({ default: module.FinancialAwarenessModal })));
-const JoinPodModal = lazy(() => import('./components/JoinPodModal').then((module) => ({ default: module.JoinPodModal })));
-const CreatePodModal = lazy(() => import('./components/CreatePodModal').then((module) => ({ default: module.CreatePodModal })));
-const StripeBankModal = lazy(() => import('./components/StripeBankModal').then((module) => ({ default: module.StripeBankModal })));
-const AddFundsModal = lazy(() => import('./components/AddFundsModal').then((module) => ({ default: module.AddFundsModal })));
-const DirectDepositModal = lazy(() => import('./components/DirectDepositModal').then((module) => ({ default: module.DirectDepositModal })));
-const KycVerificationModal = lazy(() => import('./components/KycVerificationModal').then((module) => ({ default: module.KycVerificationModal })));
-const PodAgreementModal = lazy(() => import('./components/PodAgreementModal').then((module) => ({ default: module.PodAgreementModal })));
-const CreatorPoolAgreementModal = lazy(() => import('./components/CreatorPoolAgreementModal').then((module) => ({ default: module.CreatorPoolAgreementModal })));
+const LandingPage = lazyWithReload(() => import('./components/LandingPage').then((module) => ({ default: module.LandingPage })));
+const PodDetailModal = lazyWithReload(() => import('./components/PodDetailModal').then((module) => ({ default: module.PodDetailModal })));
+const FinancialAwarenessModal = lazyWithReload(() => import('./components/FinancialAwarenessModal').then((module) => ({ default: module.FinancialAwarenessModal })));
+const JoinPodModal = lazyWithReload(() => import('./components/JoinPodModal').then((module) => ({ default: module.JoinPodModal })));
+const CreatePodModal = lazyWithReload(() => import('./components/CreatePodModal').then((module) => ({ default: module.CreatePodModal })));
+const StripeBankModal = lazyWithReload(() => import('./components/StripeBankModal').then((module) => ({ default: module.StripeBankModal })));
+const AddFundsModal = lazyWithReload(() => import('./components/AddFundsModal').then((module) => ({ default: module.AddFundsModal })));
+const DirectDepositModal = lazyWithReload(() => import('./components/DirectDepositModal').then((module) => ({ default: module.DirectDepositModal })));
+const KycVerificationModal = lazyWithReload(() => import('./components/KycVerificationModal').then((module) => ({ default: module.KycVerificationModal })));
+const PodAgreementModal = lazyWithReload(() => import('./components/PodAgreementModal').then((module) => ({ default: module.PodAgreementModal })));
+const CreatorPoolAgreementModal = lazyWithReload(() => import('./components/CreatorPoolAgreementModal').then((module) => ({ default: module.CreatorPoolAgreementModal })));
 import { PerksMarketplace } from './components/PerksMarketplace';
 import { AuditLogViewer } from './components/AuditLogViewer';
 import { AdminOpsView } from './components/AdminOpsView';
@@ -35,21 +36,21 @@ import { reportHeroConversion } from './lib/heroCampaignClient';
 import type { FinancialProfileView } from './lib/financialAwareness';
 import { DEFAULT_POD_SIZE } from './types';
 import { CampaignsPage } from './components/CampaignsPage';
-const EditProfileModal = lazy(() => import('./components/EditProfileModal').then((module) => ({ default: module.EditProfileModal })));
-const AboutUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.AboutUsModal })));
-const HowItWorksModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
-const ContactUsModal = lazy(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
-const FaqModal = lazy(() => import('./components/FaqModal').then((module) => ({ default: module.FaqModal })));
-const PrivacyPolicyModal = lazy(() => import('./components/PrivacyPolicyModal').then((module) => ({ default: module.PrivacyPolicyModal })));
-const TermsOfServiceModal = lazy(() => import('./components/TermsOfServiceModal').then((module) => ({ default: module.TermsOfServiceModal })));
-const TermsAcceptanceGate = lazy(() => import('./components/TermsAcceptanceGate').then((module) => ({ default: module.TermsAcceptanceGate })));
-const AdvertiserPage = lazy(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
-const PartnersPage = lazy(() => import('./components/PartnersPage').then((module) => ({ default: module.PartnersPage })));
-const CreatorsPage = lazy(() => import('./components/CreatorsPage').then((module) => ({ default: module.CreatorsPage })));
+const EditProfileModal = lazyWithReload(() => import('./components/EditProfileModal').then((module) => ({ default: module.EditProfileModal })));
+const AboutUsModal = lazyWithReload(() => import('./components/InfoModals').then((module) => ({ default: module.AboutUsModal })));
+const HowItWorksModal = lazyWithReload(() => import('./components/InfoModals').then((module) => ({ default: module.HowItWorksModal })));
+const ContactUsModal = lazyWithReload(() => import('./components/InfoModals').then((module) => ({ default: module.ContactUsModal })));
+const FaqModal = lazyWithReload(() => import('./components/FaqModal').then((module) => ({ default: module.FaqModal })));
+const PrivacyPolicyModal = lazyWithReload(() => import('./components/PrivacyPolicyModal').then((module) => ({ default: module.PrivacyPolicyModal })));
+const TermsOfServiceModal = lazyWithReload(() => import('./components/TermsOfServiceModal').then((module) => ({ default: module.TermsOfServiceModal })));
+const TermsAcceptanceGate = lazyWithReload(() => import('./components/TermsAcceptanceGate').then((module) => ({ default: module.TermsAcceptanceGate })));
+const AdvertiserPage = lazyWithReload(() => import('./components/AdvertiserPage').then((module) => ({ default: module.AdvertiserPage })));
+const PartnersPage = lazyWithReload(() => import('./components/PartnersPage').then((module) => ({ default: module.PartnersPage })));
+const CreatorsPage = lazyWithReload(() => import('./components/CreatorsPage').then((module) => ({ default: module.CreatorsPage })));
 import { FeedbackPrompt, ReportProblemModal } from './components/FeedbackWidgets';
-import { setScreen, step as trackStep, askFeedback, openReportProblem } from './lib/telemetry';
-const CreatorJoinPage = lazy(() => import('./components/CreatorJoinPage').then((module) => ({ default: module.CreatorJoinPage })));
-const CreatorDashboard = lazy(() => import('./components/CreatorDashboard').then((module) => ({ default: module.CreatorDashboard })));
+import { setScreen, step as trackStep, askFeedback, openReportProblem, crumb } from './lib/telemetry';
+const CreatorJoinPage = lazyWithReload(() => import('./components/CreatorJoinPage').then((module) => ({ default: module.CreatorJoinPage })));
+const CreatorDashboard = lazyWithReload(() => import('./components/CreatorDashboard').then((module) => ({ default: module.CreatorDashboard })));
 
 // Creator Pools: /c/<handle> is a creator's permanent link, /creator their dashboard.
 const creatorHandleFromPath = (): string | null => {
@@ -57,7 +58,7 @@ const creatorHandleFromPath = (): string | null => {
   const m = window.location.pathname.match(/^\/c\/([A-Za-z0-9_]{3,30})\/?$/);
   return m ? m[1].toLowerCase() : null;
 };
-const CreateCampaignModal = lazy(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
+const CreateCampaignModal = lazyWithReload(() => import('./components/CreateCampaignModal').then((module) => ({ default: module.CreateCampaignModal })));
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { SESSION_LOST_EVENT, resetSessionLostFlag } from './lib/apiClient';
 import { auth } from './lib/firebase';
@@ -568,8 +569,9 @@ export default function App() {
         }
       }
 
-      // Fetch all users for switcher and landing demo
-      const allUsersRes = await fetch('/api/users').catch(() => null);
+      // Fetch all users for switcher and landing demo. The server only answers
+      // signed-in members, so visitors skip the request.
+      const allUsersRes = auth.currentUser || CLIENT_DEMO_MODE ? await fetch('/api/users').catch(() => null) : null;
       if (allUsersRes && allUsersRes.ok) {
         const allUData = await allUsersRes.json().catch(() => null);
         if (allUData) setAllUsers(allUData);
@@ -849,7 +851,11 @@ export default function App() {
   // The API client could not get a usable token for a cached Firebase user (see apiClient).
   // Clear the stale session so the member sees a sign-in prompt, not a dashboard full of 401s.
   useEffect(() => {
-    const onSessionLost = async () => {
+    const onSessionLost = async (event: Event) => {
+      // Shown in App health's "Before it happened", so a sign-out can be traced
+      // to the request that caused it.
+      const reason = String((event as CustomEvent).detail?.reason || 'unknown').replace(/https?:\/\/[^/]+/g, '');
+      crumb(`signed out: ${reason}`);
       try { await signOut(auth); } catch { /* already gone */ }
       setCurrentUser(null);
       setViewMode('LANDING');

@@ -31,16 +31,38 @@ async function getIdTokenWhenReady(forceRefresh = false): Promise<string | null>
     return null;
   }
   const user = auth.currentUser;
+  lastTokenFailureWasTransient = false;
   if (!user) return null;
   try {
     return await user.getIdToken(forceRefresh);
   } catch (err) {
+    let last: unknown = err;
     if (!forceRefresh) {
-      try { return await user.getIdToken(true); } catch { /* fall through */ }
+      try { return await user.getIdToken(true); } catch (retryErr) { last = retryErr; }
     }
-    reportSessionLost(`token refresh failed: ${err instanceof Error ? err.message : String(err)}`);
+    // No network (or Firebase briefly unavailable) is not an expired session:
+    // the request goes out without a token and the member stays signed in.
+    if (isTransientAuthError(last)) {
+      lastTokenFailureWasTransient = true;
+      return null;
+    }
+    reportSessionLost(`token refresh failed: ${errorCode(last) || (last instanceof Error ? last.message : String(last))}`);
     return null;
   }
+}
+
+// Whether the most recent getIdTokenWhenReady() failed only for a passing reason.
+let lastTokenFailureWasTransient = false;
+
+function errorCode(err: unknown): string {
+  return typeof (err as any)?.code === 'string' ? (err as any).code : '';
+}
+
+function isTransientAuthError(err: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  const code = errorCode(err);
+  return code === 'auth/network-request-failed' || code === 'auth/internal-error' || code === 'auth/timeout' || code === 'auth/too-many-requests'
+    || /network|timeout|fetch/i.test(err instanceof Error ? err.message : '');
 }
 
 // Only our own origin's /api routes may receive the ID token.
@@ -171,7 +193,9 @@ export function installFetchInterceptor(): void {
             reportSessionLost(`server rejected a fresh token for ${url}`);
             return retried;
           }
-          reportSessionLost(`no token available for ${url}`);
+          // A fresh token could not be fetched because of the network: keep the
+          // session; the next request will try again.
+          if (!lastTokenFailureWasTransient) reportSessionLost(`no token available for ${url}`);
         }
         return response;
       }
