@@ -193,30 +193,30 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-indigo-950/70 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 text-white shadow-xl space-y-4">
+    <div className="bg-gradient-to-br from-slate-50 via-white to-slate-100 border border-[#DDE1E6] rounded-2xl p-4 sm:p-5 text-[#111827] shadow-sm space-y-4">
       {/* Header Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E5E7EB]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <span className="p-1.5 rounded-lg bg-blue-50 text-[#005FB8] border border-blue-200">
               <Calendar className="w-4 h-4" />
             </span>
-            <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white flex items-center gap-2">
+            <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-[#111827] flex items-center gap-2">
               <span>Synchronized Platform Settlement Engine</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                 {scheduleStatus.phaseLabel}
               </span>
             </h3>
           </div>
-          <p className="text-xs text-slate-300 mt-1">
-            Platform-wide automated heartbeat: All member contributions auto-debit on <strong>Thursdays 12:00 AM</strong>, followed by lump-sum payouts disbursed on <strong>Fridays 12:00 AM</strong>.
+          <p className="text-xs text-[#4B5563] mt-1">
+            Platform-wide automated heartbeat: All member contributions auto-debit on <strong className="text-[#111827]">Thursdays 12:00 AM</strong>, followed by lump-sum payouts disbursed on <strong className="text-[#111827]">Fridays 12:00 AM</strong>.
           </p>
         </div>
 
         {/* Timezone / Phase Pill */}
-        <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs shrink-0 self-start sm:self-auto font-mono">
-          <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="text-slate-300 text-[11px]">{PLATFORM_SCHEDULE_CONFIG.timezone}</span>
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-[#DDE1E6] text-xs shrink-0 self-start sm:self-auto font-mono">
+          <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span className="text-[#4B5563] text-[11px]">{PLATFORM_SCHEDULE_CONFIG.timezone}</span>
         </div>
       </div>
 
@@ -225,28 +225,28 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
         {/* Stage 1: Thursday 12:00 AM Midnight Auto-Debit */}
         <div className={`p-3.5 rounded-xl border transition-all ${
           scheduleStatus.currentPhase === 'COLLECTION_PENDING'
-            ? 'bg-blue-950/40 border-blue-500/50 shadow-md ring-1 ring-blue-500/30'
-            : 'bg-slate-800/50 border-slate-700/60'
+            ? 'bg-blue-50/70 border-blue-300 shadow-sm ring-1 ring-blue-200'
+            : 'bg-white border-[#E5E7EB]'
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
               Stage 1 • Auto-Debit Sweep
             </span>
-            <span className="font-mono text-[10px] text-amber-300 font-bold">
+            <span className="font-mono text-[10px] text-amber-600 font-bold">
               In {depositCountdown.formatted}
             </span>
           </div>
 
-          <div className="font-bold text-sm text-white">
+          <div className="font-bold text-sm text-[#111827]">
             Thursdays 12:00 AM
           </div>
-          <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+          <p className="text-[11px] text-[#4B5563] mt-1 leading-snug">
             Automated batch sweeps weekly member deposits ($20–$100/wk) from each member's MutualPool account into the pod account.
           </p>
 
-          <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Next Sweep:</span>
-            <span className="font-mono text-slate-200">
+          <div className="mt-3 pt-2 border-t border-[#E5E7EB] flex items-center justify-between text-[11px]">
+            <span className="text-[#6B7280]">Next Sweep:</span>
+            <span className="font-mono text-[#111827]">
               {new Date(scheduleStatus.nextDepositDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} 12:00 AM
             </span>
           </div>
@@ -255,57 +255,57 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
         {/* Stage 2: 24-Hour Settlement Buffer & Recovery */}
         <div className={`p-3.5 rounded-xl border transition-all ${
           scheduleStatus.currentPhase === 'SETTLEMENT_BUFFER'
-            ? 'bg-amber-950/40 border-amber-500/60 shadow-md ring-1 ring-amber-500/30'
-            : 'bg-slate-800/50 border-slate-700/60'
+            ? 'bg-amber-50/70 border-amber-300 shadow-sm ring-1 ring-amber-200'
+            : 'bg-white border-[#E5E7EB]'
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
               Stage 2 • 24-Hr Buffer
             </span>
-            <span className="font-mono text-[10px] text-slate-400 font-bold">
+            <span className="font-mono text-[10px] text-[#6B7280] font-bold">
               24-Hour Window
             </span>
           </div>
 
-          <div className="font-bold text-sm text-white flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="font-bold text-sm text-[#111827] flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Clearing & Retry Window</span>
           </div>
-          <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+          <p className="text-[11px] text-[#4B5563] mt-1 leading-snug">
             Ensures all Thursday debits clear. Any declined auto-debits trigger 24-hour grace retry or contingency buffer protection.
           </p>
 
-          <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Protection:</span>
-            <span className="font-medium text-emerald-300">Contingency Protected</span>
+          <div className="mt-3 pt-2 border-t border-[#E5E7EB] flex items-center justify-between text-[11px]">
+            <span className="text-[#6B7280]">Protection:</span>
+            <span className="font-medium text-emerald-700">Contingency Protected</span>
           </div>
         </div>
 
         {/* Stage 3: Friday 12:00 AM Midnight Payout Disbursement */}
         <div className={`p-3.5 rounded-xl border transition-all ${
           scheduleStatus.currentPhase === 'PAYOUT_DISBURSING'
-            ? 'bg-emerald-950/40 border-emerald-500/60 shadow-md ring-1 ring-emerald-500/30'
-            : 'bg-slate-800/50 border-slate-700/60'
+            ? 'bg-emerald-50/70 border-emerald-300 shadow-sm ring-1 ring-emerald-200'
+            : 'bg-white border-[#E5E7EB]'
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
               Stage 3 • Payout Settlement
             </span>
-            <span className="font-mono text-[10px] text-emerald-400 font-bold">
+            <span className="font-mono text-[10px] text-emerald-600 font-bold">
               In {payoutCountdown.formatted}
             </span>
           </div>
 
-          <div className="font-bold text-sm text-white">
+          <div className="font-bold text-sm text-[#111827]">
             Fridays 12:00 AM
           </div>
-          <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+          <p className="text-[11px] text-[#4B5563] mt-1 leading-snug">
             Collective pot (net of 10% fee) is transferred directly into this week's rotation recipient's MutualPool account.
           </p>
 
-          <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Next Payout:</span>
-            <span className="font-mono text-slate-200">
+          <div className="mt-3 pt-2 border-t border-[#E5E7EB] flex items-center justify-between text-[11px]">
+            <span className="text-[#6B7280]">Next Payout:</span>
+            <span className="font-mono text-[#111827]">
               {new Date(scheduleStatus.nextPayoutDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} 12:00 AM
             </span>
           </div>
@@ -314,9 +314,9 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
 
       {/* Admin-only on-demand sweep controls (real server execution) */}
       {isAdmin && (
-      <div className="pt-2 border-t border-slate-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-1.5 text-slate-300">
-          <Zap className="w-3.5 h-3.5 text-amber-400" />
+      <div className="pt-2 border-t border-[#E5E7EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-1.5 text-[#4B5563]">
+          <Zap className="w-3.5 h-3.5 text-amber-500" />
           <span>Admin: run the scheduled sweep now (moves real money).</span>
         </div>
 
@@ -364,17 +364,17 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
 
       {/* Feedback Alert Banners */}
       {sweepError && (
-        <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
           <span>{sweepError}</span>
         </div>
       )}
 
       {sweepResult && (
-        <div className="p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-100 text-xs space-y-2">
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-bold text-sm text-emerald-300">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <div className="flex items-center gap-2 font-bold text-sm text-emerald-800">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>
                 {sweepResult.sweepType === 'THURSDAY_DEPOSITS'
                   ? 'Thursday Deposit Sweep Completed'
@@ -385,33 +385,33 @@ export const PlatformScheduleBanner: React.FC<PlatformScheduleBannerProps> = ({
               type="button"
               onClick={() => setSweepResult(null)}
               aria-label="Dismiss sweep result"
-              className="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded cursor-pointer"
+              className="text-slate-400 hover:text-slate-700 text-xs px-1.5 py-0.5 rounded cursor-pointer"
             >
               ✕
             </button>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px]">
-            <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-sans">Active Pods</span>
-              <span className="font-bold text-white">{sweepResult.activePodsEvaluated}</span>
+            <div className="bg-white p-2 rounded-lg border border-emerald-100">
+              <span className="text-[10px] text-[#6B7280] block font-sans">Active Pods</span>
+              <span className="font-bold text-[#111827]">{sweepResult.activePodsEvaluated}</span>
             </div>
-            <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-sans">Transactions</span>
-              <span className="font-bold text-white">{sweepResult.totalTransactionsCount}</span>
+            <div className="bg-white p-2 rounded-lg border border-emerald-100">
+              <span className="text-[10px] text-[#6B7280] block font-sans">Transactions</span>
+              <span className="font-bold text-[#111827]">{sweepResult.totalTransactionsCount}</span>
             </div>
-            <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-sans">Total Volume</span>
-              <span className="font-bold text-emerald-400">${sweepResult.totalVolumeUsd.toFixed(2)}</span>
+            <div className="bg-white p-2 rounded-lg border border-emerald-100">
+              <span className="text-[10px] text-[#6B7280] block font-sans">Total Volume</span>
+              <span className="font-bold text-emerald-700">${sweepResult.totalVolumeUsd.toFixed(2)}</span>
             </div>
-            <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-sans">Exceptions / Bridge</span>
-              <span className="font-bold text-amber-300">{sweepResult.failedCount}</span>
+            <div className="bg-white p-2 rounded-lg border border-emerald-100">
+              <span className="text-[10px] text-[#6B7280] block font-sans">Exceptions / Bridge</span>
+              <span className="font-bold text-amber-700">{sweepResult.failedCount}</span>
             </div>
           </div>
 
           {sweepResult.details.length > 0 && (
-            <div className="text-[10.5px] text-slate-300 font-mono space-y-0.5 pt-1 border-t border-emerald-800/60 max-h-24 overflow-y-auto">
+            <div className="text-[10.5px] text-emerald-900/80 font-mono space-y-0.5 pt-1 border-t border-emerald-200 max-h-24 overflow-y-auto">
               {sweepResult.details.map((d, idx) => (
                 <div key={idx} className="truncate">• {d}</div>
               ))}
