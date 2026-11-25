@@ -275,48 +275,47 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[88vh] sm:max-h-[85vh] flex flex-col overflow-hidden border border-[#DDE1E6] my-auto animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 via-[#005FB8] to-blue-800 text-white p-5 sm:p-6 relative shrink-0">
+        <div className="bg-white border-b border-[#DDE1E6] p-5 sm:p-6 relative shrink-0">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
+            aria-label="Close"
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-white/15 rounded-xl backdrop-blur-md">
+          <div className="flex items-center gap-3.5 pr-8">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-[#005FB8] to-blue-800 text-white shadow-xs shrink-0">
               {activeTab === 'hardship' ? (
-                <HeartHandshake className="w-7 h-7 text-white" />
+                <HeartHandshake className="w-6 h-6" />
               ) : (
-                <ArrowLeftRight className="w-7 h-7 text-white" />
+                <ArrowLeftRight className="w-6 h-6" />
               )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider bg-white/20 text-white px-2.5 py-0.5 rounded-full">
-                  {t('hardship.headerTag')}
-                </span>
-              </div>
-              <h2 className="text-xl font-bold mt-1">
+            <div className="min-w-0">
+              <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-[#005FB8] border border-blue-200 px-2 py-0.5 rounded-full">
+                {t('hardship.headerTag')}
+              </span>
+              <h2 className="text-lg sm:text-xl font-bold text-[#111827] mt-1">
                 {activeTab === 'hardship' ? t('hardship.title') : t('hardship.titleTrade')}
               </h2>
             </div>
           </div>
-          <p className="text-xs text-blue-100 mt-2 leading-relaxed">
+          <p className="text-xs text-[#6B7280] mt-3 leading-relaxed">
             {activeTab === 'hardship'
               ? t('hardship.descHardship')
               : t('hardship.descTrade')}
           </p>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/20">
+          <div className="inline-flex flex-wrap items-center gap-1 mt-4 p-1 bg-gray-100 rounded-xl">
             <button
               type="button"
               onClick={() => setActiveTab('hardship')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'hardship'
                   ? 'bg-white text-[#005FB8] shadow-sm'
-                  : 'bg-white/10 text-white hover:bg-white/20'
+                  : 'text-[#4B5563] hover:text-[#111827]'
               }`}
             >
               <HeartHandshake className="w-4 h-4" />
@@ -326,10 +325,10 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('trade')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'trade'
                   ? 'bg-white text-[#005FB8] shadow-sm'
-                  : 'bg-white/10 text-white hover:bg-white/20'
+                  : 'text-[#4B5563] hover:text-[#111827]'
               }`}
             >
               <ArrowLeftRight className="w-4 h-4" />
@@ -344,12 +343,12 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
           {activeTab === 'hardship' && (
             <>
               {/* Rules & Policy Rules Box */}
-              <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 text-xs text-blue-950 space-y-2">
-                <h4 className="font-bold text-sm text-[#005FB8] flex items-center gap-1.5">
+              <div className="bg-[#F8FAFC] border border-[#DDE1E6] rounded-xl p-4 text-xs text-[#374151] space-y-2">
+                <h4 className="font-bold text-sm text-[#111827] flex items-center gap-1.5">
                   <ShieldAlert className="w-4 h-4 text-[#005FB8]" />
                   {t('hardship.policyTitle')}
                 </h4>
-                <ul className="space-y-1.5 text-blue-900 leading-relaxed list-disc list-inside pl-1">
+                <ul className="space-y-1.5 leading-relaxed list-disc pl-5 marker:text-[#9CA3AF] [&_strong]:text-[#111827]">
                   <li>
                     <strong>{t('hardship.rule1Title')}</strong> {t('hardship.rule1Text')}
                   </li>

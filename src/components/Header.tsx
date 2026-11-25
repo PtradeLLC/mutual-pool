@@ -298,16 +298,6 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                   </div>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={onOpenAddFundsModal || onOpenBankModal}
-                  title="Add Funds via Bank Account or Digital Card"
-                  className="px-2.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>+ Add Funds</span>
-                </button>
               </div>
             )}
 
