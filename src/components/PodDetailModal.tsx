@@ -1978,7 +1978,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <div className="flex items-center justify-between">
                   <h5 className="font-bold text-[#111827]">Submit Hardship Request</h5>
                   <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-mono font-bold">
-                    Pool Creator Approval Required
+                    Reviewed by MutualPool
                   </span>
                 </div>
 

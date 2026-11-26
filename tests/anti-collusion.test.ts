@@ -200,6 +200,16 @@ test('hardship requests need admin approval and are capped per pod per week', as
   const approved = await api('/api/hardship/approve', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ requestId: req1.body.id }) });
   assert.equal(approved.status, 200, JSON.stringify(approved.body));
 
+  // The advance for a regular (non-creator) member is recorded as MutualPool
+  // escrow -> pod, so the books show where the covered deposit came from.
+  const custody = await api('/api/admin/custody', { headers: adminHeaders });
+  assert.equal(custody.status, 200);
+  const advance = custody.body.recent.find((m: any) => m.purpose === 'HARDSHIP_ADVANCE' && m.refs?.requestId === req1.body.id);
+  assert.ok(advance, 'hardship advance movement recorded');
+  assert.equal(advance.from.kind, 'platform');
+  assert.equal(advance.from.account, 'escrow');
+  assert.equal(advance.amountUsd, req1.body.depositAmount);
+
   // Cap: a second approval in the same pod and week is refused.
   const second = await api('/api/hardship/approve', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ requestId: req2.body.id }) });
   assert.equal(second.status, 400);

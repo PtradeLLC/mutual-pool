@@ -6307,7 +6307,7 @@ Return ONLY a valid JSON object in this exact schema:
     if (existingPending) {
       return res.status(400).json({ 
         error: 'PENDING_REQUEST_EXISTS', 
-        message: 'You already have a pending Financial Hardship Fund request awaiting approval by the Pool Creator.' 
+        message: 'You already have a pending Financial Hardship Fund request awaiting review by MutualPool.' 
       });
     }
 
@@ -6438,7 +6438,6 @@ Return ONLY a valid JSON object in this exact schema:
       return res.status(404).json({ error: 'Pod not found' });
     }
 
-    const isAutonomous = pod.stewardshipMode === 'AUTONOMOUS_AI';
     // Approval puts platform money into the pot, so it is never left to the pod
     // creator (who could collude with the member): an administrator decides.
     if (!checkIsAdmin(req)) {
@@ -6488,6 +6487,10 @@ Return ONLY a valid JSON object in this exact schema:
       targetUser.activeHardshipRequestId = request.id;
     }
 
+    // The advance comes out of MutualPool's escrow for every approved request
+    // (the repayment later moves the same amount back from the member).
+    mv(PLATFORM('escrow'), POD(pod.id), request.depositAmount, 'HARDSHIP_ADVANCE', 'Hardship advance deposited on the member\'s behalf', { podId: pod.id, userId: request.userId, requestId: request.id, cycleWeek: pod.currentCycleWeek || 1 });
+
     // If the person going on Hardship Inactive Hold is the Creator:
     // Autonomous AI Custodian / System Stewardship immediately takes over!
     if (pod.createdBy === request.userId) {
@@ -6497,7 +6500,6 @@ Return ONLY a valid JSON object in this exact schema:
       pod.systemEscrowActive = true;
       pod.creatorDefaultedAt = new Date().toISOString();
       pod.systemEscrowDrawnUsd = (pod.systemEscrowDrawnUsd || 0) + request.depositAmount;
-      mv(PLATFORM('escrow'), POD(pod.id), request.depositAmount, 'HARDSHIP_ADVANCE', 'Hardship advance deposited on the member\'s behalf', { podId: pod.id, userId: request.userId, requestId: request.id, cycleWeek: pod.currentCycleWeek || 1 });
 
       addAuditLog(
         pod.id,
@@ -6525,7 +6527,7 @@ Return ONLY a valid JSON object in this exact schema:
       user.id,
       user.displayName,
       'HARDSHIP_APPROVED',
-      `${isAutonomous ? '🤖 Autonomous AI Custodian' : 'Pool Creator ' + user.displayName} APPROVED Financial Hardship Fund for ${request.userName}. System disbursed $${request.depositAmount.toFixed(2)} deposit into pool. User placed on INACTIVE HOLD (Payoff required: $${request.totalPayoffAmount.toFixed(2)} including 7% service fee). Pool prioritized & made public for prospective replacement members.`,
+      `MutualPool review (${user.displayName}) APPROVED Financial Hardship Fund for ${request.userName}. System disbursed $${request.depositAmount.toFixed(2)} deposit into pool. User placed on INACTIVE HOLD (Payoff required: $${request.totalPayoffAmount.toFixed(2)} including 7% service fee). Pool prioritized & made public for prospective replacement members.`,
       { requestId: request.id, totalPayoffAmount: request.totalPayoffAmount, depositAmount: request.depositAmount }
     );
 
