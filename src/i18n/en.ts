@@ -331,6 +331,8 @@ export const en = {
   "creatorHub.back": "Back to my pods",
   "creatorHub.signInFirst": "Sign in to open your creator dashboard.",
   "creatorHub.requestFailed": "Something went wrong. Please try again.",
+  "creatorHub.loadFailed": "We couldn't load your creator dashboard. Check your connection and try again.",
+  "creatorHub.tryAgain": "Try again",
   "creatorHub.connected": "{platform} connected.",
   "creatorHub.connectFailed": "We couldn't connect that account. Please try again.",
   "creatorHub.connectInUse": "That account is already connected to another creator.",

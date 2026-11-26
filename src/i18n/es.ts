@@ -316,6 +316,8 @@ export const es: Record<TranslationKey, string> = {
   "creatorHub.back": "Volver a mis pods",
   "creatorHub.signInFirst": "Inicia sesión para abrir tu panel de creador.",
   "creatorHub.requestFailed": "Algo salió mal. Inténtalo de nuevo.",
+  "creatorHub.loadFailed": "No pudimos cargar tu panel de creador. Revisa tu conexión e inténtalo de nuevo.",
+  "creatorHub.tryAgain": "Intentar de nuevo",
   "creatorHub.connected": "{platform} conectado.",
   "creatorHub.connectFailed": "No pudimos conectar esa cuenta. Inténtalo de nuevo.",
   "creatorHub.connectInUse": "Esa cuenta ya está conectada a otro creador.",

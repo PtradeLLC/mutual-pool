@@ -96,14 +96,30 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ currentUser,
     }
   }, [onOpenAddFunds]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/creator/me');
-      if (res.ok) setMe(await res.json());
-    } catch { /* keep the last view */ }
+  // First load failed even after retries: show an error with "Try again"
+  // instead of an endless spinner. Later refreshes keep the last view.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async (retries = 0) => {
+    setLoading(true);
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
+      try {
+        const res = await fetch('/api/creator/me');
+        if (res.ok) {
+          setMe(await res.json());
+          setLoadFailed(false);
+          setLoading(false);
+          return;
+        }
+      } catch { /* network error: retry */ }
+    }
+    setLoadFailed(true);
+    setLoading(false);
   }, []);
 
-  useEffect(() => { void load(); }, [load, currentUser.kycStatus, currentUser.debitMandate?.status]);
+  useEffect(() => { void load(2); }, [load, currentUser.kycStatus, currentUser.debitMandate?.status]);
   useEffect(() => {
     const onFocus = () => { void load(); };
     window.addEventListener('focus', onFocus);
@@ -142,7 +158,13 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ currentUser,
       <main className="max-w-5xl mx-auto px-4 py-6 sm:py-8 space-y-5">
         {notice && <Banner tone="ok" onClose={() => setNotice(null)}>{notice}</Banner>}
         {error && <Banner tone="error" onClose={() => setError(null)}>{error}</Banner>}
-        {!me && <div className="flex justify-center py-24 text-[#005FB8]"><Loader2 className="w-6 h-6 animate-spin" /></div>}
+        {!me && (!loadFailed || loading) && <div className="flex justify-center py-24 text-[#005FB8]"><Loader2 className="w-6 h-6 animate-spin" /></div>}
+        {!me && loadFailed && !loading && (
+          <div className={`${card} text-center py-10`} role="alert">
+            <p className="text-sm font-semibold text-[#111827]">{k('creatorHub.loadFailed')}</p>
+            <button type="button" onClick={() => void load(1)} className={`${btn} mt-4`}>{k('creatorHub.tryAgain')}</button>
+          </div>
+        )}
 
         {me && !me.profile && <SetupProfile k={k} busy={busy} card={card} inputCls={inputCls} labelCls={labelCls} btn={btn} defaultName={currentUser.displayName}
           onSubmit={(body) => call('/api/creator/profile', body)} />}
