@@ -602,7 +602,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                   <button
                     type="submit"
                     disabled={!isEligible || loading}
-                    className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors flex items-center gap-2 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <HeartHandshake className="w-4 h-4" />
                     <span>{loading ? t('hardship.submittingBtn') : t('hardship.submitBtn')}</span>
@@ -985,7 +985,7 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                         type="button"
                                         disabled={notifyingUserId === memberUserId}
                                         onClick={handleSendTradeProposal}
-                                        className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                        className="px-3.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                                       >
                                         <Send className="w-3.5 h-3.5" />
                                         <span>

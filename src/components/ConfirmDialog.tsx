@@ -64,7 +64,7 @@ const ConfirmDialog: React.FC<ConfirmOptions & { onClose: (r: ConfirmResult) => 
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
 
-  const confirmCls = tone === 'danger' ? 'bg-rose-700 hover:bg-rose-800 text-white' : 'bg-[#005FB8] hover:bg-[#004C93] text-white';
+  const confirmCls = tone === 'danger' ? 'bg-rose-700 hover:bg-rose-800 text-white' : 'bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900';
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs" onMouseDown={e => { if (e.target === e.currentTarget) onClose({ confirmed: false, note: '' }); }}>

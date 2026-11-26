@@ -402,7 +402,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-[#005FB8] hover:bg-[#004C93] text-white shadow-xs disabled:opacity-50 transition-all flex items-center gap-2"
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 shadow-xs disabled:opacity-50 transition-all flex items-center gap-2"
             >
               {loading ? 'Saving...' : 'Save Changes'}
             </button>

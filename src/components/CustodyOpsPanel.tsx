@@ -77,7 +77,7 @@ export const CustodyOpsPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <button type="button" onClick={load} className="px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 border border-[#DDE1E6] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"><RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
           {s.mode === 'column' && (
-            <button type="button" onClick={settleNow} disabled={settling} className="px-3 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"><Play className="w-3.5 h-3.5" /> {settling ? 'Settling…' : 'Settle now'}</button>
+            <button type="button" onClick={settleNow} disabled={settling} className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 text-xs font-bold flex items-center gap-1.5 cursor-pointer"><Play className="w-3.5 h-3.5" /> {settling ? 'Settling…' : 'Settle now'}</button>
           )}
         </div>
       </div>

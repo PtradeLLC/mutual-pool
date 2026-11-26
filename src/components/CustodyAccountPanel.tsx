@@ -143,7 +143,7 @@ export const CustodyAccountPanel: React.FC<Props> = ({ user, onUpdated }) => {
             </div>
             <div className="col-span-2"><label className={label}>Mobile phone (optional)</label><input className={field} type="tel" placeholder="+15551234567" value={phone} onChange={e => setPhone(e.target.value)} /></div>
           </div>
-          <button type="submit" disabled={busy || user.kycStatus !== 'VERIFIED'} className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer">
+          <button type="submit" disabled={busy || user.kycStatus !== 'VERIFIED'} className="w-full py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer">
             <ShieldCheck className="w-4 h-4" /> {busy ? 'Opening…' : 'Open my account'}
           </button>
         </form>
@@ -274,7 +274,7 @@ const LedgerBankLinks: React.FC<{ user: User }> = ({ user }) => {
             <div className="text-[11px] text-slate-600 mt-0.5">{mandateLabel}</div>
           </div>
           <button type="button" disabled={busy !== null} onClick={() => open('MANDATE')}
-            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-[11px]">
+            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-[11px]">
             {busy === 'MANDATE' ? 'Opening…' : mandate?.status === 'ACTIVE' ? 'Change bank' : 'Link bank'}
           </button>
         </div>

@@ -358,7 +358,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="hidden md:flex items-center gap-2">
                 <button
                   onClick={() => onGoToDashboard && onGoToDashboard('my-pods')}
-                  className="px-3 sm:px-3.5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 cursor-pointer"
+                  className="px-3 sm:px-3.5 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 cursor-pointer"
                 >
                   <img
                     src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
@@ -385,7 +385,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button
                   id="landing-sign-in-btn"
                   onClick={() => onOpenAuth('LOGIN')}
-                  className="px-3.5 sm:px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
+                  className="px-3.5 sm:px-4 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-all shadow-xs cursor-pointer"
                 >
                   {t('nav.signIn')}
                 </button>
@@ -416,7 +416,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     setMobileMenuOpen(false);
                     onOpenAuth('LOGIN');
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs text-center transition-all shadow-2xs cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs text-center transition-all shadow-2xs cursor-pointer"
                 >
                   {t('nav.signIn')}
                 </button>
@@ -428,7 +428,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     setMobileMenuOpen(false);
                     if (onGoToDashboard) onGoToDashboard('my-pods');
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <img
                     src={currentUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName)}&background=005FB8&color=fff&size=200`}
@@ -635,7 +635,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
-                  className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-3.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                 >
                   <span>{isAuthUser ? t('hero.goToDashboard') : t('hero.startPodFree')}</span>
                   <ArrowRight className="w-4 h-4" />
@@ -973,7 +973,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button
                   type="button"
                   onClick={() => handleActionOrAuth('REGISTER', 'explore-pods')}
-                  className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-lg hover:shadow-blue-500/25 flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-3.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm transition-all shadow-lg hover:shadow-blue-500/25 flex items-center gap-2 cursor-pointer"
                 >
                   <span>{isAuthUser ? t('promo.goToActivePods') : t('promo.startPodFree')}</span>
                   <ArrowRight className="w-4 h-4" />
@@ -1146,7 +1146,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
                   <button
                     onClick={() => handleActionOrAuth('LOGIN', 'explore-pods')}
-                    className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    className="w-full py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   >
                     <span>{isAuthUser ? t('formingPods.viewInDashboard') : t('formingPods.viewAndJoin')}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1190,7 +1190,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="flex justify-center">
             <button
               onClick={() => onOpenCreators && onOpenCreators()}
-              className="px-6 py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              className="px-6 py-3.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
             >
               <span>{t('creatorsCta.button')}</span>
               <ArrowRight className="w-4 h-4" />

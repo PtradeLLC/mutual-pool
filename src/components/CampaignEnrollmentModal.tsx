@@ -246,7 +246,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
               <button
                 type="button"
                 onClick={handleNextToShipping}
-                className="px-6 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
               >
                 <span>{t('campaigns.enroll.btnContinue')}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -430,7 +430,7 @@ export const CampaignEnrollmentModal: React.FC<CampaignEnrollmentModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold transition-colors cursor-pointer"
+              className="px-6 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs font-bold transition-colors cursor-pointer"
             >
               {t('campaigns.enroll.btnReturn')}
             </button>

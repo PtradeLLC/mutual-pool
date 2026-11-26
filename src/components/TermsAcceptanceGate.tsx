@@ -79,7 +79,7 @@ export const TermsAcceptanceGate: React.FC<TermsAcceptanceGateProps> = ({ user, 
           type="button"
           onClick={accept}
           disabled={!agreed || saving}
-          className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 text-slate-900 font-bold text-sm hover:bg-slate-200 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <CheckCircle2 className="w-4 h-4" />
           {saving ? 'Saving…' : 'I agree'}

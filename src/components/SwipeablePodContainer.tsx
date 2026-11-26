@@ -221,7 +221,7 @@ export const SwipeablePodContainer: React.FC<SwipeablePodContainerProps> = ({
         {activeTab === 'my-pods' && (
           <button
             onClick={onOpenCreatePod}
-            className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            className="px-3.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>{t('dash.newPod')}</span>
@@ -280,7 +280,7 @@ export const SwipeablePodContainer: React.FC<SwipeablePodContainerProps> = ({
                 <button
                   type="button"
                   onClick={() => onTabChange('explore-pods')}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <span>{t('dash.exploreFormingPodsBtn')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -313,7 +313,7 @@ export const SwipeablePodContainer: React.FC<SwipeablePodContainerProps> = ({
                 <button
                   type="button"
                   onClick={onOpenCreatePod}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
                   <span>{t('dash.createPodBtn')}</span>

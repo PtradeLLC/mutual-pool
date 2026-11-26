@@ -189,7 +189,7 @@ export const SavingsRangeAdminPanel: React.FC = () => {
               </div>
               {editor(d, next => setDrafts(prev => ({ ...prev, [r.id]: next })), r.id)}
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => saveRange(r.id)} disabled={busy !== null} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white text-[11px] font-bold">
+                <button type="button" onClick={() => saveRange(r.id)} disabled={busy !== null} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 text-[11px] font-bold">
                   <Save className="w-3 h-3" /> Save range
                 </button>
                 {r.active && (

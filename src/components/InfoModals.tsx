@@ -99,7 +99,7 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({ isOpen, onClose }) =
           <span>{t('aboutModal.hqFooter')}</span>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-[#005FB8] hover:bg-[#004C93] text-white font-bold rounded-lg transition-colors shadow-xs"
+            className="px-4 py-2 bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors shadow-xs"
           >
             {t('aboutModal.closeBtn')}
           </button>
@@ -571,7 +571,7 @@ export const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClos
           <span>{t('howItWorksModal.footerText')}</span>
           <button
             onClick={onClose}
-            className="px-6 py-2.5 bg-[#005FB8] hover:bg-[#004C93] text-white font-bold rounded-xl transition-colors shadow-xs w-full sm:w-auto"
+            className="px-6 py-2.5 bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold rounded-xl transition-colors shadow-xs w-full sm:w-auto"
           >
             {t('howItWorksModal.understandBtn')}
           </button>
@@ -669,7 +669,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
                 setMessage('');
                 onClose();
               }}
-              className="px-4 py-2 bg-[#005FB8] text-white font-bold text-xs rounded-lg shadow-xs hover:bg-[#004C93] transition-colors"
+              className="px-4 py-2 bg-slate-100 border border-slate-300 text-slate-900 font-bold text-xs rounded-lg shadow-xs hover:bg-slate-200 transition-colors"
             >
               {t('contactModal.doneBtn')}
             </button>
@@ -768,7 +768,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({ isOpen, onClose 
               <button
                 type="submit"
                 disabled={sending}
-                className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{sending ? t('contactModal.sending') : t('contactModal.submitBtn')}</span>

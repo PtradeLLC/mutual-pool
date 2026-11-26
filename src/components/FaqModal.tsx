@@ -225,7 +225,7 @@ export const FaqModal: React.FC<FaqModalProps> = ({
               <button
                 type="button"
                 onClick={() => { onClose(); onOpenContact(); }}
-                className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="px-3.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Phone className="w-3.5 h-3.5" />
                 <span>{ui.contactSupportBtn}</span>

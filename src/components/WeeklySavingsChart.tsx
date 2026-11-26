@@ -506,7 +506,7 @@ export const WeeklySavingsChart: React.FC<WeeklySavingsChartProps> = ({
               <button
                 type="button"
                 onClick={onExplorePods}
-                className="mt-1 px-3 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer"
+                className="mt-1 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors shadow-xs cursor-pointer"
               >
                 Explore Open Savings Pods
               </button>

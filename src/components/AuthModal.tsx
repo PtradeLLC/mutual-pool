@@ -639,7 +639,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <button
               type="submit"
               disabled={loginLoading}
-              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+              className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
             >
               {loginLoading ? (
                 <span>{t('auth.verifyingCredentials')}</span>
@@ -685,7 +685,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   type="submit"
                   disabled={phoneLoading}
-                  className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
                 >
                   {phoneLoading ? (
                     <span>{t('auth.sendingSmsVerification')}</span>
@@ -729,7 +729,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="submit"
                     disabled={phoneLoading}
-                    className="w-2/3 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+                    className="w-2/3 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
                   >
                     {phoneLoading ? t('auth.verifyingCode') : t('auth.confirmCodeBtn')}
                   </button>
@@ -830,7 +830,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <button
               type="submit"
               disabled={regLoading}
-              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+              className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
             >
               {regLoading ? (
                 <span>{t('auth.creatingProfile')}</span>

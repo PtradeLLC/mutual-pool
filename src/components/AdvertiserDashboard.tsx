@@ -397,7 +397,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
             <button
               type="button"
               onClick={onOpenProposalBuilder}
-              className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Sponsor New Fleet</span>

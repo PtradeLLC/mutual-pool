@@ -2129,6 +2129,7 @@ export const fr: Record<TranslationKey, string> = {
   'createPod.reviewSubtitle': 'Votre premier dépôt est prélevé sur votre solde MutualPool.',
   'createPod.treasurySummary': 'Première cotisation ${deposit} + 5 % de réserve de groupe = ${total} seront prélevés sur votre solde (solde actuel ${balance}). La réserve appartient à votre groupe, couvre une semaine manquée pour que les versements restent à l\'heure, et est restituée si elle n\'est pas utilisée.',
   'createPod.insufficientTitle': 'Ajoutez des fonds pour continuer',
+  'createPod.paidFromBalance': '${total} seront payés depuis votre solde MutualPool (actuellement ${balance}), approvisionné via Stripe.',
   'createPod.insufficientDesc': 'Il vous faut ${total} disponibles mais votre solde est de ${balance}. Ajoutez au moins ${shortfall} pour créer ce pod.',
   'createPod.addFundsBtn': 'Ajouter des fonds',
   'createPod.createPodBtn': 'Créer le pod et payer ${total}',

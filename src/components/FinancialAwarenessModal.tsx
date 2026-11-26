@@ -306,7 +306,7 @@ export const FinancialAwarenessModal: React.FC<FinancialAwarenessModalProps> = (
             <div className="space-y-2">
               <div className="text-xs font-bold text-slate-800">{t('fa.nextTitle')}</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button type="button" onClick={onJoinPod} className="py-3 rounded-xl bg-[#005FB8] hover:bg-[#004A94] text-white font-black text-sm flex items-center justify-center gap-2 cursor-pointer">
+                <button type="button" onClick={onJoinPod} className="py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-black text-sm flex items-center justify-center gap-2 cursor-pointer">
                   <Users className="w-4 h-4" /> {t('fa.joinPod')}
                 </button>
                 <button type="button" onClick={() => onCreatePod(summary)} className="py-3 rounded-xl border border-[#005FB8] text-[#005FB8] hover:bg-blue-50 font-black text-sm flex items-center justify-center gap-2 cursor-pointer">
@@ -429,7 +429,7 @@ export const FinancialAwarenessModal: React.FC<FinancialAwarenessModalProps> = (
                     type="button"
                     onClick={submitDraft}
                     disabled={!editingKey && expenses.length >= MAX_EXPENSES}
-                    className="px-3.5 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004A94] disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     {editingKey ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                     {editingKey ? t('fa.saveExpense') : t('fa.addExpense')}
@@ -502,7 +502,7 @@ export const FinancialAwarenessModal: React.FC<FinancialAwarenessModalProps> = (
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className={`px-5 py-3 rounded-xl font-black text-sm flex items-center gap-2 cursor-pointer ${canSave ? 'bg-[#005FB8] hover:bg-[#004A94] text-white shadow-md shadow-blue-600/20' : 'bg-slate-200 text-slate-500'}`}
+                className={`px-5 py-3 rounded-xl font-black text-sm flex items-center gap-2 cursor-pointer ${canSave ? 'bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 shadow-md shadow-blue-600/20' : 'bg-slate-200 text-slate-500'}`}
               >
                 <CheckCircle2 className="w-4 h-4" />
                 {saving ? t('fa.saving') : t('fa.save')}

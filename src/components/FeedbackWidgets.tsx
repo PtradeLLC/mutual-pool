@@ -70,7 +70,7 @@ export const FeedbackPrompt: React.FC = () => {
         <>
           <p className="text-sm font-bold pr-6">{k('feedback.whatHard')}</p>
           <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3} maxLength={1000} className="mt-2 w-full px-3 py-2 rounded-xl border border-[#DDE1E6] text-sm focus:outline-none focus:ring-2 focus:ring-[#005FB8]/30" placeholder={k('feedback.optional')} />
-          <button type="button" onClick={() => answer('hard', comment)} className="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-sm font-bold"><Send className="w-4 h-4" /> {k('feedback.send')}</button>
+          <button type="button" onClick={() => answer('hard', comment)} className="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-sm font-bold"><Send className="w-4 h-4" /> {k('feedback.send')}</button>
         </>
       )}
     </div>
@@ -121,7 +121,7 @@ export const ReportProblemModal: React.FC = () => {
             {lastError && <p className="mt-2 text-xs text-[#6B7280]">{k('feedback.reportIncludes', { error: lastError })}</p>}
             <p className="mt-1 text-[11px] text-[#6B7280]">{k('feedback.reportPrivacy')}</p>
             <button type="button" disabled={sending || (comment.trim().length < 3 && !lastError)} onClick={submit}
-              className="mt-3 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white text-sm font-bold">
+              className="mt-3 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 text-sm font-bold">
               <Send className="w-4 h-4" /> {k('feedback.send')}
             </button>
           </>

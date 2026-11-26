@@ -65,7 +65,7 @@ export const SavingsJourneyCard: React.FC<SavingsJourneyCardProps> = ({ view, on
           <button type="button" onClick={onOpenFinancialAwareness} className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#005FB8] border border-blue-200 font-bold text-xs cursor-pointer">
             {complete ? t('journey.editBtn') : t('journey.startBtn')}
           </button>
-          <button type="button" onClick={onJoinPod} className="px-3.5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onClick={onJoinPod} className="px-3.5 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer">
             <Users className="w-4 h-4" /> {t('fa.joinPod')}
           </button>
           <button type="button" onClick={onCreatePod} className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-bold text-xs flex items-center gap-1.5 cursor-pointer">

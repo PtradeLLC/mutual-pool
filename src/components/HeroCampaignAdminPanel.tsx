@@ -266,7 +266,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
         <h3 className="font-extrabold text-sm flex items-center gap-2"><Megaphone className="w-4 h-4 text-[#005FB8]" /> AI hero campaigns</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => call('/api/admin/hero/discover', 'POST', {})} disabled={busy || !data?.ai.discovery} title={data && !data.ai.discovery ? 'Finding trends needs Gemini web search. You can add a trend yourself below.' : ''} className={`${btn} bg-[#005FB8] hover:bg-[#004C93] text-white`}>
+          <button type="button" onClick={() => call('/api/admin/hero/discover', 'POST', {})} disabled={busy || !data?.ai.discovery} title={data && !data.ai.discovery ? 'Finding trends needs Gemini web search. You can add a trend yourself below.' : ''} className={`${btn} bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900`}>
             <Search className="w-3 h-3" /> Find trends now
           </button>
           <button type="button" onClick={() => setShowSettings(v => !v)} className={`${btn} border border-[#DDE1E6] hover:bg-gray-50`}><Settings2 className="w-3 h-3" /> Settings</button>
@@ -460,7 +460,7 @@ export const HeroCampaignAdminPanel: React.FC = () => {
                           </button>
                         )}
                         {!closed && missing > 0 && (
-                          <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { missing: true })} disabled={busy} className={`${btn} bg-[#005FB8] hover:bg-[#004C93] text-white`}>
+                          <button type="button" onClick={() => call(`/api/admin/hero/campaigns/${c.id}/regenerate-image`, 'POST', { missing: true })} disabled={busy} className={`${btn} bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900`}>
                             <ImageIcon className="w-3 h-3" /> Make missing images ({missing})
                           </button>
                         )}

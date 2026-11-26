@@ -119,7 +119,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ currentUser,
   const card = 'rounded-2xl border border-[#DDE1E6] bg-white shadow-xs p-5 sm:p-6';
   const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-[#DDE1E6] bg-white text-sm text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#005FB8]/30 focus:border-[#005FB8]';
   const labelCls = 'block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1';
-  const btn = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-sm';
+  const btn = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-sm';
   const btnGhost = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#DDE1E6] bg-white hover:bg-gray-50 disabled:opacity-50 font-semibold text-sm';
 
   return (

@@ -30,6 +30,8 @@ interface AddFundsModalProps {
   onSuccess: (updatedUser: User) => void;
   initialMethod?: 'BANK' | 'CARD';
   defaultAmount?: number;
+  /** Optional line under the title, e.g. why this top-up is needed. */
+  purpose?: string;
 }
 
 const PRESET_BANKS = [
@@ -52,13 +54,17 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
   onSuccess,
   initialMethod = 'CARD',
   defaultAmount = 100,
+  purpose,
 }) => {
   const { t } = useLanguage();
 
   const [method, setMethod] = useState<'BANK' | 'CARD'>(initialMethod);
+  // A default that is not one of the preset buttons (e.g. the exact shortfall
+  // for a pod) starts in the custom-amount field.
+  const defaultIsPreset = [25, 50, 100, 250].includes(defaultAmount);
   const [amount, setAmount] = useState<number>(defaultAmount);
-  const [customAmountStr, setCustomAmountStr] = useState<string>('');
-  const [isCustomAmount, setIsCustomAmount] = useState<boolean>(false);
+  const [customAmountStr, setCustomAmountStr] = useState<string>(defaultIsPreset ? '' : String(defaultAmount));
+  const [isCustomAmount, setIsCustomAmount] = useState<boolean>(!defaultIsPreset);
 
   // Bank Form State
   const initialIsCustom = !user.externalBank?.bankName || !PRESET_BANKS.slice(0, -1).some(b => b.name === user.externalBank.bankName);
@@ -309,7 +315,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
   if (!CLIENT_DEMO_MODE) {
     return (
       <div
-        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+        className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <div className="bg-white border border-[#DDE1E6] rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-[#111827] max-h-[92vh] overflow-y-auto my-auto">
@@ -328,6 +334,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
             <div>
               <h3 className="text-xl font-bold">Add funds</h3>
               <p className="text-xs text-[#6B7280]">Current balance: ${currentBalance.toFixed(2)}</p>
+              {purpose && <p className="text-xs text-[#005FB8] font-semibold mt-0.5">{purpose}</p>}
             </div>
           </div>
           {/* Column custody (when enabled on the server): the member's own bank
@@ -373,7 +380,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
             type="button"
             onClick={startCheckout}
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] disabled:opacity-60 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 text-slate-900 font-bold text-sm hover:bg-slate-200 disabled:opacity-60 flex items-center justify-center gap-2"
           >
             <Lock className="w-4 h-4" />
             {loading ? 'Opening secure checkout…' : 'Continue to secure checkout'}
@@ -386,7 +393,7 @@ export const AddFundsModal: React.FC<AddFundsModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[60] bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget && !loading) {
           onClose();

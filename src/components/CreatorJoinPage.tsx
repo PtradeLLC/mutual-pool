@@ -213,7 +213,7 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
                       <input type="email" value={waitEmail} onChange={e => setWaitEmail(e.target.value)} placeholder={k('creatorJoin.emailPlaceholder')} className={inputCls} />
                     )}
                     <button type="button" onClick={joinWaitlist} disabled={!currentUser && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(waitEmail.trim())}
-                      className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-sm">
+                      className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-sm">
                       <Bell className="w-4 h-4" /> {k('creatorJoin.notifyMe')}
                     </button>
                   </div>
@@ -261,7 +261,7 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
                         ? k('creatorJoin.joinedHeld', { pod: joined.podName, week: joined.payoutWeek })
                         : k('creatorJoin.joinedForming', { pod: joined.podName })}
                     </p>
-                    <button type="button" onClick={onGoToMyPods} className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm">
+                    <button type="button" onClick={onGoToMyPods} className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm">
                       {k('creatorJoin.goToMyPods')} <ArrowRight className="w-4 h-4" />
                     </button>
                   </section>
@@ -270,7 +270,7 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
                     <h2 className="text-lg font-extrabold">{k('creatorJoin.signInTitle')}</h2>
                     <p className="mt-1 text-sm text-[#6B7280]">{k('creatorJoin.signInDesc')}</p>
                     <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2">
-                      <button type="button" onClick={() => onOpenAuth('REGISTER')} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm">{k('creatorJoin.createAccount')} <ArrowRight className="w-4 h-4" /></button>
+                      <button type="button" onClick={() => onOpenAuth('REGISTER')} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm">{k('creatorJoin.createAccount')} <ArrowRight className="w-4 h-4" /></button>
                       <button type="button" onClick={() => onOpenAuth('LOGIN')} className="px-5 py-2.5 rounded-xl border border-[#DDE1E6] bg-white hover:bg-gray-50 font-semibold text-sm">{k('creatorJoin.signIn')}</button>
                     </div>
                   </section>
@@ -297,7 +297,7 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
                               </div>
                             </div>
                             {!s.ok && s.action && (
-                              <button type="button" onClick={s.action} className="shrink-0 px-3 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold">{k(`creatorJoin.step.${s.key}Action`)}</button>
+                              <button type="button" onClick={s.action} className="shrink-0 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs font-bold">{k(`creatorJoin.step.${s.key}Action`)}</button>
                             )}
                           </li>
                         ))}
@@ -326,7 +326,7 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
                     {joinError && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-700 flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" /> {joinError}</div>}
 
                     <button type="button" onClick={() => join()} disabled={!canSign || Boolean(queue)}
-                      className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-sm">
+                      className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-sm">
                       {joining ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                       {k('creatorJoin.takeSeat', { amount: usd(v.requiredUsd || 0) })}
                     </button>

@@ -582,9 +582,9 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
             <button
               type="submit"
               disabled={isStarting}
-              className="w-full py-3.5 rounded-2xl bg-[#005FB8] hover:bg-[#004A94] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
+              className="w-full py-3.5 rounded-2xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
             >
-              <Play className="w-4 h-4 fill-white" />
+              <Play className="w-4 h-4 fill-current" />
               <span>{isStarting ? 'Starting Shift Route...' : `Start Active Route ($${campaign.dailyPayout}.00/day)`}</span>
             </button>
           </form>
@@ -786,7 +786,7 @@ export const ActiveShiftModal: React.FC<ActiveShiftModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowGearVerification(true)}
-                className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004A94] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
               >
                 <Shirt className="w-4 h-4" />
                 <span>Verify Gear & Claim ${campaign.dailyPayout}</span>

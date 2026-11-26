@@ -105,7 +105,7 @@ export const DirectDepositModal: React.FC<Props> = ({ isOpen, onClose, user, onO
         <div className="font-bold text-sm text-slate-900">{t('directDeposit.openAccountTitle')}</div>
         <p className="text-xs text-slate-600">{t('directDeposit.openAccountBody')}</p>
         {onOpenAccount && (
-          <button type="button" onClick={() => { onClose(); onOpenAccount(); }} className="w-full py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs cursor-pointer">
+          <button type="button" onClick={() => { onClose(); onOpenAccount(); }} className="w-full py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs cursor-pointer">
             {t('directDeposit.openAccountCta')}
           </button>
         )}

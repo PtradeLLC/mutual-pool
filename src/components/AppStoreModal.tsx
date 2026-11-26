@@ -246,7 +246,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
           {deferredPrompt ? (
             <button
               onClick={handleNativeInstall}
-              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
             >
               <Download className="w-4 h-4" />
               <span>Click to Install MutualPool App Now</span>
@@ -257,7 +257,7 @@ export const AppStoreModal: React.FC<AppStoreModalProps> = ({
                 if (onOpenRegister) onOpenRegister();
                 onClose();
               }}
-              className="w-full py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
             >
               <span>Create Account & Launch Web App</span>
               <ArrowRight className="w-4 h-4" />

@@ -1684,7 +1684,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                 <button
                   onClick={handleProcessPayout}
                   disabled={processingPayout || pod.status !== 'ACTIVE'}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0 cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors flex items-center gap-2 shadow-xs shrink-0 cursor-pointer"
                 >
                   {processingPayout ? (
                     <span>Processing Treasury OutboundTransfer...</span>
@@ -1899,7 +1899,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   <button
                     type="submit"
                     disabled={swapping || !swapTargetUserId}
-                    className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors shrink-0 shadow-xs"
+                    className="px-4 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors shrink-0 shadow-xs"
                   >
                     Execute Swap
                   </button>
@@ -2040,7 +2040,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                       <button
                         type="submit"
                         disabled={submittingHardship}
-                        className="px-4 py-1.5 bg-[#005FB8] hover:bg-[#004C93] text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5"
+                        className="px-4 py-1.5 bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5"
                       >
                         <HeartHandshake className="w-4 h-4" />
                         <span>{submittingHardship ? 'Submitting...' : 'Confirm & Request Hardship Fund'}</span>
@@ -2280,7 +2280,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                   className={`px-3.5 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-xs ${
                     copiedLink
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-[#005FB8] hover:bg-[#004C93] text-white'
+                      : 'bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900'
                   }`}
                 >
                   {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}

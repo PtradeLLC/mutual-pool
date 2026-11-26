@@ -687,7 +687,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     document.getElementById('launch-form')?.scrollIntoView({ behavior: 'smooth' });
                   }, 100);
                 }}
-                className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>{t('advertiser.sponsorFleet')}</span>
@@ -695,7 +695,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
             ) : (
               <a
                 href="#launch-form"
-                className="px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
               >
                 <Megaphone className="w-4 h-4" />
                 <span>{t('advertiser.launchCampaign')}</span>
@@ -1694,7 +1694,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                     }));
                   }
                 }}
-                className="w-full py-3.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm text-center block transition-all shadow-md shadow-blue-500/25 cursor-pointer"
+                className="w-full py-3.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm text-center block transition-all shadow-md shadow-blue-500/25 cursor-pointer"
               >
                 {isSmb ? t('advertiser.summaryLockInSmb') : t('advertiser.summaryLockInEnterprise')}
               </a>
@@ -1844,7 +1844,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   <button
                     type="button"
                     onClick={onBack}
-                    className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors cursor-pointer"
                   >
                     {t('advertiser.returnToApp')}
                   </button>
@@ -2002,10 +2002,10 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-3.5 px-6 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-black text-sm tracking-wide transition-all shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="w-full py-3.5 px-6 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-black text-sm tracking-wide transition-all shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isSubmitting ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <Send className="w-4 h-4" />
                     )}

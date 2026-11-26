@@ -230,7 +230,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="py-2.5 px-4 rounded-xl bg-[#005FB8] hover:bg-[#004C94] text-white text-xs font-bold"
+                  className="py-2.5 px-4 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs font-bold"
                 >
                   Done
                 </button>
@@ -255,7 +255,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
                 type="button"
                 onClick={startStripeOnboarding}
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 text-slate-900 font-bold text-sm hover:bg-slate-200 disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {loading ? 'Opening Stripe…' : 'Continue to Stripe'}
                 <ExternalLink className="w-4 h-4" />
@@ -354,7 +354,7 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
                 <button
                   type="button"
                   onClick={() => window.open('https://dashboard.stripe.com/test/identity', '_blank', 'noopener,noreferrer')}
-                  className="flex-1 bg-[#005FB8] hover:bg-[#004C93] text-white py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  className="flex-1 bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 >
                   <span>Stripe Identity Dashboard</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -543,11 +543,11 @@ export const KycVerificationModal: React.FC<KycVerificationModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-extrabold text-xs transition-colors flex items-center gap-2 shadow-md cursor-pointer"
+                className="px-6 py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-extrabold text-xs transition-colors flex items-center gap-2 shadow-md cursor-pointer"
               >
                 {loading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
                     <span>Verifying Identity with Stripe...</span>
                   </>
                 ) : (

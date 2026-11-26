@@ -123,7 +123,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
           <button
             type="button"
             onClick={() => setShowAddFunds(true)}
-            className="w-full py-3 rounded-xl bg-[#005FB8] text-white font-bold text-sm hover:bg-[#004C94] flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-slate-100 border border-slate-300 text-slate-900 font-bold text-sm hover:bg-slate-200 flex items-center justify-center gap-2"
           >
             <Wallet className="w-4 h-4" /> Add funds
           </button>
@@ -648,7 +648,7 @@ export const StripeBankModal: React.FC<StripeBankModalProps> = ({ user, onClose,
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                className="px-5 py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 {loading ? (
                   <span>{t('treasuryModal.linkingBankBtn')}</span>

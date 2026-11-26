@@ -279,11 +279,11 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
           <button
             type="button"
             onClick={handleCopy}
-            className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+            className="px-3.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-300" />
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{t('circleInviter.copied')}</span>
               </>
             ) : (
@@ -403,7 +403,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                 <button
                   type="button"
                   onClick={handleNativeContactPicker}
-                  className="px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  className="px-4 py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
                 >
                   <Smartphone className="w-4 h-4" />
                   <span>{t('circleInviter.grantPermissionBtn')}</span>
@@ -457,7 +457,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                     <button
                       type="button"
                       onClick={handlePasteImport}
-                      className="px-3 py-1 bg-[#005FB8] text-white font-bold text-[11px] rounded-md hover:bg-[#004C93] cursor-pointer"
+                      className="px-3 py-1 bg-slate-100 border border-slate-300 text-slate-900 font-bold text-[11px] rounded-md hover:bg-slate-200 cursor-pointer"
                     >
                       {t('circleInviter.processAddBtn')}
                     </button>
@@ -588,7 +588,7 @@ export const TrustedCircleInviter: React.FC<TrustedCircleInviterProps> = ({
                   type="button"
                   disabled={selectedDeviceContacts.length === 0 || importing}
                   onClick={handleConfirmDeviceContacts}
-                  className="px-4 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-50 text-slate-900 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   {importing ? (
                     <span>{t('circleInviter.importingChecking')}</span>

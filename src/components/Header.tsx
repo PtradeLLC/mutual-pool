@@ -260,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
             {canInstallPWA && onInstallPWA && (
               <button
                 onClick={onInstallPWA}
-                className="hidden md:flex px-2.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs shadow-xs items-center gap-1.5 transition-all"
+                className="hidden md:flex px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs shadow-xs items-center gap-1.5 transition-all"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Install PWA App</span>

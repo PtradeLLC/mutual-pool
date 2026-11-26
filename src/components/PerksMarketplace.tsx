@@ -1091,7 +1091,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               <button
                 type="button"
                 onClick={onOpenDirectDeposit}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-[11px] transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-[11px] transition-colors shrink-0"
               >
                 <Landmark className="w-3.5 h-3.5" />
                 {t('perks.premium.cta')}
@@ -1204,7 +1204,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 ) : (
                   <button
                     onClick={() => handleRedeem(perk)}
-                    className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors shadow-xs cursor-pointer"
                   >
                     {t('perks.redeem')}
                   </button>
@@ -1286,7 +1286,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                     href={selectedPerkForRedeem.redemptionData}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors shadow-xs"
                   >
                     <span>{t('perks.modal.openPartnerLink')}</span>
                     <ExternalLink className="w-4 h-4" />
@@ -1868,7 +1868,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
                 <button
                   type="submit"
                   disabled={submitLoading}
-                  className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold transition-colors shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold transition-colors shadow-xs cursor-pointer"
                 >
                   {t('modal.save')}
                 </button>

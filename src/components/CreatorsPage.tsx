@@ -94,7 +94,7 @@ export const CreatorsPage: React.FC<CreatorsPageProps> = ({ onBack, onStartCreat
             <button type="button" onClick={onBack} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#DDE1E6] hover:bg-gray-50 text-xs font-semibold">
               <ArrowLeft className="w-3.5 h-3.5" /> {k('creators.backToSite')}
             </button>
-            <a href="#creator-form" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold">
+            <a href="#creator-form" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs font-bold">
               {k('creators.applyCta')} <ArrowRight className="w-3.5 h-3.5" />
             </a>
           </div>
@@ -111,11 +111,11 @@ export const CreatorsPage: React.FC<CreatorsPageProps> = ({ onBack, onStartCreat
           <p className="mt-5 text-base sm:text-lg text-[#4B5563] max-w-2xl mx-auto leading-relaxed">{k('creators.heroSubtitle')}</p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             {onStartCreator ? (
-              <button type="button" onClick={onStartCreator} className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm shadow-sm">
+              <button type="button" onClick={onStartCreator} className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm shadow-sm">
                 {k('creators.startCta')} <ArrowRight className="w-4 h-4" />
               </button>
             ) : (
-              <a href="#creator-form" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm shadow-sm">
+              <a href="#creator-form" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm shadow-sm">
                 {k('creators.applyCta')} <ArrowRight className="w-4 h-4" />
               </a>
             )}
@@ -299,7 +299,7 @@ export const CreatorsPage: React.FC<CreatorsPageProps> = ({ onBack, onStartCreat
                 {k('creators.form.inUS')}
               </label>
               {error && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4" /> {error}</div>}
-              <button type="submit" disabled={sending} className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-60 text-white font-bold text-sm">
+              <button type="submit" disabled={sending} className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-60 text-slate-900 font-bold text-sm">
                 <Send className="w-4 h-4" /> {sending ? k('creators.form.submitting') : k('creators.form.submit')}
               </button>
             </>

@@ -764,7 +764,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
             <button
               type="submit"
               disabled={firingWebhook}
-              className="px-4 py-2.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+              className="px-4 py-2.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>Fire Webhook Event</span>
@@ -808,7 +808,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
             <button
               type="button"
               onClick={() => setShowGearStudio(!showGearStudio)}
-              className="px-3.5 py-1.5 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>{showGearStudio ? 'Hide Studio' : 'Launch Gear Studio'}</span>

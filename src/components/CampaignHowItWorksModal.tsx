@@ -206,7 +206,7 @@ export const CampaignHowItWorksModal: React.FC<CampaignHowItWorksModalProps> = (
             id="campaign-modal-start-pod-cta-btn"
             type="button"
             onClick={handleStartPodClick}
-            className="w-full py-3.5 px-6 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-sm sm:text-base transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 px-6 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm sm:text-base transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer"
           >
             <span>{isAuthUser ? t('campaigns.howItWorks.startPodAuth') : t('campaigns.howItWorks.startPodFree')}</span>
           </button>

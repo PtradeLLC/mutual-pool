@@ -961,7 +961,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                     className={`relative p-3 rounded-2xl font-semibold flex items-center justify-center transition-all shadow-md ${
                       isListening
                         ? 'bg-rose-500 text-white ring-4 ring-rose-200 animate-pulse'
-                        : 'bg-[#005FB8] text-white hover:bg-[#004A94]'
+                        : 'bg-slate-100 border border-slate-300 text-slate-900 hover:bg-slate-200'
                     }`}
                   >
                     {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}

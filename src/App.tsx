@@ -80,6 +80,7 @@ import {
   Megaphone, BarChart3, Shirt, Shield, QrCode, Scan, X
 } from 'lucide-react';
 import type { CreatePodPrefill } from './components/CreatePodModal';
+import { readPendingPodDraft, clearPendingPodDraft } from './lib/pendingPodDraft';
 import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
 import { scrollToTabSection } from './utils/navigation';
@@ -235,6 +236,8 @@ export default function App() {
   const [showKycModal, setShowKycModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  // Set when Create Pod opens Add Funds: the exact top-up needed for the pod.
+  const [addFundsForPod, setAddFundsForPod] = useState<number | null>(null);
   const [showDirectDepositModal, setShowDirectDepositModal] = useState(false);
   const [showHardshipModal, setShowHardshipModal] = useState(false);
   const [hardshipModalTab, setHardshipModalTab] = useState<'hardship' | 'trade'>('hardship');
@@ -439,6 +442,15 @@ export default function App() {
     }
   };
 
+  // Back from Stripe Checkout with an unfinished pod: reopen Create Pod with it.
+  const reopenPendingPodDraft = () => {
+    const draft = readPendingPodDraft();
+    if (!draft) return;
+    const { savedAt: _savedAt, ...prefill } = draft;
+    setCreatePodPrefill(prefill);
+    setShowCreatePodModal(true);
+  };
+
   // Returning from Stripe-hosted pages: refresh Connect status / wait for the top-up webhook.
   useEffect(() => {
     if (!currentUser || typeof window === 'undefined') return;
@@ -460,9 +472,22 @@ export default function App() {
         }
       } else if (topupReturn === 'success') {
         toast.success('Payment received. Your balance will update in a moment.');
-        setTimeout(() => fetchAppData(currentUser.id), 4000);
+        // The balance is credited by Stripe's webhook: poll the server's copy
+        // (authoritative) until it changes, then refresh everything else.
+        const startBalance = Number(currentUser.treasury?.balanceUsd) || 0;
+        for (let i = 0; i < 6; i++) {
+          await new Promise((r) => setTimeout(r, 2500));
+          const r = await fetch('/api/users/current').catch(() => null);
+          const fresh = r?.ok ? await r.json().catch(() => null) : null;
+          if (fresh?.treasury) {
+            setCurrentUser((prev) => (prev && prev.id === fresh.id ? { ...prev, treasury: fresh.treasury } : prev));
+            if ((Number(fresh.treasury.balanceUsd) || 0) > startBalance + 1e-9) break;
+          }
+        }
+        reopenPendingPodDraft();
       } else if (topupReturn === 'cancelled') {
         toast.error('Payment cancelled. Your balance has not changed.');
+        reopenPendingPodDraft();
       } else if (mandateReturn === 'success') {
         const res = await fetch('/api/users/debit-mandate/refresh', {
           method: 'POST',
@@ -1726,7 +1751,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => handleOpenAdvertiser('media-kit')}
-                  className="px-4 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                 >
                   <Megaphone className="w-4 h-4" />
                   <span>Media Kit & Proposals</span>
@@ -1897,17 +1922,17 @@ export default function App() {
 
                 <button
                   onClick={() => setShowCreatePodModal(true)}
-                  className={`px-4 py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer ${
+                  className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer ${
                     isPodCreationLimitReached
-                      ? 'bg-slate-700 hover:bg-slate-800'
-                      : 'bg-[#005FB8] hover:bg-[#004C93]'
+                      ? 'bg-slate-700 hover:bg-slate-800 text-white'
+                      : 'bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900'
                   }`}
                   title={isPodCreationLimitReached ? 'Maximum created pod limit reached (3/3)' : 'Create a new mutual savings pod'}
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>{t('dash.createNewPodBtn')}</span>
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold ${
-                    isPodCreationLimitReached ? 'bg-rose-500 text-white' : 'bg-blue-700 text-blue-100'
+                    isPodCreationLimitReached ? 'bg-rose-500 text-white' : 'bg-white text-slate-700 border border-slate-300'
                   }`}>
                     {createdPodsCount}/3
                   </span>
@@ -2176,7 +2201,7 @@ export default function App() {
             </p>
             <button
               onClick={() => setActiveTab(isAdvertiser ? 'campaigns' : 'my-pods')}
-              className="px-5 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004C93] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
+              className="px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
             >
               <span>Return to {isAdvertiser ? 'Campaigns & Gear' : 'My Pods'}</span>
             </button>
@@ -2267,7 +2292,9 @@ export default function App() {
           <AddFundsModal
             isOpen={showAddFundsModal}
             user={currentUser}
-            onClose={() => setShowAddFundsModal(false)}
+            defaultAmount={addFundsForPod ?? undefined}
+            purpose={addFundsForPod ? `Add at least $${addFundsForPod} to create your pod.` : undefined}
+            onClose={() => { setShowAddFundsModal(false); setAddFundsForPod(null); }}
             onSuccess={async (updatedUser) => {
               askFeedback('funds_added');
               if (updatedUser) {
@@ -2317,9 +2344,9 @@ export default function App() {
             existingPods={allPods}
             userCreatedPodsCount={createdPodsCount}
             prefill={createPodPrefill ?? undefined}
-            onClose={() => { setShowCreatePodModal(false); setCreatePodPrefill(null); }}
+            onClose={() => { setShowCreatePodModal(false); setCreatePodPrefill(null); clearPendingPodDraft(); }}
             onUserUpdated={handleUserUpdated}
-            onOpenAddFunds={() => setShowAddFundsModal(true)}
+            onOpenAddFunds={(amountUsd) => { setAddFundsForPod(amountUsd); setShowAddFundsModal(true); }}
             onDebitMandateRequired={(message) => {
               setShowCreatePodModal(false);
               toast.warning(message, { title: 'Bank authorization needed' });
@@ -2566,7 +2593,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={joiningPodIds.has(inviteCodeTargetPod.id)}
-                  className="px-5 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] disabled:opacity-60 text-white font-bold text-xs transition-colors shadow-xs"
+                  className="px-5 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 disabled:opacity-60 text-slate-900 font-bold text-xs transition-colors shadow-xs"
                 >
                   {joiningPodIds.has(inviteCodeTargetPod.id) ? 'Joining…' : 'Verify Code & Join Pod'}
                 </button>

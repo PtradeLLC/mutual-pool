@@ -77,7 +77,7 @@ export const JoinPodModal: React.FC<JoinPodModalProps> = ({ isOpen, onClose, onJ
       <p className="text-xs text-slate-600 max-w-md mx-auto">{body}</p>
       <div className="flex flex-wrap items-center justify-center gap-2">
         {primary && (
-          <button type="button" onClick={primary.onClick} className="px-4 py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004A94] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onClick={primary.onClick} className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer">
             <Target className="w-3.5 h-3.5" /> {primary.label}
           </button>
         )}
@@ -201,7 +201,7 @@ export const JoinPodModal: React.FC<JoinPodModalProps> = ({ isOpen, onClose, onJ
                     </div>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setConfirmingPodId(pod.id)} className="w-full py-2.5 rounded-xl bg-[#005FB8] hover:bg-[#004A94] text-white font-black text-xs cursor-pointer">
+                  <button type="button" onClick={() => setConfirmingPodId(pod.id)} className="w-full py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-black text-xs cursor-pointer">
                     {t('sr.join')}
                   </button>
                 )}

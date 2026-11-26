@@ -2468,6 +2468,7 @@ export const en = {
   "createPod.reviewSubtitle": "Your first deposit is taken from your MutualPool balance.",
   "createPod.treasurySummary": 'First deposit ${deposit} + 5% pod buffer = ${total} will be taken from your balance (current balance ${balance}). The buffer belongs to your pod, covers a missed week so payouts stay on time, and is returned if unused.',
   "createPod.insufficientTitle": "Add funds to continue",
+  "createPod.paidFromBalance": "${total} will be paid from your MutualPool balance (currently ${balance}), funded through Stripe.",
   "createPod.insufficientDesc": "You need ${total} available but your balance is ${balance}. Add at least ${shortfall} to create this pod.",
   "createPod.addFundsBtn": "Add funds",
   "createPod.createPodBtn": "Create pod & pay ${total}",

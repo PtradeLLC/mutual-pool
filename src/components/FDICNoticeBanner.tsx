@@ -68,7 +68,7 @@ export const FDICNoticeBanner: React.FC = () => {
             <div className="mt-5 flex justify-end">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg bg-[#005FB8] hover:bg-[#004C93] text-white font-semibold text-sm transition-colors shadow-xs cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-semibold text-sm transition-colors shadow-xs cursor-pointer"
               >
                 {t('modal.close')}
               </button>
