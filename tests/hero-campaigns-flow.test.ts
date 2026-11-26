@@ -560,9 +560,22 @@ test('11. Twice-a-month refresh: runs on schedule, once per period, and campaign
   assert.equal(d.runs[0].trigger, 'SCHEDULE');
   assert.equal(d.runs[0].ok, true, JSON.stringify(d.runs[0]));
 
+  // The scheduler retires campaigns whose end date has passed by the simulated
+  // refresh time. Whether the pop-up campaign auto-published in test 8 has ended
+  // by then depends on how close today is to the 1st or 15th, so check both cases.
+  const refreshedAt = next.getTime() + 60_000;
+  for (const c of d.campaigns.filter((c: any) => /pop-up/.test(c.trendTitle) && c.status !== 'REJECTED')) {
+    if (new Date(c.endAt).getTime() <= refreshedAt) {
+      assert.equal(c.status, 'RETIRED', 'a campaign past its end date is retired on the refresh day');
+    } else {
+      assert.notEqual(c.status, 'RETIRED', 'a campaign still within its run keeps running');
+      // Close it by hand so a new campaign can be drafted from the same trend.
+      const closed = await post(admin, `/api/admin/hero/campaigns/${c.id}/retire`, { note: 'Make room for a new draft' });
+      assert.equal(closed.body.campaign.status, 'RETIRED');
+    }
+  }
+
   // A campaign drafted in this mode is scheduled to hand over at the next refresh.
-  // (The simulated refresh day was past the earlier campaign's end, so it has retired.)
-  assert.ok(!d.campaigns.some((c: any) => /pop-up/.test(c.trendTitle) && c.status !== 'RETIRED'));
   const chef = d.trends.find((t: any) => /pop-up/.test(t.title));
   assert.equal((await post(admin, `/api/admin/hero/trends/${chef.id}/generate`)).status, 202);
   d = await idle();
