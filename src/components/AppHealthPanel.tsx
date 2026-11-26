@@ -80,7 +80,7 @@ export const AppHealthPanel: React.FC = () => {
           ['screens', 'Screens'],
           ['feedback', `Feedback (${newFeedback} new)`],
         ] as const).map(([key, label]) => (
-          <button key={key} type="button" onClick={() => setTab(key)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === key ? 'bg-[#005FB8] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{label}</button>
+          <button key={key} type="button" onClick={() => setTab(key)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === key ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{label}</button>
         ))}
       </div>
 

@@ -63,7 +63,7 @@ export const CountrySelector: React.FC<CountrySelectorProps> = ({
                 onClick={() => handleSelect(c.countryCode)}
                 className={`p-2 rounded-lg text-xs font-semibold text-left transition-all border cursor-pointer ${
                   isSelected
-                    ? 'bg-[#005FB8] text-white border-[#005FB8] shadow-xs'
+                    ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 border-slate-300 shadow-xs'
                     : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-200'
                 }`}
               >
@@ -71,7 +71,7 @@ export const CountrySelector: React.FC<CountrySelectorProps> = ({
                   <span className="text-base leading-none">{c.flag}</span>
                   <span className="font-bold truncate">{c.countryName}</span>
                 </div>
-                <div className={`text-[10px] font-mono ${isSelected ? 'text-blue-100' : 'text-gray-500'}`}>
+                <div className={`text-[10px] font-mono ${isSelected ? 'text-slate-600' : 'text-gray-500'}`}>
                   {c.currency.code} ({c.currency.symbol})
                 </div>
               </button>

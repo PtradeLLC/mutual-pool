@@ -780,7 +780,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
               </div>
               <button
                 onClick={handleToggleListening}
-                className={`p-2 rounded-full text-white ${isListening ? 'bg-rose-500 animate-pulse' : 'bg-[#005FB8]'}`}
+                className={`p-2 rounded-full ${isListening ? 'bg-rose-500 text-white animate-pulse' : 'bg-slate-100 text-slate-900 border border-slate-300 hover:bg-slate-200'}`}
               >
                 {isListening ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </button>
@@ -801,7 +801,7 @@ export const VoiceAgent: React.FC<VoiceAgentProps> = ({
                         onClick={() => setSelectedVoice(v.id)}
                         className={`p-2 rounded-lg text-left border transition-all ${
                           selectedVoice === v.id
-                            ? 'bg-[#005FB8] text-white border-[#005FB8] font-semibold shadow-sm'
+                            ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 border-slate-300 font-semibold shadow-sm'
                             : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                         }`}
                       >

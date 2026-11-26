@@ -445,7 +445,7 @@ export const AdminOpsView: React.FC<AdminOpsViewProps> = ({
                 onClick={() => setCountry(c.countryCode)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
                   isCurrent
-                    ? 'bg-[#005FB8] text-white border-[#005FB8] shadow-xs'
+                    ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 border-slate-300 shadow-xs'
                     : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
                 }`}
               >

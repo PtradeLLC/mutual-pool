@@ -106,7 +106,7 @@ export const CreatorAdminPanel: React.FC = () => {
           ['interest', `Early-access requests (${interests.length})`],
         ] as const).map(([key, label]) => (
           <button key={key} type="button" onClick={() => setTab(key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === key ? 'bg-[#005FB8] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{label}</button>
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === key ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{label}</button>
         ))}
       </div>
 
@@ -165,7 +165,7 @@ export const CreatorAdminPanel: React.FC = () => {
                       </select>
                       <input value={verify.handle} onChange={e => setVerify(v => ({ ...v, handle: e.target.value }))} placeholder="@handle" className="w-32 px-2 py-1 rounded border border-blue-200" />
                       <input value={verify.followers} onChange={e => setVerify(v => ({ ...v, followers: e.target.value.replace(/\D/g, '') }))} placeholder="Followers" className="w-28 px-2 py-1 rounded border border-blue-200" />
-                      <button type="button" disabled={!verify.handle.trim() || !verify.followers} onClick={async () => { if (await act(`/api/admin/creators/${c.userId}/accounts`, { platform: verify.platform, handle: verify.handle, followers: Number(verify.followers) }, 'Account recorded as verified by an admin.')) setVerifyFor(null); }} className={`${btn} border-[#005FB8] bg-[#005FB8] text-white`}>Save</button>
+                      <button type="button" disabled={!verify.handle.trim() || !verify.followers} onClick={async () => { if (await act(`/api/admin/creators/${c.userId}/accounts`, { platform: verify.platform, handle: verify.handle, followers: Number(verify.followers) }, 'Account recorded as verified by an admin.')) setVerifyFor(null); }} className={`${btn} border-slate-300 bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900`}>Save</button>
                     </div>
                   )}
 

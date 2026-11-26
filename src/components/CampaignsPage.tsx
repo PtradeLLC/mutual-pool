@@ -498,7 +498,7 @@ export const CampaignsPage: React.FC<CampaignsPageProps> = ({
                 setSelectedPlatform('all');
                 setSelectedStatus('all');
               }}
-              className="px-4 py-2 rounded-xl bg-[#005FB8] text-white text-xs font-bold cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 text-xs font-bold cursor-pointer"
             >
               {t('campaigns.empty.clearBtn')}
             </button>

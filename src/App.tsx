@@ -1427,7 +1427,7 @@ export default function App() {
             <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
               <div className="max-w-sm w-full text-center rounded-2xl border border-[#DDE1E6] bg-white p-6">
                 <p className="text-sm font-semibold text-[#111827]">{t('creatorHub.signInFirst' as any)}</p>
-                <button type="button" onClick={() => handleOpenAuth('LOGIN')} className="mt-4 px-5 py-2.5 rounded-xl bg-[#005FB8] text-white font-bold text-sm">{t('creatorJoin.signIn' as any)}</button>
+                <button type="button" onClick={() => handleOpenAuth('LOGIN')} className="mt-4 px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm">{t('creatorJoin.signIn' as any)}</button>
               </div>
             </div>
           )}

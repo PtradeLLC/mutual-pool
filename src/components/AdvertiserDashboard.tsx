@@ -430,7 +430,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
               onClick={() => setSelectedCampaignId(c.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                 selectedCampaignId === c.id
-                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -444,7 +444,7 @@ export const AdvertiserDashboard: React.FC<AdvertiserDashboardProps> = ({
               {c.status === 'paused' && (
                 <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-300 text-slate-900">Paused</span>
               )}
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedCampaignId === c.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedCampaignId === c.id ? 'bg-white text-slate-700' : 'bg-slate-200 text-slate-700'}`}>
                 {c.activeCouriersCount || 0} fleet
               </span>
             </button>

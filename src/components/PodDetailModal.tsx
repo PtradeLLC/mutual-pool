@@ -865,7 +865,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             onClick={() => setActiveTab('rotation')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
               activeTab === 'rotation'
-                ? 'bg-[#005FB8] text-white shadow-xs'
+                ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                 : 'text-[#4B5563] hover:bg-gray-200/60'
             }`}
           >
@@ -878,7 +878,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
               onClick={() => setActiveTab('circle')}
               className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
                 activeTab === 'circle'
-                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                   : 'text-[#4B5563] hover:bg-gray-200/60'
               }`}
             >
@@ -891,7 +891,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             onClick={() => setActiveTab('deposits')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
               activeTab === 'deposits'
-                ? 'bg-[#005FB8] text-white shadow-xs'
+                ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                 : 'text-[#4B5563] hover:bg-gray-200/60'
             }`}
           >
@@ -903,7 +903,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             onClick={() => setActiveTab('activity')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
               activeTab === 'activity'
-                ? 'bg-[#005FB8] text-white shadow-xs'
+                ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                 : 'text-[#4B5563] hover:bg-gray-200/60'
             }`}
           >
@@ -911,7 +911,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             <span>Activity Feed</span>
             {podLogs.length > 0 && (
               <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
-                activeTab === 'activity' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                activeTab === 'activity' ? 'bg-white text-slate-700' : 'bg-slate-200 text-slate-700'
               }`}>
                 {podLogs.length}
               </span>
@@ -922,7 +922,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             onClick={() => setActiveTab('reprioritize')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
               activeTab === 'reprioritize'
-                ? 'bg-[#005FB8] text-white shadow-xs'
+                ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                 : 'text-[#4B5563] hover:bg-gray-200/60'
             }`}
           >
@@ -934,7 +934,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
             onClick={() => setActiveTab('hardship')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
               activeTab === 'hardship'
-                ? 'bg-[#005FB8] text-white shadow-xs'
+                ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                 : 'text-[#4B5563] hover:bg-gray-200/60'
             }`}
           >

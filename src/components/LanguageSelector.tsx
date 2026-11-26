@@ -43,7 +43,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                 onClick={() => setLanguage(lang.code as SupportedLanguage)}
                 className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   isSelected
-                    ? 'bg-[#005FB8] text-white shadow-xs'
+                    ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                     : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >

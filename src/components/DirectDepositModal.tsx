@@ -148,7 +148,7 @@ export const DirectDepositModal: React.FC<Props> = ({ isOpen, onClose, user, onO
           <div className="flex flex-wrap gap-1.5">
             {PLATFORMS.map(p => (
               <button key={p} type="button" onClick={() => setPlatform(p)}
-                className={`px-2.5 py-1 rounded-full border text-[11px] font-bold cursor-pointer ${platform === p ? 'bg-[#005FB8] border-[#005FB8] text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
+                className={`px-2.5 py-1 rounded-full border text-[11px] font-bold cursor-pointer ${platform === p ? 'bg-slate-200 border-slate-300 text-slate-900' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
                 {p}{earnings?.platforms?.includes(p) ? ' ✓' : ''}
               </button>
             ))}

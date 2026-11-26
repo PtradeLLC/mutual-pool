@@ -639,7 +639,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               onClick={() => setShowPartnerDashboard(!showPartnerDashboard)}
               className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 border shadow-xs cursor-pointer ${
                 showPartnerDashboard 
-                  ? 'bg-[#005FB8] text-white border-[#005FB8]' 
+                  ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 border-slate-300' 
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
@@ -651,7 +651,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               <button
                 onClick={() => setShowAdminTab(!showAdminTab)}
                 className={`px-3.5 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer ${
-                  showAdminTab ? 'bg-[#005FB8] text-white' : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
+                  showAdminTab ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900' : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
                 }`}
               >
                 <Sparkles className="w-4 h-4 text-amber-600" />
@@ -1066,7 +1066,7 @@ export const PerksMarketplace: React.FC<PerksMarketplaceProps> = ({ currentUser,
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer ${
                 selectedCategory === cat
-                  ? 'bg-[#005FB8] text-white shadow-xs'
+                  ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                   : 'bg-white text-[#4B5563] border border-[#DDE1E6] hover:bg-gray-50'
               }`}
             >

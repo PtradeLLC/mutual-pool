@@ -172,7 +172,7 @@ export const CreatorJoinPage: React.FC<CreatorJoinPageProps> = ({
           <div className={`${card} p-8 text-center`}>
             <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
             <h1 className="mt-3 text-lg font-extrabold">{k(loadError === 'NOT_FOUND' ? 'creatorJoin.notFoundTitle' : loadError === 'UNAVAILABLE' ? 'creatorJoin.unavailableTitle' : 'creatorJoin.loadFailed')}</h1>
-            <button type="button" onClick={onBack} className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#005FB8] text-white font-bold text-sm">{k('creatorJoin.backHome')}</button>
+            <button type="button" onClick={onBack} className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-sm">{k('creatorJoin.backHome')}</button>
           </div>
         )}
 

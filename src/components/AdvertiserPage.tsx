@@ -637,7 +637,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 }}
                 className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                   pageViewMode === 'media-kit'
-                    ? 'bg-[#005FB8] text-white shadow-xs'
+                    ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -653,7 +653,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                 }}
                 className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                   pageViewMode === 'metrics'
-                    ? 'bg-[#005FB8] text-white shadow-xs'
+                    ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
                 title="View live campaign analytics & courier fleet shifts"
@@ -790,7 +790,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                   onClick={() => setShowFourthwallStudio(!showFourthwallStudio)}
                   className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
                     showFourthwallStudio 
-                      ? 'bg-[#005FB8] text-white hover:bg-blue-700' 
+                      ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 hover:bg-slate-300' 
                       : 'bg-blue-50 text-[#005FB8] border border-blue-200 hover:bg-blue-100/70'
                   }`}
                 >
@@ -813,7 +813,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       type="button"
                       onClick={() => setPreviewTab('full')}
                       className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                        previewTab === 'full' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                        previewTab === 'full' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-950'
                       }`}
                     >
                       {t('advertiser.all3Views')}
@@ -822,7 +822,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       type="button"
                       onClick={() => setPreviewTab('front')}
                       className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                        previewTab === 'front' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                        previewTab === 'front' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-950'
                       }`}
                     >
                       {t('advertiser.frontView')}
@@ -831,7 +831,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       type="button"
                       onClick={() => setPreviewTab('back')}
                       className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                        previewTab === 'back' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                        previewTab === 'back' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-950'
                       }`}
                     >
                       {t('advertiser.backView')}
@@ -840,7 +840,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       type="button"
                       onClick={() => setPreviewTab('sleeve')}
                       className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                        previewTab === 'sleeve' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                        previewTab === 'sleeve' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-950'
                       }`}
                     >
                       <QrCode className="w-3.5 h-3.5 text-amber-400" />
@@ -850,7 +850,7 @@ export const AdvertiserPage: React.FC<AdvertiserPageProps> = ({
                       type="button"
                       onClick={() => setPreviewTab('mockup')}
                       className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                        previewTab === 'mockup' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-950'
+                        previewTab === 'mockup' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-950'
                       }`}
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-400" />

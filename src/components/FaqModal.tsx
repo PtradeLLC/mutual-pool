@@ -121,7 +121,7 @@ export const FaqModal: React.FC<FaqModalProps> = ({
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                   isSelected
-                    ? 'bg-[#005FB8] text-white shadow-xs'
+                    ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900'
                 }`}
               >

@@ -761,7 +761,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       onClick={() => setSizeTier(tier)}
                       className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
                         sizeTier === tier
-                          ? 'bg-[#005FB8] border-[#005FB8] text-white shadow-xs'
+                          ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 border-slate-300 text-slate-900 shadow-xs'
                           : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                       }`}
                     >

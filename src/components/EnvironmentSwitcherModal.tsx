@@ -333,7 +333,7 @@ export const EnvironmentSwitcherModal: React.FC<EnvironmentSwitcherModalProps> =
               />
               <button
                 type="submit"
-                className="px-3.5 py-2 rounded-lg bg-[#005FB8] hover:bg-blue-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
+                className="px-3.5 py-2 rounded-lg bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-900 font-bold text-xs transition-colors shrink-0 cursor-pointer"
               >
                 Save & Set Active
               </button>

@@ -458,7 +458,7 @@ export const Header: React.FC<HeaderProps> = ({
                             }}
                             className={`py-1.5 px-1 text-[10px] font-extrabold rounded-md transition-all text-center cursor-pointer ${
                               isCourier
-                                ? 'bg-[#005FB8] text-white shadow-2xs'
+                                ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-2xs'
                                 : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                             }`}
                             title="Courier/Rider: Mutual pods & perks"
@@ -817,7 +817,7 @@ export const Header: React.FC<HeaderProps> = ({
                       isActive
                         ? isSpecialAdmin
                           ? 'bg-purple-700 text-white font-bold shadow-xs'
-                          : 'bg-[#005FB8] text-white font-bold shadow-xs'
+                          : 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 font-bold shadow-xs'
                         : isSpecialAdmin
                           ? 'text-purple-800 bg-purple-50 hover:bg-purple-100 font-bold'
                           : 'text-[#4B5563] hover:bg-gray-100'
@@ -827,7 +827,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>{tab.label}</span>
                     {tab.badge !== undefined && (
                       <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
-                        isActive ? 'bg-white/25 text-white' : 'bg-gray-200 text-gray-700'
+                        isActive ? (isSpecialAdmin ? 'bg-white/25 text-white' : 'bg-white text-slate-700') : 'bg-gray-200 text-gray-700'
                       }`}>
                         {tab.badge}
                       </span>
@@ -1078,12 +1078,12 @@ export const Header: React.FC<HeaderProps> = ({
                         }}
                         className={`w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between border cursor-pointer ${
                           isActive
-                            ? 'bg-[#005FB8] text-white border-[#005FB8] shadow-xs'
+                            ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 border-slate-300 shadow-xs'
                             : 'bg-white hover:bg-gray-50 text-[#111827] border-gray-100 hover:border-gray-200'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`p-2 rounded-lg shrink-0 ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                          <div className={`p-2 rounded-lg shrink-0 ${isActive ? 'bg-white text-slate-700' : 'bg-gray-100 text-gray-700'}`}>
                             <Icon className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -1091,13 +1091,13 @@ export const Header: React.FC<HeaderProps> = ({
                               <span>{tab.label}</span>
                               {tab.badge !== undefined && (
                                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                                  isActive ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-800'
+                                  isActive ? 'bg-white text-slate-700' : 'bg-blue-100 text-blue-800'
                                 }`}>
                                   {tab.badge}
                                 </span>
                               )}
                             </div>
-                            <p className={`text-xs truncate ${isActive ? 'text-blue-100' : 'text-gray-500'}`}>
+                            <p className={`text-xs truncate ${isActive ? 'text-slate-600' : 'text-gray-500'}`}>
                               {tab.description}
                             </p>
                           </div>

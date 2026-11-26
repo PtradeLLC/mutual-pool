@@ -309,7 +309,7 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
                 type="button"
                 onClick={() => setViewAngle('wearer')}
                 className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  viewAngle === 'wearer' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-200'
+                  viewAngle === 'wearer' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-200'
                 }`}
               >
                 <Compass className="w-3 h-3" />
@@ -319,7 +319,7 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
                 type="button"
                 onClick={() => setViewAngle('technical')}
                 className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  viewAngle === 'technical' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-200'
+                  viewAngle === 'technical' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-200'
                 }`}
               >
                 <Layers className="w-3 h-3" />
@@ -329,7 +329,7 @@ export const ApparelSleeveMockup: React.FC<ApparelSleeveMockupProps> = ({
                 type="button"
                 onClick={() => setViewAngle('scan_macro')}
                 className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  viewAngle === 'scan_macro' ? 'bg-[#005FB8] text-white shadow-xs' : 'hover:text-slate-200'
+                  viewAngle === 'scan_macro' ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 shadow-xs' : 'hover:text-slate-200'
                 }`}
               >
                 <Camera className="w-3 h-3" />

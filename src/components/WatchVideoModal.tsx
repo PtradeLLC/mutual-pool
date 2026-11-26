@@ -310,7 +310,7 @@ export const WatchVideoModal: React.FC<WatchVideoModalProps> = ({
                     onClick={() => seekTo(chap.start)}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
                       activeChapterIndex === idx
-                        ? 'bg-[#005FB8] text-white font-bold shadow-xs'
+                        ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 text-slate-900 font-bold shadow-xs'
                         : 'bg-white/5 text-slate-400 hover:bg-white/10'
                     }`}
                   >

@@ -784,7 +784,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       onClick={() => setCalcMembers(num)}
                       className={`py-2 rounded-lg border text-xs font-bold transition-all ${
                         calcMembers === num
-                          ? 'bg-[#005FB8] border-[#005FB8] text-white shadow-xs'
+                          ? 'bg-slate-200 ring-1 ring-inset ring-slate-300 border-slate-300 text-slate-900 shadow-xs'
                           : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                       }`}
                     >
