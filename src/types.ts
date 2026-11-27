@@ -329,6 +329,12 @@ export interface Pod {
   isPrioritizedForReplacement?: boolean;
   replacementVacanciesCount?: number;
   campaignAgreement?: PodCampaignAgreement;
+  /**
+   * How money moves. 'DWOLLA': free to create/join; once active, each week every
+   * member's bank is debited straight into that week's recipient's Dwolla
+   * Balance (src/server/dwollaPods.ts). Unset = the MutualPool ledger.
+   */
+  paymentRail?: 'LEDGER' | 'DWOLLA';
   stewardshipMode?: 'CREATOR_MANAGED' | 'AUTONOMOUS_AI';
   managedBy?: 'CREATOR' | 'SYSTEM_AI';
   stewardName?: string;
@@ -610,7 +616,7 @@ export interface DebitAuthorization {
   revokedAt?: string;
 }
 
-export type DwollaTransferKind = 'CONTRIBUTION' | 'WITHDRAWAL';
+export type DwollaTransferKind = 'CONTRIBUTION' | 'WITHDRAWAL' | 'RESERVE_COVER';
 export type DwollaTransferStatus = 'pending' | 'processed' | 'failed' | 'cancelled';
 
 export interface DwollaTransferRecord {
@@ -630,6 +636,10 @@ export interface DwollaTransferRecord {
   cycleWeek?: number;
   failureCode?: string;
   failureReason?: string;
+  /** CONTRIBUTION that failed: the RESERVE_COVER transfer that paid the recipient instead. */
+  coveredByTransferId?: string;
+  /** RESERVE_COVER: the failed contribution it replaced. */
+  coversTransferId?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -28,6 +28,9 @@ interface HeaderProps {
   onLogoClick?: () => void;
   onOpenBankModal: () => void;
   onOpenAddFundsModal?: () => void;
+  // Bank payments (Dwolla): show the member's bank-payments balance instead of the Treasury
+  // balance; clicking opens withdraw (or payment setup).
+  bankBalance?: { amountUsd: number; onClick: () => void; label: string };
   onOpenEditProfile?: () => void;
   onOpenSubmitPerk?: () => void;
   onOpenAdvertiser?: (tab?: 'metrics' | 'media-kit') => void;
@@ -56,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoClick,
   onOpenBankModal,
   onOpenAddFundsModal,
+  bankBalance,
   onOpenEditProfile,
   onOpenSubmitPerk,
   onOpenAdvertiser,
@@ -287,15 +291,15 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="hidden lg:flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={onOpenAddFundsModal || onOpenBankModal}
-                  title="View your balance & add funds"
+                  onClick={bankBalance ? bankBalance.onClick : (onOpenAddFundsModal || onOpenBankModal)}
+                  title={bankBalance ? 'Your MutualPool balance' : 'View your balance & add funds'}
                   className="flex items-center gap-2 bg-[#F8FAFC] hover:bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-[#DDE1E6] hover:border-emerald-300 text-xs transition-all cursor-pointer group"
                 >
                   <Wallet className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                   <div className="text-left">
-                    <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">{t('header.stripeTreasuryBalance')}</span>
+                    <span className="text-[#6B7280] group-hover:text-emerald-800 text-[10px] uppercase font-bold block leading-none">{bankBalance ? 'Balance' : t('header.stripeTreasuryBalance')}</span>
                     <span className="font-bold text-[#111827] font-mono">
-                      ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
+                      ${(bankBalance ? bankBalance.amountUsd : (currentUser.treasury?.balanceUsd || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-[#6B7280]">USD</span>
                     </span>
                   </div>
                 </button>
@@ -1024,19 +1028,20 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         onClick={() => {
                           setMobileMenuOpen(false);
-                          if (onOpenAddFundsModal) onOpenAddFundsModal();
+                          if (bankBalance) bankBalance.onClick();
+                          else if (onOpenAddFundsModal) onOpenAddFundsModal();
                           else onOpenBankModal();
                         }}
                         className="text-left p-2 rounded-lg bg-white border border-gray-200 hover:border-emerald-300 transition-colors cursor-pointer flex items-center justify-between"
                       >
                         <div>
-                          <span className="text-[10px] text-gray-500 block font-bold uppercase">{t('header.stripeTreasuryBalance')}</span>
+                          <span className="text-[10px] text-gray-500 block font-bold uppercase">{bankBalance ? 'Balance' : t('header.stripeTreasuryBalance')}</span>
                           <span className="font-bold text-gray-900 font-mono text-xs">
-                            ${currentUser.treasury?.balanceUsd ? currentUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+                            ${(bankBalance ? bankBalance.amountUsd : (currentUser.treasury?.balanceUsd || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          + Add Funds
+                          {bankBalance ? bankBalance.label : '+ Add Funds'}
                         </span>
                       </button>
 

@@ -77,11 +77,13 @@ import {
   PlusCircle, ShieldCheck, Building2, Wallet, ArrowRight, 
   Layers, Users, CheckCircle2, AlertCircle, Clock, Sparkles, Lock, Pencil,
   HeartHandshake, DollarSign, AlertTriangle, ExternalLink, HelpCircle,
-  Megaphone, BarChart3, Shirt, Shield, QrCode, Scan, X
+  Megaphone, BarChart3, Shirt, Shield, QrCode, Scan, X, Landmark, ArrowDownToLine
 } from 'lucide-react';
 import type { CreatePodPrefill } from './components/CreatePodModal';
 import { readPendingPodDraft, clearPendingPodDraft } from './lib/pendingPodDraft';
 import { hasFleet } from './lib/gigPlatform';
+import { PaymentSetupModal, type BankPaymentsStatus } from './components/PaymentSetupModal';
+import { WithdrawModal } from './components/WithdrawModal';
 import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
 import { scrollToTabSection } from './utils/navigation';
@@ -239,6 +241,12 @@ export default function App() {
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   // Set when Create Pod opens Add Funds: the exact top-up needed for the pod.
   const [addFundsForPod, setAddFundsForPod] = useState<number | null>(null);
+  // Bank payments (Dwolla). When enabled on the server, pods are free to
+  // create/join and money moves bank -> recipient; Add Funds/Treasury hide.
+  const [bankPayments, setBankPayments] = useState<BankPaymentsStatus | null>(null);
+  const [bankBalanceUsd, setBankBalanceUsd] = useState(0);
+  const [showPaymentSetup, setShowPaymentSetup] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
   const [showDirectDepositModal, setShowDirectDepositModal] = useState(false);
   const [showHardshipModal, setShowHardshipModal] = useState(false);
   const [hardshipModalTab, setHardshipModalTab] = useState<'hardship' | 'trade'>('hardship');
@@ -451,6 +459,30 @@ export default function App() {
     setCreatePodPrefill(prefill);
     setShowCreatePodModal(true);
   };
+
+  // Bank payments (Dwolla): load the member's status and balance.
+  const refreshBankPayments = async () => {
+    try {
+      const res = await fetch('/api/dwolla/status', { headers: { Accept: 'application/json' } });
+      if (!res.ok) { setBankPayments(null); return; }
+      const status = (await res.json()) as BankPaymentsStatus;
+      setBankPayments(status);
+      if (status.enabled && status.ready) {
+        const b = await fetch('/api/dwolla/balance', { headers: { Accept: 'application/json' } }).catch(() => null);
+        const data = b && b.ok ? await b.json().catch(() => null) : null;
+        if (data) setBankBalanceUsd(Number(data.availableUsd) || 0);
+      }
+    } catch {
+      setBankPayments(null);
+    }
+  };
+  useEffect(() => {
+    if (!currentUser || currentUser.id === 'usr_guest') { setBankPayments(null); return; }
+    void refreshBankPayments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+  const bankPaymentsOn = Boolean(bankPayments?.enabled);
+  const bankPaymentsReady = Boolean(bankPayments?.enabled && bankPayments.ready);
 
   // Returning from Stripe-hosted pages: refresh Connect status / wait for the top-up webhook.
   useEffect(() => {
@@ -1090,6 +1122,14 @@ export default function App() {
       }
     }
 
+    // Pods on bank payments need the member's payments set up first.
+    if (pod.paymentRail === 'DWOLLA' && !bankPaymentsReady) {
+      setInviteCodeTargetPod(null);
+      toast.info('Set up bank payments to join this pod. Joining is free; weekly debits start once it is full.', { title: 'Bank payments needed' });
+      setShowPaymentSetup(true);
+      return;
+    }
+
     joiningPodIdsRef.current.add(pod.id);
     setJoiningPodIds(new Set(joiningPodIdsRef.current));
     try {
@@ -1114,6 +1154,12 @@ export default function App() {
           setInviteCodeTargetPod(null);
           toast.error(data.message || 'Add funds before joining this pod.', { title: 'Insufficient Balance' });
           setShowAddFundsModal(true);
+          return;
+        }
+        if (data.error === 'PAYMENTS_SETUP_REQUIRED') {
+          setInviteCodeTargetPod(null);
+          toast.info(data.message || 'Set up bank payments before joining this pod.', { title: 'Bank payments needed' });
+          setShowPaymentSetup(true);
           return;
         }
         if (data.error === 'DEBIT_MANDATE_REQUIRED') {
@@ -1565,6 +1611,7 @@ export default function App() {
         onSwitchRole={CLIENT_DEMO_MODE ? handleSwitchRole : undefined}
         onOpenBankModal={() => setShowBankModal(true)}
         onOpenAddFundsModal={() => setShowAddFundsModal(true)}
+        bankBalance={bankPaymentsOn ? { amountUsd: bankBalanceUsd, label: bankPaymentsReady ? 'Withdraw' : 'Set up', onClick: () => (bankPaymentsReady ? setShowWithdraw(true) : setShowPaymentSetup(true)) } : undefined}
         onOpenEditProfile={() => setShowEditProfileModal(true)}
         onOpenSubmitPerk={() => {
           if (!currentUser || currentUser.id === 'usr_guest') {
@@ -1872,9 +1919,11 @@ export default function App() {
                 </h2>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <p className="text-xs text-[#6B7280]">
-                    {t('dash.fdicBalance')} <strong className="text-emerald-700 font-mono">${activeUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                    {bankPaymentsOn
+                      ? <>Balance: <strong className="text-emerald-700 font-mono">${bankBalanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></>
+                      : <>{t('dash.fdicBalance')} <strong className="text-emerald-700 font-mono">${activeUser.treasury.balanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></>}
                   </p>
-                  {hasWelcomeMatch && (
+                  {hasWelcomeMatch && !bankPaymentsOn && (
                     <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full shadow-2xs">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600 animate-pulse" />
                       {t('dash.welcomeMatchCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
@@ -1885,31 +1934,68 @@ export default function App() {
 
               {/* Quick Action Controls */}
               <div className="flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowAddFundsModal(true)}
-                  className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-                  title="Add funds to your MutualPool account via bank or card"
-                >
-                  <Wallet className="w-4 h-4 text-white" />
-                  <span>+ Add Funds</span>
-                </button>
+                {bankPaymentsOn ? (
+                  // Bank payments (Dwolla): no top-ups or Treasury; the Hardship Fund is paused.
+                  bankPaymentsReady ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowWithdraw(true)}
+                        className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                        title="Withdraw from your MutualPool balance to your bank"
+                      >
+                        <ArrowDownToLine className="w-4 h-4 text-white" />
+                        <span>Withdraw</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowPaymentSetup(true)}
+                        className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Landmark className="w-4 h-4 text-[#005FB8]" />
+                        <span>{bankPayments?.bankName ? `${bankPayments.bankName} linked` : 'Bank linked'}</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentSetup(true)}
+                      className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                      title="Verify your details and link your bank to create or join pods"
+                    >
+                      <Landmark className="w-4 h-4 text-white" />
+                      <span>Set up bank payments</span>
+                    </button>
+                  )
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddFundsModal(true)}
+                      className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                      title="Add funds to your MutualPool account via bank or card"
+                    >
+                      <Wallet className="w-4 h-4 text-white" />
+                      <span>+ Add Funds</span>
+                    </button>
 
-                <button
-                  onClick={() => setShowBankModal(true)}
-                  className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <Building2 className="w-4 h-4 text-[#005FB8]" />
-                  <span>{activeUser.externalBank.status === 'LINKED' ? t('dash.bankLinked', { bankName: activeUser.externalBank.bankName }) : t('dash.depositFundsInTreasury')}</span>
-                </button>
+                    <button
+                      onClick={() => setShowBankModal(true)}
+                      className="px-3.5 py-2 rounded-lg bg-white hover:bg-gray-50 text-[#111827] border border-[#DDE1E6] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Building2 className="w-4 h-4 text-[#005FB8]" />
+                      <span>{activeUser.externalBank.status === 'LINKED' ? t('dash.bankLinked', { bankName: activeUser.externalBank.bankName }) : t('dash.depositFundsInTreasury')}</span>
+                    </button>
 
-                <button
-                  onClick={() => setShowHardshipModal(true)}
-                  className="px-3.5 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <HeartHandshake className="w-4 h-4 text-[#005FB8]" />
-                  <span>{t('dash.requestHardshipFund')}</span>
-                </button>
+                    <button
+                      onClick={() => setShowHardshipModal(true)}
+                      className="px-3.5 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#005FB8] border border-blue-200 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <HeartHandshake className="w-4 h-4 text-[#005FB8]" />
+                      <span>{t('dash.requestHardshipFund')}</span>
+                    </button>
+                  </>
+                )}
 
                 <button
                   type="button"
@@ -1989,7 +2075,16 @@ export default function App() {
               </div>
 
               <div>
-                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.stripeTreasuryAccount')}</span>
+                <span className="text-[#6B7280] text-[10px] block font-medium">{bankPaymentsOn ? 'Bank payments' : t('dash.stripeTreasuryAccount')}</span>
+                {bankPaymentsOn ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentSetup(true)}
+                    className={`font-mono text-xs hover:underline inline-flex items-center gap-1 max-w-full ${bankPaymentsReady ? 'text-[#111827]' : 'text-amber-700 font-bold'}`}
+                  >
+                    <span className="truncate">{bankPaymentsReady ? (bankPayments?.bankName || 'Bank linked') : 'Set up'}</span>
+                  </button>
+                ) : (
                 <button
                   type="button"
                   onClick={() => setShowBankModal(true)}
@@ -1999,11 +2094,14 @@ export default function App() {
                   <span className="truncate">{activeUser.treasury.stripeFinAccountId || t('dash.activeTreasury')}</span>
                   <ExternalLink className="w-3 h-3 text-gray-400 shrink-0" />
                 </button>
+                )}
               </div>
 
               <div>
-                <span className="text-[#6B7280] text-[10px] block font-medium">{t('dash.contingencyMatch')}</span>
-                {hasWelcomeMatch ? (
+                <span className="text-[#6B7280] text-[10px] block font-medium">{bankPaymentsOn ? 'Missed-week cover' : t('dash.contingencyMatch')}</span>
+                {bankPaymentsOn ? (
+                  <span className="font-semibold text-emerald-700 font-mono text-xs" title="If a member's debit fails, MutualPool's reserve pays the recipient">MutualPool reserve</span>
+                ) : hasWelcomeMatch ? (
                   <span className="font-extrabold text-emerald-700 font-mono text-xs inline-flex items-center gap-1">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
                     {t('dash.contingencyCredited', { amount: activeUser.welcomeMatchAmountUsd || 20 })}
@@ -2288,6 +2386,23 @@ export default function App() {
         </Suspense>
       )}
 
+      {showPaymentSetup && currentUser && bankPayments && (
+        <PaymentSetupModal
+          status={bankPayments}
+          onClose={() => { setShowPaymentSetup(false); void refreshBankPayments(); }}
+          onUpdated={(s) => setBankPayments(prev => ({ ...(prev || s), ...s }))}
+        />
+      )}
+
+      {showWithdraw && currentUser && (
+        <WithdrawModal
+          availableUsd={bankBalanceUsd}
+          bankName={bankPayments?.bankName}
+          onClose={() => setShowWithdraw(false)}
+          onDone={() => { void refreshBankPayments(); }}
+        />
+      )}
+
       {showAddFundsModal && currentUser && (
         <Suspense fallback={null}>
           <AddFundsModal
@@ -2348,6 +2463,8 @@ export default function App() {
             onClose={() => { setShowCreatePodModal(false); setCreatePodPrefill(null); clearPendingPodDraft(); }}
             onUserUpdated={handleUserUpdated}
             onOpenAddFunds={(amountUsd) => { setAddFundsForPod(amountUsd); setShowAddFundsModal(true); }}
+            bankPayments={bankPaymentsOn ? { enabled: true, ready: bankPaymentsReady } : undefined}
+            onOpenPaymentSetup={() => setShowPaymentSetup(true)}
             onDebitMandateRequired={(message) => {
               setShowCreatePodModal(false);
               toast.warning(message, { title: 'Bank authorization needed' });

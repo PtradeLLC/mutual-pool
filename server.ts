@@ -125,6 +125,7 @@ import { SourceMapConsumer } from 'source-map-js';
 import { platformConfigured, signState, verifyState, authorizeUrl, exchangeAndReadProfile } from './src/server/creatorSocial';
 import { initRail, railCollections, railEnabled, railStatus, railReport, validateEnrollInput, enrollMember, refreshMember, startDebitAuthorization, linkBank, createWithdrawal, canContribute, canReceive, reconcilePendingTransfers, handleWebhookEvent as handleDwollaEvent, RailError } from './src/server/dwollaRail';
 import { verifyWebhookSignature as verifyDwollaSignature, getBalance as getDwollaBalance } from './src/services/dwolla';
+import { initDwollaPods, isDwollaPod, paymentsReady, membersNotReady, startWeekContributions, finishWeek, handleFailedContribution } from './src/server/dwollaPods';
 
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -3575,7 +3576,14 @@ app.get(['/api/health', '/health'], (req, res) => {
         message: 'You must complete Stripe Identity KYC verification before creating a mutual savings pod.'
       });
     }
-    if (DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
+    // Dwolla rail: creating is free; weekly debits start once the pod is full.
+    // The member needs a verified Dwolla account and an authorized bank instead
+    // of a Stripe debit mandate and a balance.
+    const onDwolla = railEnabled();
+    if (onDwolla && !paymentsReady(users.find(u => u.id === user.id) || user)) {
+      return res.status(400).json({ error: 'PAYMENTS_SETUP_REQUIRED', message: 'Set up bank payments (verify your details and link your bank) before creating a pod.' });
+    }
+    if (!onDwolla && DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
       return debitMandateRequiredResponse(res);
     }
     if (user.riskHold) return riskHoldResponse(res, user);
@@ -3627,12 +3635,15 @@ app.get(['/api/health', '/health'], (req, res) => {
     const creatorIdentityKeys = getIdentityKeys(creatorUser || user);
     const identityAlreadyMatched = creatorIdentityKeys.some(key => welcomeMatchGrants.some(g => g.identityKey === key));
     const isEligibleForWelcomeMatch = isKycVerified && !creatorUser?.welcomeMatchReceived && creatorIdentityKeys.length > 0 && !identityAlreadyMatched;
-    const welcomeMatchAmount = isEligibleForWelcomeMatch ? baseDepositAmount : 0;
+    // The welcome match is paused on the Dwolla rail.
+    const welcomeMatchAmount = !onDwolla && isEligibleForWelcomeMatch ? baseDepositAmount : 0;
 
-    // Charge the creator's first deposit from their Treasury balance. The welcome
-    // match goes only to the pod's non-withdrawable contingency buffer.
-    if (!creatorUser || !debitLedger(creatorUser, totalChargedAmount)) {
-      return insufficientFunds(res, totalChargedAmount, creatorUser || user);
+    // Ledger rail: charge the creator's first deposit from their Treasury
+    // balance (the welcome match goes only to the pod's contingency buffer).
+    // Dwolla rail: nothing is charged until the pod is full and running.
+    if (!creatorUser) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Your account could not be found. Please sign in again.' });
+    if (!onDwolla && !debitLedger(creatorUser, totalChargedAmount)) {
+      return insufficientFunds(res, totalChargedAmount, creatorUser);
     }
     if (welcomeMatchAmount > 0) {
       creatorUser.welcomeMatchReceived = true;
@@ -3653,25 +3664,27 @@ app.get(['/api/health', '/health'], (req, res) => {
       }
     }
 
-    mv(MEMBER(creatorUser.id), POD(podId), baseDepositAmount, 'DEPOSIT', 'Week 1 deposit (pod created)', { podId, userId: creatorUser.id, cycleWeek: 1 });
-    mv(MEMBER(creatorUser.id), POD(podId), platformFee, 'BUFFER_CONTRIBUTION', 'Week 1 contingency buffer contribution (5% of deposit)', { podId, userId: creatorUser.id, cycleWeek: 1 });
-    if (welcomeMatchAmount > 0) mv(PLATFORM('operating'), POD(podId), welcomeMatchAmount, 'WELCOME_MATCH', 'Welcome match into the pod buffer', { podId, userId: creatorUser.id });
-
-    // Process initial deposit record for creator (Member #1)
     const creatorMemberId = `pm_${Date.now()}_1`;
-    const initialDeposit: Deposit = {
-      id: newLedgerId('dep_init'),
-      membershipId: creatorMemberId,
-      podId: podId,
-      cycleId: `cyc_w1`,
-      userId: user.id,
-      userName: user.displayName,
-      amount: baseDepositAmount,
-      stripePaymentId: newLedgerId('ledger_create_pod'),
-      status: 'COMPLETE',
-      createdAt: new Date().toISOString(),
-    };
-    deposits.unshift(initialDeposit);
+    if (!onDwolla) {
+      mv(MEMBER(creatorUser.id), POD(podId), baseDepositAmount, 'DEPOSIT', 'Week 1 deposit (pod created)', { podId, userId: creatorUser.id, cycleWeek: 1 });
+      mv(MEMBER(creatorUser.id), POD(podId), platformFee, 'BUFFER_CONTRIBUTION', 'Week 1 contingency buffer contribution (5% of deposit)', { podId, userId: creatorUser.id, cycleWeek: 1 });
+      if (welcomeMatchAmount > 0) mv(PLATFORM('operating'), POD(podId), welcomeMatchAmount, 'WELCOME_MATCH', 'Welcome match into the pod buffer', { podId, userId: creatorUser.id });
+
+      // Process initial deposit record for creator (Member #1)
+      const initialDeposit: Deposit = {
+        id: newLedgerId('dep_init'),
+        membershipId: creatorMemberId,
+        podId: podId,
+        cycleId: `cyc_w1`,
+        userId: user.id,
+        userName: user.displayName,
+        amount: baseDepositAmount,
+        stripePaymentId: newLedgerId('ledger_create_pod'),
+        status: 'COMPLETE',
+        createdAt: new Date().toISOString(),
+      };
+      deposits.unshift(initialDeposit);
+    }
 
     const newPod: Pod = {
       id: podId,
@@ -3695,12 +3708,13 @@ app.get(['/api/health', '/health'], (req, res) => {
       creatorName: user.displayName,
       createdAt: new Date().toISOString(),
       weeklyPoolTarget: Number(sizeTier) * Number(depositTier),
-      currentWeeklyCollected: baseDepositAmount,
+      currentWeeklyCollected: onDwolla ? 0 : baseDepositAmount,
+      ...(onDwolla ? { paymentRail: 'DWOLLA' as const } : {}),
       welcomeMatchGranted: welcomeMatchAmount > 0,
       welcomeMatchAmountUsd: welcomeMatchAmount,
-      contingencyBufferUsd: roundCents(welcomeMatchAmount + platformFee),
+      contingencyBufferUsd: onDwolla ? 0 : roundCents(welcomeMatchAmount + platformFee),
       contingencyBufferInitialUsd: welcomeMatchAmount,
-      feeBufferContributedUsd: platformFee,
+      feeBufferContributedUsd: onDwolla ? 0 : platformFee,
       feeBufferRefundedUsd: 0,
       stewardshipMode: 'CREATOR_MANAGED',
       managedBy: 'CREATOR',
@@ -3739,8 +3753,10 @@ app.get(['/api/health', '/health'], (req, res) => {
       user.id,
       user.displayName,
       'POD_CREATED',
-      `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Initial pool deposit charged: $${baseDepositAmount.toFixed(2)} deposit + $${platformFee.toFixed(2)} (5% platform fee) = $${totalChargedAmount.toFixed(2)} total. Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} initialized.`,
-      { baseDepositAmount, platformFee, totalChargedAmount, sizeTier, depositTier }
+      onDwolla
+        ? `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk) on bank payments. Nothing charged now: weekly contributions ($${baseDepositAmount.toFixed(2)} + $${platformFee.toFixed(2)} reserve fee) start once the pod is full. Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}.`
+        : `Created new ${newPod.podType === 'TRUSTED_CIRCLE' ? '🔒 Trusted Circle' : '🌐 Open'} pod "${newPod.name}" (${newPod.sizeTier} members @ $${newPod.depositTier}/wk). Initial pool deposit charged: $${baseDepositAmount.toFixed(2)} deposit + $${platformFee.toFixed(2)} (5% platform fee) = $${totalChargedAmount.toFixed(2)} total. Activation Policy: ${policyLabel}. Invite Code: ${newPod.inviteCode}. Holding Account ${newPod.holdingFinAccountId} initialized.`,
+      { baseDepositAmount, platformFee, totalChargedAmount: onDwolla ? 0 : totalChargedAmount, sizeTier, depositTier, paymentRail: onDwolla ? 'DWOLLA' : 'LEDGER' }
     );
 
     if (welcomeMatchAmount > 0) {
@@ -3915,7 +3931,16 @@ app.get(['/api/health', '/health'], (req, res) => {
           message: `Your account is currently on hold due to a Financial Hardship Fund disbursed on your behalf ($${user.hardshipOwedUsd?.toFixed(2) || '0.00'} owed). Please pay off your hardship balance (deposit + 7% service fee) to reactivate your account and participate in pools.`
         });
       }
-      if (DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
+      // Dwolla-rail pods are free to join; the member needs bank payments set up
+      // (verified Dwolla account + authorized bank) instead of a Stripe mandate.
+      const joinOnDwolla = isDwollaPod(pod);
+      if (joinOnDwolla && !railEnabled()) {
+        return res.status(503).json({ error: 'DWOLLA_DISABLED', message: 'Bank payments are temporarily unavailable. Please try again later.' });
+      }
+      if (joinOnDwolla && !paymentsReady(users.find(u => u.id === user.id) || user)) {
+        return res.status(400).json({ error: 'PAYMENTS_SETUP_REQUIRED', message: 'Set up bank payments (verify your details and link your bank) before joining this pod.' });
+      }
+      if (!joinOnDwolla && DEBIT_MANDATE_REQUIRED && !hasActiveDebitMandate(user)) {
         return debitMandateRequiredResponse(res);
       }
       if (user.riskHold) return riskHoldResponse(res, user);
@@ -3994,17 +4019,20 @@ app.get(['/api/health', '/health'], (req, res) => {
         inviterDisplayName = pod.creatorName;
       }
 
-      // Charge the first deposit + 5% platform fee before adding the member.
+      // Ledger rail: charge the first deposit + 5% platform fee before adding the
+      // member. Dwolla rail: joining is free; weekly debits start when it's full.
       const baseDepositAmount = pod.depositTier || 20;
       const platformFee = Math.round(baseDepositAmount * FEES.depositFeeRate * 100) / 100;
       const totalChargedAmount = baseDepositAmount + platformFee;
       const targetUser = users.find(u => u && u.id === user.id) || user;
-      if (!debitLedger(targetUser, totalChargedAmount)) {
-        return insufficientFunds(res, totalChargedAmount, targetUser);
+      if (!joinOnDwolla) {
+        if (!debitLedger(targetUser, totalChargedAmount)) {
+          return insufficientFunds(res, totalChargedAmount, targetUser);
+        }
+        saveUsersToDisk();
+        mv(MEMBER(targetUser.id), POD(pod.id), baseDepositAmount, 'DEPOSIT', 'First deposit (joined pod)', { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
+        contributeFeeToBuffer(pod, targetUser.id, platformFee, pod.currentCycleWeek || 1);
       }
-      saveUsersToDisk();
-      mv(MEMBER(targetUser.id), POD(pod.id), baseDepositAmount, 'DEPOSIT', 'First deposit (joined pod)', { podId: pod.id, userId: targetUser.id, cycleWeek: pod.currentCycleWeek || 1 });
-      contributeFeeToBuffer(pod, targetUser.id, platformFee, pod.currentCycleWeek || 1);
 
       const memberDisplayName = user.displayName && user.displayName !== 'Verified Member' ? user.displayName : (user.email ? user.email.split('@')[0] : 'Member');
       const newMember: PodMembership = {
@@ -4026,7 +4054,8 @@ app.get(['/api/health', '/health'], (req, res) => {
       pod.members.push(newMember);
       pod.memberCount = pod.members.length;
 
-      // Record completed deposit for joining member
+      // Record completed deposit for joining member (ledger rail only)
+      if (!joinOnDwolla) {
       const joinDeposit: Deposit = {
         id: newLedgerId('dep_join'),
         membershipId: newMember.id,
@@ -4043,6 +4072,7 @@ app.get(['/api/health', '/health'], (req, res) => {
       if (!deposits) deposits = [];
       deposits.unshift(joinDeposit);
       pod.currentWeeklyCollected = (pod.currentWeeklyCollected || 0) + baseDepositAmount;
+      }
 
       try {
         savePodsToDisk();
@@ -4060,8 +4090,10 @@ app.get(['/api/health', '/health'], (req, res) => {
           pod.id,
           user.id,
           user.displayName || 'Verified Member',
-          'DEPOSIT_COMPLETED',
-          `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''} and deposited $${baseDepositAmount.toFixed(2)} into Treasury holding account ${pod.holdingFinAccountId} for Week ${pod.currentCycleWeek || 1} cycle ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged).`,
+          joinOnDwolla ? 'MEMBER_JOINED' as any : 'DEPOSIT_COMPLETED',
+          joinOnDwolla
+            ? `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''} on bank payments. Nothing charged now: weekly contributions start once the pod is full.`
+            : `Joined pod "${pod.name}"${inviterDisplayName ? ` (Invited by ${inviterDisplayName})` : ''} and deposited $${baseDepositAmount.toFixed(2)} into Treasury holding account ${pod.holdingFinAccountId} for Week ${pod.currentCycleWeek || 1} cycle ($${platformFee.toFixed(2)} 5% platform fee, $${totalChargedAmount.toFixed(2)} total charged).`,
           { baseDepositAmount, platformFee, totalChargedAmount, cycleWeek: pod.currentCycleWeek || 1 }
         );
       } catch (auditErr) {
@@ -4072,11 +4104,9 @@ app.get(['/api/health', '/health'], (req, res) => {
         ...pod,
         pod,
         user: targetUser,
-        charged: {
-          baseDepositAmount,
-          platformFee,
-          totalChargedAmount
-        }
+        charged: joinOnDwolla
+          ? { baseDepositAmount: 0, platformFee: 0, totalChargedAmount: 0 }
+          : { baseDepositAmount, platformFee, totalChargedAmount },
       });
     } catch (err: any) {
       console.error('[POST /api/pods/:id/join] Error:', err);
@@ -4178,6 +4208,18 @@ app.get(['/api/health', '/health'], (req, res) => {
         error: 'UNSIGNED_MEMBERS',
         message: `Cannot lock pod. ${unsigned.length} member(s) have not digitally signed the Pod Agreement yet.`
       });
+    }
+
+    // Dwolla rail: every member must be able to pay and receive before week 1.
+    if (isDwollaPod(pod)) {
+      const notReady = membersNotReady(pod);
+      if (notReady.length > 0) {
+        return res.status(400).json({
+          error: 'MEMBERS_PAYMENTS_NOT_READY',
+          message: `${notReady.length} member(s) still need to finish bank payment setup: ${notReady.map(m => m.displayName).join(', ')}.`,
+          members: notReady.map(m => ({ userId: m.userId, displayName: m.displayName })),
+        });
+      }
     }
 
     const locked = lockPodRotation(pod);
@@ -4782,12 +4824,13 @@ app.get(['/api/health', '/health'], (req, res) => {
     let totalVolumeUsd = 0;
     let failedCount = 0;
 
-    let activePods = pods.filter(p => p && p.status === 'ACTIVE');
+    // Dwolla-rail pods run through src/server/dwollaPods.ts instead.
+    let activePods = pods.filter(p => p && p.status === 'ACTIVE' && !isDwollaPod(p));
 
     // DEMO_MODE only: auto-activate a pod so the sweep can be exercised locally.
     if (DEMO_MODE && activePods.length === 0) {
-      const candidatePod = pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 2) ||
-                           pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 1);
+      const candidatePod = pods.find(p => p && !isDwollaPod(p) && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 2) ||
+                           pods.find(p => p && !isDwollaPod(p) && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 1);
       if (candidatePod) {
         candidatePod.status = 'ACTIVE';
         candidatePod.currentCycleWeek = 1;
@@ -5021,12 +5064,13 @@ app.get(['/api/health', '/health'], (req, res) => {
     let totalVolumeUsd = 0;
     let failedCount = 0;
 
-    let activePods = pods.filter(p => p && p.status === 'ACTIVE');
+    // Dwolla-rail pods run through src/server/dwollaPods.ts instead.
+    let activePods = pods.filter(p => p && p.status === 'ACTIVE' && !isDwollaPod(p));
 
     // DEMO_MODE only: auto-activate a funded pod so the sweep can be exercised locally.
     if (DEMO_MODE && activePods.length === 0) {
-      const candidatePod = pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 2) ||
-                           pods.find(p => p && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 1);
+      const candidatePod = pods.find(p => p && !isDwollaPod(p) && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 2) ||
+                           pods.find(p => p && !isDwollaPod(p) && (p.status === 'FORMING' || p.status === 'LOCKED') && Array.isArray(p.members) && p.members.length >= 1);
       if (candidatePod) {
         candidatePod.status = 'ACTIVE';
         candidatePod.currentCycleWeek = 1;
@@ -5285,6 +5329,15 @@ app.get(['/api/health', '/health'], (req, res) => {
     }
     try {
       const result = type === 'THURSDAY_DEPOSITS' ? await executeThursdayDepositSweep() : await executeFridayPayoutSweep();
+      // Dwolla-rail pods: Thursday starts the bank debits, Friday closes the week.
+      if (railEnabled() && pods.some(p => p && p.status === 'ACTIVE' && isDwollaPod(p))) {
+        const dw = type === 'THURSDAY_DEPOSITS' ? await startWeekContributions(pods) : await finishWeek(pods);
+        result.activePodsEvaluated += dw.podsEvaluated;
+        result.totalTransactionsCount += dw.transfers;
+        result.totalVolumeUsd += dw.volumeUsd;
+        result.failedCount += dw.failed;
+        result.details.push(...dw.details.map(line => `[Bank payments] ${line}`));
+      }
       if (type === 'THURSDAY_DEPOSITS') lastThursdaySweepResult = result; else lastFridaySweepResult = result;
       run.completedAt = new Date().toISOString();
       run.success = result.success;
@@ -6278,6 +6331,11 @@ Return ONLY a valid JSON object in this exact schema:
     const pod = pods.find(p => p.id === podId);
     if (!pod) {
       return res.status(404).json({ error: 'Pod not found' });
+    }
+    // Paused for pods on bank payments (Dwolla): a missed week is covered by
+    // MutualPool's reserve instead.
+    if (isDwollaPod(pod)) {
+      return res.status(409).json({ error: 'HARDSHIP_PAUSED', message: 'The Hardship Fund is paused for pods on bank payments. If you miss a week, MutualPool’s reserve covers your pod and you can catch up later.' });
     }
 
     const member = pod.members.find(m => m.userId === user.id);
@@ -8584,6 +8642,8 @@ MutualPool`,
     bankName: user.dwolla?.bankName || null,
     canContribute: canContribute(user),
     canReceive: canReceive(user),
+    // Ready to create/join pods on bank payments.
+    ready: paymentsReady(user),
   });
 
   app.get('/api/dwolla/status', (req: Request, res: Response) => {
@@ -10437,6 +10497,7 @@ function startHostedPodIfReady(pod: Pod): boolean {
   if (!isHostedPod(pod) || pod.status !== 'FORMING') return false;
   if (pod.members.length < 2 || pod.members.length < pod.sizeTier) return false;
   if (pod.members.some(m => !m.agreementSignedAt)) return false;
+  if (isDwollaPod(pod) && membersNotReady(pod).length > 0) return false;
   const locked = lockPodRotation(pod);
   if (locked.ok === false) {
     if (!hostedStartAlerted.has(pod.id)) {
@@ -13536,6 +13597,18 @@ function registerPersistentState(): void {
     audit: (userId, userName, action, message, meta) => {
       try { addAuditLog(undefined, userId, userName, action as any, message, meta || {}); } catch (err) { console.warn('[dwolla audit]', err); }
     },
+    onContributionFailed: record => handleFailedContribution(record, pods),
+  });
+  initDwollaPods({
+    users: () => users,
+    audit: (podId, userId, userName, action, message, meta) => {
+      try { addAuditLog(podId, userId, userName, action as any, message, meta || {}); } catch (err) { console.warn('[dwolla pods audit]', err); }
+    },
+    notify: (userId, pod, title, message) => {
+      try { createNotification({ userId, type: 'STATUS_CHANGE', title, message, podId: pod.id, podName: pod.name }); } catch (err) { console.warn('[dwolla pods notify]', err); }
+    },
+    onCompleted: pod => onPodCompleted(pod),
+    persist: () => { savePodsToDisk(); saveUsersToDisk(); requestFlush(); },
   });
   initCustody({
     getUsers: () => users,

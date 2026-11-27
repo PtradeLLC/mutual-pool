@@ -32,6 +32,10 @@ dwolla.setDwollaTransport(async (method, url, body, opts) => {
     if (opts?.idempotencyKey) seenIdempotency.set(opts.idempotencyKey, loc);
     return loc;
   };
+  if (method === 'GET' && full === `${BASE}/`) return { status: 200, body: { _links: { account: { href: `${BASE}/accounts/mp` } } } as any };
+  if (method === 'GET' && full === `${BASE}/accounts/mp/funding-sources`) {
+    return { status: 200, body: { _embedded: { 'funding-sources': [{ type: 'balance', status: 'verified', _links: { self: { href: `${BASE}/funding-sources/mp-balance` } } }] } } as any };
+  }
   if (method === 'POST' && full === `${BASE}/customers`) {
     const loc = make('customers');
     customers.set(loc, { status: 'verified' });
@@ -193,4 +197,92 @@ test('the rail stays off in production unless DWOLLA_ENABLED=true', () => {
   delete process.env.DWOLLA_ENABLED;
   process.env.NODE_ENV = prev;
   assert.equal(rail.railEnabled(), true, 'on in development when keys are set');
+});
+
+// --- Weekly pod engine (src/server/dwollaPods.ts) ----------------------------------
+import * as podsEngine from '../src/server/dwollaPods';
+import type { Pod } from '../src/types';
+
+test('weekly engine: Thursday debits everyone but the recipient, a failure is covered by the reserve, Friday closes the week', async () => {
+  const a = await readyMember('usr_pa', 'Alice');
+  const b = await readyMember('usr_pb', 'Bob');
+  const c = await readyMember('usr_pc', 'Cara');
+  const notes: Array<{ userId: string; title: string }> = [];
+  const completed: string[] = [];
+  const pods: Pod[] = [];
+  rail.initRail({ users: () => users, persist: () => {}, audit: () => {}, onContributionFailed: r => podsEngine.handleFailedContribution(r, pods) });
+  podsEngine.initDwollaPods({
+    users: () => users,
+    audit: () => {},
+    notify: (userId, _pod, title) => { notes.push({ userId, title }); },
+    onCompleted: pod => { completed.push(pod.id); },
+    persist: () => {},
+  });
+  const member = (u: User, idx: number) => ({ id: `pm_${u.id}`, podId: 'pod_eng', userId: u.id, displayName: u.displayName, rotationIndex: idx, hasReceivedPayout: false, delinquencyStatus: 'CLEAN' }) as any;
+  const pod = { id: 'pod_eng', name: 'Engine Pod', status: 'ACTIVE', paymentRail: 'DWOLLA', depositTier: 20, currentCycleWeek: 1, totalCycles: 3, members: [member(a, 0), member(b, 1), member(c, 2)] } as unknown as Pod;
+  pods.push(pod);
+
+  assert.equal(podsEngine.isDwollaPod(pod), true);
+  assert.equal(podsEngine.membersNotReady(pod).length, 0);
+
+  // Week 1: Alice receives; Bob and Cara pay her.
+  const before = calls.filter(x => x.method === 'POST' && x.url === `${BASE}/transfers`).length;
+  const thu = await podsEngine.startWeekContributions(pods);
+  assert.equal(thu.transfers, 2);
+  assert.equal(thu.failed, 0);
+  const sent = calls.filter(x => x.method === 'POST' && x.url === `${BASE}/transfers`).slice(before);
+  assert.equal(sent.length, 2);
+  assert.ok(sent.every(x => x.body._links.destination.href === a.dwolla!.balanceFundingSourceUrl), 'all to the week 1 recipient');
+  assert.ok(sent.every(x => x.body.amount.value === '21.00'));
+  // Running Thursday again does not debit twice.
+  await podsEngine.startWeekContributions(pods);
+  assert.equal(calls.filter(x => x.method === 'POST' && x.url === `${BASE}/transfers`).length, before + 2);
+
+  // Bob's debit bounces (R01): the reserve pays Alice $18.00 and Bob is marked.
+  const bobs = rail.podTransfers('pod_eng').find(t => t.payerUserId === b.id && t.kind === 'CONTRIBUTION')!;
+  transfersStatus.set(bobs.transferUrl, 'failed');
+  await rail.reconcilePendingTransfers();
+  assert.equal(bobs.status, 'failed');
+  const cover = rail.podTransfers('pod_eng').find(t => t.kind === 'RESERVE_COVER')!;
+  assert.ok(cover, 'reserve cover created');
+  assert.equal(cover.amountUsd, 18);
+  assert.equal(cover.payerUserId, b.id);
+  assert.equal(bobs.coveredByTransferId, cover.id);
+  const coverCall = calls.filter(x => x.method === 'POST' && x.url === `${BASE}/transfers`).at(-1)!;
+  assert.equal(coverCall.body._links.source.href, `${BASE}/funding-sources/mp-balance`, 'paid from MutualPool balance');
+  assert.equal(coverCall.body._links.destination.href, a.dwolla!.balanceFundingSourceUrl);
+  assert.equal(pod.members.find(m => m.userId === b.id)!.delinquencyStatus, 'DELINQUENT');
+  assert.ok(notes.some(n => n.userId === b.id && /missed/.test(n.title)));
+
+  // Friday: Alice marked paid, pod moves to week 2.
+  const fri = await podsEngine.finishWeek(pods);
+  assert.equal(fri.podsEvaluated, 1);
+  assert.equal(pod.members.find(m => m.userId === a.id)!.hasReceivedPayout, true);
+  assert.equal(pod.currentCycleWeek, 2);
+  assert.ok(notes.some(n => n.userId === a.id && /payout/.test(n.title)));
+
+  // Weeks 2 and 3 complete the pod.
+  for (let w = 2; w <= 3; w++) {
+    await podsEngine.startWeekContributions(pods);
+    await podsEngine.finishWeek(pods);
+  }
+  assert.equal(pod.status, 'COMPLETED');
+  assert.deepEqual(completed, ['pod_eng']);
+  assert.equal(podsEngine.weekRecipient(pod, 3)!.userId, c.id);
+});
+
+test('a member who is not set up can not be debited: the reserve covers them', async () => {
+  const pods: Pod[] = [];
+  podsEngine.initDwollaPods({ users: () => users, audit: () => {}, notify: () => {}, onCompleted: () => {}, persist: () => {} });
+  const r = await readyMember('usr_r2', 'Rita');
+  const s = makeUser('usr_s2', 'Sam'); // never set up payments
+  const pod = { id: 'pod_ns', name: 'Not Set Up', status: 'ACTIVE', paymentRail: 'DWOLLA', depositTier: 10, currentCycleWeek: 1, totalCycles: 2,
+    members: [{ userId: r.id, displayName: 'Rita', rotationIndex: 0, hasReceivedPayout: false, delinquencyStatus: 'CLEAN' }, { userId: s.id, displayName: 'Sam', rotationIndex: 1, hasReceivedPayout: false, delinquencyStatus: 'CLEAN' }] } as unknown as Pod;
+  pods.push(pod);
+  assert.deepEqual(podsEngine.membersNotReady(pod).map(m => m.userId), [s.id]);
+  const thu = await podsEngine.startWeekContributions(pods);
+  assert.equal(thu.failed, 1);
+  const cover = rail.podTransfers('pod_ns').find(t => t.kind === 'RESERVE_COVER')!;
+  assert.equal(cover.amountUsd, 9, '$10 less the 10% platform fee');
+  assert.equal(pod.members[1].delinquencyStatus, 'DELINQUENT');
 });

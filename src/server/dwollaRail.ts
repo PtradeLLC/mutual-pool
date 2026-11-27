@@ -46,6 +46,8 @@ export interface RailDeps {
   /** Called after any change to users, authorizations, transfers or events. */
   persist: () => void;
   audit: (userId: string, userName: string, action: string, message: string, meta?: Record<string, unknown>) => void;
+  /** A contribution failed (e.g. R01): cover the recipient from the reserve, mark the payer. */
+  onContributionFailed?: (record: DwollaTransferRecord) => void | Promise<void>;
 }
 
 let deps: RailDeps | null = null;
@@ -368,6 +370,70 @@ function setTransferStatus(record: DwollaTransferRecord, status: DwollaTransferS
   return true;
 }
 
+async function notifyFailed(record: DwollaTransferRecord): Promise<void> {
+  const d = need();
+  if (record.kind !== 'CONTRIBUTION' || record.status !== 'failed' || !d.onContributionFailed) return;
+  try {
+    await d.onContributionFailed(record);
+  } catch (err) {
+    console.error('[dwolla] handling a failed contribution:', err);
+  }
+}
+
+/**
+ * A member's contribution failed: MutualPool's reserve (its own Dwolla
+ * Balance, funded by the 5% reserve fees) pays the recipient what they would
+ * have received. Idempotent per failed contribution.
+ */
+export interface CoverInput {
+  recipient: User;
+  payerUserId: string;
+  podId: string;
+  cycleWeek: number;
+  depositUsd: number;
+  /** The failed contribution, when one was created. */
+  failed?: DwollaTransferRecord;
+}
+
+export async function coverWithReserve(input: CoverInput): Promise<DwollaTransferRecord> {
+  const d = need();
+  const { recipient, payerUserId, podId, cycleWeek } = input;
+  const existing = transfers.find(t => t.kind === 'RESERVE_COVER' && t.podId === podId && t.cycleWeek === cycleWeek && t.payerUserId === payerUserId && t.status !== 'failed' && t.status !== 'cancelled');
+  if (existing) return existing;
+  if (!canReceive(recipient)) throw new RailError(400, 'RECIPIENT_NOT_READY', `${recipient.displayName} cannot receive payouts.`);
+  const { recipientNetUsd: net } = contributionAmounts(input.depositUsd);
+  try {
+    const source = await dwolla.getAccountBalanceFundingSource();
+    const id = newId('dxfer');
+    const transferUrl = await dwolla.createTransfer({
+      sourceUrl: source,
+      destinationUrl: recipient.dwolla!.balanceFundingSourceUrl!,
+      amountUsd: net,
+      correlationId: `cover-${podId}-w${cycleWeek}-${payerUserId}`.slice(0, 255),
+    }, `mp-cover-${podId}-w${cycleWeek}-${payerUserId}`);
+    const record: DwollaTransferRecord = {
+      id, kind: 'RESERVE_COVER', transferUrl, status: 'pending', amountUsd: net, reserveFeeUsd: 0, platformFeeUsd: 0,
+      recipientUserId: recipient.id, payerUserId, podId, cycleWeek,
+      coversTransferId: input.failed?.id, createdAt: nowIso(), updatedAt: nowIso(),
+    };
+    transfers.unshift(record);
+    if (input.failed) {
+      input.failed.coveredByTransferId = id;
+      input.failed.updatedAt = nowIso();
+    }
+    d.audit(recipient.id, recipient.displayName, 'DWOLLA_RESERVE_COVER', `MutualPool's reserve paid $${net.toFixed(2)} for a missed week ${cycleWeek} contribution.`, { podId, transferId: id, payerUserId });
+    d.persist();
+    return record;
+  } catch (err) {
+    fail(err);
+  }
+}
+
+/** Dwolla transfers for a pod (newest first). */
+export function podTransfers(podId: string): DwollaTransferRecord[] {
+  return transfers.filter(t => t.podId === podId);
+}
+
 /** Polls Dwolla for transfers still pending (fallback for missed webhooks). */
 export async function reconcilePendingTransfers(limit = 50): Promise<{ checked: number; changed: number }> {
   const d = need();
@@ -379,7 +445,10 @@ export async function reconcilePendingTransfers(limit = 50): Promise<{ checked: 
       const t = await dwolla.getTransfer(record.transferUrl);
       const status = (['pending', 'processed', 'failed', 'cancelled'].includes(t.status) ? t.status : 'pending') as DwollaTransferStatus;
       const failure = status === 'failed' ? await dwolla.getTransferFailure(record.transferUrl) : undefined;
-      if (setTransferStatus(record, status, failure)) changed += 1;
+      if (setTransferStatus(record, status, failure)) {
+        changed += 1;
+        await notifyFailed(record);
+      }
     } catch {
       // try again on the next run
     }
@@ -442,6 +511,7 @@ export async function handleWebhookEvent(event: DwollaWebhookEvent): Promise<{ a
       const status: DwollaTransferStatus = event.topic.endsWith('completed') ? 'processed' : event.topic.endsWith('failed') ? 'failed' : 'cancelled';
       const failure = status === 'failed' ? await dwolla.getTransferFailure(resource) : undefined;
       if (setTransferStatus(record, status, failure)) {
+        await notifyFailed(record);
         const who = d.users().find(u => u.id === (record.payerUserId || record.recipientUserId));
         d.audit(who?.id || 'SYSTEM', who?.displayName || 'Dwolla', 'DWOLLA_TRANSFER_' + status.toUpperCase(), `${record.kind === 'CONTRIBUTION' ? `Week ${record.cycleWeek} contribution` : 'Withdrawal'} ${status}${failure?.code ? ` (${failure.code})` : ''}.`, { transferId: record.id, podId: record.podId });
       }

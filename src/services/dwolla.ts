@@ -124,6 +124,7 @@ let transport: DwollaTransport = httpTransport;
 export function setDwollaTransport(t: DwollaTransport | null): void {
   transport = t || httpTransport;
   cachedToken = null;
+  cachedAccountBalance = null;
 }
 
 // --- Helpers -------------------------------------------------------------------
@@ -140,6 +141,23 @@ export async function getAccountUrl(): Promise<string> {
   const root = await transport<any>('GET', '/');
   const href = link(root.body, 'account');
   if (!href) throw new DwollaError(root.status, 'Dwolla account link missing.', 'no_account');
+  return href;
+}
+
+let cachedAccountBalance: string | null = null;
+/**
+ * MutualPool's own Dwolla Balance: receives the facilitator fees (reserve +
+ * platform) and pays a recipient when a member's contribution fails.
+ */
+export async function getAccountBalanceFundingSource(): Promise<string> {
+  if (cachedAccountBalance) return cachedAccountBalance;
+  const account = await getAccountUrl();
+  const res = await transport<any>('GET', `${account}/funding-sources`);
+  const list: any[] = res.body?._embedded?.['funding-sources'] || [];
+  const balance = list.find(fs => fs.type === 'balance' && !fs.removed);
+  const href = link(balance, 'self');
+  if (!href) throw new DwollaError(res.status, 'MutualPool Dwolla balance not found.', 'no_balance');
+  cachedAccountBalance = href;
   return href;
 }
 

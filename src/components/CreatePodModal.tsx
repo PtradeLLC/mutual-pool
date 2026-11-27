@@ -37,6 +37,9 @@ interface CreatePodModalProps {
   // Opens the Add Funds modal (pre-filled with the shortfall) when the member's
   // balance cannot cover the first deposit. The form is saved as a draft first.
   onOpenAddFunds?: (amountUsd: number) => void;
+  // Bank payments (Dwolla): pods are free to create; weekly debits start when full.
+  bankPayments?: { enabled: boolean; ready: boolean };
+  onOpenPaymentSetup?: () => void;
   // "Start a new round" of a completed pod: fields are prefilled and the server
   // links the pods and invites the previous members (renewedFromPodId).
   prefill?: CreatePodPrefill;
@@ -63,6 +66,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   onPodCreated,
   onDebitMandateRequired, 
   onOpenAddFunds,
+  bankPayments,
+  onOpenPaymentSetup,
   onUserUpdated,
   existingPods = [],
   userCreatedPodsCount
@@ -118,6 +123,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
   const totalChargedAmount = baseDepositAmount + platformFee;
   const treasuryBalance = Number(currentUserState.treasury?.balanceUsd ?? 0);
   const hasSufficientBalance = treasuryBalance + 1e-9 >= totalChargedAmount;
+  const bankMode = Boolean(bankPayments?.enabled);
   const shortfall = Math.max(0, Math.round((totalChargedAmount - treasuryBalance) * 100) / 100);
 
   // Contacts are held locally until the pod exists; the server validates them
@@ -219,6 +225,14 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
     }
 
     setError(null);
+    if (bankMode) {
+      if (!bankPayments?.ready) {
+        onOpenPaymentSetup?.();
+        return;
+      }
+      void handleCreatePod();
+      return;
+    }
     if (!hasSufficientBalance) {
       requestAddFunds();
       return;
@@ -247,7 +261,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
       setError(t('createPod.errorLimit', { count: activeCreatedCount }));
       return;
     }
-    if (!hasSufficientBalance) {
+    if (!bankMode && !hasSufficientBalance) {
       requestAddFunds();
       return;
     }
@@ -286,6 +300,9 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
         const message: string = data.message || data.error || `Could not create the pod (HTTP ${res.status}).`;
         if (data.error === 'KYC_REQUIRED' || /KYC/i.test(message)) {
           setShowKycModal(true);
+        } else if (data.error === 'PAYMENTS_SETUP_REQUIRED') {
+          onOpenPaymentSetup?.();
+          return;
         } else if (data.error === 'DEBIT_MANDATE_REQUIRED') {
           onDebitMandateRequired?.(message);
         } else if (res.status === 402 || data.error === 'INSUFFICIENT_FUNDS') {
@@ -350,8 +367,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               </div>
             </div>
 
-            {/* Welcome Match & First-Cycle Contingency Buffer Banner */}
-            {!user.welcomeMatchReceived ? (
+            {/* Welcome Match & First-Cycle Contingency Buffer Banner (paused on bank payments) */}
+            {bankMode ? null : !user.welcomeMatchReceived ? (
               <div className="mb-5 p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 space-y-2 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-sm text-emerald-900">
@@ -851,8 +868,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
               <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[#111827] font-bold block">{t('createPod.initialDepositLabel', { name: user.displayName })}</span>
-                    <span className="text-[11px] text-gray-500">{t('createPod.initialDepositDesc')}</span>
+                    <span className="text-[#111827] font-bold block">{bankMode ? 'Weekly contribution' : t('createPod.initialDepositLabel', { name: user.displayName })}</span>
+                    <span className="text-[11px] text-gray-500">{bankMode ? 'Debited from your bank each Thursday once the pod is full' : t('createPod.initialDepositDesc')}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-bold text-[#111827] font-mono">
@@ -863,8 +880,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
 
                 <div className="flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[#005FB8] font-bold block">{t('createPod.platformFeeLabel')}</span>
-                    <span className="text-[11px] text-gray-500">{t('createPod.platformFeeDesc')}</span>
+                    <span className="text-[#005FB8] font-bold block">{bankMode ? '5% reserve fee' : t('createPod.platformFeeLabel')}</span>
+                    <span className="text-[11px] text-gray-500">{bankMode ? 'Non-refundable; keeps pods going if someone misses a week' : t('createPod.platformFeeDesc')}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-bold text-[#005FB8] font-mono">
@@ -875,8 +892,8 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
 
                 <div className="pt-2 border-t border-gray-200 flex items-center justify-between bg-blue-50/60 p-2.5 rounded-lg border border-blue-100">
                   <div>
-                    <span className="text-[#111827] font-bold block text-xs">{t('createPod.totalInitialPaymentLabel')}</span>
-                    <span className="text-[10.5px] text-[#005FB8]">{t('createPod.totalInitialPaymentDesc')}</span>
+                    <span className="text-[#111827] font-bold block text-xs">{bankMode ? 'Weekly debit' : t('createPod.totalInitialPaymentLabel')}</span>
+                    <span className="text-[10.5px] text-[#005FB8]">{bankMode ? 'Except in your payout week' : t('createPod.totalInitialPaymentDesc')}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-base font-extrabold text-[#005FB8] font-mono">
@@ -902,7 +919,17 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                 </p>
               </div>
 
-              {/* Where the money comes from: the member's balance (added through Stripe) */}
+              {/* Bank payments: free to create; Ledger: paid from the member's balance (added through Stripe) */}
+              {bankMode ? (
+              <div className={`p-3 rounded-lg border text-[11.5px] flex items-start gap-2 leading-relaxed ${bankPayments?.ready ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                <Wallet className={`w-4 h-4 shrink-0 mt-0.5 ${bankPayments?.ready ? 'text-emerald-600' : 'text-amber-600'}`} />
+                <span>
+                  {bankPayments?.ready
+                    ? `Free to create: nothing is charged now. Once your pod is full, $${totalChargedAmount.toFixed(2)} ($${baseDepositAmount.toFixed(2)} + $${platformFee.toFixed(2)} reserve fee) is debited from your bank each Thursday, except in your payout week.`
+                    : 'Set up bank payments (verify your details and link your bank) to create a pod. Nothing is charged until the pod is full.'}
+                </span>
+              </div>
+              ) : (
               <div className={`p-3 rounded-lg border text-[11.5px] flex items-start gap-2 leading-relaxed ${
                 hasSufficientBalance
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
@@ -919,6 +946,7 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       })}
                 </span>
               </div>
+              )}
 
               {submitError && (
                 <div role="alert" className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
@@ -954,7 +982,9 @@ export const CreatePodModal: React.FC<CreatePodModalProps> = ({
                       ? t('createPod.limitReachedBadge')
                       : loading
                         ? t('createPod.creatingPod')
-                        : t('createPod.payAndCreateBtn', { amount: totalChargedAmount.toFixed(2), type: podType === 'TRUSTED_CIRCLE' ? t('createPod.typeTrustedCircle') : t('createPod.typeOpenPod') })}
+                        : bankMode
+                          ? (bankPayments?.ready ? `Create ${podType === 'TRUSTED_CIRCLE' ? t('createPod.typeTrustedCircle') : t('createPod.typeOpenPod')} Pod (free)` : 'Set up bank payments to create')
+                          : t('createPod.payAndCreateBtn', { amount: totalChargedAmount.toFixed(2), type: podType === 'TRUSTED_CIRCLE' ? t('createPod.typeTrustedCircle') : t('createPod.typeOpenPod') })}
                   </span>
                 </button>
               </div>
