@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, GigPlatform, UserRole, calculateAccountAgeDays } from '../types';
+import { hasFleet } from '../lib/gigPlatform';
 import { X, Camera, User as UserIcon, Upload, Check, Sparkles, Calendar, ShieldCheck } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -175,7 +176,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
           <div>
             <h3 className="text-lg font-bold text-[#111827]">Edit Profile & Tenure</h3>
-            <p className="text-xs text-[#6B7280]">Update display info, platform role, and member start date</p>
+            <p className="text-xs text-[#6B7280]">Update display info, platform, role and member start date</p>
           </div>
         </div>
 
@@ -266,8 +267,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             />
           </div>
 
-          {/* Primary Gig Platform & Role */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Primary Gig Platform & Role (no work role for Non-essential/Other members) */}
+          <div className={`grid grid-cols-1 gap-3 ${hasFleet(platform) ? 'sm:grid-cols-2' : ''}`}>
             <div>
               <label className="block text-xs font-bold text-[#374151] mb-1">
                 Primary Gig Platform
@@ -288,6 +289,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               </select>
             </div>
 
+            {hasFleet(platform) && (
             <div>
               <label className="block text-xs font-bold text-[#374151] mb-1">
                 Work Role
@@ -305,6 +307,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <option value="SUPER_ADMIN">Platform Super Admin</option>
               </select>
             </div>
+            )}
           </div>
 
           <TraditionSelect
