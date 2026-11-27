@@ -31,7 +31,8 @@ export const isAdvertiserOrAdmin = (user?: User | null): boolean => {
   return isAdminUser(user) || isAdvertiserUser(user);
 };
 
-export type GigPlatform = 'Uber Eats' | 'Lyft' | 'DoorDash' | 'Instacart' | 'Amazon Flex' | 'Grubhub' | 'Spark' | 'Partner Provider';
+// 'Other' = the member doesn't work for a delivery/rideshare fleet ("Non-essential/Other").
+export type GigPlatform = 'Uber Eats' | 'Lyft' | 'DoorDash' | 'Instacart' | 'Amazon Flex' | 'Grubhub' | 'Spark' | 'Partner Provider' | 'Other';
 
 export interface ExternalBankAccount {
   bankName: string;

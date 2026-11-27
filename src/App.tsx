@@ -81,6 +81,7 @@ import {
 } from 'lucide-react';
 import type { CreatePodPrefill } from './components/CreatePodModal';
 import { readPendingPodDraft, clearPendingPodDraft } from './lib/pendingPodDraft';
+import { hasFleet } from './lib/gigPlatform';
 import { useTranslation } from './i18n';
 import { fetchWithExponentialBackoff } from './utils/apiRetry';
 import { scrollToTabSection } from './utils/navigation';
@@ -1847,10 +1848,10 @@ export default function App() {
                 <div className="flex items-center gap-2 mb-1">
                   <button
                     onClick={() => setShowEditProfileModal(true)}
-                    title="Click to change your primary gig platform or role"
+                    title="Click to change your primary gig platform (or Non-essential/Other) or role"
                     className="text-xs font-mono font-bold text-[#005FB8] bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                   >
-                    <span>{t('dash.fleetMember', { platform: activeUser.platform })}</span>
+                    <span>{hasFleet(activeUser.platform) ? t('dash.fleetMember', { platform: activeUser.platform }) : t('dash.memberBadge')}</span>
                     <Pencil className="w-3 h-3 text-[#005FB8]" />
                   </button>
                   <button

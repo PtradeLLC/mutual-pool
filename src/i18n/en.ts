@@ -469,6 +469,7 @@ export const en = {
   "dash.welcome": "Welcome back",
   "dash.welcomeUser": "Welcome, {name}",
   "dash.fleetMember": "{platform} Fleet Member",
+  "dash.memberBadge": "MutualPool Member",
   "dash.accountTenure": "{count} days account tenure",
   "dash.accountTenureSingular": "1 day account tenure",
   "dash.fdicBalance": "Treasury Balance:",
@@ -1217,6 +1218,7 @@ export const en = {
   "auth.platformGrubhub": "Grubhub Delivery",
   "auth.platformSpark": "Spark (Walmart)",
   "auth.platformAmazonFlex": "Amazon Flex Drivers",
+  "auth.platformOther": "Non-essential/Other",
   "auth.continueWithGoogle": "Continue with Google Account",
   "auth.signingInGoogle": "Signing in with Google...",
   "auth.googleDomainSetupNeeded": "Google Auth Domain Setup Needed",
@@ -1258,6 +1260,7 @@ export const en = {
   "auth.driverAmazonFlex": "Amazon Flex Driver",
   "auth.driverSpark": "Walmart Spark",
   "auth.driverGrubhub": "Grubhub Driver",
+  "auth.driverOther": "Non-essential/Other",
   "auth.registerAccountBtn": "Register Account",
   "auth.creatingProfile": "Creating Firebase User & Firestore Profile...",
 

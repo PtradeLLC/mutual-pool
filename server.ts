@@ -2929,7 +2929,9 @@ app.get(['/api/health', '/health'], (req, res) => {
       newUser.id,
       newUser.displayName,
       'USER_REGISTERED',
-      `Registered new driver profile on ${newUser.platform} fleet network. Initial Treasury account created.`,
+      newUser.platform === 'Other'
+        ? 'Registered new member profile (no delivery fleet). Initial Treasury account created.'
+        : `Registered new driver profile on ${newUser.platform} fleet network. Initial Treasury account created.`,
       { platform: newUser.platform, autoVerifyKyc }
     );
 
@@ -12328,7 +12330,9 @@ app.post('/api/ai/voice-guide', async (req: Request, res: Response) => {
     // Account facts come from the server-side session, never from the request body.
     const activeTab = typeof currentContext?.activeTab === 'string' && /^[a-z-]{1,40}$/.test(currentContext.activeTab) ? currentContext.activeTab : 'my-pods';
     const userName = sessionUser?.displayName || 'Guest';
-    const platform = sessionUser?.platform || 'Gig Courier';
+    const platform = sessionUser?.platform === 'Other'
+      ? 'None (not with a delivery or rideshare fleet; general member)'
+      : (sessionUser?.platform || 'Gig Courier');
     const treasuryBalance = Number(sessionUser?.treasury?.balanceUsd) || 0;
     const activePodsCount = sessionUser ? pods.filter(p => p && p.status === 'ACTIVE' && isPodMember(p, sessionUser)).length : 0;
     const lang = ['en', 'es', 'fr'].includes(currentContext?.language) ? currentContext.language : 'en';

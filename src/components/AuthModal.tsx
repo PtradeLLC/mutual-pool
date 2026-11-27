@@ -486,6 +486,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <option value="Grubhub">{t('auth.platformGrubhub')}</option>
             <option value="Spark">{t('auth.platformSpark')}</option>
             <option value="Amazon Flex">{t('auth.platformAmazonFlex')}</option>
+            <option value="Other">{t('auth.platformOther')}</option>
           </select>
         </div>
 
@@ -807,6 +808,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <option value="Amazon Flex">{t('auth.driverAmazonFlex')}</option>
                 <option value="Spark">{t('auth.driverSpark')}</option>
                 <option value="Grubhub">{t('auth.driverGrubhub')}</option>
+                <option value="Other">{t('auth.driverOther')}</option>
               </select>
             </div>
 

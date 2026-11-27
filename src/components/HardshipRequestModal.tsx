@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FEES } from '../lib/legal';
+import { hasFleet } from '../lib/gigPlatform';
 import { CLIENT_DEMO_MODE } from '../lib/demoMode';
 import { 
   HeartHandshake, 
@@ -795,8 +796,12 @@ export const HardshipRequestModal: React.FC<HardshipRequestModalProps> = ({
                                   })()}
                                 </div>
                                 <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
-                                  <span>{t('hardship.memberPlatform', { platform: member.platform || realUser?.platform || 'Gig Provider' })}</span>
-                                  <span>•</span>
+                                  {hasFleet(member.platform || realUser?.platform) && (
+                                    <>
+                                      <span>{t('hardship.memberPlatform', { platform: member.platform || realUser?.platform || '' })}</span>
+                                      <span>•</span>
+                                    </>
+                                  )}
                                   <span>{t('hardship.scheduledPayoutWeek', { week: idx + 1 })}</span>
                                 </div>
                               </div>

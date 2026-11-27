@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Pod, User, PaymentHistoryItem } from '../types';
-import { 
-  getUpcomingCycleDates, 
-  UpcomingCyclePair, 
-  formatTimeRemaining 
+import { hasFleet } from '../lib/gigPlatform';
+import {
+  getUpcomingCycleDates,
+  UpcomingCyclePair,
+  formatTimeRemaining
 } from '../utils/platformSchedule';
-import { 
-  Calendar, 
+import {
+  Calendar,
   Clock, 
   ArrowRight, 
   DollarSign, 
@@ -599,7 +600,7 @@ export const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({
                               ) : (
                                 <div className="text-[#4B5563] text-[10px] truncate max-w-[210px]">
                                   Recipient: <strong className="text-[#111827]">{recipientMember?.displayName || 'Scheduled Member'}</strong>
-                                  {recipientMember?.platform && (
+                                  {hasFleet(recipientMember?.platform) && (
                                     <span className="ml-1 text-gray-500 font-normal">
                                       ({recipientMember.platform})
                                     </span>

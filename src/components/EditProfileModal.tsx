@@ -284,6 +284,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <option value="Grubhub">Grubhub</option>
                 <option value="Spark">Spark (Walmart)</option>
                 <option value="Amazon Flex">Amazon Flex</option>
+                <option value="Other">Non-essential/Other</option>
               </select>
             </div>
 
@@ -319,7 +320,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-[#005FB8]" />
                 <label className="text-xs font-bold text-[#111827]">
-                  Fleet Member Join Date & Tenure
+                  Member Join Date & Tenure
                 </label>
               </div>
               <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-blue-100 text-[#005FB8] border border-blue-200">

@@ -454,6 +454,7 @@ export const fr: Record<TranslationKey, string> = {
   'dash.welcome': 'Ravi de vous revoir',
   'dash.welcomeUser': 'Bienvenue, {name}',
   'dash.fleetMember': 'Chauffeur Flotte {platform}',
+  'dash.memberBadge': 'Membre MutualPool',
   'dash.accountTenure': '{count} jours d’ancienneté',
   'dash.accountTenureSingular': '1 jour d’ancienneté',
   "dash.fdicBalance": "Solde de trésorerie :",
@@ -1104,6 +1105,7 @@ export const fr: Record<TranslationKey, string> = {
   'auth.platformGrubhub': 'Livraison Grubhub',
   'auth.platformSpark': 'Spark (Walmart)',
   'auth.platformAmazonFlex': 'Chauffeurs Amazon Flex',
+  'auth.platformOther': 'Non essentiel/Autre',
   'auth.continueWithGoogle': 'Continuer avec Google',
   'auth.signingInGoogle': 'Connexion avec Google...',
   'auth.googleDomainSetupNeeded': 'Configuration de domaine Google Auth requise',
@@ -1144,6 +1146,7 @@ export const fr: Record<TranslationKey, string> = {
   'auth.driverAmazonFlex': 'Livreur Amazon Flex',
   'auth.driverSpark': 'Walmart Spark',
   'auth.driverGrubhub': 'Livreur Grubhub',
+  'auth.driverOther': 'Non essentiel/Autre',
   'auth.registerAccountBtn': 'Créer un compte',
   'auth.creatingProfile': 'Création de l’utilisateur et du profil...',
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FEES } from '../lib/legal';
+import { hasFleet } from '../lib/gigPlatform';
 import { Pod, User, PodMembership, ReprioritizationRequest, AuditLogEntry, Deposit, HardshipFundRequest, PodDetailTab } from '../types';
 import { FDICNoticeBanner } from './FDICNoticeBanner';
 import { TrustedCircleInviter } from './TrustedCircleInviter';
@@ -1472,7 +1473,7 @@ export const PodDetailModal: React.FC<PodDetailModalProps> = ({
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-[#6B7280]">
-                        <span>{member.platform} • Joined {new Date(member.joinedAt).toLocaleDateString()}</span>
+                        <span>{hasFleet(member.platform) ? `${member.platform} • ` : ''}Joined {new Date(member.joinedAt).toLocaleDateString()}</span>
                         {member.invitedByName && !isPodCreator && (
                           <span className="text-[10px] text-[#005FB8] font-medium bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
                             Invited by {member.invitedByName} {member.invitedByUserId === pod.createdBy ? '(1st Degree)' : '(Friend of Friend)'}

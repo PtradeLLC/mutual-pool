@@ -7,6 +7,7 @@ import { CountrySelector } from './CountrySelector';
 import { EnvironmentSwitcherModal } from './EnvironmentSwitcherModal';
 import { useSiteUrl } from '../utils/siteUrl';
 import { CLIENT_DEMO_MODE } from '../lib/demoMode';
+import { hasFleet } from '../lib/gigPlatform';
 import { avatarUrlFor } from '../utils/avatar';
 import { scrollToTabSection } from '../utils/navigation';
 import { useTranslation } from '../i18n';
@@ -384,7 +385,7 @@ export const Header: React.FC<HeaderProps> = ({
                 />
                 <div className="hidden sm:block text-xs sm:text-sm">
                   <span className="font-bold text-[#111827] block leading-tight">{currentUser.displayName}</span>
-                  <span className="text-[11px] sm:text-xs text-[#6B7280]">{currentUser.platform} ({currentUser.role})</span>
+                  <span className="text-[11px] sm:text-xs text-[#6B7280]">{hasFleet(currentUser.platform) ? `${currentUser.platform} (${currentUser.role})` : t('dash.memberBadge')}</span>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-[#6B7280]" />
               </button>
@@ -410,7 +411,7 @@ export const Header: React.FC<HeaderProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-[#6B7280] truncate">{currentUser.email || `${currentUser.platform} Member`}</p>
+                      <p className="text-xs text-[#6B7280] truncate">{currentUser.email || (hasFleet(currentUser.platform) ? `${currentUser.platform} Member` : t('dash.memberBadge'))}</p>
                     </div>
 
                     {/* Quick Demo Role Switcher to effortlessly verify role-based permissions */}
@@ -991,7 +992,7 @@ export const Header: React.FC<HeaderProps> = ({
                   />
                   <div className="min-w-0 flex-1">
                     <h4 className="font-bold text-sm text-[#111827] truncate">{currentUser.displayName}</h4>
-                    <p className="text-xs text-[#6B7280] truncate">{currentUser.email || `${currentUser.platform} Member`}</p>
+                    <p className="text-xs text-[#6B7280] truncate">{currentUser.email || (hasFleet(currentUser.platform) ? `${currentUser.platform} Member` : t('dash.memberBadge'))}</p>
                   </div>
                 </div>
 
