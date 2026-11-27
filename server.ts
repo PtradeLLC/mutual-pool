@@ -123,6 +123,8 @@ import {
 import type { AppErrorGroup, UserJourney, TelemetryDay } from './src/server/telemetry';
 import { SourceMapConsumer } from 'source-map-js';
 import { platformConfigured, signState, verifyState, authorizeUrl, exchangeAndReadProfile } from './src/server/creatorSocial';
+import { initRail, railCollections, railEnabled, railStatus, railReport, validateEnrollInput, enrollMember, refreshMember, startDebitAuthorization, linkBank, createWithdrawal, canContribute, canReceive, reconcilePendingTransfers, handleWebhookEvent as handleDwollaEvent, RailError } from './src/server/dwollaRail';
+import { verifyWebhookSignature as verifyDwollaSignature, getBalance as getDwollaBalance } from './src/services/dwolla';
 
 let geminiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
@@ -8567,6 +8569,153 @@ MutualPool`,
     }
   });
 
+  // --- Dwolla payment rail (src/server/dwollaRail.ts) -----------------------------
+  // Off unless Dwolla keys are set (and DWOLLA_ENABLED=true in production).
+  const dwollaOff = (res: Response) => res.status(404).json({ error: 'DWOLLA_DISABLED', message: 'Bank payments are not available yet.' });
+  const railFail = (res: Response, err: unknown) => {
+    if (err instanceof RailError) return res.status(err.status).json({ error: err.code, message: err.message });
+    console.error('[dwolla]', err);
+    return res.status(502).json({ error: 'DWOLLA_UNAVAILABLE', message: 'Our payments partner is unavailable. Please try again shortly.' });
+  };
+  const dwollaView = (user: User) => ({
+    ...railStatus(),
+    customerStatus: user.dwolla?.customerStatus || null,
+    bankStatus: user.dwolla?.bankStatus || null,
+    bankName: user.dwolla?.bankName || null,
+    canContribute: canContribute(user),
+    canReceive: canReceive(user),
+  });
+
+  app.get('/api/dwolla/status', (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (!railEnabled()) return res.json({ ...railStatus(), customerStatus: null });
+    res.json(dwollaView(user));
+  });
+
+  // Create the member's Dwolla customer. The SSN last four go to Dwolla only.
+  app.post('/api/dwolla/customer', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (!railEnabled()) return dwollaOff(res);
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
+    const parsed = validateEnrollInput(req.body);
+    if (parsed.ok === false) return res.status(400).json({ error: 'INVALID_INPUT', message: parsed.message });
+    try {
+      await enrollMember(user, parsed.value);
+      res.json(dwollaView(user));
+    } catch (err) {
+      railFail(res, err);
+    }
+  });
+
+  app.post('/api/dwolla/refresh', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (!railEnabled()) return dwollaOff(res);
+    try {
+      await refreshMember(user);
+      res.json(dwollaView(user));
+    } catch (err) {
+      railFail(res, err);
+    }
+  });
+
+  // Step 1 of linking a bank: get the debit authorization text to show.
+  app.post('/api/dwolla/authorization', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (!railEnabled()) return dwollaOff(res);
+    try {
+      const auth = await startDebitAuthorization(user);
+      res.json({ authorizationId: auth.id, bodyText: auth.bodyText, buttonText: auth.buttonText });
+    } catch (err) {
+      railFail(res, err);
+    }
+  });
+
+  // Step 2: link the bank; this is the member accepting the authorization.
+  app.post('/api/dwolla/bank', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (!railEnabled()) return dwollaOff(res);
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
+    const b = req.body || {};
+    try {
+      await linkBank(user, {
+        authorizationId: String(b.authorizationId || ''),
+        plaidToken: typeof b.plaidToken === 'string' ? b.plaidToken : undefined,
+        routingNumber: typeof b.routingNumber === 'string' ? b.routingNumber.replace(/\D/g, '') : undefined,
+        accountNumber: typeof b.accountNumber === 'string' ? b.accountNumber.replace(/\D/g, '') : undefined,
+        bankAccountType: b.bankAccountType === 'savings' ? 'savings' : 'checking',
+        name: typeof b.name === 'string' ? b.name : undefined,
+      }, { ip: req.ip, userAgent: String(req.headers['user-agent'] || '') });
+      res.json(dwollaView(user));
+    } catch (err) {
+      railFail(res, err);
+    }
+  });
+
+  app.get('/api/dwolla/balance', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (!railEnabled()) return dwollaOff(res);
+    if (!user.dwolla?.balanceFundingSourceUrl) return res.json({ availableUsd: 0, totalUsd: 0 });
+    try {
+      res.json(await getDwollaBalance(user.dwolla.balanceFundingSourceUrl));
+    } catch (err) {
+      railFail(res, err);
+    }
+  });
+
+  app.post('/api/dwolla/withdraw', async (req: Request, res: Response) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Please sign in.' });
+    if (!railEnabled()) return dwollaOff(res);
+    if (restrictionFor(user)) return accountRestrictedResponse(res, user);
+    try {
+      const record = await createWithdrawal(user, Number(req.body?.amountUsd), req.body?.sameDay === true);
+      res.json({ transfer: { id: record.id, status: record.status, amountUsd: record.amountUsd } });
+    } catch (err) {
+      railFail(res, err);
+    }
+  });
+
+  // Dwolla webhooks: customer verification, bank status, transfer results.
+  app.post('/api/webhooks/dwolla', async (req: Request, res: Response) => {
+    if (!railEnabled()) return dwollaOff(res);
+    const rawBody: Buffer | undefined = (req as any).rawBody;
+    const signature = getHeaderValue(req, 'x-request-signature-sha-256');
+    if (!rawBody || !verifyDwollaSignature(rawBody, signature, process.env.DWOLLA_WEBHOOK_SECRET)) {
+      return res.status(401).json({ error: 'BAD_SIGNATURE' });
+    }
+    let event: any;
+    try { event = JSON.parse(rawBody.toString('utf8')); } catch { return res.status(400).json({ error: 'BAD_JSON' }); }
+    try {
+      const result = await handleDwollaEvent(event);
+      res.json({ received: true, ...result });
+    } catch (err) {
+      console.error('[dwolla webhook]', err);
+      // A 5xx makes Dwolla retry the delivery later.
+      res.status(500).json({ error: 'WEBHOOK_FAILED' });
+    }
+  });
+
+  app.get('/api/admin/dwolla', (req: Request, res: Response) => {
+    const admin = getCurrentUser(req);
+    if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
+    res.json(railReport());
+  });
+
+  // Re-check pending transfers with Dwolla (fallback if a webhook was missed).
+  app.post('/api/platform/schedule/dwolla-reconcile', async (req: Request, res: Response) => {
+    const provided = getHeaderValue(req, 'x-cron-secret');
+    const cronOk = Boolean(process.env.CRON_SECRET) && provided === process.env.CRON_SECRET;
+    if (!cronOk && !checkIsAdmin(req)) return res.status(403).json({ error: 'FORBIDDEN' });
+    if (!railEnabled()) return dwollaOff(res);
+    res.json({ success: true, ...(await reconcilePendingTransfers()) });
+  });
+
   app.get('/api/admin/custody', (req: Request, res: Response) => {
     const admin = getCurrentUser(req);
     if (!admin || !checkIsAdmin(req)) return res.status(403).json({ error: 'Access denied. Administrator role required.' });
@@ -13368,6 +13517,10 @@ function registerPersistentState(): void {
     deposits = docs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   } });
   registerCollection({ collection: 'redemptions', get: () => redemptions, set: docs => { redemptions = docs; } });
+  // Dwolla payment rail: debit authorizations are kept 2+ years (never pruned).
+  registerCollection({ collection: 'debitAuthorizations', get: railCollections.authorizations.get, set: railCollections.authorizations.set });
+  registerCollection({ collection: 'dwollaTransfers', get: railCollections.transfers.get, set: railCollections.transfers.set });
+  registerCollection({ collection: 'dwollaWebhookEvents', get: railCollections.events.get, set: railCollections.events.set });
   registerCollection({ collection: 'processedPayments', get: () => processedPayments, set: docs => { processedPayments = docs; } });
   registerCollection({ collection: 'withdrawals', get: () => withdrawals, set: docs => { withdrawals = docs; } });
   registerCollection({ collection: 'welcomeMatchGrants', get: () => welcomeMatchGrants, set: docs => { welcomeMatchGrants = docs; } });
@@ -13377,6 +13530,13 @@ function registerPersistentState(): void {
   registerCollection({ collection: 'sweepRuns', get: () => sweepRuns, set: docs => { sweepRuns = docs; } });
   registerCollection({ collection: 'custodyMovements', get: () => custodyMovements, set: docs => { custodyMovements = docs; } });
   registerCollection({ collection: 'custodySettings', get: () => (custodySettings ? [custodySettings] : []), set: docs => { custodySettings = (docs && docs[0]) || null; } });
+  initRail({
+    users: () => users,
+    persist: () => { saveUsersToDisk(); requestFlush(); },
+    audit: (userId, userName, action, message, meta) => {
+      try { addAuditLog(undefined, userId, userName, action as any, message, meta || {}); } catch (err) { console.warn('[dwolla audit]', err); }
+    },
+  });
   initCustody({
     getUsers: () => users,
     getPods: () => pods,

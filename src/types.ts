@@ -130,6 +130,8 @@ export interface User {
   accountRestriction?: AccountRestriction;
   // Bank account in the member's name at Column (see src/server/custody.ts).
   custody?: MemberCustody;
+  // Dwolla customer, linked bank and Dwolla Balance (see src/server/dwollaRail.ts).
+  dwolla?: DwollaMemberState;
   // Earnings routed into the MutualPool account from outside (employer or gig platform direct
   // deposit). Keeps premium perks unlocked while deposits keep arriving.
   earningsDeposit?: EarningsDepositRecord;
@@ -566,6 +568,70 @@ export interface PremiumStatus {
   until?: string;
   lastEarningsDepositAt?: string;
   windowDays: number;
+}
+
+// --- Dwolla (payment rail) ---------------------------------------------------
+// Dwolla customer status: https://developers.dwolla.com/docs/customer-types
+export type DwollaCustomerStatus = 'unverified' | 'verified' | 'retry' | 'document' | 'suspended' | 'deactivated';
+export type DwollaBankStatus = 'unverified' | 'verified' | 'removed';
+
+export interface DwollaMemberState {
+  customerUrl: string;
+  customerStatus: DwollaCustomerStatus;
+  /** Verified personal bank account weekly contributions are debited from. */
+  bankFundingSourceUrl?: string;
+  bankStatus?: DwollaBankStatus;
+  bankName?: string;
+  /** The member's Dwolla Balance (where payouts land). */
+  balanceFundingSourceUrl?: string;
+  /** DebitAuthorization.id the member accepted when linking the bank. */
+  authorizationId?: string;
+  updatedAt: string;
+}
+
+/**
+ * Proof that a member authorized future ACH debits (Dwolla on-demand
+ * authorization). Kept for at least two years after the last debit: needed to
+ * contest "unauthorized" returns. Never deleted.
+ */
+export interface DebitAuthorization {
+  id: string;
+  userId: string;
+  provider: 'dwolla';
+  authorizationUrl: string;
+  /** Exact text and button label shown to the member. */
+  bodyText: string;
+  buttonText: string;
+  createdAt: string;
+  acceptedAt?: string;
+  acceptedIp?: string;
+  acceptedUserAgent?: string;
+  fundingSourceUrl?: string;
+  revokedAt?: string;
+}
+
+export type DwollaTransferKind = 'CONTRIBUTION' | 'WITHDRAWAL';
+export type DwollaTransferStatus = 'pending' | 'processed' | 'failed' | 'cancelled';
+
+export interface DwollaTransferRecord {
+  id: string;
+  kind: DwollaTransferKind;
+  transferUrl: string;
+  status: DwollaTransferStatus;
+  /** Amount moved from the source (a contribution includes the reserve fee). */
+  amountUsd: number;
+  /** Non-refundable 5% fee that funds MutualPool's reserve. */
+  reserveFeeUsd: number;
+  /** MutualPool's fee on the payout (10% of the contribution). */
+  platformFeeUsd: number;
+  payerUserId?: string;
+  recipientUserId?: string;
+  podId?: string;
+  cycleWeek?: number;
+  failureCode?: string;
+  failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MemberCustody {

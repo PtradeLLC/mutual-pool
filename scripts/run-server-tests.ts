@@ -40,6 +40,10 @@ const serverEnv: NodeJS.ProcessEnv = {
   // Hero campaigns use fixed offline AI output in tests (src/server/heroAi.ts).
   HERO_AI_PROVIDER: 'stub',
   RESEND_API_KEY: '',
+  // Server tests never call Dwolla (tests/dwolla.test.ts uses a fake).
+  DWOLLA_API_KEY: '',
+  DWOLLA_API_SECRET: '',
+  DWOLLA_WEBHOOK_SECRET: '',
 };
 
 async function waitForHealth(timeoutMs = 90_000): Promise<void> {
